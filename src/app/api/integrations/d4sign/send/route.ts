@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertD4SignSendEnv, getD4SignEnv } from "@/lib/d4sign/env";
+import { assertD4SignSendEnv } from "@/lib/d4sign/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildInitialD4SignSigners } from "@/lib/crm/sync-oportunidade-d4sign-signers";
@@ -179,16 +179,14 @@ export async function POST(request: Request) {
       { onConflict: "uuid_doc", ignoreDuplicates: false },
     );
 
-    const webhookBase = getD4SignEnv().webhookHmacSecret
-      ? new URL(request.url).origin
-      : null;
-    if (webhookBase) {
-      const webhookUrl = `${webhookBase}/api/integrations/d4sign/webhook`;
-      try {
-        await connector.registerWebhook(result.documentUuid, webhookUrl);
-      } catch {
-        // Não falhar o envio se o registro de webhook falhar (URL local, permissões, etc.)
-      }
+    const appBase =
+      process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ||
+      new URL(request.url).origin;
+    const webhookUrl = `${appBase}/api/integrations/d4sign/webhook`;
+    try {
+      await connector.registerWebhook(result.documentUuid, webhookUrl);
+    } catch {
+      // Não falhar o envio se o registro de webhook falhar
     }
 
     return NextResponse.json({
