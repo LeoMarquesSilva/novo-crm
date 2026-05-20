@@ -7,9 +7,23 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-plus-jakarta);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-medium: var(--primary-medium);
+  --color-primary-light: var(--primary-light);
+  --color-accent-teal: var(--accent-teal);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-yellow-dark: var(--accent-yellow-dark);
+  --color-accent-pink: var(--accent-pink);
+  --color-accent-green: var(--accent-green);
+  --color-crm-surface-warm: var(--crm-surface-warm);
+  --color-crm-surface-warm-muted: var(--crm-surface-warm-muted);
+  --color-crm-border-warm: var(--crm-border-warm);
+  --color-crm-border-warm-strong: var(--crm-border-warm-strong);
+  --background-image-gradient-primary: var(--gradient-primary);
+  --background-image-gradient-dark: var(--gradient-dark);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,72 +63,85 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --primary-dark: #172033;
+  --primary-medium: #2c3a52;
+  --primary-light: #65758f;
+  --gradient-primary: linear-gradient(135deg, #17322f 0%, #0f766e 48%, #15b8a6 100%);
+  --gradient-dark: linear-gradient(135deg, #f8f9fb 0%, #f4f6f8 46%, #fbfaf7 100%);
+  --accent-teal: #0f9f8f;
+  --accent-yellow: #fff2c7;
+  --accent-yellow-dark: #d89d19;
+  --accent-pink: #ffe2ea;
+  --accent-green: #35c68a;
+  --crm-surface-warm: #f8f6ef;
+  --crm-surface-warm-muted: #f4f0e6;
+  --crm-border-warm: #ded8c8;
+  --crm-border-warm-strong: #d8ded8;
+  --glass-white: #ffffff;
+  --glass-blur: 0px;
+  --glass-border: rgba(16, 31, 46, 0.09);
+
+  --background: #f8f9fb;
+  --foreground: #172033;
+  --card: #ffffff;
+  --card-foreground: #172033;
+  --popover: #ffffff;
+  --popover-foreground: #172033;
+  --primary: #172033;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f3f5;
+  --secondary-foreground: #28364b;
+  --muted: #f2f4f7;
+  --muted-foreground: #65758f;
+  --accent: var(--accent-teal);
+  --accent-foreground: #ffffff;
+  --destructive: #d94862;
+  --border: rgba(16, 31, 46, 0.1);
+  --input: rgba(16, 31, 46, 0.14);
+  --ring: rgba(15, 159, 143, 0.42);
+  --chart-1: #0f9f8f;
+  --chart-2: #2563eb;
+  --chart-3: #d89d19;
+  --chart-4: #8b5cf6;
+  --chart-5: #ef6f6c;
+  --radius: 0.9rem;
+  --sidebar: #f3f5f8;
+  --sidebar-foreground: #172033;
+  --sidebar-primary: #172033;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(15, 159, 143, 0.1);
+  --sidebar-accent-foreground: #17322f;
+  --sidebar-border: rgba(49, 70, 96, 0.12);
+  --sidebar-ring: rgba(15, 159, 143, 0.45);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #0d1622;
+  --foreground: #f2f7ff;
+  --card: rgba(16, 31, 46, 0.72);
+  --card-foreground: #f2f7ff;
+  --popover: #152333;
+  --popover-foreground: #f2f7ff;
+  --primary: #dce8ff;
+  --primary-foreground: #101f2e;
+  --secondary: #1b2c3f;
+  --secondary-foreground: #e2ebf8;
+  --muted: #1b2c3f;
+  --muted-foreground: #9db0cb;
+  --accent: #2dc8b7;
+  --accent-foreground: #082022;
+  --destructive: #f87171;
+  --border: rgba(226, 235, 248, 0.2);
+  --input: rgba(226, 235, 248, 0.2);
+  --ring: #60a5fa;
+  --sidebar: #101f2e;
+  --sidebar-foreground: #f2f7ff;
+  --sidebar-primary: #dce8ff;
+  --sidebar-primary-foreground: #101f2e;
+  --sidebar-accent: #1b2c3f;
+  --sidebar-accent-foreground: #f2f7ff;
+  --sidebar-border: rgba(226, 235, 248, 0.2);
+  --sidebar-ring: #60a5fa;
 }
 
 @layer base {
@@ -123,8 +150,100 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-plus-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04";
   }
   html {
     @apply font-sans;
   }
+}
+
+@layer utilities {
+  .bg-crm-gradient-dark {
+    background-image: var(--gradient-dark);
+  }
+  .bg-crm-gradient-primary {
+    background-image: var(--gradient-primary);
+  }
+
+  .heading-xl {
+    font-size: clamp(2rem, 3vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 1.05;
+  }
+
+  .heading-lg {
+    font-size: clamp(1.55rem, 2vw, 2.25rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+  }
+
+  .glass-card {
+    background: #ffffff;
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      0 1px 2px rgba(16, 31, 46, 0.035),
+      0 14px 34px rgba(16, 31, 46, 0.055);
+    border-radius: 18px;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      transform 0.15s ease;
+  }
+
+  .glass-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(16, 31, 46, 0.13);
+    box-shadow:
+      0 2px 5px rgba(16, 31, 46, 0.045),
+      0 18px 42px rgba(16, 31, 46, 0.075);
+  }
+
+  .glass-card-no-float:hover {
+    transform: none;
+  }
+
+  .crm-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(15, 159, 143, 0.45) rgba(49, 70, 96, 0.08);
+  }
+
+  .crm-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .crm-scrollbar::-webkit-scrollbar-track {
+    background: rgba(49, 70, 96, 0.08);
+    border-radius: 999px;
+  }
+
+  .crm-scrollbar::-webkit-scrollbar-thumb {
+    background:
+      linear-gradient(180deg, rgba(20, 184, 166, 0.72) 0%, rgba(15, 118, 110, 0.78) 100%);
+    border: 2px solid rgba(255, 255, 255, 0.72);
+    border-radius: 999px;
+  }
+
+  .crm-scrollbar::-webkit-scrollbar-thumb:hover {
+    background:
+      linear-gradient(180deg, rgba(20, 184, 166, 0.9) 0%, rgba(15, 118, 110, 0.92) 100%);
+  }
+
+  /** Kanban: chevron do bloco expansível “Levantamento DUE” (native <details>). */
+  details.due-kanban-details[open] .due-kanban-chevron {
+    transform: rotate(180deg);
+  }
+
+  /** Scoped to Novo Lead modal — does not replace global Montserrat. */
+  .font-new-lead-modal {
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+/* Radix Popper: o wrapper externo copia o z-index do content após layout; até lá pode ficar abaixo do painel direito (z-30) e bloquear cliques. */
+[data-radix-popper-content-wrapper] {
+  z-index: 400;
 }
