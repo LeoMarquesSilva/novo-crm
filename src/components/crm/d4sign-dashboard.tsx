@@ -504,16 +504,21 @@ function SignersDisplay({
                   <p className="truncate text-[11px] font-semibold text-primary-dark leading-tight">
                     {displayName ?? s.email ?? `Signatário ${i + 1}`}
                   </p>
-                  {s.role === "CONTRATADA" && (
+                  {isFirm ? (
+                    <span className="shrink-0 rounded-sm bg-teal-100 px-1 py-px text-[8px] font-bold uppercase tracking-wide text-teal-700">
+                      sócio
+                    </span>
+                  ) : null}
+                  {s.role === "CONTRATADA" && !isFirm ? (
                     <span className="shrink-0 rounded-sm bg-teal-100 px-1 py-px text-[8px] font-bold uppercase tracking-wide text-teal-700">
                       adv
                     </span>
-                  )}
-                  {s.role === "CONTRATANTE" && (
+                  ) : null}
+                  {s.role === "CONTRATANTE" && !isFirm ? (
                     <span className="shrink-0 rounded-sm bg-amber-100 px-1 py-px text-[8px] font-bold uppercase tracking-wide text-amber-700">
                       cliente
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 {/* E-mail (quando o displayName já existe) */}
                 {displayName && s.email ? (

@@ -40,10 +40,6 @@ const DEFAULT_FIRM_SIGNERS: FirmSigner[] = [
   },
 ];
 
-/**
- * Retorna a lista canônica de signatários da CONTRATADA.
- * Aceita override total via env `D4SIGN_FIRM_SIGNERS` (JSON).
- */
 export function getFirmSigners(): FirmSigner[] {
   const raw = process.env.D4SIGN_FIRM_SIGNERS?.trim();
   if (!raw) return DEFAULT_FIRM_SIGNERS;
@@ -68,4 +64,15 @@ export function getFirmSigners(): FirmSigner[] {
   } catch {
     return DEFAULT_FIRM_SIGNERS;
   }
+}
+
+/** E-mail de sócio administrador (Gustavo/Ricardo), incluindo aliases de domínio antigo. */
+export function isFirmSignerEmail(email: string | null | undefined): boolean {
+  if (!email?.trim()) return false;
+  const key = email.trim().toLowerCase();
+  for (const f of getFirmSigners()) {
+    if (f.email.toLowerCase() === key) return true;
+    if (f.aliases?.some((alias) => alias.toLowerCase() === key)) return true;
+  }
+  return false;
 }

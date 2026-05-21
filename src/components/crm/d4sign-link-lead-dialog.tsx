@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { dialogSelectOutsideHandlers } from "@/lib/ui/base-ui-select-dialog";
 
 type LeadResult = {
   id: string;
@@ -91,7 +92,7 @@ export function D4SignLinkLeadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" {...dialogSelectOutsideHandlers()}>
         <DialogHeader>
           <DialogTitle>Vincular a lead</DialogTitle>
           <DialogDescription>

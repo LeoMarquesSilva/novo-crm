@@ -1,13 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { Select, SelectTrigger } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
 const ROLE_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -61,14 +56,14 @@ export function UserRoleSelector({ userId, currentRole }: UserRoleSelectorProps)
         disabled={isPending}
       >
         <SelectTrigger className="h-8 w-[160px] bg-white/60 text-xs">
-          <SelectValue />
+          <CrmSelectValue value={role} labels={ROLE_SELECT_ITEMS} />
         </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="admin">Admin</SelectItem>
-          <SelectItem value="comercial">Comercial</SelectItem>
-          <SelectItem value="controladoria">Controladoria</SelectItem>
-          <SelectItem value="financeiro">Financeiro</SelectItem>
-        </SelectContent>
+        <CrmSelectContent>
+          <CrmSelectItem value="admin">Admin</CrmSelectItem>
+          <CrmSelectItem value="comercial">Comercial</CrmSelectItem>
+          <CrmSelectItem value="controladoria">Controladoria</CrmSelectItem>
+          <CrmSelectItem value="financeiro">Financeiro</CrmSelectItem>
+        </CrmSelectContent>
       </Select>
       {saved && (
         <Badge variant="secondary" className="text-xs">

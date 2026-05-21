@@ -4,6 +4,12 @@ export { InputField } from "./input-field";
 export { SelectField } from "./select-field";
 export { TagSelectable } from "./tag-selectable";
 export { StickyFooter } from "./sticky-footer";
+export {
+  ClientPickerField,
+  UserPickerField,
+  type ClientOption,
+  type SystemUserOption,
+} from "./searchable-picker";
 
 /** Shared field chrome for inputs / triggers inside the modal. */
 export const newLeadModalFieldClass =

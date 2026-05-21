@@ -1,4 +1,5 @@
 import type { Oportunidade } from "@/modules/crm/domain/entities";
+import { isFirmSignerEmail } from "@/lib/d4sign/firm-signers";
 
 export type KanbanD4SignSigner = NonNullable<Oportunidade["d4signSigners"]>[number];
 
@@ -43,6 +44,25 @@ export function signerDisplayLabel(signer: KanbanD4SignSigner): string {
 export function signerRoleLabel(role: KanbanD4SignSigner["role"]): string | null {
   if (role === "CONTRATADA") return "Contratada";
   if (role === "CONTRATANTE") return "Contratante";
+  return null;
+}
+
+/** Sócios administradores (Gustavo/Ricardo) — não são cliente, mesmo se D4Sign vier como CONTRATANTE. */
+export function isManagingPartnerEmail(email: string | null | undefined): boolean {
+  return isFirmSignerEmail(email);
+}
+
+/** Lado firma no kanban: CONTRATADA ou sócios administradores. */
+export function signerKanbanIsFirmSide(signer: KanbanD4SignSigner): boolean {
+  return signer.role === "CONTRATADA" || isManagingPartnerEmail(signer.email);
+}
+
+export function signerKanbanBadgeLabel(
+  signer: KanbanD4SignSigner,
+): "Sócio" | "Adv." | "Cliente" | null {
+  if (isManagingPartnerEmail(signer.email)) return "Sócio";
+  if (signer.role === "CONTRATADA") return "Adv.";
+  if (signer.role === "CONTRATANTE") return "Cliente";
   return null;
 }
 

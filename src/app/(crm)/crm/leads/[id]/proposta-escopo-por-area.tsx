@@ -16,11 +16,10 @@ import {
 import { Label } from "@/components/ui/label";
 import {
   Select,
-  SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { cn } from "@/lib/utils";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
@@ -949,14 +948,14 @@ function EscopoAreaBlock({
                   : tipo?.label ?? "Selecione o tipo"}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent align="start" alignItemWithTrigger={false} side="bottom" sideOffset={6}>
-              <SelectItem value={SELECT_EMPTY}>Selecione o tipo</SelectItem>
+            <CrmSelectContent>
+              <CrmSelectItem value={SELECT_EMPTY}>Selecione o tipo</CrmSelectItem>
               {tipos.map((t) => (
-                <SelectItem key={t.tipoId} value={t.tipoId}>
+                <CrmSelectItem key={t.tipoId} value={t.tipoId}>
                   {t.label}
-                </SelectItem>
+                </CrmSelectItem>
               ))}
-            </SelectContent>
+            </CrmSelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
@@ -979,14 +978,14 @@ function EscopoAreaBlock({
                   : sub?.label ?? "Selecione o subtipo"}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent align="start" alignItemWithTrigger={false} side="bottom" sideOffset={6}>
-              <SelectItem value={SELECT_EMPTY}>Selecione o subtipo</SelectItem>
+            <CrmSelectContent>
+              <CrmSelectItem value={SELECT_EMPTY}>Selecione o subtipo</CrmSelectItem>
               {subtipos.map((s) => (
-                <SelectItem key={s.subtipoId} value={s.subtipoId}>
+                <CrmSelectItem key={s.subtipoId} value={s.subtipoId}>
                   {s.label}
-                </SelectItem>
+                </CrmSelectItem>
               ))}
-            </SelectContent>
+            </CrmSelectContent>
           </Select>
         </div>
       </div>
@@ -1045,14 +1044,14 @@ function EscopoAreaBlock({
                     : invTipoSel?.label ?? "Selecione o tipo de investimento"}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent align="start" alignItemWithTrigger={false} side="bottom" sideOffset={6}>
-                <SelectItem value={SELECT_EMPTY}>Selecione o tipo de investimento</SelectItem>
+              <CrmSelectContent>
+                <CrmSelectItem value={SELECT_EMPTY}>Selecione o tipo de investimento</CrmSelectItem>
                 {investmentCatalog.map((t) => (
-                  <SelectItem key={t.tipoId} value={t.tipoId}>
+                  <CrmSelectItem key={t.tipoId} value={t.tipoId}>
                     {t.label}
-                  </SelectItem>
+                  </CrmSelectItem>
                 ))}
-              </SelectContent>
+              </CrmSelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
@@ -1082,14 +1081,14 @@ function EscopoAreaBlock({
                       "Selecione o subtipo de investimento"}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent align="start" alignItemWithTrigger={false} side="bottom" sideOffset={6}>
-                <SelectItem value={SELECT_EMPTY}>Selecione o subtipo de investimento</SelectItem>
+              <CrmSelectContent>
+                <CrmSelectItem value={SELECT_EMPTY}>Selecione o subtipo de investimento</CrmSelectItem>
                 {invSubtiposList.map((s) => (
-                  <SelectItem key={s.subtipoId} value={s.subtipoId}>
+                  <CrmSelectItem key={s.subtipoId} value={s.subtipoId}>
                     {s.label}
-                  </SelectItem>
+                  </CrmSelectItem>
                 ))}
-              </SelectContent>
+              </CrmSelectContent>
             </Select>
           </div>
         </div>

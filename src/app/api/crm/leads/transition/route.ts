@@ -27,6 +27,7 @@ import {
   syncDueAreaTasksForOpportunity,
 } from "@/lib/crm/due-area-tasks";
 import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { transitionOpportunity } from "@/modules/crm/application/services/transition-opportunity";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
@@ -503,13 +504,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const { error: auditError } = await supabase.from("transicoes_etapa").insert({
-      oportunidade_id: opportunityId,
-      etapa_origem: currentStage,
-      etapa_destino: nextStage,
-      alterado_por: auth.profile.id,
-      observacao: null,
-    });
+    const { data: transRow, error: auditError } = await supabase
+      .from("transicoes_etapa")
+      .insert({
+        oportunidade_id: opportunityId,
+        etapa_origem: currentStage,
+        etapa_destino: nextStage,
+        alterado_por: auth.profile.id,
+        observacao: null,
+      })
+      .select("id")
+      .single();
 
     if (auditError) {
       const { error: revertError } = await supabase
@@ -531,6 +536,19 @@ export async function POST(request: Request) {
         },
         { status: 500 },
       );
+    }
+
+    if (transRow?.id) {
+      await recordLeadActivityEvent(supabase, {
+        oportunidadeId: opportunityId,
+        kind: "etapa_alterada",
+        title: "Etapa alterada",
+        detail: `${currentStage} → ${nextStage}`,
+        etapa: nextStage,
+        actorAppUserId: auth.profile.id,
+        sourceId: `trans:${transRow.id}`,
+        metadata: { from: currentStage, to: nextStage },
+      });
     }
 
     const originadoPor = actorFromAppUserRow(auth.profile);

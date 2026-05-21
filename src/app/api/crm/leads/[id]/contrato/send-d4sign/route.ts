@@ -21,6 +21,7 @@ import {
   type ContractReviewTaskLike,
 } from "@/lib/crm/contract-send-gate";
 import { buildInitialD4SignSigners } from "@/lib/crm/sync-oportunidade-d4sign-signers";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { enrichDocuments, pickDocumentsToEnrich } from "@/lib/d4sign/enrich-documents";
 import { assertD4SignSendEnv, getD4SignEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
@@ -312,6 +313,27 @@ export async function POST(
         etapa_destino: "contrato_enviado",
         alterado_por: auth.profile.id,
         observacao: "Contrato enviado para assinatura D4Sign.",
+      });
+
+      await recordLeadActivityEvent(supabase, {
+        oportunidadeId,
+        kind: "contrato_enviado",
+        title: "Contrato enviado para assinatura",
+        detail: "Documento encaminhado via D4Sign.",
+        etapa: "contrato_enviado",
+        actorAppUserId: auth.profile.id,
+        sourceId: `d4sign-send:${result.documentUuid}`,
+        metadata: { document_uuid: result.documentUuid },
+      });
+      await recordLeadActivityEvent(supabase, {
+        oportunidadeId,
+        kind: "etapa_alterada",
+        title: "Etapa alterada",
+        detail: `${op.etapa} → contrato_enviado`,
+        etapa: "contrato_enviado",
+        actorAppUserId: auth.profile.id,
+        sourceId: `d4sign-send-trans:${result.documentUuid}`,
+        metadata: { from: op.etapa, to: "contrato_enviado" },
       });
     }
 

@@ -24,6 +24,7 @@ import type { Oportunidade } from "@/modules/crm/domain/entities";
 import { LeadDetailView } from "./lead-detail-view";
 import type { LeadIntakeEmpresaRow } from "./lead-intake-types";
 import { parseEmpresasIntakeFromRecord } from "@/lib/crm/parse-lead-intake-empresas";
+import { fetchLeadLifecycleTimeline, type LeadLifecycleTimeline } from "@/lib/crm/lead-lifecycle-timeline";
 
 export type { LeadIntakeEmpresaRow } from "./lead-intake-types";
 
@@ -135,6 +136,7 @@ export interface LeadDetailData extends Oportunidade {
     responsavel?: ResolvedAppUser;
     respondedBy?: ResolvedAppUser;
   }>;
+  lifecycleTimeline: LeadLifecycleTimeline;
 }
 
 function normalizeLabel(label: string): string {
@@ -614,6 +616,8 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
     }));
   }
 
+  const lifecycleTimeline = await fetchLeadLifecycleTimeline(supabase, id);
+
   return {
     id: data.id,
     clienteId: data.cliente_id ?? undefined,
@@ -653,6 +657,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
     dueRevisaoEntradaEm: data.due_revisao_entrada_em,
     dueDocuments,
     dueAreaReviewTasks,
+    lifecycleTimeline,
   };
 }
 

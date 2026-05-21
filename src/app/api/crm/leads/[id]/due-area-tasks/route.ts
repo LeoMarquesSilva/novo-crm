@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { tryAutoAdvanceLevantamentoToCompilacao } from "@/lib/crm/due-area-tasks";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 
 const statusSchema = z.enum(["pendente", "em_andamento", "disponibilizado"]);
 
@@ -34,7 +35,7 @@ export async function PATCH(
   const { data: task, error: taskError } = await supabase
     .from("due_area_tasks")
     .select(
-      "id, oportunidade_id, responsavel_app_user_id, status, iniciado_em, pasta_due_confirmada",
+      "id, oportunidade_id, area_key, responsavel_app_user_id, status, iniciado_em, pasta_due_confirmada",
     )
     .eq("id", parsed.data.taskId)
     .eq("oportunidade_id", opportunityId)
@@ -112,6 +113,23 @@ export async function PATCH(
 
   if (updateError) {
     return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
+  }
+
+  if (nextStatus === "disponibilizado") {
+    const { data: oppRow } = await supabase
+      .from("oportunidades")
+      .select("etapa")
+      .eq("id", opportunityId)
+      .maybeSingle();
+    await recordLeadActivityEvent(supabase, {
+      oportunidadeId: opportunityId,
+      kind: "due_dados_disponibilizados",
+      title: `DUE — dados disponibilizados (${String(task.area_key)})`,
+      areaKey: String(task.area_key),
+      etapa: (oppRow?.etapa as import("@/modules/crm/domain/entities").OpportunityStage | undefined) ?? null,
+      actorAppUserId: auth.profile?.id ?? null,
+      sourceId: `due-lev-live:${task.id}:${now}`,
+    });
   }
 
   const advanced = await tryAutoAdvanceLevantamentoToCompilacao(

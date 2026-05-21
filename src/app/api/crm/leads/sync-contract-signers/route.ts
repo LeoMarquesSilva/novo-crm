@@ -1,7 +1,7 @@
 /**
  * POST /api/crm/leads/sync-contract-signers
- * Sincroniza assinaturas D4Sign → oportunidades (para o kanban).
- * Usado em polling leve quando webhook não alcança o ambiente (ex.: localhost).
+ * Sincroniza assinaturas D4Sign → oportunidades (fallback dev / sync manual).
+ * Produção: preferir webhook POSTBack (0 quota) + Realtime em oportunidades.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";

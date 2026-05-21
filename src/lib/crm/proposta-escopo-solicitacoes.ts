@@ -6,6 +6,7 @@ import { getEscopoEntryForArea, isEscopoEntryCompleteWithCatalog } from "@/lib/c
 import { parseAreasList } from "@/lib/crm/proposta-escopo-json";
 import type { PropostaEscopoDetalhe } from "@/data/proposta-tipos-catalog";
 import { dispatchPropostaEscopoChannelNotifications } from "@/lib/crm/proposta-escopo-notify-channels";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 
 const PRAZO_HORAS_DEFAULT = 72;
 
@@ -58,6 +59,20 @@ export async function refreshSolicitacaoConcluidaForEscopoJson(
           updated_at: now,
         })
         .eq("id", row.id);
+      const { data: oppRow } = await supabase
+        .from("oportunidades")
+        .select("etapa")
+        .eq("id", oportunidadeId)
+        .maybeSingle();
+      await recordLeadActivityEvent(supabase, {
+        oportunidadeId,
+        kind: "proposta_escopo_concluido",
+        title: `Escopo da proposta concluído — ${area}`,
+        areaKey: area,
+        etapa: (oppRow?.etapa as import("@/modules/crm/domain/entities").OpportunityStage | undefined) ?? null,
+        actorAppUserId: options?.preenchidoPorAppUserId ?? row.preenchido_por_app_user_id ?? null,
+        sourceId: `escopo-live:${row.id}:${now}`,
+      });
     }
     if (done && row.concluido_em && options?.preenchidoPorAppUserId && !row.preenchido_por_app_user_id) {
       await supabase
@@ -70,6 +85,20 @@ export async function refreshSolicitacaoConcluidaForEscopoJson(
         .from("proposta_escopo_solicitacao")
         .update({ concluido_em: null, preenchido_por_app_user_id: null, updated_at: now })
         .eq("id", row.id);
+      const { data: oppRow } = await supabase
+        .from("oportunidades")
+        .select("etapa")
+        .eq("id", oportunidadeId)
+        .maybeSingle();
+      await recordLeadActivityEvent(supabase, {
+        oportunidadeId,
+        kind: "proposta_escopo_reaberto",
+        title: `Escopo da proposta reaberto — ${area}`,
+        areaKey: area,
+        etapa: (oppRow?.etapa as import("@/modules/crm/domain/entities").OpportunityStage | undefined) ?? null,
+        actorAppUserId: options?.preenchidoPorAppUserId ?? null,
+        sourceId: `escopo-reopen:${row.id}:${now}`,
+      });
     }
   }
 }

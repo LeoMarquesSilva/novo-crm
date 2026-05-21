@@ -1255,42 +1255,6 @@ export type Database = {
           },
         ]
       }
-      lead_note_mentions: {
-        Row: {
-          created_at: string
-          id: string
-          mentioned_app_user_id: string
-          note_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          mentioned_app_user_id: string
-          note_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          mentioned_app_user_id?: string
-          note_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_note_mentions_mentioned_app_user_id_fkey"
-            columns: ["mentioned_app_user_id"]
-            isOneToOne: false
-            referencedRelation: "app_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_note_mentions_note_id_fkey"
-            columns: ["note_id"]
-            isOneToOne: false
-            referencedRelation: "lead_notes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       lead_notes: {
         Row: {
           body: string
@@ -1335,6 +1299,137 @@ export type Database = {
           },
           {
             foreignKeyName: "lead_notes_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_note_mentions: {
+        Row: {
+          created_at: string
+          id: string
+          mentioned_app_user_id: string
+          note_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mentioned_app_user_id: string
+          note_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mentioned_app_user_id?: string
+          note_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_note_mentions_mentioned_app_user_id_fkey"
+            columns: ["mentioned_app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_note_mentions_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "lead_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_activity_events: {
+        Row: {
+          actor_app_user_id: string | null
+          area_key: string | null
+          created_at: string
+          detail: string | null
+          etapa: Database["public"]["Enums"]["opportunity_stage"] | null
+          id: string
+          kind: string
+          metadata: Json
+          oportunidade_id: string
+          source_id: string | null
+          title: string
+        }
+        Insert: {
+          actor_app_user_id?: string | null
+          area_key?: string | null
+          created_at?: string
+          detail?: string | null
+          etapa?: Database["public"]["Enums"]["opportunity_stage"] | null
+          id?: string
+          kind: string
+          metadata?: Json
+          oportunidade_id: string
+          source_id?: string | null
+          title: string
+        }
+        Update: {
+          actor_app_user_id?: string | null
+          area_key?: string | null
+          created_at?: string
+          detail?: string | null
+          etapa?: Database["public"]["Enums"]["opportunity_stage"] | null
+          id?: string
+          kind?: string
+          metadata?: Json
+          oportunidade_id?: string
+          source_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_activity_events_actor_app_user_id_fkey"
+            columns: ["actor_app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_activity_events_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oportunidade_etapa_periodos: {
+        Row: {
+          created_at: string
+          entered_at: string
+          etapa: Database["public"]["Enums"]["opportunity_stage"]
+          exited_at: string | null
+          id: string
+          oportunidade_id: string
+          source: string | null
+        }
+        Insert: {
+          created_at?: string
+          entered_at: string
+          etapa: Database["public"]["Enums"]["opportunity_stage"]
+          exited_at?: string | null
+          id?: string
+          oportunidade_id: string
+          source?: string | null
+        }
+        Update: {
+          created_at?: string
+          entered_at?: string
+          etapa?: Database["public"]["Enums"]["opportunity_stage"]
+          exited_at?: string | null
+          id?: string
+          oportunidade_id?: string
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oportunidade_etapa_periodos_oportunidade_id_fkey"
             columns: ["oportunidade_id"]
             isOneToOne: false
             referencedRelation: "oportunidades"

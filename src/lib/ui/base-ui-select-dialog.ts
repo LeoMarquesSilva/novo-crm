@@ -36,3 +36,15 @@ export function isInteractionFromBaseUiSelectLayer(event: Event): boolean {
   }
   return false;
 }
+
+/** Props para `DialogContent` quando o dialog contém `Select` (Base UI). */
+export function dialogSelectOutsideHandlers() {
+  return {
+    onPointerDownOutside: (event: Event) => {
+      if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
+    },
+    onFocusOutside: (event: Event) => {
+      if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
+    },
+  };
+}

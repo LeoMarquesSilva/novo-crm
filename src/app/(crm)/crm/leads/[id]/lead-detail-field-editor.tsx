@@ -8,13 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { TimeInputBr } from "@/components/ui/time-input-br";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const YES_NO_LABELS = { Sim: "Sim", Não: "Não" } as const;
 import { formatDateYmdBr, formatMaybeDateLikeBr, normalizeTimeToHm } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 import {
@@ -475,12 +472,15 @@ export function LeadDetailFieldEditor({
               disabled={saving}
             >
               <SelectTrigger className="bg-white/80">
-                <SelectValue />
+                <CrmSelectValue
+                  value={normalizeYesNoForSelect(draft)}
+                  labels={YES_NO_LABELS}
+                />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Sim">Sim</SelectItem>
-                <SelectItem value="Não">Não</SelectItem>
-              </SelectContent>
+              <CrmSelectContent>
+                <CrmSelectItem value="Sim">Sim</CrmSelectItem>
+                <CrmSelectItem value="Não">Não</CrmSelectItem>
+              </CrmSelectContent>
             </Select>
           ) : null}
           {kind === "select" && selectOptsEffective.length > 0 ? (
@@ -493,13 +493,13 @@ export function LeadDetailFieldEditor({
               <SelectTrigger className="bg-white/80">
                 <SelectValue placeholder="Selecione…" />
               </SelectTrigger>
-              <SelectContent align="start" sideOffset={4}>
+              <CrmSelectContent className="max-h-[min(280px,50dvh)]">
                 {selectOptsEffective.map((opt) => (
-                  <SelectItem key={opt} value={opt}>
+                  <CrmSelectItem key={opt} value={opt}>
                     {opt}
-                  </SelectItem>
+                  </CrmSelectItem>
                 ))}
-              </SelectContent>
+              </CrmSelectContent>
             </Select>
           ) : null}
           {(kind === "multiselect" || kind === "areas") && msOptions.length > 0 ? (
@@ -550,13 +550,13 @@ export function LeadDetailFieldEditor({
                       <SelectValue placeholder="Selecione o usuário…" />
                     )}
                   </SelectTrigger>
-                  <SelectContent align="start" sideOffset={4} className="max-h-72">
+                  <CrmSelectContent className="max-h-72">
                     {usersWithEmail.map((u) => (
-                      <SelectItem key={u.id} value={u.email} className="py-1.5">
+                      <CrmSelectItem key={u.id} value={u.email} className="py-1.5">
                         <UserAvatarName name={u.full_name} avatarUrl={u.avatar_url} />
-                      </SelectItem>
+                      </CrmSelectItem>
                     ))}
-                  </SelectContent>
+                  </CrmSelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground">
                   Ou digite um e-mail que não esteja na lista (ex.: contato externo).
@@ -591,13 +591,13 @@ export function LeadDetailFieldEditor({
                     <SelectValue placeholder="Selecione…" />
                   )}
                 </SelectTrigger>
-                <SelectContent align="start" sideOffset={4} className="max-h-72">
+                <CrmSelectContent className="max-h-72">
                   {appUsers.map((u) => (
-                    <SelectItem key={u.id} value={u.id} className="py-1.5">
+                    <CrmSelectItem key={u.id} value={u.id} className="py-1.5">
                       <UserAvatarName name={u.full_name} avatarUrl={u.avatar_url} />
-                    </SelectItem>
+                    </CrmSelectItem>
                   ))}
-                </SelectContent>
+                </CrmSelectContent>
               </Select>
             )
           ) : null}
@@ -659,13 +659,13 @@ export function LeadDetailFieldEditor({
               <SelectTrigger className="bg-white/80">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
-              <SelectContent>
+              <CrmSelectContent>
                 {leadTypes.map((t) => (
-                  <SelectItem key={t} value={t}>
+                  <CrmSelectItem key={t} value={t}>
                     {t}
-                  </SelectItem>
+                  </CrmSelectItem>
                 ))}
-              </SelectContent>
+              </CrmSelectContent>
             </Select>
           ) : null}
           {kind === "indicationType" ? (
@@ -675,16 +675,23 @@ export function LeadDetailFieldEditor({
               disabled={saving}
             >
               <SelectTrigger className="bg-white/80">
-                <SelectValue placeholder="Tipo de indicação" />
+                <CrmSelectValue
+                  value={draft || "__empty__"}
+                  labels={{
+                    __empty__: "(vazio)",
+                    ...Object.fromEntries(indicationTypes.map((t) => [t, t])),
+                  }}
+                  placeholder="Tipo de indicação"
+                />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__empty__">(vazio)</SelectItem>
+              <CrmSelectContent>
+                <CrmSelectItem value="__empty__">(vazio)</CrmSelectItem>
                 {indicationTypes.map((t) => (
-                  <SelectItem key={t} value={t}>
+                  <CrmSelectItem key={t} value={t}>
                     {t}
-                  </SelectItem>
+                  </CrmSelectItem>
                 ))}
-              </SelectContent>
+              </CrmSelectContent>
             </Select>
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
@@ -10,6 +10,21 @@ import {
   type SituationFilter,
 } from "@/components/crm/leads-pipeline-toolbar";
 import { NewDemandForm } from "@/components/crm/new-demand-form";
+import { PipelineBoardSkeleton } from "@/components/crm/pipeline-board-skeleton";
+import {
+  PipelineKanbanErrorState,
+  PipelineKanbanRefreshIndicator,
+} from "@/components/crm/pipeline-kanban-status";
+import {
+  CrmSurfaceHeaderBackdrop,
+  crmSurfaceCardClass,
+  crmSurfaceHeaderClass,
+  crmSurfaceHeaderPanelClass,
+  crmSurfaceHeaderSubtitleClass,
+  crmSurfaceHeaderTitleClass,
+  crmSurfaceSegmentedRootClass,
+  crmSurfaceSegmentedTabClass,
+} from "@/components/crm/crm-surface-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -42,6 +57,27 @@ const PipelineBoard = dynamic(
 );
 
 const LEAD_SEARCH_MIN_CHARS = 3;
+
+const KANBAN_PREFS_STORAGE_KEY = "crm.kanban.prefs.v1";
+
+type KanbanPrefs = {
+  mostrarLeadsRd: boolean;
+};
+
+/** Padrão: leads RD ocultos no kanban até o utilizador ligar o toggle. */
+function readKanbanPrefs(): KanbanPrefs {
+  if (typeof window === "undefined") return { mostrarLeadsRd: false };
+  try {
+    const raw = window.localStorage.getItem(KANBAN_PREFS_STORAGE_KEY);
+    if (!raw) return { mostrarLeadsRd: false };
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return { mostrarLeadsRd: false };
+    const p = parsed as Record<string, unknown>;
+    return { mostrarLeadsRd: p.mostrarLeadsRd === true };
+  } catch {
+    return { mostrarLeadsRd: false };
+  }
+}
 
 function leadSearchBlob(o: Oportunidade): string {
   return [
@@ -104,15 +140,24 @@ export default function LeadsPage() {
   const [ownerFilter, setOwnerFilter] = useState<string>("todos");
   const [situation, setSituation] = useState<SituationFilter>("todos");
   const [pipelineTab, setPipelineTab] = useState<PipelineTab>("vendas");
-  const [mostrarLeadsRd, setMostrarLeadsRd] = useState(true);
+  const [mostrarLeadsRd, setMostrarLeadsRd] = useState(false);
   const [opportunities, setOpportunities] = useState<LeadsPageOpportunity[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [justRefreshed, setJustRefreshed] = useState(false);
+  const [silentRefreshing, setSilentRefreshing] = useState(false);
+  const justRefreshedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [kanbanPrefsHydrated, setKanbanPrefsHydrated] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    const prefs = readKanbanPrefs();
+    setMostrarLeadsRd(prefs.mostrarLeadsRd);
+    setKanbanPrefsHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -127,7 +172,44 @@ export default function LeadsPage() {
     }
   }, [mostrarLeadsRd, pinnedLeadId, opportunities]);
 
-  const refreshLeadsSilently = useCallback(async () => {
+  useEffect(() => {
+    if (!kanbanPrefsHydrated) return;
+    window.localStorage.setItem(
+      KANBAN_PREFS_STORAGE_KEY,
+      JSON.stringify({ mostrarLeadsRd } satisfies KanbanPrefs),
+    );
+  }, [mostrarLeadsRd, kanbanPrefsHydrated]);
+
+  useEffect(() => {
+    return () => {
+      if (justRefreshedTimeoutRef.current) {
+        clearTimeout(justRefreshedTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const markRefreshSuccess = useCallback((silent: boolean) => {
+    setLastRefreshedAt(new Date());
+    if (silent) {
+      setJustRefreshed(true);
+      if (justRefreshedTimeoutRef.current) {
+        clearTimeout(justRefreshedTimeoutRef.current);
+      }
+      justRefreshedTimeoutRef.current = setTimeout(() => {
+        justRefreshedTimeoutRef.current = null;
+        setJustRefreshed(false);
+      }, 3000);
+    }
+  }, []);
+
+  const loadLeads = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (silent) {
+      setSilentRefreshing(true);
+    } else {
+      setLoading(true);
+      setLoadError(null);
+    }
+
     try {
       const response = await fetch("/api/crm/leads", { cache: "no-store" });
       const payload = (await response.json()) as {
@@ -138,59 +220,41 @@ export default function LeadsPage() {
       };
 
       if (!response.ok || !payload.ok) {
-        return;
+        throw new Error(payload.error ?? "Não foi possível carregar os leads.");
       }
 
       setOpportunities(payload.opportunities ?? []);
       setOwnerOptions(payload.owners ?? []);
-    } catch {
-      // mantém lista atual em caso de falha no refresh pós-cadastro
-    }
-
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchLeads() {
-      try {
-        setLoading(true);
-        setLoadError(null);
-
-        const response = await fetch("/api/crm/leads", { cache: "no-store" });
-        const payload = (await response.json()) as {
-          ok: boolean;
-          opportunities?: LeadsPageOpportunity[];
-          owners?: OwnerOption[];
-          error?: string;
-        };
-
-        if (!response.ok || !payload.ok) {
-          throw new Error(payload.error ?? "Não foi possível carregar os leads.");
-        }
-
-        if (!cancelled) {
-          setOpportunities(payload.opportunities ?? []);
-          setOwnerOptions(payload.owners ?? []);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          const message =
-            error instanceof Error ? error.message : "Falha ao carregar os leads.";
-          setLoadError(message);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      setLoadError(null);
+      markRefreshSuccess(silent);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Falha ao carregar os leads.";
+      if (!silent) {
+        setLoadError(message);
+      }
+    } finally {
+      if (silent) {
+        setSilentRefreshing(false);
+      } else {
+        setLoading(false);
+        setRetrying(false);
       }
     }
+  }, [markRefreshSuccess]);
 
-    void fetchLeads();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const refreshLeadsSilently = useCallback(async () => {
+    await loadLeads({ silent: true });
+  }, [loadLeads]);
+
+  const handleRetryLoad = useCallback(() => {
+    setRetrying(true);
+    void loadLeads();
+  }, [loadLeads]);
+
+  useEffect(() => {
+    void loadLeads();
+  }, [loadLeads]);
 
   useEffect(() => {
     const supabase = createSupabaseClient();
@@ -260,6 +324,17 @@ export default function LeadsPage() {
       ).length,
     [opportunities, ownerFilter, situation, mostrarLeadsRd],
   );
+
+  const appUsersByEmail = useMemo(() => {
+    const map: Record<string, { avatarUrl: string | null; fullName: string }> = {};
+    for (const owner of ownerOptions) {
+      const email = owner.email?.trim().toLowerCase();
+      if (email) {
+        map[email] = { avatarUrl: owner.avatarUrl, fullName: owner.name };
+      }
+    }
+    return map;
+  }, [ownerOptions]);
 
   const filteredOpportunities = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -340,49 +415,53 @@ export default function LeadsPage() {
         transition={{ duration: 0.22, ease: "easeOut" }}
         className="min-h-0 flex-1"
       >
-      <Card className="glass-card-no-float flex min-h-[calc(100dvh-16.5rem)] flex-1 flex-col overflow-hidden border-primary-dark/10 py-0 lg:min-h-[calc(100dvh-14.5rem)]">
-        <CardHeader className="relative shrink-0 overflow-hidden border-b border-primary-dark/10 bg-[#0b1724] px-4 py-3 text-white sm:px-5">
-          <div className="absolute inset-0 bg-crm-gradient-dark opacity-85" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(45,200,183,0.22),transparent_34%),linear-gradient(135deg,rgba(8,22,36,0.15),rgba(4,13,22,0.92))]" />
+      <Card
+        className={cn(
+          crmSurfaceCardClass,
+          "flex min-h-[calc(100dvh-16.5rem)] flex-1 flex-col overflow-hidden py-0 lg:min-h-[calc(100dvh-14.5rem)]",
+        )}
+      >
+        <CardHeader className={cn(crmSurfaceHeaderClass, "shrink-0 px-4 py-3.5 pl-5 sm:px-5 sm:pl-6")}>
+          <CrmSurfaceHeaderBackdrop />
           <div className="relative space-y-2">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="inline-flex rounded-[14px] border border-white/20 bg-white/10 p-1 shadow-sm backdrop-blur">
+            <div className={crmSurfaceSegmentedRootClass}>
               <button
                 type="button"
                 onClick={() => setPipelineTab("vendas")}
-                className={cn(
-                  "rounded-[11px] px-3 py-1.5 text-[13px] font-bold transition-colors",
-                  pipelineTab === "vendas"
-                    ? "bg-white text-primary-dark shadow-md"
-                    : "text-white/75 hover:bg-white/10 hover:text-white",
-                )}
+                className={crmSurfaceSegmentedTabClass(pipelineTab === "vendas")}
               >
                 Vendas
-                <span className="ml-1.5 tabular-nums opacity-90">({salesBoardCount})</span>
+                <span className="ml-1.5 tabular-nums opacity-80">({salesBoardCount})</span>
               </button>
               <button
                 type="button"
                 onClick={() => setPipelineTab("pos_venda")}
-                className={cn(
-                  "rounded-[11px] px-3 py-1.5 text-[13px] font-bold transition-colors",
-                  pipelineTab === "pos_venda"
-                    ? "bg-white text-primary-dark shadow-md"
-                    : "text-white/75 hover:bg-white/10 hover:text-white",
-                )}
+                className={crmSurfaceSegmentedTabClass(pipelineTab === "pos_venda")}
               >
                 Pós-venda
-                <span className="ml-1.5 tabular-nums opacity-90">({posVendaBoardCount})</span>
+                <span className="ml-1.5 tabular-nums opacity-80">({posVendaBoardCount})</span>
               </button>
             </div>
-            <div className="flex shrink-0 items-center justify-between gap-3 rounded-[14px] border border-white/20 bg-white/10 px-3 py-2 shadow-sm backdrop-blur sm:justify-end sm:py-1.5">
+            <div
+              className={cn(
+                crmSurfaceHeaderPanelClass,
+                "flex shrink-0 items-center justify-between gap-3 sm:justify-end sm:py-1.5",
+              )}
+            >
               <div className="min-w-0 sm:text-right">
                 <Label
                   htmlFor="kanban-toggle-rd-leads"
-                  className="cursor-pointer text-xs font-bold text-white"
+                  className="cursor-pointer text-xs font-bold text-[#102033]"
                 >
                   Leads do RD Station
                 </Label>
-                <p className="text-[10px] leading-snug text-slate-100/80 sm:ml-auto sm:max-w-[200px]">
+                <p
+                  className={cn(
+                    "text-[10px] leading-snug sm:ml-auto sm:max-w-[200px]",
+                    crmSurfaceHeaderSubtitleClass,
+                  )}
+                >
                   {mostrarLeadsRd
                     ? "Negociações com sincronização RD aparecem no quadro."
                     : "Ocultas do kanban; demais leads inalterados."}
@@ -401,45 +480,81 @@ export default function LeadsPage() {
             </div>
           </div>
           <div className="space-y-1">
-            <CardTitle className="text-lg font-extrabold tracking-[-0.04em] text-white sm:text-xl">
+            <CardTitle className={cn("text-lg sm:text-xl", crmSurfaceHeaderTitleClass)}>
               {pipelineTab === "vendas"
                 ? "Pipeline de vendas (kanban)"
                 : "Pipeline de pós-venda (kanban)"}
             </CardTitle>
-            <p className="text-xs text-slate-100/85 sm:text-sm">
-              {loading
-                ? "Carregando leads do banco..."
-                : pipelineTab === "vendas"
-                  ? `${filteredOpportunities.length} lead(s) com os filtros atuais${mostrarLeadsRd ? "" : " (RD oculto)"}. Arraste os cards entre colunas; cada coluna rola sozinha quando houver muitos itens.`
-                  : `${filteredOpportunities.length} oportunidade(s) no pós-venda${mostrarLeadsRd ? "" : " (RD oculto)"}. Etapas alinhadas ao funil RD após “Marcar venda”. Itens sincronizados do RD mostram o chip “RD Station”.`}
+            <p
+              className={cn(
+                "flex flex-wrap items-center gap-2 text-xs sm:text-sm",
+                crmSurfaceHeaderSubtitleClass,
+              )}
+            >
+              <span>
+                {loading
+                  ? "Carregando leads do banco..."
+                  : pipelineTab === "vendas"
+                    ? `${filteredOpportunities.length} lead(s) com os filtros atuais${mostrarLeadsRd ? "" : " (RD oculto)"}. Arraste os cards entre colunas; cada coluna rola sozinha quando houver muitos itens.`
+                    : `${filteredOpportunities.length} oportunidade(s) no pós-venda${mostrarLeadsRd ? "" : " (RD oculto)"}. Etapas alinhadas ao funil RD após “Marcar venda”. Itens sincronizados do RD mostram o chip “RD Station”.`}
+              </span>
+              {!loading && lastRefreshedAt ? (
+                <PipelineKanbanRefreshIndicator
+                  lastRefreshedAt={lastRefreshedAt}
+                  justRefreshed={justRefreshed}
+                  silentRefreshing={silentRefreshing}
+                />
+              ) : null}
             </p>
-            {loadError ? <p className="text-sm font-medium text-red-200">{loadError}</p> : null}
+            {loadError && opportunities.length > 0 ? (
+              <p className="text-sm font-medium text-red-600">{loadError}</p>
+            ) : null}
           </div>
           </div>
         </CardHeader>
         <CardContent className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2 md:p-3">
-          <PipelineBoard
-            opportunities={filteredOpportunities}
-            stageColumns={activeStageColumns}
-            pipelineCode={pipelineTab === "vendas" ? "vendas" : "pos_venda"}
-            onDataChange={() => void refreshLeadsSilently()}
-            onAfterTransition={({ from, to, opportunityId }) => {
-              if (from === "reuniao" && to === "confeccao_proposta") {
-                router.push(`/crm/leads/${opportunityId}`);
-              }
-              if (to === "confeccao_contrato") {
-                router.push(`/crm/leads/${opportunityId}`);
-              }
-            }}
-          />
+          {loading ? (
+            <PipelineBoardSkeleton columns={activeStageColumns} />
+          ) : loadError && opportunities.length === 0 ? (
+            <PipelineKanbanErrorState
+              message={loadError}
+              onRetry={handleRetryLoad}
+              retrying={retrying}
+            />
+          ) : (
+            <PipelineBoard
+              opportunities={filteredOpportunities}
+              stageColumns={activeStageColumns}
+              pipelineCode={pipelineTab === "vendas" ? "vendas" : "pos_venda"}
+              appUsersByEmail={appUsersByEmail}
+              onDataChange={() => void refreshLeadsSilently()}
+              onAfterTransition={({ from, to, opportunityId }) => {
+                if (from === "reuniao" && to === "confeccao_proposta") {
+                  router.push(`/crm/leads/${opportunityId}`);
+                }
+                if (to === "confeccao_contrato") {
+                  router.push(`/crm/leads/${opportunityId}`);
+                }
+              }}
+            />
+          )}
         </CardContent>
       </Card>
       </motion.div>
 
       {mounted && isCadastroOpen
         ? createPortal(
-            <div className="font-new-lead-modal fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(7,12,20,0.72)] p-3 backdrop-blur-md sm:p-5">
-              <div className="flex max-h-[90vh] w-full max-w-[min(100vw-1.5rem,1280px)] flex-col">
+            <div
+              className="font-new-lead-modal fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(7,12,20,0.72)] p-3 backdrop-blur-md sm:p-5"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Cadastro de novo lead"
+              onClick={() => setIsCadastroOpen(false)}
+            >
+              <div
+                className="flex max-h-[90vh] w-full max-w-[min(100vw-1.5rem,1280px)] flex-col"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <NewDemandForm
                   onRequestClose={() => setIsCadastroOpen(false)}
                   onSuccess={() => {

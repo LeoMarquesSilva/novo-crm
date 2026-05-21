@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import type { AppUserProfile } from "@/lib/auth/server";
 import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
 
@@ -203,6 +204,15 @@ export async function createLeadNote(
 
     await notifyMentionedUsers(supabase, oportunidadeId, noteId, trimmedBody, viewer, validMentionIds);
   }
+
+  await recordLeadActivityEvent(supabase, {
+    oportunidadeId,
+    kind: "nota_adicionada",
+    title: "Anotação adicionada",
+    detail: trimmedBody.slice(0, 280),
+    actorAppUserId: viewer.id,
+    sourceId: `note:${noteId}`,
+  });
 
   const listed = await listLeadNotes(supabase, oportunidadeId, viewer);
   if (!listed.ok) return listed;

@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  resolveSignerAvatarUrl,
+  type SignerAppUserLookup,
+} from "@/lib/crm/signer-avatar-catalog";
 
 export type ResolvedAppUser = {
   fullName: string;
@@ -97,4 +101,50 @@ export function resolvedUserFromEmailMap(
   email: string,
 ): ResolvedAppUser | undefined {
   return map.get(normalizeLookupEmail(email));
+}
+
+/** Índice e-mail → utilizador (`app_users` + Auth), para solicitante, responsável RD, etc. */
+export async function fetchAppUsersByEmailLookup(
+  supabase: SupabaseClient,
+): Promise<SignerAppUserLookup> {
+  const [{ data: usersRows, error: usersError }, authUsersResult] = await Promise.all([
+    supabase.from("app_users").select("id, full_name, auth_user_id, avatar_url"),
+    supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+  ]);
+
+  if (usersError || !usersRows?.length) return {};
+
+  const authEmailById = new Map<string, string>();
+  for (const authUser of authUsersResult.data.users ?? []) {
+    if (authUser.id && authUser.email) {
+      authEmailById.set(authUser.id, authUser.email.trim().toLowerCase());
+    }
+  }
+
+  const out: SignerAppUserLookup = {};
+  for (const row of usersRows) {
+    const email = authEmailById.get(row.auth_user_id);
+    if (!email) continue;
+    out[email] = {
+      fullName: row.full_name,
+      avatarUrl: row.avatar_url,
+    };
+  }
+  return out;
+}
+
+/** Solicitante interno do lead (colaborador), resolvido pelo e-mail gravado na oportunidade. */
+export function resolveSolicitanteInternoDisplay(params: {
+  nomeCadastro: string | null | undefined;
+  solicitanteEmail: string | null | undefined;
+  usersByEmail: SignerAppUserLookup;
+}): { nome: string; avatarUrl: string | null } {
+  const email = params.solicitanteEmail?.trim().toLowerCase() ?? null;
+  const fromUser = email ? params.usersByEmail[email] : undefined;
+  const nome =
+    params.nomeCadastro?.trim() ||
+    fromUser?.fullName?.trim() ||
+    "—";
+  const avatarUrl = resolveSignerAvatarUrl(email, params.usersByEmail);
+  return { nome, avatarUrl };
 }

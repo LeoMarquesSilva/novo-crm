@@ -13,12 +13,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface LeadDeleteButtonProps {
   leadId: string;
+  /** Variante visual quando o botão fica sobre fundo escuro (ex.: header do lead). */
+  variant?: "default" | "onDark";
 }
 
-export function LeadDeleteButton({ leadId }: LeadDeleteButtonProps) {
+export function LeadDeleteButton({ leadId, variant = "default" }: LeadDeleteButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -51,7 +54,7 @@ export function LeadDeleteButton({ leadId }: LeadDeleteButtonProps) {
   }
 
   return (
-    <div className="mt-4 space-y-2">
+    <div className={cn(variant === "default" && "mt-4 space-y-2")}>
       <AlertDialog
         open={open}
         onOpenChange={(next) => {
@@ -62,10 +65,14 @@ export function LeadDeleteButton({ leadId }: LeadDeleteButtonProps) {
       >
         <Button
           type="button"
-          variant="destructive"
+          variant={variant === "onDark" ? "outline" : "destructive"}
           size="sm"
           disabled={isDeleting}
           onClick={() => setOpen(true)}
+          className={cn(
+            variant === "onDark" &&
+              "border-[#fecaca] bg-white text-[#b91c1c] shadow-sm hover:bg-[#fef2f2] hover:text-[#991b1b] focus-visible:border-[#fca5a5] focus-visible:ring-[#fecaca]/40",
+          )}
         >
           <Trash2 className="mr-1.5 h-4 w-4" />
           {isDeleting ? "Excluindo..." : "Excluir lead"}

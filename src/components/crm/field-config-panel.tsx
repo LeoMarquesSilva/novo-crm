@@ -37,11 +37,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
-  SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { Switch } from "@/components/ui/switch";
 import { ConditionBuilder } from "./condition-builder";
 import type { FieldDefinition, FieldCondition } from "./dynamic-form";
@@ -462,18 +461,13 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
                   <SelectTrigger className="h-9 w-full min-w-0 bg-white/70 text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent
-                    alignItemWithTrigger={false}
-                    side="bottom"
-                    align="start"
-                    sideOffset={4}
-                  >
+                  <CrmSelectContent>
                     {Object.entries(FIELD_TYPE_LABELS).map(([k, v]) => (
-                      <SelectItem key={k} value={k} className="text-xs">
+                      <CrmSelectItem key={k} value={k} className="text-xs">
                         {v}
-                      </SelectItem>
+                      </CrmSelectItem>
                     ))}
-                  </SelectContent>
+                  </CrmSelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
@@ -487,16 +481,11 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
                   <SelectTrigger className="h-9 w-full min-w-0 bg-white/70 text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent
-                    alignItemWithTrigger={false}
-                    side="bottom"
-                    align="start"
-                    sideOffset={4}
-                  >
-                    <SelectItem value="oportunidade">Oportunidade</SelectItem>
-                    <SelectItem value="clientes">Clientes</SelectItem>
-                    <SelectItem value="contratos">Contratos</SelectItem>
-                  </SelectContent>
+                  <CrmSelectContent>
+                    <CrmSelectItem value="oportunidade">Oportunidade</CrmSelectItem>
+                    <CrmSelectItem value="clientes">Clientes</CrmSelectItem>
+                    <CrmSelectItem value="contratos">Contratos</CrmSelectItem>
+                  </CrmSelectContent>
                 </Select>
               </div>
               <div className="space-y-1 md:col-span-1">
@@ -510,18 +499,13 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
                   <SelectTrigger className="h-9 w-full min-w-0 bg-white/70 text-sm">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
-                  <SelectContent
-                    alignItemWithTrigger={false}
-                    side="bottom"
-                    align="start"
-                    sideOffset={4}
-                  >
+                  <CrmSelectContent className="max-h-[min(320px,60dvh)]">
                     {Object.entries(STAGE_LABELS).map(([k, v]) => (
-                      <SelectItem key={k} value={k} className="text-xs">
+                      <CrmSelectItem key={k} value={k} className="text-xs">
                         {v}
-                      </SelectItem>
+                      </CrmSelectItem>
                     ))}
-                  </SelectContent>
+                  </CrmSelectContent>
                 </Select>
               </div>
             </div>

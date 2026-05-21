@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 
 import { LoginForm } from "@/components/auth/login-form";
 
@@ -78,15 +77,6 @@ export default async function LoginPage({
           <Suspense fallback={<LoginFormFallback />}>
             <LoginForm />
           </Suspense>
-
-          <p className="mt-8 text-center text-xs text-muted-foreground">
-            <Link
-              href="/"
-              className="font-medium text-primary-light underline-offset-4 hover:text-primary-dark hover:underline"
-            >
-              Voltar à página inicial
-            </Link>
-          </p>
         </div>
       </div>
     </div>

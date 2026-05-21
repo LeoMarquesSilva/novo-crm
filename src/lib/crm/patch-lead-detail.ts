@@ -10,6 +10,9 @@ import {
   refreshSolicitacaoConcluidaForEscopoJson,
   syncPropostaEscopoSolicitacoesForOportunidade,
 } from "@/lib/crm/proposta-escopo-solicitacoes";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { labelForRdFieldKey } from "@/lib/crm/lead-rd-field-labels";
+import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
 const EMPRESA_FIELD_RE = /^empresa_(\d+)_(razao|doc|tipo)$/;
 /** Atualização atómica: `empresa_1` + JSON `{ razao_social, tipo_documento, documento }`. */
@@ -53,10 +56,10 @@ export async function patchLeadDetail(
   }
 
   if (body.rdField) {
-    return patchRdFieldOverride(supabase, oportunidadeId, body.rdField.key, body.rdField.value);
+    return patchRdFieldOverride(supabase, oportunidadeId, body.rdField.key, body.rdField.value, options?.viewer);
   }
 
-  return patchIntakeField(supabase, oportunidadeId, body.intakeField!.key, body.intakeField!.value);
+  return patchIntakeField(supabase, oportunidadeId, body.intakeField!.key, body.intakeField!.value, options?.viewer);
 }
 
 async function patchPipelineFieldValue(
@@ -67,7 +70,7 @@ async function patchPipelineFieldValue(
 ): Promise<{ ok: true } | { ok: false; error: string; status?: number }> {
   const { data: defRows, error: defErr } = await supabase
     .from("field_definitions")
-    .select("id, field_type, entity_name, field_code")
+    .select("id, field_type, entity_name, field_code, label")
     .eq("id", payload.fieldDefinitionId)
     .limit(1);
 
@@ -151,22 +154,34 @@ async function patchPipelineFieldValue(
   const existing = existingRows?.[0];
 
   const now = new Date().toISOString();
+  const fieldLabel = String((def as { label?: string }).label ?? fieldCode);
+  let fieldValueId: string | null = existing?.id ? String(existing.id) : null;
 
   if (existing?.id) {
     const { error: upErr } = await supabase
       .from("field_values")
-      .update({ value_json: valueJson as never, updated_at: now })
+      .update({
+        value_json: valueJson as never,
+        updated_at: now,
+        updated_by: viewer?.appUserId ?? null,
+      })
       .eq("id", existing.id);
     if (upErr) return { ok: false, error: upErr.message };
   } else {
-    const { error: insErr } = await supabase.from("field_values").insert({
-      entity_name: "oportunidade",
-      entity_record_id: oportunidadeId,
-      field_definition_id: payload.fieldDefinitionId,
-      value_json: valueJson as never,
-      updated_at: now,
-    });
+    const { data: inserted, error: insErr } = await supabase
+      .from("field_values")
+      .insert({
+        entity_name: "oportunidade",
+        entity_record_id: oportunidadeId,
+        field_definition_id: payload.fieldDefinitionId,
+        value_json: valueJson as never,
+        updated_at: now,
+        updated_by: viewer?.appUserId ?? null,
+      })
+      .select("id")
+      .single();
     if (insErr) return { ok: false, error: insErr.message };
+    fieldValueId = inserted?.id ? String(inserted.id) : null;
   }
 
   const { error: opErr } = await supabase
@@ -196,6 +211,28 @@ async function patchPipelineFieldValue(
     });
   }
 
+  const { data: oppRow } = await supabase
+    .from("oportunidades")
+    .select("etapa")
+    .eq("id", oportunidadeId)
+    .maybeSingle();
+
+  const escopoAreaKey =
+    fieldCode === "cp_escopo_detalhe_json" && viewer?.appArea
+      ? appUserAreaToEscopoJsonKey(viewer.appArea)
+      : null;
+
+  await recordLeadActivityEvent(supabase, {
+    oportunidadeId,
+    kind: "campo_pipeline_alterado",
+    title: `Campo atualizado: ${fieldLabel}`,
+    etapa: (oppRow?.etapa as OpportunityStage | undefined) ?? null,
+    areaKey: escopoAreaKey,
+    actorAppUserId: viewer?.appUserId ?? null,
+    sourceId: fieldValueId ? `fv-live:${fieldValueId}:${now}` : `fv-live:${payload.fieldDefinitionId}:${now}`,
+    metadata: { field_code: fieldCode, field_definition_id: payload.fieldDefinitionId },
+  });
+
   return { ok: true };
 }
 
@@ -204,6 +241,7 @@ async function patchRdFieldOverride(
   oportunidadeId: string,
   key: string,
   value: string,
+  viewer?: PatchViewerContext,
 ): Promise<{ ok: true } | { ok: false; error: string; status?: number }> {
   if (!isAllowedRdFieldOverrideKey(key)) {
     return { ok: false, error: "Campo RD inválido.", status: 400 };
@@ -240,6 +278,20 @@ async function patchRdFieldOverride(
     .eq("id", oportunidadeId);
 
   if (upErr) return { ok: false, error: upErr.message };
+
+  const now = new Date().toISOString();
+  const { data: oppRow } = await supabase.from("oportunidades").select("etapa").eq("id", oportunidadeId).maybeSingle();
+  await recordLeadActivityEvent(supabase, {
+    oportunidadeId,
+    kind: "campo_rd_alterado",
+    title: `Campo RD atualizado: ${labelForRdFieldKey(key) ?? key}`,
+    detail: trimmed ? trimmed.slice(0, 280) : null,
+    etapa: (oppRow?.etapa as OpportunityStage | undefined) ?? null,
+    actorAppUserId: viewer?.appUserId ?? null,
+    sourceId: `rd-live:${key}:${now}`,
+    metadata: { field_key: key },
+  });
+
   return { ok: true };
 }
 
@@ -248,6 +300,7 @@ async function patchIntakeField(
   oportunidadeId: string,
   key: string,
   value: string,
+  viewer?: PatchViewerContext,
 ): Promise<{ ok: true } | { ok: false; error: string; status?: number }> {
   const trimmed = value.trim();
 
@@ -260,6 +313,7 @@ async function patchIntakeField(
       .update({ solicitante_email: trimmed, updated_at: new Date().toISOString() })
       .eq("id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed, viewer);
     return { ok: true };
   }
 
@@ -270,6 +324,7 @@ async function patchIntakeField(
       .update({ solicitante_nome: trimmed, updated_at: new Date().toISOString() })
       .eq("id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed, viewer);
     return { ok: true };
   }
 
@@ -296,6 +351,7 @@ async function patchIntakeField(
         .eq("oportunidade_id", oportunidadeId);
       if (e2) return { ok: false, error: e2.message };
     }
+    await logIntakeFieldChange(supabase, oportunidadeId, key, sim ? "Sim" : "Não", viewer);
     return { ok: true };
   }
 
@@ -324,6 +380,7 @@ async function patchIntakeField(
       .update({ cadastrado_por_email: trimmed })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed, viewer);
     return { ok: true };
   }
 
@@ -340,10 +397,9 @@ async function patchIntakeField(
       .update({ empresas_json: empresas })
       .eq("oportunidade_id", oportunidadeId);
     if (upErr) return { ok: false, error: upErr.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, "Nova empresa", viewer, "Empresa adicionada");
     return { ok: true };
   }
-
-  /** Remove empresa por índice 1-based (`value` = "1", "2", …). Mantém pelo menos uma linha. */
   if (key === "empresa_delete") {
     const n = Number.parseInt(trimmed, 10);
     if (!Number.isFinite(n) || n < 1) {
@@ -380,10 +436,10 @@ async function patchIntakeField(
         if (opErr) return { ok: false, error: opErr.message };
       }
     }
+    await logIntakeFieldChange(supabase, oportunidadeId, key, `Empresa ${n}`, viewer, "Empresa removida");
     return { ok: true };
   }
-
-  const bundleMatch = EMPRESA_BUNDLE_RE.exec(key);
+  const bundleMatch = /^empresa_(\d+)$/.exec(key);
   if (bundleMatch) {
     const idx = Number(bundleMatch[1]) - 1;
     let parsed: { razao_social?: unknown; tipo_documento?: unknown; documento?: unknown };
@@ -430,6 +486,14 @@ async function patchIntakeField(
         .eq("id", oportunidadeId);
       if (opErr) return { ok: false, error: opErr.message };
     }
+    await logIntakeFieldChange(
+      supabase,
+      oportunidadeId,
+      key,
+      rs,
+      viewer,
+      `Empresa ${idx + 1} — dados atualizados`,
+    );
     return { ok: true };
   }
 
@@ -439,6 +503,7 @@ async function patchIntakeField(
       .update({ contexto_comercial: trimmed || null })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed, viewer);
     return { ok: true };
   }
 
@@ -452,6 +517,7 @@ async function patchIntakeField(
       .update({ data_entrega_due: d })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, d ?? "", viewer);
     return { ok: true };
   }
 
@@ -465,6 +531,7 @@ async function patchIntakeField(
       .update({ horario_entrega_due: t })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, t ?? "", viewer);
     return { ok: true };
   }
 
@@ -490,6 +557,7 @@ async function patchIntakeField(
       .update({ areas_analise: parts })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, parts.join(", "), viewer);
     return { ok: true };
   }
 
@@ -500,6 +568,7 @@ async function patchIntakeField(
       .update({ local_reuniao: trimmed })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed, viewer);
     return { ok: true };
   }
 
@@ -513,6 +582,7 @@ async function patchIntakeField(
       .update({ data_reuniao: d })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, d ?? "", viewer);
     return { ok: true };
   }
 
@@ -526,6 +596,7 @@ async function patchIntakeField(
       .update({ horario_reuniao: t })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, t ?? "", viewer);
     return { ok: true };
   }
 
@@ -539,6 +610,7 @@ async function patchIntakeField(
       .update({ tipo_lead: trimmed })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed, viewer);
     return { ok: true };
   }
 
@@ -551,6 +623,7 @@ async function patchIntakeField(
       .update({ tipo_indicacao: trimmed || null })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed || "—", viewer);
     return { ok: true };
   }
 
@@ -560,6 +633,7 @@ async function patchIntakeField(
       .update({ nome_indicacao: trimmed || null })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed || "—", viewer);
     return { ok: true };
   }
 
@@ -612,8 +686,55 @@ async function patchIntakeField(
         .eq("id", oportunidadeId);
       if (opErr) return { ok: false, error: opErr.message };
     }
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed, viewer);
     return { ok: true };
   }
 
   return { ok: false, error: "Campo de cadastro inicial não editável ou desconhecido.", status: 400 };
+}
+
+async function logIntakeFieldChange(
+  supabase: SupabaseClient,
+  oportunidadeId: string,
+  key: string,
+  value: string,
+  viewer?: PatchViewerContext,
+  titleOverride?: string,
+): Promise<void> {
+  const labels: Record<string, string> = {
+    email_solicitante: "E-mail do solicitante",
+    solicitante_nome: "Nome do lead",
+    havera_due_diligence: "Due diligence",
+    due_diligence_intake: "Due diligence",
+    tipo_lead: "Tipo de lead",
+    cadastrado_por: "Cadastro realizado por",
+    contexto_comercial: "Contexto comercial",
+    data_entrega_due: "Data de entrega DUE",
+    horario_entrega_due: "Horário de entrega DUE",
+    areas_analise: "Áreas de análise",
+    local_reuniao: "Local da reunião",
+    data_reuniao: "Data da reunião",
+    horario_reuniao: "Horário da reunião",
+    tipo_indicacao: "Tipo de indicação",
+    nome_indicacao: "Nome da indicação",
+  };
+  const empresaMatch = /^empresa_(\d+)_(razao|doc|tipo)$/.exec(key);
+  const title =
+    titleOverride ??
+    (empresaMatch
+      ? `Empresa ${empresaMatch[1]} — ${empresaMatch[2] === "razao" ? "razão social" : empresaMatch[2] === "doc" ? "documento" : "tipo"}`
+      : `Cadastro atualizado: ${labels[key] ?? key}`);
+
+  const { data: oppRow } = await supabase.from("oportunidades").select("etapa").eq("id", oportunidadeId).maybeSingle();
+  const now = new Date().toISOString();
+  await recordLeadActivityEvent(supabase, {
+    oportunidadeId,
+    kind: "campo_intake_alterado",
+    title,
+    detail: value.slice(0, 280),
+    etapa: (oppRow?.etapa as OpportunityStage | undefined) ?? null,
+    actorAppUserId: viewer?.appUserId ?? null,
+    sourceId: `intake-live:${key}:${now}`,
+    metadata: { field_key: key },
+  });
 }

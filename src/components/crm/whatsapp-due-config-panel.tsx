@@ -36,13 +36,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { Select, SelectTrigger } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
@@ -483,19 +478,19 @@ export function WhatsappDueConfigPanel({
                               : "Sem destino ativo"}
                           </span>
                         </SelectTrigger>
-                        <SelectContent side="bottom" align="start">
-                          <SelectItem value="__none__" disabled>
+                        <CrmSelectContent className="min-w-[280px]">
+                          <CrmSelectItem value="__none__" disabled>
                             <span className="text-muted-foreground">Sem destino ativo</span>
-                          </SelectItem>
+                          </CrmSelectItem>
                           {configs.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
+                            <CrmSelectItem key={c.id} value={c.id}>
                               {c.label}
                               <span className="text-[10px] text-muted-foreground">
                                 · {DESTINATION_TYPE_LABELS[c.destination_type]}
                               </span>
-                            </SelectItem>
+                            </CrmSelectItem>
                           ))}
-                        </SelectContent>
+                        </CrmSelectContent>
                       </Select>
                       {active && (
                         <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
@@ -825,12 +820,15 @@ export function WhatsappDueConfigPanel({
                       }}
                     >
                       <SelectTrigger className="bg-white/70 text-sm">
-                        <SelectValue />
+                        <CrmSelectValue
+                          value={modalForm?.destination_type}
+                          labels={DESTINATION_TYPE_LABELS}
+                        />
                       </SelectTrigger>
-                      <SelectContent side="bottom" align="start">
-                        <SelectItem value="number">Número</SelectItem>
-                        <SelectItem value="group">Grupo</SelectItem>
-                      </SelectContent>
+                      <CrmSelectContent>
+                        <CrmSelectItem value="number">Número</CrmSelectItem>
+                        <CrmSelectItem value="group">Grupo</CrmSelectItem>
+                      </CrmSelectContent>
                     </Select>
                   </div>
 
@@ -846,15 +844,18 @@ export function WhatsappDueConfigPanel({
                       }}
                     >
                       <SelectTrigger className="bg-white/70 text-sm">
-                        <SelectValue />
+                        <CrmSelectValue
+                          value={modalForm?.use_case}
+                          labels={USE_CASE_LABELS}
+                        />
                       </SelectTrigger>
-                      <SelectContent side="bottom" align="start">
+                      <CrmSelectContent className="min-w-[260px]">
                         {USE_CASE_ORDER.map((uc) => (
-                          <SelectItem key={uc} value={uc}>
+                          <CrmSelectItem key={uc} value={uc}>
                             {USE_CASE_LABELS[uc]}
-                          </SelectItem>
+                          </CrmSelectItem>
                         ))}
-                      </SelectContent>
+                      </CrmSelectContent>
                     </Select>
                   </div>
                 </div>

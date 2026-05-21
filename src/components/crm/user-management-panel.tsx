@@ -50,13 +50,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { Select, SelectTrigger } from "@/components/ui/select";
 import {
   APP_USER_AREAS,
   APP_USER_AREA_FORM_ITEMS,
@@ -372,19 +367,14 @@ function UserFormDialog({
                 onValueChange={(v) => set("role", v ?? form.role)}
               >
                 <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-[#fbfcfd] text-sm shadow-sm">
-                  <SelectValue />
+                  <CrmSelectValue value={form.role} labels={APP_USER_ROLE_SELECT_ITEMS} />
                 </SelectTrigger>
-                <SelectContent
-                  alignItemWithTrigger={false}
-                  side="bottom"
-                  align="start"
-                  sideOffset={4}
-                >
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="comercial">Comercial</SelectItem>
-                  <SelectItem value="controladoria">Controladoria</SelectItem>
-                  <SelectItem value="financeiro">Financeiro</SelectItem>
-                </SelectContent>
+                <CrmSelectContent>
+                  <CrmSelectItem value="admin">Admin</CrmSelectItem>
+                  <CrmSelectItem value="comercial">Comercial</CrmSelectItem>
+                  <CrmSelectItem value="controladoria">Controladoria</CrmSelectItem>
+                  <CrmSelectItem value="financeiro">Financeiro</CrmSelectItem>
+                </CrmSelectContent>
               </Select>
             </div>
 
@@ -397,16 +387,15 @@ function UserFormDialog({
                 onValueChange={(v) => set("area", v ?? form.area)}
               >
                 <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-[#fbfcfd] text-sm shadow-sm">
-                  <SelectValue placeholder="Selecione" />
+                  <CrmSelectValue
+                    value={form.area}
+                    labels={APP_USER_AREA_FORM_ITEMS}
+                    placeholder="Selecione"
+                  />
                 </SelectTrigger>
-                <SelectContent
-                  alignItemWithTrigger={false}
-                  side="bottom"
-                  align="start"
-                  sideOffset={4}
-                >
+                <CrmSelectContent>
                   {APP_USER_AREAS.map((a) => (
-                    <SelectItem key={a} value={a}>
+                    <CrmSelectItem key={a} value={a}>
                       <span className="inline-flex items-center gap-2">
                         {PRACTICE_AREA_SET.has(a) ? (
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -415,9 +404,9 @@ function UserFormDialog({
                         )}
                         {a}
                       </span>
-                    </SelectItem>
+                    </CrmSelectItem>
                   ))}
-                </SelectContent>
+                </CrmSelectContent>
               </Select>
             </div>
             </div>
@@ -636,14 +625,14 @@ function UserCard({ user, onEdit, onDelete, onRoleChange }: UserCardProps) {
             disabled={isPending}
           >
             <SelectTrigger className="h-9 flex-1 border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
-              <SelectValue />
+              <CrmSelectValue value={user.role} labels={APP_USER_ROLE_SELECT_ITEMS} />
             </SelectTrigger>
-            <SelectContent align="start" alignItemWithTrigger={false}>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="comercial">Comercial</SelectItem>
-              <SelectItem value="controladoria">Controladoria</SelectItem>
-              <SelectItem value="financeiro">Financeiro</SelectItem>
-            </SelectContent>
+            <CrmSelectContent>
+              <CrmSelectItem value="admin">Admin</CrmSelectItem>
+              <CrmSelectItem value="comercial">Comercial</CrmSelectItem>
+              <CrmSelectItem value="controladoria">Controladoria</CrmSelectItem>
+              <CrmSelectItem value="financeiro">Financeiro</CrmSelectItem>
+            </CrmSelectContent>
           </Select>
 
           {savedRole ? (
@@ -800,16 +789,20 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             onValueChange={(v) => setRoleFilter(v ?? "all")}
           >
             <SelectTrigger className="h-10 w-[170px] border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
-              <SelectValue placeholder="Filtrar role" />
+              <CrmSelectValue
+                value={roleFilter}
+                labels={roleFilterItems}
+                placeholder="Filtrar role"
+              />
             </SelectTrigger>
-            <SelectContent align="start" alignItemWithTrigger={false}>
-              <SelectItem value="all">Todas as roles</SelectItem>
+            <CrmSelectContent className="min-w-[200px]">
+              <CrmSelectItem value="all">Todas as roles</CrmSelectItem>
               {roleOptions.map((role) => (
-                <SelectItem key={role} value={role}>
+                <CrmSelectItem key={role} value={role}>
                   {APP_USER_ROLE_LABELS[role]?.label ?? role}
-                </SelectItem>
+                </CrmSelectItem>
               ))}
-            </SelectContent>
+            </CrmSelectContent>
           </Select>
           <Select
             items={areaFilterItems}
@@ -817,24 +810,28 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             onValueChange={(v) => setAreaFilter(v ?? "all")}
           >
             <SelectTrigger className="h-10 w-[210px] border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
-              <SelectValue placeholder="Filtrar área" />
+              <CrmSelectValue
+                value={areaFilter}
+                labels={areaFilterItems}
+                placeholder="Filtrar área"
+              />
             </SelectTrigger>
-            <SelectContent align="start" alignItemWithTrigger={false}>
-              <SelectItem value="all">Todas as áreas</SelectItem>
+            <CrmSelectContent className="min-w-[220px]">
+              <CrmSelectItem value="all">Todas as áreas</CrmSelectItem>
               {areaOptions.map((area) => {
                 const meta = AREA_META[area] ?? AREA_META.Outro;
                 const Icon = meta.icon;
 
                 return (
-                  <SelectItem key={area} value={area}>
+                  <CrmSelectItem key={area} value={area}>
                     <span className="inline-flex items-center gap-1.5">
                       <Icon className="h-3.5 w-3.5" />
                       {area}
                     </span>
-                  </SelectItem>
+                  </CrmSelectItem>
                 );
               })}
-            </SelectContent>
+            </CrmSelectContent>
           </Select>
           <Select
             items={managerFilterItems}
@@ -842,14 +839,18 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             onValueChange={(v) => setManagerFilter(v ?? "all")}
           >
             <SelectTrigger className="h-10 w-[210px] border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
-              <SelectValue placeholder="Capacidade" />
+              <CrmSelectValue
+                value={managerFilter}
+                labels={managerFilterItems}
+                placeholder="Capacidade"
+              />
             </SelectTrigger>
-            <SelectContent align="start" alignItemWithTrigger={false}>
-              <SelectItem value="all">Todas as capacidades</SelectItem>
-              <SelectItem value="manager">Gestores de proposta</SelectItem>
-              <SelectItem value="general_comercial">Comercial sem gestão</SelectItem>
-              <SelectItem value="internal_area">Áreas internas</SelectItem>
-            </SelectContent>
+            <CrmSelectContent className="min-w-[240px]">
+              <CrmSelectItem value="all">Todas as capacidades</CrmSelectItem>
+              <CrmSelectItem value="manager">Gestores de proposta</CrmSelectItem>
+              <CrmSelectItem value="general_comercial">Comercial sem gestão</CrmSelectItem>
+              <CrmSelectItem value="internal_area">Áreas internas</CrmSelectItem>
+            </CrmSelectContent>
           </Select>
           <span className="hidden text-xs text-muted-foreground xl:block">
             {filtered.length} de {users.length} • {adminCount} admin • {proposalManagersCount} gestores

@@ -1,5 +1,10 @@
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, FileCheck2, ShieldCheck } from "lucide-react";
 import { CrmPageHeader } from "@/components/crm/crm-page-header";
+import {
+  fetchAppUsersByEmailLookup,
+  resolveSolicitanteInternoDisplay,
+} from "@/lib/crm/resolve-app-user-display";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import {
@@ -67,12 +72,16 @@ export default async function CrmDueDiligencePage() {
     );
   }
 
+  const admin = createSupabaseAdminClient();
+  const usersByEmail = await fetchAppUsersByEmailLookup(admin);
+
   const { data: opRows, error: opError } = await supabase
     .from("oportunidades")
     .select(
       `
       id,
       solicitante_nome,
+      solicitante_email,
       etapa,
       created_at,
       criado_por,
@@ -224,10 +233,11 @@ export default async function CrmDueDiligencePage() {
       intakeRow?.cadastrado_por_email?.trim() ||
       "—";
     const createdByAvatarUrl = creatorRow?.avatar_url?.trim() || null;
-    const solicitanteNome =
-      intakeRow?.solicitante_nome?.trim() ||
-      String(r.solicitante_nome ?? "").trim() ||
-      "—";
+    const solicitanteDisplay = resolveSolicitanteInternoDisplay({
+      nomeCadastro: intakeRow?.solicitante_nome,
+      solicitanteEmail: r.solicitante_email != null ? String(r.solicitante_email) : null,
+      usersByEmail,
+    });
 
     const trans = transByOp.get(r.id);
     const duePedidoEmIso = trans?.levantamento_dados ?? r.created_at ?? null;
@@ -272,7 +282,8 @@ export default async function CrmDueDiligencePage() {
       oportunidadeId: r.id,
       etapa: String(r.etapa ?? ""),
       leadName: String(r.solicitante_nome ?? "").trim() || "—",
-      solicitanteNome,
+      solicitanteNome: solicitanteDisplay.nome,
+      solicitanteAvatarUrl: solicitanteDisplay.avatarUrl,
       createdByLabel,
       createdByAvatarUrl,
       duePedidoEmIso,
@@ -293,13 +304,39 @@ export default async function CrmDueDiligencePage() {
     };
   });
 
+  const emAndamento = leads.filter((L) => !L.dueFinalizadaEmIso).length;
+  const emAtraso = leads.filter((L) => L.punctuality.kind === "em_atraso").length;
+  const finalizadas = leads.filter((L) => !!L.dueFinalizadaEmIso).length;
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <CrmPageHeader
         eyebrow="Operações"
         title="Due diligence"
-        description="Apenas negociações abertas pelo formulário deste CRM (com cadastro inicial). Importações do RD CRM não entram aqui. A situação do prazo compara a finalização no funil com a data e hora acordadas no cadastro."
+        description="Acompanhe cada negociação com due diligence: em que fase está, se o prazo combinado foi cumprido e quais documentos já foram anexados."
         icon={ClipboardList}
+        badges={[
+          { label: "Cadastro neste CRM", icon: ShieldCheck },
+          { label: "Importações RD fora desta lista", icon: FileCheck2 },
+        ]}
+        stats={[
+          { label: "Total", value: leads.length },
+          {
+            label: "Em andamento",
+            value: emAndamento,
+            detail: "Ainda não finalizada no funil",
+          },
+          {
+            label: "Em atraso",
+            value: emAtraso,
+            detail: "Prazo combinado já passou",
+          },
+          {
+            label: "Finalizadas",
+            value: finalizadas,
+            detail: "Etapa due diligence concluída",
+          },
+        ]}
       />
 
       <DueDiligencePanel leads={leads} />

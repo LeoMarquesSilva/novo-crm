@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -54,6 +54,7 @@ type SidebarGroup = {
 const STORAGE_KEYS = {
   favorites: "crm.sidebar.favorites.v1",
   groups: "crm.sidebar.groups.v1",
+  collapsed: "crm.sidebar.collapsed.v1",
 };
 
 const mainItems: SidebarItem[] = [
@@ -159,16 +160,30 @@ function readGroupState(): Record<string, boolean> {
   }
 }
 
+/** Padrão do CRM: sidebar recolhida (88px). Só expande se o usuário clicar em expandir. */
+function readCollapsedPreference(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEYS.collapsed);
+    if (raw === null) return true;
+    return raw !== "false";
+  } catch {
+    return true;
+  }
+}
+
 function SidebarNavItem({
   item,
   active,
   collapsed,
+  compact,
   favorite,
   onToggleFavorite,
 }: {
   item: SidebarItem;
   active: boolean;
   collapsed: boolean;
+  compact?: boolean;
   favorite: boolean;
   onToggleFavorite: (href: string) => void;
 }) {
@@ -181,6 +196,7 @@ function SidebarNavItem({
       className={cn(
         "group/nav-item relative flex items-center rounded-2xl border px-3 py-2.5 text-[13px] transition-all duration-150",
         collapsed ? "justify-center" : "gap-3",
+        compact && "py-2",
         active
           ? "border-primary-dark/10 bg-white text-primary-dark shadow-[0_10px_26px_rgba(16,31,46,0.08)]"
           : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/75 hover:text-primary-dark",
@@ -199,32 +215,36 @@ function SidebarNavItem({
         <>
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold tracking-[-0.01em]">{item.label}</span>
-            <span className="mt-0.5 block truncate text-[11px] leading-tight text-slate-400">
-              {item.description}
-            </span>
+            {!compact ? (
+              <span className="mt-0.5 block truncate text-[11px] leading-tight text-slate-400">
+                {item.description}
+              </span>
+            ) : null}
           </span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onToggleFavorite(item.href);
-                }}
-                className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-300 opacity-0 transition-all duration-150 hover:bg-slate-100 hover:text-accent-yellow-dark group-hover/nav-item:opacity-100",
-                  favorite && "text-accent-yellow-dark opacity-100",
-                )}
-              >
-                <Star className={cn("size-3.5", favorite && "fill-current")} strokeWidth={1.9} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="w-auto rounded-lg bg-primary-dark px-2 py-1 text-xs text-white">
-              {favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-            </TooltipContent>
-          </Tooltip>
+          {!compact ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onToggleFavorite(item.href);
+                  }}
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-300 opacity-0 transition-all duration-150 hover:bg-slate-100 hover:text-accent-yellow-dark group-hover/nav-item:opacity-100",
+                    favorite && "text-accent-yellow-dark opacity-100",
+                  )}
+                >
+                  <Star className={cn("size-3.5", favorite && "fill-current")} strokeWidth={1.9} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="w-auto rounded-lg bg-primary-dark px-2 py-1 text-xs text-white">
+                {favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
         </>
       ) : null}
     </Link>
@@ -235,6 +255,7 @@ function SidebarSection({
   group,
   pathname,
   collapsed,
+  compact,
   favorites,
   search,
   open,
@@ -244,6 +265,7 @@ function SidebarSection({
   group: SidebarGroup;
   pathname: string | null;
   collapsed: boolean;
+  compact?: boolean;
   favorites: string[];
   search: string;
   open: boolean;
@@ -265,18 +287,24 @@ function SidebarSection({
         <button
           type="button"
           onClick={() => onToggleOpen(group.id)}
-          className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600"
+          disabled={compact}
+          className={cn(
+            "flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 transition-colors",
+            compact ? "cursor-default" : "hover:bg-white/70 hover:text-slate-600",
+          )}
         >
           <span>{group.title}</span>
-          <ChevronDown
-            className={cn("size-3.5 transition-transform duration-150", open ? "rotate-0" : "-rotate-90")}
-            strokeWidth={2}
-          />
+          {!compact ? (
+            <ChevronDown
+              className={cn("size-3.5 transition-transform duration-150", open ? "rotate-0" : "-rotate-90")}
+              strokeWidth={2}
+            />
+          ) : null}
         </button>
       ) : null}
 
       <AnimatePresence initial={false}>
-        {(open || collapsed) ? (
+        {(open || collapsed || compact) ? (
           <motion.div
             key={group.id}
             initial={{ height: 0, opacity: 0 }}
@@ -292,6 +320,7 @@ function SidebarSection({
                   item={item}
                   active={isNavLinkActive(pathname, item.href)}
                   collapsed={collapsed}
+                  compact={compact}
                   favorite={favorites.includes(item.href)}
                   onToggleFavorite={onToggleFavorite}
                 />
@@ -312,7 +341,9 @@ export function AppShell({
   sessionUser: CrmSessionUser;
 }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+  const [hoverExpanded, setHoverExpanded] = useState(false);
+  const hoverLeaveTimerRef = useRef<number | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -325,6 +356,11 @@ export function AppShell({
   const showAdminNav = sessionUser.role === "admin";
   const displayName = sessionUser.fullName?.trim() || sessionUser.email || "Conta";
   const workspaceLabel = sessionUser.area?.trim() || "Workspace corporativo";
+  const isPinnedExpanded = !collapsed;
+  const isHoverOverlay = collapsed && hoverExpanded;
+  const isVisuallyExpanded = isPinnedExpanded || hoverExpanded;
+  const navCollapsed = !isVisuallyExpanded;
+  const navCompact = isHoverOverlay;
 
   const groups = useMemo<SidebarGroup[]>(
     () => [
@@ -343,6 +379,7 @@ export function AppShell({
     const timer = window.setTimeout(() => {
       setFavorites(readStringArray(STORAGE_KEYS.favorites));
       setOpenGroups((current) => ({ ...current, ...readGroupState() }));
+      setCollapsed(readCollapsedPreference());
       setHydratedStorage(true);
     }, 0);
 
@@ -359,6 +396,11 @@ export function AppShell({
     window.localStorage.setItem(STORAGE_KEYS.groups, JSON.stringify(openGroups));
   }, [openGroups, hydratedStorage]);
 
+  useEffect(() => {
+    if (!hydratedStorage) return;
+    window.localStorage.setItem(STORAGE_KEYS.collapsed, collapsed ? "true" : "false");
+  }, [collapsed, hydratedStorage]);
+
   function toggleFavorite(href: string) {
     setFavorites((current) =>
       current.includes(href) ? current.filter((item) => item !== href) : [href, ...current],
@@ -368,6 +410,31 @@ export function AppShell({
   function toggleGroup(id: string) {
     setOpenGroups((current) => ({ ...current, [id]: !current[id] }));
   }
+
+  function handleSidebarPointerEnter() {
+    if (hoverLeaveTimerRef.current !== null) {
+      window.clearTimeout(hoverLeaveTimerRef.current);
+      hoverLeaveTimerRef.current = null;
+    }
+    if (collapsed) {
+      setHoverExpanded(true);
+    }
+  }
+
+  function handleSidebarPointerLeave() {
+    hoverLeaveTimerRef.current = window.setTimeout(() => {
+      setHoverExpanded(false);
+      hoverLeaveTimerRef.current = null;
+    }, 120);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (hoverLeaveTimerRef.current !== null) {
+        window.clearTimeout(hoverLeaveTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <TooltipProvider delayDuration={220} skipDelayDuration={80}>
@@ -482,16 +549,21 @@ export function AppShell({
 
         <aside
           className={cn(
-            "fixed left-0 top-0 z-40 hidden h-dvh max-h-dvh flex-col border-r border-[#e6e9ef] bg-[#f3f5f8] shadow-[18px_0_45px_rgba(16,31,46,0.045)] transition-[width] duration-200 lg:flex",
-            collapsed ? "w-[88px]" : "w-[282px]",
+            "fixed left-0 top-0 hidden h-dvh max-h-dvh flex-col overflow-x-hidden border-r border-[#e6e9ef] bg-[#f3f5f8] transition-[width,box-shadow] duration-200 lg:flex",
+            isVisuallyExpanded ? "w-[282px]" : "w-[88px]",
+            isHoverOverlay
+              ? "z-50 shadow-[24px_0_60px_rgba(16,31,46,0.16)]"
+              : "z-40 shadow-[18px_0_45px_rgba(16,31,46,0.045)]",
           )}
+          onMouseEnter={handleSidebarPointerEnter}
+          onMouseLeave={handleSidebarPointerLeave}
         >
           <div className="flex min-h-0 flex-1 flex-col px-3 py-4">
-            <div className={cn("mb-3 flex items-center gap-3 px-1", collapsed && "justify-center")}>
+            <div className={cn("mb-3 flex items-center gap-3 px-1", navCollapsed && "justify-center")}>
               <div className="flex size-10 shrink-0 items-center justify-center rounded-[16px] bg-[linear-gradient(135deg,#101F2E_0%,#24615b_58%,#C8A96B_100%)] text-sm font-black tracking-[-0.05em] text-white shadow-[0_12px_24px_rgba(16,31,46,0.16)]">
                 BP
               </div>
-              {!collapsed ? (
+              {isVisuallyExpanded ? (
                 <>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-bold tracking-[-0.02em] text-primary-dark">
@@ -499,18 +571,20 @@ export function AppShell({
                     </p>
                     <p className="truncate text-[11px] font-medium text-slate-500">{workspaceLabel}</p>
                   </div>
-                  <button
-                    type="button"
-                    className="flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-primary-dark"
-                    aria-label="Trocar workspace"
-                  >
-                    <ChevronsUpDown className="size-3.5" strokeWidth={2} />
-                  </button>
+                  {!navCompact ? (
+                    <button
+                      type="button"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-primary-dark"
+                      aria-label="Trocar workspace"
+                    >
+                      <ChevronsUpDown className="size-3.5" strokeWidth={2} />
+                    </button>
+                  ) : null}
                 </>
               ) : null}
             </div>
 
-            {!collapsed ? (
+            {isPinnedExpanded ? (
               <div className="mb-4 px-1">
                 <div className="group/search flex h-9 items-center gap-2 rounded-[14px] border border-[#e1e5eb] bg-white px-3 shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-colors hover:border-slate-300">
                   <Search className="size-4 shrink-0 text-slate-400" strokeWidth={1.9} />
@@ -528,7 +602,7 @@ export function AppShell({
             ) : null}
 
             <nav className="crm-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-1 pb-3">
-              {!collapsed && favoriteItems.length > 0 ? (
+              {isVisuallyExpanded && favoriteItems.length > 0 ? (
                 <section className="space-y-1.5">
                   <p className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
                     Favoritos
@@ -539,7 +613,8 @@ export function AppShell({
                         key={item.href}
                         item={item}
                         active={isNavLinkActive(pathname, item.href)}
-                        collapsed={false}
+                        collapsed={navCollapsed}
+                        compact={navCompact}
                         favorite
                         onToggleFavorite={toggleFavorite}
                       />
@@ -553,7 +628,8 @@ export function AppShell({
                   key={group.id}
                   group={group}
                   pathname={pathname}
-                  collapsed={collapsed}
+                  collapsed={navCollapsed}
+                  compact={navCompact}
                   favorites={favorites}
                   search={search}
                   open={openGroups[group.id] ?? true}
@@ -563,23 +639,26 @@ export function AppShell({
               ))}
             </nav>
 
-            <div className={cn("border-t border-[#e6e9ef] pt-3", collapsed && "flex flex-col items-center")}>
-              <div className={cn("mb-2 flex items-center", collapsed ? "flex-col gap-2" : "justify-between gap-2")}>
+            <div className={cn("border-t border-[#e6e9ef] pt-3", navCollapsed && "flex flex-col items-center")}>
+              <div className={cn("mb-2 flex items-center", navCollapsed ? "flex-col gap-2" : "justify-between gap-2")}>
                 <CrmNotificationsBell className="hover:bg-white" />
                 <Button
                   type="button"
                   variant="ghost"
-                  size={collapsed ? "icon" : "sm"}
-                  onClick={() => setCollapsed((prev) => !prev)}
-                  aria-label={collapsed ? "Expandir menu lateral" : "Colapsar menu lateral"}
+                  size={navCollapsed ? "icon" : "sm"}
+                  onClick={() => {
+                    setCollapsed((prev) => !prev);
+                    setHoverExpanded(false);
+                  }}
+                  aria-label={collapsed ? "Fixar menu lateral expandido" : "Recolher menu lateral"}
                   className="border-[#e1e5eb] bg-white text-slate-500 hover:text-primary-dark"
                 >
                   {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
-                  {!collapsed ? <span className="ml-1.5">Recolher</span> : null}
+                  {isPinnedExpanded ? <span className="ml-1.5">Recolher</span> : null}
                 </Button>
               </div>
-              <SidebarAccountMenu sessionUser={sessionUser} collapsed={collapsed} />
-              {!collapsed ? (
+              <SidebarAccountMenu sessionUser={sessionUser} collapsed={navCollapsed} />
+              {isPinnedExpanded ? (
                 <p className="mt-2 truncate px-2 text-[11px] text-slate-400" title={displayName}>
                   Sessão ativa em ambiente seguro
                 </p>

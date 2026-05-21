@@ -10,11 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
-  SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import {
   APP_USER_AREAS,
   APP_USER_AREA_FORM_ITEMS,
@@ -55,7 +54,7 @@ export function ProfileForm({ initial, hasProfileRow, role }: ProfileFormProps) 
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const areaSelectItems = useMemo(() => {
+  const areaCrmSelectItems = useMemo(() => {
     const items: Record<string, string> = {
       "": "Sem área definida",
       ...APP_USER_AREA_FORM_ITEMS,
@@ -105,7 +104,7 @@ export function ProfileForm({ initial, hasProfileRow, role }: ProfileFormProps) 
     }
 
     const areaValue = area.trim();
-    if (areaValue && !areaSelectItems[areaValue]) {
+    if (areaValue && !areaCrmSelectItems[areaValue]) {
       setError("Selecione uma área válida na lista.");
       return;
     }
@@ -205,26 +204,20 @@ export function ProfileForm({ initial, hasProfileRow, role }: ProfileFormProps) 
             </Label>
             <Select
               modal={false}
-              items={areaSelectItems}
+              items={areaCrmSelectItems}
               value={area}
               onValueChange={(v) => setArea(v ?? "")}
             >
               <SelectTrigger id="profile-area" size="default" className={selectTriggerClass}>
                 <SelectValue placeholder="Selecione a área" />
               </SelectTrigger>
-              <SelectContent
-                alignItemWithTrigger={false}
-                side="bottom"
-                align="start"
-                sideOffset={4}
-                className="max-h-[min(320px,70vh)]"
-              >
+              <CrmSelectContent className="max-h-[min(320px,70vh)]">
                 {orderedAreaKeys.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {areaSelectItems[a] ?? a}
-                  </SelectItem>
+                  <CrmSelectItem key={a} value={a}>
+                    {areaCrmSelectItems[a] ?? a}
+                  </CrmSelectItem>
                 ))}
-              </SelectContent>
+              </CrmSelectContent>
             </Select>
             <p className="text-xs leading-relaxed text-primary-medium">
               Mesmas opções que em{" "}

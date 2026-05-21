@@ -49,12 +49,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { cn } from "@/lib/utils";
 import { evaluateCondition, type FieldCondition } from "@/lib/crm/field-condition";
@@ -709,8 +705,11 @@ function ContratoBuilderDialog({
       <Dialog modal={false} open={open} onOpenChange={() => undefined}>
         <DialogContent
           hideCloseButton
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onFocusOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(event) => {
+            // Bloqueia dismiss (incl. portal Base UI Select); fechar só pelo X
+            event.preventDefault();
+          }}
+          onFocusOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(e) => {
             e.preventDefault();
             handleCloseAttempt();
@@ -755,13 +754,13 @@ function ContratoBuilderDialog({
                 <SelectTrigger className="h-9 min-w-[14rem] max-w-[22rem] border-white/25 bg-white/15 text-sm text-white shadow-sm backdrop-blur">
                   <span className="min-w-0 truncate text-left">{selectedTemplateName}</span>
                 </SelectTrigger>
-                <SelectContent>
+                <CrmSelectContent className="max-h-[min(280px,50dvh)]">
                   {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
+                    <CrmSelectItem key={t.id} value={t.id}>
                       {t.name} v{t.version}
-                    </SelectItem>
+                    </CrmSelectItem>
                   ))}
-                </SelectContent>
+                </CrmSelectContent>
               </Select>
 
               <Button
@@ -1494,10 +1493,10 @@ function D4SignSendSection({
                         <SelectTrigger className="h-8 w-[88px] border-slate-200 bg-white text-[11px]">
                           <span>{row.foreign === "0" ? "CPF BR" : "Sem CPF"}</span>
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">CPF brasileiro</SelectItem>
-                          <SelectItem value="1">Sem CPF / estrangeiro</SelectItem>
-                        </SelectContent>
+                        <CrmSelectContent className="max-h-[min(280px,50dvh)]">
+                          <CrmSelectItem value="0">CPF brasileiro</CrmSelectItem>
+                          <CrmSelectItem value="1">Sem CPF / estrangeiro</CrmSelectItem>
+                        </CrmSelectContent>
                       </Select>
                     </div>
                   </div>
@@ -2507,13 +2506,13 @@ function CcFieldInput({
               {value || "Selecionar..."}
             </span>
           </SelectTrigger>
-          <SelectContent>
+          <CrmSelectContent className="max-h-[min(280px,50dvh)]">
             {field.fieldOptions.map((opt) => (
-              <SelectItem key={opt} value={opt}>
+              <CrmSelectItem key={opt} value={opt}>
                 {opt}
-              </SelectItem>
+              </CrmSelectItem>
             ))}
-          </SelectContent>
+          </CrmSelectContent>
         </Select>
       </div>
     );

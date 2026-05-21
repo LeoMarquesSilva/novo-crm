@@ -333,6 +333,27 @@ function PhaseStep({
 
 // ─── Public export ────────────────────────────────────────────────────────────
 
+function timelineResumo(timeline: DueDiligenceTimeline): string {
+  const fasesConcluidas = timeline.fases.filter((f) => f.fimIso).length;
+  const levPend = timeline.areasLevantamento.filter((a) =>
+    /Pendente|Aguardando|Em aberto/i.test(a.situacao),
+  ).length;
+  const revAjustes = timeline.areasRevisao.filter((a) => /ajustes/i.test(a.situacao)).length;
+  const partes: string[] = [];
+  if (fasesConcluidas > 0) {
+    partes.push(
+      `${fasesConcluidas} fase${fasesConcluidas !== 1 ? "s" : ""} encerrada${fasesConcluidas !== 1 ? "s" : ""}`,
+    );
+  }
+  if (levPend > 0) {
+    partes.push(`${levPend} área${levPend !== 1 ? "s" : ""} aguardando levantamento`);
+  }
+  if (revAjustes > 0) {
+    partes.push(`${revAjustes} área${revAjustes !== 1 ? "s" : ""} com ajustes na revisão`);
+  }
+  return partes.length > 0 ? partes.join(" · ") : "Histórico por fase e por área de prática";
+}
+
 export function DueTimelineSection({
   timeline,
 }: {
@@ -344,8 +365,11 @@ export function DueTimelineSection({
   if (empty) {
     return (
       <div className="rounded-2xl border border-dashed border-border p-8 text-center">
-        <p className="text-sm text-muted-foreground">
-          Cronologia ainda não disponível para esta negociação.
+        <p className="text-sm font-medium text-muted-foreground">
+          Cronologia ainda não disponível
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground/80">
+          As datas aparecem quando a negociação avança no funil de due diligence.
         </p>
       </div>
     );
@@ -418,7 +442,11 @@ export function DueTimelineSection({
   ];
 
   return (
-    <ol className="space-y-0" aria-label="Cronologia da due diligence">
+    <div className="space-y-4">
+      <p className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        {timelineResumo(timeline)}
+      </p>
+      <ol className="space-y-0" aria-label="Cronologia da due diligence">
       {steps.map((step, i) => (
         <PhaseStep
           key={step.fase.key}
@@ -430,5 +458,6 @@ export function DueTimelineSection({
         />
       ))}
     </ol>
+    </div>
   );
 }

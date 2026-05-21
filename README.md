@@ -1,12 +1,6 @@
-# CRM Jurídico (base inicial)
+# CRM Jurídico
 
-Projeto iniciado do zero com:
-
-- Next.js 16 (App Router)
-- TypeScript
-- Tailwind CSS v4
-- shadcn/ui
-- Supabase (camada pronta para conexão)
+CRM com Next.js 16, Supabase, kanban de oportunidades, DUE por área, proposta/contrato e integração D4Sign.
 
 ## Setup
 
@@ -22,13 +16,13 @@ npm install
 cp .env.example .env.local
 ```
 
-Preencha:
+Preencha pelo menos:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (necessária para importações e rotas admin)
-- `RD_CRM_TOKEN` (token do RD CRM)
-- `RD_WEBHOOK_SECRET` (segredo enviado no header `x-rd-webhook-secret` ou query `?secret=...`)
+- `SUPABASE_SERVICE_ROLE_KEY` (importações RD, rotas admin, webhooks)
+- `RD_CRM_TOKEN` / `RD_WEBHOOK_SECRET` (opcional, sync RD)
+- Credenciais D4Sign conforme `.env.example` (envio e webhook de contrato)
 
 3. Rode o projeto:
 
@@ -38,16 +32,20 @@ npm run dev
 
 Abra `http://localhost:3000`.
 
-## Estrutura atual
+## Estrutura
 
-- `src/app/(crm)/crm`: shell e páginas do CRM
-- `src/modules/crm/domain`: tipos e regras de workflow
-- `src/modules/crm/application`: dados/mock e orquestração inicial
-- `src/lib/supabase`: clientes browser/server para integração
+- `src/app/(crm)/crm` — páginas do CRM (leads, admin, perfil)
+- `src/app/api/crm` — APIs autenticadas (leads, transição, DUE, proposta, contrato)
+- `src/modules/crm` — domínio, aplicação e integrações
+- `src/lib/crm` — helpers (histórico, DUE, D4Sign, notificações)
+- `supabase/migrations` — schema e RLS (aplicar no projeto Supabase)
 
-## Próximos passos
+Documentação de contexto: `docs/system-context.md`.
 
-- Implementar autenticação real (Supabase Auth)
-- Persistir entidades CRM no banco
-- Substituir mocks por consultas reais
-- Evoluir o motor de workflow para regras dinâmicas por etapa
+## Histórico do lead
+
+Eventos de atividade são gravados em `lead_activity_events` e exibidos na aba **Histórico** da ficha (`/crm/leads/[id]`). Mutations relevantes chamam `recordLeadActivityEvent` no servidor e `router.refresh()` no cliente quando o histórico precisa atualizar na mesma sessão.
+
+## Modais com Select
+
+Dialogs que contêm `Select` (Base UI) usam `modal={false}` e o helper `isInteractionFromBaseUiSelectLayer` / `dialogSelectOutsideHandlers` — ver `.cursor/rules/modal-select-safety.mdc`.

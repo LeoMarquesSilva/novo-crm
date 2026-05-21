@@ -14,13 +14,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { Select, SelectTrigger } from "@/components/ui/select";
+
+const DOC_TYPE_LABELS = { CPF: "CPF", CNPJ: "CNPJ" } as const;
 import { maskDocument } from "@/lib/crm/br-document-mask";
 import { cn } from "@/lib/utils";
 import type { LeadIntakeEmpresaRow } from "./lead-intake-types";
@@ -247,12 +244,12 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
                 disabled={saving}
               >
                 <SelectTrigger className="bg-white/80">
-                  <SelectValue />
+                  <CrmSelectValue value={tipo} labels={DOC_TYPE_LABELS} />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CPF">CPF</SelectItem>
-                  <SelectItem value="CNPJ">CNPJ</SelectItem>
-                </SelectContent>
+                <CrmSelectContent>
+                  <CrmSelectItem value="CPF">CPF</CrmSelectItem>
+                  <CrmSelectItem value="CNPJ">CNPJ</CrmSelectItem>
+                </CrmSelectContent>
               </Select>
             </div>
             <div className="space-y-1">

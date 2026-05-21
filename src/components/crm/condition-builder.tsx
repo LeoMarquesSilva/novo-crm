@@ -3,11 +3,10 @@
 import { useMemo } from "react";
 import {
   Select,
-  SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
@@ -96,16 +95,11 @@ export function ConditionBuilder({
           <SelectTrigger className="h-8 w-full min-w-0 bg-white text-xs">
             <SelectValue placeholder="Campo" />
           </SelectTrigger>
-          <SelectContent
-            alignItemWithTrigger={false}
-            side="bottom"
-            align="start"
-            sideOffset={4}
-          >
+          <CrmSelectContent>
             {availableFields.map((f) => (
-              <SelectItem key={f.code} value={f.code} className="text-xs">
+              <CrmSelectItem key={f.code} value={f.code} className="text-xs">
                 {f.label}
-              </SelectItem>
+              </CrmSelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -123,21 +117,16 @@ export function ConditionBuilder({
           <SelectTrigger className="h-8 w-full min-w-0 bg-white text-xs">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent
-            alignItemWithTrigger={false}
-            side="bottom"
-            align="start"
-            sideOffset={4}
-          >
-            <SelectItem value="field_equals" className="text-xs">
+          <CrmSelectContent>
+            <CrmSelectItem value="field_equals" className="text-xs">
               é igual a
-            </SelectItem>
-            <SelectItem value="field_contains" className="text-xs">
+            </CrmSelectItem>
+            <CrmSelectItem value="field_contains" className="text-xs">
               contém
-            </SelectItem>
-            <SelectItem value="field_not_empty" className="text-xs">
+            </CrmSelectItem>
+            <CrmSelectItem value="field_not_empty" className="text-xs">
               não está vazio
-            </SelectItem>
+            </CrmSelectItem>
           </SelectContent>
         </Select>
 

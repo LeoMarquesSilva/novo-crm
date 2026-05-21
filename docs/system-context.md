@@ -11,23 +11,25 @@ Ele existe para:
 
 Se houver conflito entre este documento e o código, o código atual prevalece e este documento deve ser atualizado imediatamente.
 
-## 2) Estado atual do produto (MVP v0)
+## 2) Estado atual do produto
 
-O sistema está funcional como base de MVP com:
-- UI principal em Next.js + shadcn;
-- motor de workflow com regras de transição;
-- endpoints iniciais para workflow e integrações;
-- schema Supabase v2 completo com RLS, pós-venda e campo dinâmico engine.
-- **18 usuários reais** criados no Supabase Auth (2 admin: Gustavo + Ricardo; 16 comercial).
-- **Motor de campos dinâmicos** (`DynamicForm` + `condition_json`) com condicionalidade por etapa/funil.
-- **Admin pages**: `/crm/admin/usuarios` e `/crm/admin/campos` (CRUD de field_definitions).
-- **Funil de Pós-Venda** seeded: 5 etapas e campos completos.
+O CRM está em produção interna com persistência Supabase e fluxos principais ligados:
 
-Pontos ainda não finalizados:
-- persistência real nas telas ainda não conectada (uso de mocks e repositório em memória);
-- integração VIOS em modo stub; D4Sign com envio real e webhook (requer env e migração);
-- autorização por perfil na UI (ocultar menus admin para não-admin, etc.) ainda limitada — sessão Supabase e login estão ligados (`middleware` + `/login` + layout CRM);
-- `SUPABASE_SERVICE_ROLE_KEY` precisa ser adicionado ao `.env` para as admin pages funcionarem (Supabase → Settings → API → service_role key).
+- Autenticação Supabase Auth + middleware em `/crm/*`
+- Kanban e ficha do lead com dados reais (`oportunidades`, campos dinâmicos, intake)
+- Motor de workflow com transições via `POST /api/crm/leads/transition`
+- DUE por área (tarefas, revisão, ajustes) e proposta por área
+- Contrato/proposta (builders PDF) e integração D4Sign (envio + webhook)
+- Histórico do lead (`lead_activity_events`) na aba **Histórico** da ficha
+- Admin: usuários, campos dinâmicos, config WhatsApp DUE
+
+Pontos em evolução:
+
+- Funil de pós-venda parcialmente modelado (etapas após `contrato_assinado`)
+- Autorização fina na UI (ocultar ações por perfil/área) ainda incompleta em alguns pontos
+- Integração RD CRM e VIOS conforme variáveis de ambiente
+
+Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tokens RD/D4Sign conforme `.env.example`.
 
 ## 3) Arquitetura em camadas
 
@@ -55,8 +57,8 @@ Pontos ainda não finalizados:
 
 - `/`: landing técnica para entrada no CRM.
 - `/login`: formulário de entrada (Supabase Auth); rotas `/crm/*` exigem sessão (`src/middleware.ts`). Sem `NEXT_PUBLIC_SUPABASE_*` o CRM redireciona para login com aviso de configuração.
-- `/crm`: dashboard com KPIs via `InMemoryCrmRepository`, card de próximos passos e fila de indicadores pendentes (mock).
-- `/crm/leads`: jornadas de abertura (Novo Lead, Novo Contrato, Novo Aditivo), kanban interativo (drag-and-drop) com todas as etapas do pipeline e timeline de auditoria (mock).
+- `/crm`: dashboard com KPIs e filas operacionais (dados Supabase).
+- `/crm/leads`: kanban interativo, ficha do lead (Visão geral, Histórico, DUE, proposta, contrato, D4Sign).
 - `/crm/clientes`: tabela de clientes (mock).
 - `/crm/contratos`: tabela de contratos (mock).
 - `/crm/admin/usuarios`: listagem real de `app_users` com seletor de role por usuário (usa `SUPABASE_SERVICE_ROLE_KEY`).
@@ -107,13 +109,9 @@ No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e 
 - `DELETE /api/admin/fields/[id]` — remove campo.
 
 ### 6.1 Workflow
-- `POST /api/workflow/validate`
-  - valida `currentStage`, `nextStage`, `hasDueDiligence`;
-  - retorna `{ ok, canMove }`.
-- `POST /api/workflow/transition`
-  - valida payload com Zod;
-  - executa `transitionOpportunity`;
-  - retorna `200` quando válido e `422` quando regra falha.
+
+- **`POST /api/crm/leads/transition`** — transição autenticada de etapa (uso atual do kanban e da ficha).
+- **`POST /api/workflow/validate`** e **`POST /api/workflow/transition`** — **descontinuados (410)**; substituídos pelo endpoint CRM acima.
 
 ### 6.2 Integrações
 - `POST /api/integrations/rd/import`

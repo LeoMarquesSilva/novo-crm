@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AtSign, Bell, Edit3, LinkIcon, Loader2, MessageSquareText, Pin, PinOff, Search, Trash2, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,7 @@ type SaveResponse = {
 type NotesFilter = "all" | "mine" | "mentions";
 
 export function LeadNotesTab({ leadId }: { leadId: string }) {
+  const router = useRouter();
   const [notes, setNotes] = useState<LeadNoteItem[]>([]);
   const [users, setUsers] = useState<LeadNoteUser[]>([]);
   const [viewer, setViewer] = useState<{ id: string; role: string } | null>(null);
@@ -196,6 +198,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
       setSelectedMentionIds([]);
       setUserQuery("");
       setIsPinned(false);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao salvar anotação.");
     } finally {

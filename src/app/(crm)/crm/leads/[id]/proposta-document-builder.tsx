@@ -36,12 +36,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { DateInputBr } from "@/components/ui/date-input-br";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { cn } from "@/lib/utils";
 import { LeadDetailFieldEditor, pipelineFieldToEditorProps } from "./lead-detail-field-editor";
 import {
@@ -553,8 +549,10 @@ function PropostaBuilderDialog({
       <Dialog modal={false} open={open} onOpenChange={() => undefined}>
         <DialogContent
           hideCloseButton
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onFocusOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(event) => {
+            event.preventDefault();
+          }}
+          onFocusOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(e) => {
             e.preventDefault();
             handleCloseAttempt();
@@ -599,13 +597,13 @@ function PropostaBuilderDialog({
                 <SelectTrigger className="h-9 min-w-[14rem] max-w-[22rem] border-white/25 bg-white/15 text-sm text-white shadow-sm backdrop-blur">
                   <span className="min-w-0 truncate text-left">{selectedTemplateName}</span>
                 </SelectTrigger>
-                <SelectContent>
+                <CrmSelectContent>
                   {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
+                    <CrmSelectItem key={t.id} value={t.id}>
                       {t.name} v{t.version}
-                    </SelectItem>
+                    </CrmSelectItem>
                   ))}
-                </SelectContent>
+                </CrmSelectContent>
               </Select>
 
               <Button
@@ -921,13 +919,13 @@ function PropFieldInput({
               {value || "Selecionar..."}
             </span>
           </SelectTrigger>
-          <SelectContent>
+          <CrmSelectContent>
             {pe.selectOptions.map((opt) => (
-              <SelectItem key={opt} value={opt}>
+              <CrmSelectItem key={opt} value={opt}>
                 {opt}
-              </SelectItem>
+              </CrmSelectItem>
             ))}
-          </SelectContent>
+          </CrmSelectContent>
         </Select>
       </div>
     );

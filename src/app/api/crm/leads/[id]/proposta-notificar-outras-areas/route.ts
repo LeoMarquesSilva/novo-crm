@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
 import { resetNotificadoAndDispatchOtherPendingAreas } from "@/lib/crm/proposta-notificar-outras-areas";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -59,6 +60,23 @@ export async function POST(
         { status: result.status ?? 500 },
       );
     }
+
+    const { data: oppRow } = await supabase
+      .from("oportunidades")
+      .select("etapa")
+      .eq("id", oportunidadeId)
+      .maybeSingle();
+
+    await recordLeadActivityEvent(supabase, {
+      oportunidadeId,
+      kind: "proposta_escopo_solicitado",
+      title: `Proposta — notificação enviada (${area})`,
+      detail: "Gestor notificou outras áreas pendentes de escopo.",
+      etapa: (oppRow?.etapa as import("@/modules/crm/domain/entities").OpportunityStage | undefined) ?? null,
+      areaKey: area,
+      actorAppUserId: profile?.id ?? null,
+      sourceId: `proposta-notify-areas:${oportunidadeId}:${area}:${Date.now()}`,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

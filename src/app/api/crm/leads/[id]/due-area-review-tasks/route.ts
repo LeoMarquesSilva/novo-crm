@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
 import { notifyDueReviewResponseToCompilationOwner } from "@/lib/crm/due-area-tasks";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const bodySchema = z.object({
@@ -102,6 +103,26 @@ export async function PATCH(
   if (updateError) {
     return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
   }
+
+  const { data: oppRow } = await supabase
+    .from("oportunidades")
+    .select("etapa")
+    .eq("id", opportunityId)
+    .maybeSingle();
+
+  await recordLeadActivityEvent(supabase, {
+    oportunidadeId: opportunityId,
+    kind: ok ? "due_revisao_aprovada" : "due_ajustes_solicitados",
+    title: ok
+      ? `DUE — revisão aprovada (${String(task.area_key)})`
+      : `DUE — ajustes solicitados (${String(task.area_key)})`,
+    detail: ok ? null : (parsed.data.observacaoAjustes?.trim() ?? null),
+    areaKey: String(task.area_key ?? ""),
+    etapa: (oppRow?.etapa as import("@/modules/crm/domain/entities").OpportunityStage | undefined) ?? null,
+    actorAppUserId: auth.profile?.id ?? null,
+    sourceId: `due-rev-live:${task.id}:${now}`,
+    metadata: { revision_cycle: task.revision_cycle },
+  });
 
   let autoMovedToCompilacao = false;
   let notificationError: string | null = null;

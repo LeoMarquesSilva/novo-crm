@@ -21,7 +21,6 @@ import {
   RefreshCcw,
   Scale,
   Plus,
-  Search,
   SearchCheck,
   ShieldCheck,
   Target,
@@ -54,14 +53,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatDateYmdBr } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
+import { Select, SelectTrigger } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
+  ClientPickerField,
   InputField,
   ModalHeader,
   newLeadModalFieldClass,
@@ -69,6 +64,7 @@ import {
   SelectField,
   StickyFooter,
   TagSelectable,
+  UserPickerField,
 } from "@/components/crm/new-lead-modal";
 
 interface NewDemandFormProps {
@@ -231,219 +227,6 @@ function initialsFromName(name: string | null | undefined) {
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase();
-}
-
-interface UserPickerProps {
-  label: string;
-  placeholder: string;
-  options: SystemUserOption[];
-  value: string;
-  onChange: (id: string) => void;
-  disabled?: boolean;
-}
-
-interface ClientPickerProps {
-  label: string;
-  placeholder: string;
-  options: ClientOption[];
-  value: string;
-  onChange: (id: string) => void;
-  disabled?: boolean;
-  helperText?: string;
-}
-
-function UserPicker({
-  label,
-  placeholder,
-  options,
-  value,
-  onChange,
-  disabled = false,
-}: UserPickerProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  const selected = options.find((option) => option.id === value) ?? null;
-  const filtered = options.filter((option) =>
-    `${option.name} ${option.email}`.toLowerCase().includes(query.toLowerCase()),
-  );
-
-  useEffect(() => {
-    if (!open) return;
-
-    function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current) return;
-      const target = event.target as Node;
-      if (!rootRef.current.contains(target)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="space-y-2">
-      <Label className="text-xs font-medium text-[#111827]">{label}</Label>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((prev) => !prev)}
-        className={cn(
-          newLeadModalFieldClass,
-          "flex items-center justify-between text-left font-normal shadow-none hover:bg-[#fafafa]",
-        )}
-      >
-        {selected ? (
-          <span className="inline-flex min-w-0 items-center gap-2">
-            <Avatar className="h-7 w-7 border border-white">
-              <AvatarImage src={selected.avatarUrl} alt={selected.name} />
-              <AvatarFallback>{initialsFromName(selected.name)}</AvatarFallback>
-            </Avatar>
-            <span className="truncate text-[#111827]">{selected.name}</span>
-          </span>
-        ) : (
-          <span className="text-[#6b7280]">{placeholder}</span>
-        )}
-        <Search className="h-4 w-4 shrink-0 text-[#9ca3af]" />
-      </button>
-
-      {open ? (
-        <div className="relative z-[90] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-lg">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Pesquisar usuário..."
-            className={cn(newLeadModalFieldClass, "mb-2 h-10")}
-          />
-          <div className="crm-scrollbar max-h-56 space-y-1 overflow-y-auto pr-1">
-            {filtered.length === 0 ? (
-              <p className="px-2 py-1 text-xs text-muted-foreground">
-                Nenhum usuário encontrado.
-              </p>
-            ) : (
-              filtered.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.id);
-                    setOpen(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#111827] transition-colors duration-180 hover:bg-[#f3f4f6]"
-                >
-                  <Avatar className="h-7 w-7">
-                    <AvatarImage src={option.avatarUrl} alt={option.name} />
-                    <AvatarFallback>{initialsFromName(option.name)}</AvatarFallback>
-                  </Avatar>
-                  <span className="min-w-0 truncate">{option.name}</span>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ClientPicker({
-  label,
-  placeholder,
-  options,
-  value,
-  onChange,
-  disabled = false,
-  helperText,
-}: ClientPickerProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  const selected = options.find((option) => option.id === value) ?? null;
-  const filtered = options.filter((option) =>
-    `${option.razao_social} ${option.documento}`.toLowerCase().includes(query.toLowerCase()),
-  );
-
-  useEffect(() => {
-    if (!open) return;
-
-    function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current) return;
-      const target = event.target as Node;
-      if (!rootRef.current.contains(target)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="space-y-2">
-      <Label className="text-xs font-medium text-[#111827]">{label}</Label>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((prev) => !prev)}
-        className={cn(
-          newLeadModalFieldClass,
-          "flex items-center justify-between text-left font-normal shadow-none hover:bg-[#fafafa]",
-        )}
-      >
-        {selected ? (
-          <span className="flex min-w-0 flex-col items-start text-left">
-            <span className="truncate font-medium text-[#111827]">{selected.razao_social}</span>
-            <span className="truncate text-xs text-[#6b7280]">{selected.documento}</span>
-          </span>
-        ) : (
-          <span className="text-[#6b7280]">{placeholder}</span>
-        )}
-        <Search className="h-4 w-4 shrink-0 text-[#9ca3af]" />
-      </button>
-
-      {open ? (
-        <div className="relative z-[90] rounded-xl border border-[#e5e7eb] bg-white p-2 shadow-lg">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Pesquisar cliente por nome ou documento..."
-            className={cn(newLeadModalFieldClass, "mb-2 h-10")}
-          />
-          <div className="crm-scrollbar max-h-64 space-y-1 overflow-y-auto pr-1">
-            {filtered.length === 0 ? (
-              <p className="px-2 py-2 text-xs text-muted-foreground">
-                Nenhum cliente encontrado.
-              </p>
-            ) : (
-              filtered.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.id);
-                    setOpen(false);
-                    setQuery("");
-                  }}
-                  className="flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors duration-180 hover:bg-[#f3f4f6]"
-                >
-                  <span className="truncate text-sm font-medium text-[#111827]">
-                    {option.razao_social}
-                  </span>
-                  <span className="truncate text-xs text-[#6b7280]">{option.documento}</span>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {helperText ? <p className="text-xs text-[#6b7280]">{helperText}</p> : null}
-    </div>
-  );
 }
 
 function CurrentUserSummary({
@@ -695,6 +478,27 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     return items;
   }, [approvedIndicators]);
 
+  const nomeIndicacaoSelectValue =
+    nomeIndicacaoMode === "new" ? "__new__" : nomeIndicacaoExisting || null;
+
+  useEffect(() => {
+    if (!currentUser?.id || solicitanteUserId || systemUsers.length === 0) return;
+    const match = systemUsers.some((user) => user.id === currentUser.id);
+    if (match) setSolicitanteUserId(currentUser.id);
+  }, [currentUser, solicitanteUserId, systemUsers]);
+
+  useEffect(() => {
+    if (!onRequestClose) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (document.querySelector("[data-new-lead-picker-panel]")) return;
+      if (document.querySelector('[data-slot="select-content"][data-open]')) return;
+      onRequestClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onRequestClose]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -842,11 +646,6 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setCurrentStepIndex(0);
   }
 
-  function closeAllSelects() {
-    setTipoIndicacaoOpen(false);
-    setNomeIndicacaoOpen(false);
-    setCompanyTypeOpenIndex(null);
-  }
 
   function handleAditivoClientChange(clientId: string | null) {
     const id = clientId ?? "";
@@ -1168,10 +967,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
         onSelectStep={(stepId) => selectWizardStep(stepId as WizardStepId)}
       />
 
-      <div
-        onScrollCapture={closeAllSelects}
-        className="crm-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6"
-      >
+      <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
         <div className="mx-auto max-w-[1040px] pr-0.5">
           <div className="space-y-5">
           <div ref={feedbackRef} className="space-y-3 scroll-mt-4">
@@ -1327,15 +1123,19 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                             "!h-12 w-full justify-between font-normal whitespace-normal",
                           )}
                         >
-                          <SelectValue placeholder="Selecione" />
+                          <CrmSelectValue
+                            value={tipoIndicacao}
+                            labels={INDICATION_TYPE_SELECT_ITEMS}
+                            placeholder="Selecione"
+                          />
                         </SelectTrigger>
-                        <SelectContent container={modalPortalRef} portalled>
+                        <CrmSelectContent inModal className="max-h-[min(280px,50dvh)]">
                           {indicationTypes.map((item) => (
-                            <SelectItem key={item} value={item}>
+                            <CrmSelectItem key={item} value={item}>
                               {item}
-                            </SelectItem>
+                            </CrmSelectItem>
                           ))}
-                        </SelectContent>
+                        </CrmSelectContent>
                       </Select>
                     </SelectField>
 
@@ -1345,7 +1145,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         onOpenChange={setNomeIndicacaoOpen}
                         modal={false}
                         items={nomeIndicacaoItems}
-                        value={nomeIndicacaoExisting}
+                        value={nomeIndicacaoSelectValue}
                         onValueChange={(value) => {
                           if (value === "__new__") {
                             setNomeIndicacaoMode("new");
@@ -1354,6 +1154,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                           }
                           setNomeIndicacaoMode("existing");
                           setNomeIndicacaoExisting(value ?? "");
+                          setNomeIndicacaoNew("");
                         }}
                       >
                         <SelectTrigger
@@ -1362,18 +1163,22 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                             "!h-12 w-full justify-between font-normal whitespace-normal",
                           )}
                         >
-                          <SelectValue placeholder="Selecione na base aprovada" />
+                          <CrmSelectValue
+                            value={nomeIndicacaoSelectValue}
+                            labels={nomeIndicacaoItems}
+                            placeholder="Selecione na base aprovada"
+                          />
                         </SelectTrigger>
-                        <SelectContent container={modalPortalRef} portalled>
+                        <CrmSelectContent inModal className="max-h-[min(280px,50dvh)]">
                           {approvedIndicators.map((name) => (
-                            <SelectItem key={name} value={name}>
+                            <CrmSelectItem key={name} value={name}>
                               {name}
-                            </SelectItem>
+                            </CrmSelectItem>
                           ))}
-                          <SelectItem value="__new__">
+                          <CrmSelectItem value="__new__">
                             Não encontrei na base (cadastrar novo)
-                          </SelectItem>
-                        </SelectContent>
+                          </CrmSelectItem>
+                        </CrmSelectContent>
                       </Select>
 
                       {nomeIndicacaoMode === "new" ? (
@@ -1387,7 +1192,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                     </SelectField>
                   </div>
                 ) : isCrossSelling ? (
-                  <ClientPicker
+                  <ClientPickerField
                     label="Cliente existente *"
                     placeholder={
                       loadingClients
@@ -1418,7 +1223,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             subtitle="Defina quem originou o lead e confira quem está registrando esta jornada."
           >
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-              <UserPicker
+              <UserPickerField
                 label="Solicitante *"
                 placeholder={
                   loadingFormOptions ? "Carregando usuários..." : "Selecione o solicitante"
@@ -1509,12 +1314,15 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                             "!h-12 w-full min-w-0 justify-between font-normal",
                           )}
                         >
-                          <SelectValue />
+                          <CrmSelectValue
+                            value={company.tipo_documento}
+                            labels={DOCUMENTO_TIPO_ITEMS}
+                          />
                         </SelectTrigger>
-                        <SelectContent container={modalPortalRef} portalled>
-                          <SelectItem value="CPF">CPF</SelectItem>
-                          <SelectItem value="CNPJ">CNPJ</SelectItem>
-                        </SelectContent>
+                        <CrmSelectContent inModal className="max-h-[min(280px,50dvh)]">
+                          <CrmSelectItem value="CPF">CPF</CrmSelectItem>
+                          <CrmSelectItem value="CNPJ">CNPJ</CrmSelectItem>
+                        </CrmSelectContent>
                       </Select>
                     </SelectField>
 

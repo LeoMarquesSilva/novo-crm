@@ -4,15 +4,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, SlidersHorizontal, UserPlus, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import {
+  CrmSurfaceHeaderBackdrop,
+  CrmSurfaceHeaderIcon,
+  crmSurfaceCardClass,
+  crmSurfaceHeaderClass,
+  crmSurfaceHeaderSubtitleClass,
+  crmSurfaceHeaderTitleClass,
+} from "@/components/crm/crm-surface-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
+import { Select, SelectTrigger } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DaysInStagePanel } from "@/components/crm/days-in-stage-panel";
 import { cn } from "@/lib/utils";
@@ -173,23 +177,19 @@ export function LeadsPipelineToolbar({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
     >
-    <Card className="glass-card-no-float shrink-0 overflow-visible rounded-[18px] border-primary-dark/10 bg-white p-0">
-      <CardHeader className="relative overflow-hidden rounded-t-[18px] border-b border-primary-dark/10 bg-[#0b1724] px-4 py-3 text-white">
-        <div className="absolute inset-0 bg-crm-gradient-dark opacity-85" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(45,200,183,0.28),transparent_34%),linear-gradient(135deg,rgba(8,22,36,0.15),rgba(4,13,22,0.92))]" />
+    <Card className={cn(crmSurfaceCardClass, "shrink-0")}>
+      <CardHeader className={cn(crmSurfaceHeaderClass, "rounded-t-[18px] px-4 py-3.5 pl-5")}>
+        <CrmSurfaceHeaderBackdrop />
         <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-[14px] border border-white/25 bg-white/15 text-white shadow-lg shadow-black/20 backdrop-blur">
+            <CrmSurfaceHeaderIcon>
               <SlidersHorizontal className="size-4" strokeWidth={1.9} aria-hidden />
-            </span>
+            </CrmSurfaceHeaderIcon>
             <div className="min-w-0">
-              <p className="inline-flex rounded-full border border-accent-green/35 bg-accent-green/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-100">
-                Controle do kanban
-              </p>
-              <CardTitle className="mt-1 text-lg font-extrabold tracking-[-0.04em] text-white">
+              <CardTitle className={cn("text-lg", crmSurfaceHeaderTitleClass)}>
                 Filtros do pipeline
               </CardTitle>
-              <p className="mt-0.5 text-xs text-slate-100/85">
+              <p className={cn("mt-0.5 text-xs", crmSurfaceHeaderSubtitleClass)}>
                 Encontre leads, ajuste responsáveis e refine a situação em segundos.
               </p>
             </div>
@@ -355,17 +355,17 @@ export function LeadsPipelineToolbar({
                   )}
                 </span>
               </SelectTrigger>
-              <SelectContent className="max-h-[min(320px,70dvh)]">
-                <SelectItem value="todos">
+              <CrmSelectContent className="max-h-[min(320px,70dvh)]">
+                <CrmSelectItem value="todos">
                   <span className="flex items-center gap-2.5">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-dark/10 text-primary-dark">
                       <Users className="h-4 w-4" />
                     </span>
                     <span>Todos os usuários</span>
                   </span>
-                </SelectItem>
+                </CrmSelectItem>
                 {owners.map((owner) => (
-                  <SelectItem key={owner.id} value={owner.id}>
+                  <CrmSelectItem key={owner.id} value={owner.id}>
                     <span className="flex items-center gap-2.5">
                       <OwnerAvatar
                         name={owner.name}
@@ -374,9 +374,9 @@ export function LeadsPipelineToolbar({
                       />
                       <span className="truncate">{owner.name}</span>
                     </span>
-                  </SelectItem>
+                  </CrmSelectItem>
                 ))}
-              </SelectContent>
+              </CrmSelectContent>
             </Select>
           </div>
 

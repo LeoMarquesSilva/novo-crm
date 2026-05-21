@@ -7,6 +7,7 @@ import {
   notifyDueReviewAreas,
   syncDueAreaReviewTasksForOpportunity,
 } from "@/lib/crm/due-area-tasks";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const bodySchema = z.object({
@@ -68,7 +69,7 @@ export async function PATCH(
 
   const { data: rows, error: rowsError } = await supabase
     .from("due_area_review_tasks")
-    .select("id, status, revision_cycle, adjustments_requested_at, responded_at, adjustment_completed_at")
+    .select("id, area_key, status, revision_cycle, adjustments_requested_at, responded_at, adjustment_completed_at")
     .eq("oportunidade_id", opportunityId)
     .in("id", taskIds);
   if (rowsError) {
@@ -171,6 +172,20 @@ export async function PATCH(
     .eq("oportunidade_id", opportunityId);
   if (updateError) {
     return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
+  }
+
+  for (const row of rows) {
+    await recordLeadActivityEvent(supabase, {
+      oportunidadeId: opportunityId,
+      kind: "due_ajustes_concluidos",
+      title: `DUE — ajustes concluídos (${String(row.area_key ?? "área")})`,
+      detail: parsed.data.completionNote?.trim() || null,
+      areaKey: row.area_key ? String(row.area_key) : null,
+      etapa: "compilacao",
+      actorAppUserId: auth.profile.id,
+      sourceId: `due-adj-done-live:${row.id}:${now}`,
+      metadata: { revision_cycle: cycle, evidence_kind: parsed.data.evidenceKind },
+    });
   }
 
   const { count: remainingPendingCount, error: remainingPendingError } = await supabase

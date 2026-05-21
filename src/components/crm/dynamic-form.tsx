@@ -9,11 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
-  SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -153,18 +152,13 @@ function SelectField({ field, value, onChange }: FieldProps) {
       <SelectTrigger className="w-full min-w-0 bg-white/60">
         <SelectValue placeholder="Selecione..." />
       </SelectTrigger>
-      <SelectContent
-        alignItemWithTrigger={false}
-        side="bottom"
-        align="start"
-        sideOffset={4}
-      >
+      <CrmSelectContent>
         {opts.map((opt) => (
-          <SelectItem key={opt} value={opt}>
+          <CrmSelectItem key={opt} value={opt}>
             {opt}
-          </SelectItem>
+          </CrmSelectItem>
         ))}
-      </SelectContent>
+      </CrmSelectContent>
     </Select>
   );
 }
@@ -288,18 +282,13 @@ function UserSelectField({ field, value, onChange }: FieldProps) {
           <SelectValue placeholder="Selecione…" />
         )}
       </SelectTrigger>
-      <SelectContent
-        alignItemWithTrigger={false}
-        side="bottom"
-        align="start"
-        sideOffset={4}
-      >
+      <CrmSelectContent className="max-h-[min(280px,55dvh)]">
         {users.map((u) => (
-          <SelectItem key={u.id} value={u.id} className="py-1.5">
+          <CrmSelectItem key={u.id} value={u.id} className="py-1.5">
             <UserAvatarName name={u.full_name} avatarUrl={u.avatar_url} />
-          </SelectItem>
+          </CrmSelectItem>
         ))}
-      </SelectContent>
+      </CrmSelectContent>
     </Select>
   );
 }

@@ -14,13 +14,8 @@ import { Button } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { Select, SelectTrigger } from "@/components/ui/select";
 import { maskDocument } from "@/lib/crm/br-document-mask";
 import { PROPOSAL_SCOPE_OPTIONS } from "@/lib/crm/proposta-scope-options";
 import { cn } from "@/lib/utils";
@@ -151,6 +146,15 @@ export function ConfeccaoReuniaoModalSection({
       ? "0"
       : String(empresasPayload.primaryIndex > 0 ? empresasPayload.primaryIndex : empresasIntake[0]?.index ?? 1);
 
+  const empresaSelectLabels = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const e of empresasIntake) {
+      const doc = e.documento ? maskDocument(e.documento, e.tipo_documento) : "";
+      m[String(e.index)] = `${e.razao_social || "—"} — ${e.tipo_documento}${doc ? ` ${doc}` : ""}`;
+    }
+    return m;
+  }, [empresasIntake]);
+
   const areasSelected = useMemo(
     () => parseAreasValue(customValues.cp_areas_objeto),
     [customValues.cp_areas_objeto],
@@ -274,16 +278,20 @@ export function ConfeccaoReuniaoModalSection({
               <SelectTrigger
                 className={cn(newLeadModalFieldClass, "!h-12 w-full justify-between font-normal whitespace-normal")}
               >
-                <SelectValue placeholder="Selecione" />
+                <CrmSelectValue
+                  value={primaryStr}
+                  labels={empresaSelectLabels}
+                  placeholder="Selecione"
+                />
               </SelectTrigger>
-              <SelectContent>
+              <CrmSelectContent className="max-h-[min(280px,50dvh)]">
                 {empresasIntake.map((e) => (
-                  <SelectItem key={e.index} value={String(e.index)}>
+                  <CrmSelectItem key={e.index} value={String(e.index)}>
                     {e.razao_social || "—"} — {e.tipo_documento}{" "}
                     {e.documento ? maskDocument(e.documento, e.tipo_documento) : ""}
-                  </SelectItem>
+                  </CrmSelectItem>
                 ))}
-              </SelectContent>
+              </CrmSelectContent>
             </Select>
           )}
         </div>

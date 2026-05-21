@@ -1,5 +1,13 @@
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  CrmSurfaceHeaderBackdrop,
+  CrmSurfaceHeaderEyebrow,
+  CrmSurfaceHeaderIcon,
+  crmSurfaceHeaderClass,
+  crmSurfaceHeaderSubtitleClass,
+  crmSurfaceHeaderTitleClass,
+} from "@/components/crm/crm-surface-header";
 import { cn } from "@/lib/utils";
 
 type HeaderBadge = {
@@ -45,27 +53,30 @@ export function CrmPageHeader({
       )}
     >
       <div className={cn("grid gap-0", hasAside && "lg:grid-cols-[1.15fr_0.85fr]")}>
-        <div className="relative overflow-hidden bg-[#0b1724] px-6 py-6 text-white md:px-8">
-          <div className="absolute inset-0 bg-crm-gradient-dark opacity-85" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(45,200,183,0.28),transparent_34%),linear-gradient(135deg,rgba(8,22,36,0.15),rgba(4,13,22,0.92))]" />
-          <div className="absolute -right-16 -top-24 h-56 w-56 rounded-full border border-white/10 bg-white/8 blur-2xl" />
+        <div className={cn(crmSurfaceHeaderClass, "px-6 py-6 md:px-8")}>
+          <CrmSurfaceHeaderBackdrop />
 
           <div className="relative flex flex-col gap-5">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/15 shadow-lg shadow-black/20 backdrop-blur">
+              <CrmSurfaceHeaderIcon className="size-11 rounded-2xl">
                 <Icon className="h-5 w-5" />
-              </div>
+              </CrmSurfaceHeaderIcon>
               <div className="min-w-0">
-                <p className="inline-flex rounded-full border border-accent-green/35 bg-accent-green/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">
-                  {eyebrow}
-                </p>
-                <h1 className="mt-2 text-2xl font-bold leading-tight tracking-[-0.03em] text-white md:text-3xl">
+                <CrmSurfaceHeaderEyebrow className="text-[11px]">{eyebrow}</CrmSurfaceHeaderEyebrow>
+                <h1
+                  className={cn(
+                    "mt-2 text-2xl font-bold leading-tight md:text-3xl",
+                    crmSurfaceHeaderTitleClass,
+                  )}
+                >
                   {title}
                 </h1>
               </div>
             </div>
 
-            <p className="max-w-2xl text-sm leading-6 text-slate-100/90">{description}</p>
+            <p className={cn("max-w-2xl text-sm leading-6", crmSurfaceHeaderSubtitleClass)}>
+              {description}
+            </p>
 
             {badges.length ? (
               <div className="flex flex-wrap gap-2">
@@ -74,7 +85,7 @@ export function CrmPageHeader({
                   return (
                     <Badge
                       key={badge.label}
-                      className="h-7 rounded-full border-white/25 bg-white/15 px-3 text-white shadow-sm backdrop-blur"
+                      className="h-7 rounded-full border-[#e2e8f0] bg-white px-3 text-[#102033] shadow-sm"
                     >
                       {BadgeIcon ? <BadgeIcon className="h-3.5 w-3.5" /> : null}
                       {badge.label}

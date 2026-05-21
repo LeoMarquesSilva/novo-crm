@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -7,19 +7,21 @@ import { notFound, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   BriefcaseBusiness,
+  Building2,
   CheckCircle2,
   ChevronDown,
   ExternalLink,
   FileSignature,
   FileText,
+  History,
   Layers3,
   LinkIcon,
   ListChecks,
+  Mail,
   MessageSquareText,
   PencilLine,
   Presentation,
   ShieldCheck,
-  Sparkles,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
@@ -32,6 +34,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
+import { getStageIcon } from "@/lib/crm/stage-icons";
+import {
+  isCadastroLeadOnlyStage,
+  isPosVendaPipelineStage,
+  POS_VENDA_PIPELINE_COLUMNS,
+  SALES_PIPELINE_COLUMNS,
+} from "@/lib/crm/pipeline-board-config";
+import { initialsFromFullName } from "@/lib/crm/resolve-app-user-display";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
 import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-tasks";
@@ -40,6 +50,7 @@ import { resolvePropostaEmpresaPrincipalNome } from "@/lib/crm/proposta-empresa-
 import { getEscopoEntryForArea, isEscopoEntryComplete } from "@/lib/crm/proposta-escopo-entry";
 import { parseEscopoJson, syncEscopoToAreas } from "@/lib/crm/proposta-escopo-json";
 import { cn } from "@/lib/utils";
+import { useLeadDetailRealtime } from "@/lib/crm/use-lead-detail-realtime";
 import { leadAreas } from "@/modules/crm/application/services/new-lead-payload";
 import type { LeadDetailData, LeadDetailViewer } from "./page";
 import { LeadD4SignPanel } from "./lead-d4sign-panel";
@@ -54,12 +65,13 @@ import {
 import { PropostaDocumentBuilder } from "./proposta-document-builder";
 import { ContratoDocumentBuilder } from "./contrato-document-builder";
 import { LeadNotesTab } from "./lead-notes-tab";
+import { LeadLifecycleTimelinePanel } from "@/components/crm/lead-lifecycle-timeline-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 /** Renderizado à parte (JSON); não repetir como campo genérico. */
 const HIDDEN_PIPELINE_CODES = new Set(["cp_escopo_detalhe_json"]);
 const PROPOSAL_FIELD_ORDER = ["cp_qualificacao", "cp_areas_objeto", "cp_objeto_proposta"];
-type LeadDetailTab = "overview" | "proposal" | "contract" | "due" | "crm" | "notes" | "signature";
+type LeadDetailTab = "overview" | "proposal" | "contract" | "due" | "crm" | "notes" | "signature" | "history";
 
 export function LeadDetailView({
   lead,
@@ -127,6 +139,8 @@ export function LeadDetailView({
   );
   const router = useRouter();
 
+  useLeadDetailRealtime(lead.id, () => router.refresh());
+
   useEffect(() => {
     if (!lead.haveraDueDiligence && activeTab === "due") {
       setActiveTab("overview");
@@ -145,67 +159,29 @@ export function LeadDetailView({
     setActiveTab(tab);
   };
 
+  const proposalScopeSummary = isProposalStage
+    ? computeProposalScopeSummary(
+        lead,
+        selectedAreas,
+        escopoDetalheJson,
+        completedAreaRequests,
+        totalAreaRequests,
+      )
+    : null;
+
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-5">
-      <Link
-        href="/crm/leads"
-        className="inline-flex items-center gap-2 rounded-full border border-[#dfe5ee] bg-white px-3 py-2 text-sm font-bold text-[#102033] shadow-sm underline-offset-4 transition-colors hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Voltar ao pipeline
-      </Link>
+      <LeadDetailHero
+        lead={lead}
+        etapaLabel={etapaLabel}
+        leadTypeDisplay={leadTypeDisplay}
+        ddSimNao={ddSimNao}
+        heroContextBadge={heroContextBadge}
+        propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
+        proposalScopeSummary={proposalScopeSummary}
+      />
 
-      <section className="relative overflow-hidden rounded-[28px] border border-white/55 bg-[#0b1724] p-5 text-white shadow-sm shadow-primary-dark/10 sm:p-7">
-        <div className="absolute inset-0 bg-crm-gradient-dark opacity-85" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(45,200,183,0.28),transparent_34%),linear-gradient(135deg,rgba(8,22,36,0.15),rgba(4,13,22,0.92))]" />
-        <div className="absolute -right-16 -top-24 h-56 w-56 rounded-full border border-white/10 bg-white/8 blur-2xl" />
-        <div className="relative z-[1] flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0 max-w-4xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-accent-green/35 bg-accent-green/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-100">
-                Detalhe do lead
-              </span>
-              {heroContextBadge ? (
-                <span
-                  className={cn(
-                    "rounded-full border px-2.5 py-1 text-xs font-semibold",
-                    heroContextBadge.className,
-                  )}
-                >
-                  {heroContextBadge.label}
-                </span>
-              ) : null}
-            </div>
-            <h1 className="mt-4 text-3xl font-extrabold tracking-[-0.055em] text-white sm:text-4xl">
-              {lead.solicitante}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-100/90">
-              Workspace comercial para acompanhar dados do lead, campos editáveis, proposta, escopos por área e assinatura.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <HeroPill label="Etapa" value={etapaLabel} tone="blue" />
-              <HeroPill label="Tipo" value={leadTypeDisplay} tone="gold" />
-              <HeroPill label="Due diligence" value={ddSimNao} tone={lead.haveraDueDiligence ? "emerald" : "slate"} />
-            </div>
-          </div>
-
-          <div className="grid min-w-[min(100%,420px)] grid-cols-2 gap-3">
-            <SummaryMetric label="Criado em" value={formatDateTimeBr(lead.criadoEm)} />
-            <SummaryMetric label="Atualizado" value={lead.atualizadoEm ? formatDateTimeBr(lead.atualizadoEm) : "Sem atualização"} />
-            {lead.isSystemCreated ? (
-              <div className="col-span-2 rounded-2xl border border-white/10 bg-white/10 p-3">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">
-                  Ações administrativas
-                </p>
-                <LeadDeleteButton leadId={lead.id} />
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <main className="min-w-0">
+      <main className="min-w-0">
           <Tabs
             value={activeTab}
             onValueChange={(value) => handleTabChange(value as LeadDetailTab)}
@@ -236,6 +212,9 @@ export function LeadDetailView({
                 ) : null}
                 <TabsTrigger value="signature" className="h-10 rounded-2xl px-4 text-sm font-bold">
                   Assinatura
+                </TabsTrigger>
+                <TabsTrigger value="history" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                  Histórico
                 </TabsTrigger>
                 <TabsTrigger value="notes" className="h-10 rounded-2xl px-4 text-sm font-bold">
                   Anotações
@@ -517,61 +496,337 @@ export function LeadDetailView({
               )}
             </TabsContent>
 
+            <TabsContent value="history" className="mt-4 space-y-5">
+              <LeadLifecycleTimelinePanel timeline={lead.lifecycleTimeline} />
+            </TabsContent>
+
             <TabsContent value="notes" className="mt-4 space-y-5">
               <LeadNotesTab leadId={lead.id} />
             </TabsContent>
           </Tabs>
-        </main>
-
-        <LeadRightPanel
-          lead={lead}
-          etapaLabel={etapaLabel}
-          isProposalStage={isProposalStage}
-          isContractStage={isContractStage}
-          selectedAreas={selectedAreas}
-          completedAreaRequests={completedAreaRequests}
-          totalAreaRequests={totalAreaRequests}
-          escopoDetalhe={escopoDetalheJson}
-          activeTab={activeTab}
-          isRdLead={isRdLead}
-          onTabChange={handleTabChange}
-        />
-      </div>
+      </main>
     </div>
   );
 }
 
-function HeroPill({
+type ProposalScopeAreaStatus = {
+  area: string;
+  status: "complete" | "pending" | "overdue";
+};
+
+type ProposalScopeSummary = {
+  scopeProgressLabel: string;
+  pendingCount: number;
+  areas: ProposalScopeAreaStatus[];
+};
+
+function normalizeAreaMatch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function areaKeyMatches(areaKey: string, areaLabel: string) {
+  const key = normalizeAreaMatch(areaKey);
+  const label = normalizeAreaMatch(areaLabel);
+  return key === label || key.includes(label) || label.includes(key);
+}
+
+function computeProposalScopeSummary(
+  lead: LeadDetailData,
+  selectedAreas: string[],
+  escopoDetalhe: ReturnType<typeof parseEscopoJson>,
+  completedAreaRequests: number,
+  totalAreaRequests: number,
+): ProposalScopeSummary | null {
+  if (selectedAreas.length === 0) return null;
+
+  const nowIso = new Date().toISOString();
+  const areaRows = selectedAreas.map((area) => {
+    const request = lead.escopoSolicitacoes?.find((item) => areaKeyMatches(item.areaKey, area)) ?? null;
+    const entry = getEscopoEntryForArea(escopoDetalhe, area);
+    const scopeComplete = isEscopoEntryComplete(area, entry);
+    const completed = Boolean(request?.concluidoEm) || scopeComplete;
+    const overdue = !completed && request?.prazoAte ? request.prazoAte < nowIso : false;
+    const status: ProposalScopeAreaStatus["status"] = completed
+      ? "complete"
+      : overdue
+        ? "overdue"
+        : "pending";
+    return { area, status };
+  });
+
+  const pendingCount = areaRows.filter((row) => row.status !== "complete").length;
+  const completeCount = areaRows.filter((row) => row.status === "complete").length;
+  const scopeProgressLabel =
+    totalAreaRequests > 0
+      ? `${Math.max(completedAreaRequests, completeCount)}/${totalAreaRequests}`
+      : `${completeCount}/${areaRows.length}`;
+
+  return { scopeProgressLabel, pendingCount, areas: areaRows };
+}
+
+function LeadDetailHero({
+  lead,
+  etapaLabel,
+  leadTypeDisplay,
+  ddSimNao,
+  heroContextBadge,
+  propostaEmpresaPrincipalNome,
+  proposalScopeSummary,
+}: {
+  lead: LeadDetailData;
+  etapaLabel: string;
+  leadTypeDisplay: string;
+  ddSimNao: string;
+  heroContextBadge: { label: string; className: string } | null;
+  propostaEmpresaPrincipalNome: string | null;
+  proposalScopeSummary: ProposalScopeSummary | null;
+}) {
+  const StageIcon = getStageIcon(lead.etapa);
+  const isPosVenda = isPosVendaPipelineStage(lead.etapa);
+  const pipelineColumns = isPosVenda ? POS_VENDA_PIPELINE_COLUMNS : SALES_PIPELINE_COLUMNS;
+  const stageIndex = pipelineColumns.findIndex((column) => column.stage === lead.etapa);
+  const pipelineLabel = isPosVenda ? "Pós-venda" : isCadastroLeadOnlyStage(lead.etapa) ? "Pré-funil" : "Funil comercial";
+  const pipelineProgress =
+    stageIndex >= 0 ? Math.round(((stageIndex + 1) / pipelineColumns.length) * 100) : null;
+  const pipelineStepLabel =
+    stageIndex >= 0 ? `${stageIndex + 1}/${pipelineColumns.length}` : null;
+
+  const cadastradoPor = lead.intakeFields.find((field) => field.key === "cadastrado_por");
+  const areasAnalise = lead.intakeFields.find((field) => field.key === "areas_analise")?.value?.trim();
+  const empresaLabel =
+    propostaEmpresaPrincipalNome?.trim() ||
+    lead.empresasIntake[0]?.razao_social?.trim() ||
+    null;
+
+  return (
+    <section className="overflow-hidden rounded-[22px] border border-[#dfe5ee] bg-[#0b1724] text-white shadow-sm sm:rounded-[28px]">
+      <div className="relative">
+        <div className="absolute inset-0 bg-crm-gradient-dark opacity-90" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(45,200,183,0.22),transparent_50%),linear-gradient(180deg,rgba(4,13,22,0.2),rgba(4,13,22,0.95))]" />
+
+        <div className="relative z-[1] px-4 py-4 sm:px-6 sm:py-5">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between gap-3">
+            <Link
+              href="/crm/leads"
+              className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/8 px-2.5 py-1.5 text-xs font-bold text-white/90 transition-colors hover:bg-white/14 sm:gap-2 sm:px-3 sm:text-sm"
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0" />
+              <span className="truncate">Voltar</span>
+            </Link>
+            <div className="flex shrink-0 items-center gap-2">
+              {lead.rdDealUrl ? (
+                <Link
+                  href={lead.rdDealUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/8 px-2.5 py-1.5 text-xs font-bold text-white/90 transition-colors hover:bg-white/14 sm:px-3"
+                >
+                  <span className="hidden sm:inline">RD Station</span>
+                  <span className="sm:hidden">RD</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              ) : null}
+              {lead.isSystemCreated ? <LeadDeleteButton leadId={lead.id} variant="onDark" /> : null}
+            </div>
+          </div>
+
+          {/* Identidade */}
+          <div className="mt-4 flex flex-col gap-4 sm:mt-5 sm:flex-row sm:items-start sm:gap-5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 sm:h-14 sm:w-14">
+              <StageIcon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-accent-green/30 bg-accent-green/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100">
+                  {pipelineLabel}
+                </span>
+                {heroContextBadge ? (
+                  <span
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                      heroContextBadge.className,
+                    )}
+                  >
+                    {heroContextBadge.label}
+                  </span>
+                ) : null}
+              </div>
+              <h1 className="mt-2 break-words text-2xl font-extrabold leading-tight tracking-[-0.04em] sm:text-3xl lg:text-[2rem]">
+                {lead.solicitante}
+              </h1>
+              {(empresaLabel || lead.solicitanteEmail) ? (
+                <div className="mt-2 flex flex-col gap-1.5 text-sm text-white/80 sm:flex-row sm:flex-wrap sm:gap-x-4">
+                  {empresaLabel ? (
+                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">{empresaLabel}</span>
+                    </span>
+                  ) : null}
+                  {lead.solicitanteEmail ? (
+                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                      <Mail className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">{lead.solicitanteEmail}</span>
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Meta chips — scroll horizontal no mobile */}
+          <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:overflow-visible sm:px-0">
+            <div className="flex w-max min-w-full flex-wrap gap-2 sm:w-auto">
+              <HeroMetaChip icon={StageIcon} label="Etapa" value={etapaLabel} accent="teal" />
+              <HeroMetaChip icon={BriefcaseBusiness} label="Tipo" value={leadTypeDisplay} accent="gold" />
+              <HeroMetaChip
+                icon={ListChecks}
+                label="DUE"
+                value={ddSimNao}
+                accent={lead.haveraDueDiligence ? "emerald" : "slate"}
+              />
+              {areasAnalise ? (
+                <HeroMetaChip icon={Layers3} label="Áreas" value={areasAnalise} accent="slate" />
+              ) : null}
+              {proposalScopeSummary ? (
+                <>
+                  <HeroMetaChip
+                    icon={FileText}
+                    label="Escopos"
+                    value={proposalScopeSummary.scopeProgressLabel}
+                    accent={proposalScopeSummary.pendingCount > 0 ? "warn" : "emerald"}
+                  />
+                  {proposalScopeSummary.pendingCount > 0 ? (
+                    <HeroMetaChip
+                      icon={ListChecks}
+                      label="Pendências"
+                      value={String(proposalScopeSummary.pendingCount)}
+                      accent="warn"
+                    />
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {proposalScopeSummary && proposalScopeSummary.areas.length > 0 ? (
+            <div className="-mx-1 mt-2 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:px-0">
+              <div className="flex w-max gap-1.5 sm:flex-wrap sm:w-auto">
+                {proposalScopeSummary.areas.map(({ area, status }) => (
+                  <span
+                    key={area}
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+                      status === "complete" && "border-emerald-400/30 bg-emerald-400/12 text-emerald-50",
+                      status === "pending" && "border-amber-400/30 bg-amber-400/12 text-amber-50",
+                      status === "overdue" && "border-rose-400/35 bg-rose-400/12 text-rose-50",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        status === "complete" && "bg-emerald-300",
+                        status === "pending" && "bg-amber-300",
+                        status === "overdue" && "bg-rose-300",
+                      )}
+                    />
+                    {area}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Rodapé: pessoa + datas + progresso */}
+          <div className="mt-4 space-y-3 border-t border-white/10 pt-4 sm:mt-5">
+            <div
+              className={cn(
+                "flex flex-col gap-3 sm:flex-row sm:items-center",
+                cadastradoPor?.resolvedUser ? "sm:justify-between" : "",
+              )}
+            >
+              {cadastradoPor?.resolvedUser ? (
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Avatar className="h-8 w-8 border border-white/15">
+                    {cadastradoPor.resolvedUser.avatarUrl ? (
+                      <AvatarImage src={cadastradoPor.resolvedUser.avatarUrl} alt="" className="object-cover" />
+                    ) : null}
+                    <AvatarFallback className="bg-white/15 text-[10px] font-bold text-white">
+                      {initialsFromFullName(cadastradoPor.resolvedUser.fullName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/40">Cadastrado por</p>
+                    <p className="truncate text-sm font-semibold">{cadastradoPor.resolvedUser.fullName}</p>
+                  </div>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-white/50 sm:text-xs">
+                <span>Criado {formatDateTimeBr(lead.criadoEm)}</span>
+                {lead.atualizadoEm ? <span>Atualizado {formatDateTimeBr(lead.atualizadoEm)}</span> : null}
+              </div>
+            </div>
+
+            {pipelineProgress != null ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs">
+                  <span className="truncate font-medium text-white/60">{etapaLabel}</span>
+                  <span className="shrink-0 font-bold tabular-nums text-emerald-100/90">{pipelineStepLabel}</span>
+                </div>
+                <div className="h-1 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={cn(
+                      "h-full rounded-full",
+                      lead.encerramento === "perdido"
+                        ? "bg-rose-400"
+                        : lead.encerramento === "ganho"
+                          ? "bg-emerald-400"
+                          : "bg-gradient-to-r from-teal-400 to-emerald-400",
+                    )}
+                    style={{ width: `${pipelineProgress}%` }}
+                  />
+                </div>
+              </div>
+            ) : isCadastroLeadOnlyStage(lead.etapa) ? (
+              <p className="text-xs text-white/55">Lead em cadastro inicial — avance para entrar no funil.</p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HeroMetaChip({
+  icon: Icon,
   label,
   value,
-  tone,
+  accent,
 }: {
+  icon: LucideIcon;
   label: string;
   value: string;
-  tone: "blue" | "gold" | "emerald" | "slate";
+  accent: "teal" | "gold" | "emerald" | "slate" | "warn";
 }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs shadow-sm",
-        tone === "blue" && "border-[#bfd2f6] bg-[#eef5ff] text-[#173a6a]",
-        tone === "gold" && "border-[#d8bf82]/40 bg-[#fff7df] text-[#73531c]",
-        tone === "emerald" && "border-emerald-200 bg-emerald-50 text-emerald-900",
-        tone === "slate" && "border-slate-200 bg-slate-50 text-slate-700",
+        "inline-flex max-w-[min(100%,20rem)] shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] sm:px-3 sm:text-xs",
+        accent === "teal" && "border-teal-300/25 bg-teal-400/10 text-teal-50",
+        accent === "gold" && "border-[#c8a96b]/35 bg-[#c8a96b]/12 text-amber-50",
+        accent === "emerald" && "border-emerald-300/30 bg-emerald-400/12 text-emerald-50",
+        accent === "slate" && "border-white/15 bg-white/8 text-slate-100",
+        accent === "warn" && "border-amber-400/35 bg-amber-400/14 text-amber-50",
       )}
     >
-      <span className="font-medium opacity-75">{label}:</span>
-      <span className="font-bold">{value}</span>
+      <Icon className="h-3 w-3 shrink-0 opacity-75 sm:h-3.5 sm:w-3.5" aria-hidden />
+      <span className="font-medium opacity-70">{label}</span>
+      <span className="truncate font-bold">{value}</span>
     </span>
-  );
-}
-
-function SummaryMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/10 p-3 shadow-sm backdrop-blur">
-      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">{label}</p>
-      <p className="mt-1 text-sm font-bold leading-snug text-white">{value}</p>
-    </div>
   );
 }
 
@@ -1578,277 +1833,5 @@ function D4SignDisclosure({
         ) : null}
       </Card>
     </section>
-  );
-}
-
-function LeadRightPanel({
-  lead,
-  etapaLabel,
-  isProposalStage,
-  isContractStage,
-  selectedAreas,
-  completedAreaRequests,
-  totalAreaRequests,
-  escopoDetalhe,
-  activeTab,
-  isRdLead,
-  onTabChange,
-}: {
-  lead: LeadDetailData;
-  etapaLabel: string;
-  isProposalStage: boolean;
-  isContractStage: boolean;
-  selectedAreas: string[];
-  completedAreaRequests: number;
-  totalAreaRequests: number;
-  escopoDetalhe: ReturnType<typeof parseEscopoJson>;
-  activeTab: LeadDetailTab;
-  isRdLead: boolean;
-  onTabChange: (tab: LeadDetailTab) => void;
-}) {
-  const [nowIso] = useState(() => new Date().toISOString());
-  const tabShortcuts: Array<{ tab: LeadDetailTab; label: string; icon: LucideIcon }> = [
-    { tab: "overview", label: "Visão geral", icon: UserRound },
-    ...(lead.haveraDueDiligence ? [{ tab: "due" as const, label: "Due diligence", icon: ListChecks }] : []),
-    { tab: "proposal", label: "Proposta", icon: FileText },
-    ...(isContractStage ? [{ tab: "contract" as const, label: "Contrato", icon: FileSignature }] : []),
-    ...(isRdLead ? [{ tab: "crm" as const, label: "CRM / RD", icon: ShieldCheck }] : []),
-    { tab: "signature", label: "Assinatura", icon: FileSignature },
-    { tab: "notes", label: "Anotações", icon: MessageSquareText },
-  ];
-  const areaRows = selectedAreas.map((area) => ({
-    area,
-    request: lead.escopoSolicitacoes?.find((item) => areaKeyMatches(item.areaKey, area)) ?? null,
-  }));
-  const areaRowsWithStatus = areaRows.map((row) => {
-    const entry = getEscopoEntryForArea(escopoDetalhe, row.area);
-    const scopeComplete = isEscopoEntryComplete(row.area, entry);
-    return { ...row, scopeComplete };
-  });
-  const pendingAreaCount = areaRowsWithStatus.filter((row) => !row.request?.concluidoEm && !row.scopeComplete).length;
-  const scopeProgressLabel =
-    totalAreaRequests > 0
-      ? `${Math.max(completedAreaRequests, areaRowsWithStatus.filter((row) => row.scopeComplete).length)}/${totalAreaRequests}`
-      : `${areaRowsWithStatus.length - pendingAreaCount}/${areaRowsWithStatus.length}`;
-
-  return (
-    <aside className="hidden min-w-0 xl:block">
-      <div className="sticky top-6 space-y-4">
-        <div className="relative overflow-hidden rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-[0_18px_45px_rgba(16,31,46,0.07)]">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-36 w-36 rounded-full bg-[#c8a96b]/18 blur-3xl" />
-          <div className="pointer-events-none absolute -left-12 top-28 h-32 w-32 rounded-full bg-emerald-300/15 blur-3xl" />
-          <div className="relative">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#101f2e_0%,#24615b_62%,#c8a96b_100%)] text-white shadow-[0_14px_28px_rgba(16,31,46,0.18)]">
-              <Sparkles className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Cockpit do lead</p>
-              <p className="truncate text-sm font-extrabold text-[#102033]">{etapaLabel}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            <PanelMetric
-              label="Pendências"
-              value={isProposalStage ? String(pendingAreaCount) : "—"}
-              tone={pendingAreaCount > 0 ? "warn" : "ok"}
-            />
-            <PanelMetric
-              label="Escopos"
-              value={areaRows.length > 0 ? scopeProgressLabel : "—"}
-              tone={pendingAreaCount > 0 ? "warn" : "ok"}
-            />
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-[#e6e9ef] bg-[#f8fafc]/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-bold text-[#102033]">Elaboração</p>
-              <span
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px] font-bold",
-                  isProposalStage ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600",
-                )}
-              >
-                {isProposalStage ? "ativa" : "fora da etapa"}
-              </span>
-            </div>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              {isProposalStage
-                ? "Priorize proposta, escopos, pendências e geração do Word."
-                : "A proposta será habilitada quando o lead entrar em elaboração."}
-            </p>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-[#e6e9ef] bg-white/90 p-4 shadow-[0_10px_24px_rgba(16,31,46,0.04)]">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <p className="text-sm font-bold text-[#102033]">Escopo por área</p>
-            </div>
-            {areaRows.length > 0 ? (
-              <div className="mt-3 space-y-2.5">
-                {areaRowsWithStatus.map(({ area, request, scopeComplete }) => {
-                  const completed = Boolean(request?.concluidoEm) || scopeComplete;
-                  const gestorName = request?.gestor?.fullName ?? `Gestor ${area}`;
-                  const preenchidoPorName = request?.preenchidoPor?.fullName ?? request?.gestor?.fullName ?? null;
-                  const responsaveis = request?.responsaveis ?? [];
-                  const responsaveisLabel =
-                    responsaveis.length > 0
-                      ? responsaveis.map((user) => user.fullName).join(", ")
-                      : gestorName;
-                  const overdue =
-                    !completed && request?.prazoAte && nowIso ? request.prazoAte < nowIso : false;
-                  return (
-                    <div
-                      key={area}
-                      className="group/area flex gap-3 rounded-xl border border-[#eef1f5] bg-[#f8fafc] p-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#dfe5ee] hover:bg-white hover:shadow-[0_10px_24px_rgba(16,31,46,0.06)]"
-                    >
-                      <Avatar className="h-9 w-9 shrink-0 border-2 border-white shadow-sm transition-transform duration-150 group-hover/area:scale-105">
-                        {request?.gestor?.avatarUrl ? (
-                          <AvatarImage src={request.gestor.avatarUrl} alt="" className="object-cover" />
-                        ) : null}
-                        <AvatarFallback
-                          className={cn(
-                            "text-[11px] font-black",
-                            completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
-                          )}
-                        >
-                          {request?.gestor?.fullName ? areaInitials(request.gestor.fullName) : areaInitials(area)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-xs font-extrabold text-[#102033]">{area}</p>
-                          <span
-                            className={cn(
-                              "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold",
-                              completed && "bg-emerald-100 text-emerald-800",
-                              !completed && overdue && "bg-rose-100 text-rose-800",
-                              !completed && !overdue && "bg-amber-100 text-amber-800",
-                            )}
-                          >
-                            {completed ? "Preenchido" : overdue ? "Atrasado" : "Pendente"}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">
-                          {completed ? `Responsável: ${gestorName}` : `Gestores: ${responsaveisLabel}`}
-                        </p>
-                        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                          {completed && request?.concluidoEm
-                            ? `Preenchido${preenchidoPorName ? ` por ${preenchidoPorName}` : ""} em ${formatDateTimeBr(request.concluidoEm)}.`
-                            : completed
-                              ? "Escopo salvo nas informações do lead."
-                            : request?.prazoAte
-                              ? `Prazo até ${formatDateTimeBr(request.prazoAte)}.`
-                            : request?.notificadoEm
-                              ? `Solicitado em ${formatDateTimeBr(request.notificadoEm)}. Precisa ser preenchido assim que possível.`
-                              : "Precisa ser solicitado/preenchido para finalizar a proposta."}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="mt-2 text-xs text-slate-500">Nenhuma área de escopo selecionada nesta proposta.</p>
-            )}
-          </div>
-
-          <div className="mt-4 space-y-1.5">
-            {tabShortcuts.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.tab}
-                  type="button"
-                  onClick={() => onTabChange(item.tab)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-all duration-200",
-                    activeTab === item.tab
-                      ? "border-primary-dark/20 bg-crm-gradient-primary text-white shadow-[0_10px_24px_rgba(15,118,110,0.22)]"
-                      : "border-[#e1e5eb] bg-white/85 text-slate-600 shadow-[0_1px_2px_rgba(16,31,46,0.03)] hover:-translate-y-0.5 hover:border-accent-teal/30 hover:bg-white hover:text-primary-dark",
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      "h-4 w-4",
-                      activeTab === item.tab ? "text-white/80" : "text-slate-400",
-                    )}
-                  />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        </div>
-
-        <div className="rounded-[22px] border border-[#dfe5ee] bg-[#fff8e6] p-4 text-sm text-[#73531c] shadow-sm">
-          <div className="flex items-center gap-2 font-extrabold">
-            <PencilLine className="h-4 w-4" />
-            Próxima melhor ação
-          </div>
-          <p className="mt-2 text-xs leading-relaxed">
-            {isProposalStage
-              ? "Revise pendências, confira preview e gere uma nova versão da proposta antes de enviar para assinatura."
-              : "Mantenha os dados do cadastro e RD limpos para acelerar a etapa de proposta."}
-          </p>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function normalizeAreaMatch(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
-}
-
-function areaKeyMatches(areaKey: string, areaLabel: string) {
-  const key = normalizeAreaMatch(areaKey);
-  const label = normalizeAreaMatch(areaLabel);
-  return key === label || key.includes(label) || label.includes(key);
-}
-
-function areaInitials(area: string) {
-  const words = area.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
-  return `${words[0]![0] ?? ""}${words[words.length - 1]![0] ?? ""}`.toUpperCase();
-}
-
-function PanelMetric({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: "neutral" | "ok" | "warn";
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border p-3",
-        tone === "ok" && "border-emerald-200 bg-emerald-50",
-        tone === "warn" && "border-amber-200 bg-amber-50",
-        tone === "neutral" && "border-[#e6e9ef] bg-white",
-      )}
-    >
-      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-      <p
-        className={cn(
-          "mt-1 text-lg font-extrabold tracking-[-0.04em]",
-          tone === "ok" && "text-emerald-800",
-          tone === "warn" && "text-amber-800",
-          tone === "neutral" && "text-[#102033]",
-        )}
-      >
-        {value}
-      </p>
-    </div>
   );
 }

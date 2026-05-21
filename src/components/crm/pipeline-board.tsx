@@ -60,6 +60,7 @@ import { getLeadPipelineSituation } from "@/modules/crm/application/lead-pipelin
 import { canMoveToStage } from "@/modules/crm/domain/workflow";
 import { Oportunidade, OpportunityStage } from "@/modules/crm/domain/entities";
 import { cn } from "@/lib/utils";
+import type { SignerAppUserLookup } from "@/lib/crm/signer-avatar-catalog";
 import {
   buildCpQualificacaoText,
   ConfeccaoReuniaoModalSection,
@@ -80,6 +81,7 @@ interface PipelineBoardProps {
   stageColumns: PipelineBoardColumn[];
   /** Funil atual (campos obrigatórios por etapa vêm de `field_definitions`). */
   pipelineCode: PipelineCode;
+  appUsersByEmail?: SignerAppUserLookup;
   /** Chamado após transição persistida no servidor (ex.: atualizar lista / timeline). */
   onDataChange?: () => void;
   /** Ex.: redirecionar ao detalhe do lead após Reunião → elaboração da proposta. */
@@ -186,7 +188,13 @@ function transitionModalIsDirty(m: TransitionModalState): boolean {
   );
 }
 
-function LeadCard({ item }: { item: Oportunidade }) {
+function LeadCard({
+  item,
+  appUsersByEmail,
+}: {
+  item: Oportunidade;
+  appUsersByEmail?: SignerAppUserLookup;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
   const situacao = getLeadPipelineSituation(item);
@@ -217,7 +225,12 @@ function LeadCard({ item }: { item: Oportunidade }) {
       )}
       data-dragging={isDragging}
     >
-      <PipelineLeadCardContent item={item} showOpenLink daysCompact />
+      <PipelineLeadCardContent
+        item={item}
+        showOpenLink
+        daysCompact
+        appUsersByEmail={appUsersByEmail}
+      />
     </div>
   );
 }
@@ -226,10 +239,12 @@ function Column({
   stage,
   title,
   items,
+  appUsersByEmail,
 }: {
   stage: OpportunityStage;
   title: string;
   items: Oportunidade[];
+  appUsersByEmail?: SignerAppUserLookup;
 }) {
   const { setNodeRef } = useDroppable({ id: stage });
 
@@ -275,7 +290,9 @@ function Column({
                 Arraste uma oportunidade para esta etapa.
               </div>
             ) : (
-              items.map((item) => <LeadCard key={item.id} item={item} />)
+              items.map((item) => (
+                <LeadCard key={item.id} item={item} appUsersByEmail={appUsersByEmail} />
+              ))
             )}
           </SortableContext>
         </div>
@@ -368,6 +385,7 @@ export function PipelineBoard({
   opportunities,
   stageColumns,
   pipelineCode,
+  appUsersByEmail,
   onDataChange,
   onAfterTransition,
 }: PipelineBoardProps) {
@@ -1140,6 +1158,7 @@ export function PipelineBoard({
               stage={column.stage}
               title={column.title}
               items={column.items}
+              appUsersByEmail={appUsersByEmail}
             />
           ))}
         </motion.div>
@@ -1365,7 +1384,12 @@ export function PipelineBoard({
                   )}
                 >
                   {/* Mesmo layout do card na coluna para o rect do overlay coincidir com o cursor */}
-                  <PipelineLeadCardContent item={activeItem} showOpenLink daysCompact />
+                  <PipelineLeadCardContent
+                    item={activeItem}
+                    showOpenLink
+                    daysCompact
+                    appUsersByEmail={appUsersByEmail}
+                  />
                 </div>
               ) : null}
             </DragOverlay>,

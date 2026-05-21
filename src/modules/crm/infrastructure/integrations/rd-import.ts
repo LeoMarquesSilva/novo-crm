@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { RD_PIPELINE_STAGE_MAP as STAGE_MAP } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
@@ -411,11 +412,21 @@ export class RdImportConnector {
       }
 
       if (existing && existing.etapa !== input.stage) {
+        const now = new Date().toISOString();
         await supabase.from("transicoes_etapa").insert({
           oportunidade_id: existingOpportunityId,
           etapa_origem: existing.etapa,
           etapa_destino: input.stage,
           observacao: "Atualização automática via RD CRM",
+        });
+        await recordLeadActivityEvent(supabase, {
+          oportunidadeId: existingOpportunityId,
+          kind: "etapa_alterada",
+          title: "Etapa alterada (RD Station)",
+          detail: `${existing.etapa} → ${input.stage}`,
+          etapa: input.stage,
+          sourceId: `rd-sync:${existingOpportunityId}:${input.stage}:${now}`,
+          metadata: { from: existing.etapa, to: input.stage, source: "rd_crm" },
         });
       }
 

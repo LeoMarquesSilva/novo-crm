@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { verifyD4SignContentHmac } from "@/lib/d4sign/webhook-hmac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  fetchLeadStakeholderContext,
+  notifyLeadStakeholdersInApp,
+  resolveLeadStakeholderAuthUserIds,
+} from "@/lib/crm/notify-lead-stakeholders";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -72,44 +78,6 @@ async function notifyAdminComercial(
   );
 }
 
-/** Envia e-mail de notificação via Outlook (silencia falhas). */
-async function sendContractEmail(
-  admin: ReturnType<typeof createSupabaseAdminClient>,
-  subject: string,
-  html: string,
-): Promise<void> {
-  try {
-    const fromEmail = process.env.OUTLOOK_FROM_EMAIL?.trim();
-    if (!fromEmail) return;
-
-    // Destinatários: todos admin/comercial com e-mail em Auth
-    const { data: users } = await admin
-      .from("app_users")
-      .select("auth_user_id")
-      .in("role", ["admin", "comercial"])
-      .not("auth_user_id", "is", null);
-
-    if (!users || users.length === 0) return;
-
-    const authIds = users.map((u) => u.auth_user_id as string);
-    const { data: authList } = await admin.auth.admin.listUsers();
-    const emails = (authList?.users ?? [])
-      .filter((u) => authIds.includes(u.id) && u.email?.trim())
-      .map((u) => u.email as string);
-
-    if (emails.length === 0) return;
-
-    // Reutiliza o endpoint interno de e-mail (não duplicar lógica Graph)
-    await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? ""}/api/crm/email/send-internal`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal-secret": process.env.INTERNAL_API_SECRET ?? "" },
-      body: JSON.stringify({ to: emails, subject, html }),
-    }).catch(() => null);
-  } catch {
-    // notificação por e-mail é best-effort — não falha o webhook
-  }
-}
-
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -167,7 +135,7 @@ export async function POST(request: Request) {
   const { data: opp } = d4doc?.oportunidade_id
     ? await admin
         .from("oportunidades")
-        .select("id, etapa, solicitante_nome, d4sign_signers")
+        .select("id, etapa, solicitante_nome, d4sign_signers, criado_por, solicitante_email")
         .eq("id", d4doc.oportunidade_id)
         .maybeSingle()
     : { data: null };
@@ -289,6 +257,16 @@ export async function POST(request: Request) {
         alterado_por:    null,
         observacao:      "Automático via webhook D4Sign (documento finalizado).",
       });
+
+      await recordLeadActivityEvent(admin, {
+        oportunidadeId: opp.id,
+        kind: "contrato_assinado",
+        title: `Contrato assinado — ${d4doc?.name_document?.replace(/\.docx?$/i, "") ?? "Documento"}`,
+        detail: "Documento finalizado via D4Sign (todos os signatários).",
+        etapa: "contrato_assinado",
+        sourceId: `d4sign-finalized:${documentUuid}`,
+        metadata: { document_uuid: documentUuid },
+      });
     }
 
     // Notificação in-app
@@ -296,26 +274,22 @@ export async function POST(request: Request) {
     const docNome  = d4doc?.name_document?.replace(/\.docx?$/i, "") ?? documentUuid;
     const path     = opp ? `/crm/leads/${opp.id}` : "/crm/contratos";
 
-    await notifyAdminComercial(admin, "contrato_assinado", {
-      oportunidade_id: d4doc?.oportunidade_id ?? null,
-      solicitante_nome: leadNome,
-      uuid_doc: documentUuid,
-      name_document: docNome,
-      signer_email: signerEmail,
-      title:   `Contrato assinado — ${leadNome}`,
-      preview: `O documento "${docNome}" foi assinado por todos os signatários.`,
-      path,
-    });
+    if (opp?.id) {
+      const stakeholderCtx = await fetchLeadStakeholderContext(admin, opp.id);
+      const stakeholderAuthIds = await resolveLeadStakeholderAuthUserIds(admin, stakeholderCtx);
+      await notifyLeadStakeholdersInApp(admin, stakeholderAuthIds, "contrato_assinado", {
+        oportunidade_id: d4doc?.oportunidade_id ?? null,
+        solicitante_nome: leadNome,
+        uuid_doc: documentUuid,
+        name_document: docNome,
+        signer_email: signerEmail,
+        title: `Contrato assinado — ${leadNome}`,
+        preview: `O documento "${docNome}" foi assinado por todos os signatários.`,
+        path,
+      });
+    }
 
-    // E-mail
-    const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? "";
-    const leadLink = `${appUrl}${path}`;
-    await sendContractEmail(
-      admin,
-      `✅ Contrato assinado — ${leadNome}`,
-      `<p>O contrato <strong>${docNome}</strong> do lead <strong>${leadNome}</strong> foi assinado por todos os signatários.</p>
-       <p><a href="${leadLink}">Ver lead no CRM →</a></p>`,
-    );
+    // E-mail desligado por enquanto — apenas notificação in-app para envolvidos do lead.
   }
 
   // ── Documento cancelado (type_post "3") ─────────────────────────────────

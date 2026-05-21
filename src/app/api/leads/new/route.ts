@@ -10,6 +10,7 @@ import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations
 import { sendLeadNotificationEmail } from "@/modules/crm/application/services/send-lead-notification-email";
 import { syncDueAreaTasksForOpportunity } from "@/lib/crm/due-area-tasks";
 import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -114,6 +115,16 @@ export async function POST(request: Request) {
         { status: 500 },
       );
     }
+
+    await recordLeadActivityEvent(supabase, {
+      oportunidadeId: oportunidade.id,
+      kind: "lead_criado",
+      title: `Lead criado — ${nomeLeadCadastro}`,
+      detail: payload.due_diligence === "Sim" ? "Com due diligence" : "Sem due diligence",
+      etapa: initialStage,
+      actorAppUserId: criadoPor,
+      sourceId: `lead-create:${oportunidade.id}`,
+    });
 
     if (payload.tipo_de_lead === "Indicacao" && payload.nome_indicacao?.trim()) {
       const normalizedName = payload.nome_indicacao.trim();

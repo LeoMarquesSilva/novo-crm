@@ -6,13 +6,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
+import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type SyncSummary = {
   imported: number;
@@ -79,13 +74,13 @@ export function RdSyncAdminPanel() {
             <SelectTrigger id="rd-sync-year" className="w-full sm:w-[160px]">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <CrmSelectContent>
               {["2024", "2025", "2026", "2027"].map((y) => (
-                <SelectItem key={y} value={y}>
+                <CrmSelectItem key={y} value={y}>
                   {y}
-                </SelectItem>
+                </CrmSelectItem>
               ))}
-            </SelectContent>
+            </CrmSelectContent>
           </Select>
         </div>
         <Button
