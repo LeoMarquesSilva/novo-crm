@@ -101,7 +101,7 @@ export function ConditionBuilder({
                 {f.label}
               </CrmSelectItem>
             ))}
-          </SelectContent>
+          </CrmSelectContent>
         </Select>
 
         <Select
@@ -127,7 +127,7 @@ export function ConditionBuilder({
             <CrmSelectItem value="field_not_empty" className="text-xs">
               não está vazio
             </CrmSelectItem>
-          </SelectContent>
+          </CrmSelectContent>
         </Select>
 
         {condition.type !== "field_not_empty" && (

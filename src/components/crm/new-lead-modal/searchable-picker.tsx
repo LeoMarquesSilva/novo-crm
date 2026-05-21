@@ -250,7 +250,8 @@ export function UserPickerField({
       filterOption={(o, q) =>
         `${o.name} ${o.email}`.toLowerCase().includes(q.toLowerCase())
       }
-      renderTrigger={(user) => (
+      renderTrigger={(user) =>
+        user ? (
         <span className="inline-flex min-w-0 items-center gap-2.5">
           <Avatar className="h-8 w-8 border border-[#e5e7eb]">
             <AvatarImage src={user.avatarUrl} alt="" className="object-cover" />
@@ -260,7 +261,8 @@ export function UserPickerField({
           </Avatar>
           <span className="min-w-0 truncate font-medium text-[#111827]">{user.name}</span>
         </span>
-      )}
+        ) : null
+      }
       renderOption={(user) => (
         <>
           <Avatar className="h-8 w-8 shrink-0 border border-[#e5e7eb]">
@@ -317,12 +319,14 @@ export function ClientPickerField({
       filterOption={(o, q) =>
         `${o.razao_social} ${o.documento}`.toLowerCase().includes(q.toLowerCase())
       }
-      renderTrigger={(client) => (
+      renderTrigger={(client) =>
+        client ? (
         <span className="flex min-w-0 flex-col items-start text-left">
           <span className="truncate font-medium text-[#111827]">{client.razao_social}</span>
           <span className="truncate text-xs text-[#6b7280]">{client.documento}</span>
         </span>
-      )}
+        ) : null
+      }
       renderOption={(client) => (
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{client.razao_social}</span>

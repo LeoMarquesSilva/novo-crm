@@ -493,7 +493,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       if (event.key !== "Escape") return;
       if (document.querySelector("[data-new-lead-picker-panel]")) return;
       if (document.querySelector('[data-slot="select-content"][data-open]')) return;
-      onRequestClose();
+      onRequestClose?.();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
