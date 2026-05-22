@@ -3,35 +3,17 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** Cartão com moldura mais definida (referência visual do kanban). */
+/** Cartão neutro (referência: Vercel / Supabase / Notion). */
 export const crmSurfaceCardClass =
-  "overflow-visible rounded-[18px] border border-primary-dark/14 bg-white p-0 shadow-[0_1px_2px_rgba(16,31,46,0.07),0_12px_32px_-6px_rgba(16,31,46,0.12)] ring-1 ring-primary-dark/[0.05]";
+  "overflow-visible rounded-xl border border-zinc-200/90 bg-white shadow-sm";
 
-/** Header de cartão CRM: superfície clara, bordas e sombra discretas. */
+/** Header plano, sem gradientes nem acentos nas bordas. */
 export const crmSurfaceHeaderClass =
-  "relative overflow-hidden border-b border-primary-dark/12 bg-[linear-gradient(180deg,#ffffff_0%,#f1f3f7_100%)] text-[#102033] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.95),inset_0_-1px_0_0_rgba(16,31,46,0.08)]";
+  "border-b border-zinc-200 bg-white text-zinc-900";
 
-export function CrmSurfaceHeaderBackdrop({ className }: { className?: string }) {
-  return (
-    <>
-      <div
-        className={cn("pointer-events-none absolute inset-x-0 top-0 h-px bg-primary-dark/14", className)}
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute bottom-3 left-0 top-3 w-[3px] rounded-r-full bg-gradient-to-b from-primary-dark/30 via-accent-teal/50 to-primary-dark/22"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_65%_at_100%_-10%,rgba(23,32,51,0.05),transparent_50%),radial-gradient(ellipse_55%_50%_at_0%_100%,rgba(15,159,143,0.06),transparent_48%)]"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-primary-dark/[0.05] to-transparent"
-        aria-hidden
-      />
-    </>
-  );
+/** @deprecated Decorativo removido — manter import sem efeito visual. */
+export function CrmSurfaceHeaderBackdrop() {
+  return null;
 }
 
 export function CrmSurfaceHeaderIcon({
@@ -44,7 +26,7 @@ export function CrmSurfaceHeaderIcon({
   return (
     <span
       className={cn(
-        "flex size-10 shrink-0 items-center justify-center rounded-[14px] border border-primary-dark/12 bg-white text-[#102033] shadow-[0_2px_6px_rgba(16,31,46,0.08)] ring-1 ring-primary-dark/[0.04]",
+        "flex size-8 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-zinc-50 text-zinc-600",
         className,
       )}
     >
@@ -53,7 +35,6 @@ export function CrmSurfaceHeaderIcon({
   );
 }
 
-/** Opcional em páginas com eyebrow; evitar no kanban. */
 export function CrmSurfaceHeaderEyebrow({
   children,
   className,
@@ -62,35 +43,29 @@ export function CrmSurfaceHeaderEyebrow({
   className?: string;
 }) {
   return (
-    <p
-      className={cn(
-        "inline-flex rounded-full border border-[#cceee8] bg-[#eefaf8] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#0d6b5f]",
-        className,
-      )}
-    >
+    <p className={cn("text-xs font-medium text-zinc-500", className)}>
       {children}
     </p>
   );
 }
 
-export const crmSurfaceHeaderTitleClass =
-  "font-extrabold tracking-[-0.04em] text-[#102033]";
+export const crmSurfaceHeaderTitleClass = "text-[15px] font-semibold tracking-tight text-zinc-900";
 
-export const crmSurfaceHeaderSubtitleClass = "text-[#5c6b7e]";
+export const crmSurfaceHeaderSubtitleClass = "text-[13px] text-zinc-500";
 
-/** Segmented control (tabs Vendas / Pós-venda). */
 export const crmSurfaceSegmentedRootClass =
-  "inline-flex rounded-[14px] border border-primary-dark/12 bg-[#e8ecf2]/60 p-1 shadow-[inset_0_1px_2px_rgba(16,31,46,0.06),0_1px_3px_rgba(16,31,46,0.05)]";
+  "inline-flex rounded-lg border border-zinc-200 bg-zinc-100 p-0.5";
 
 export function crmSurfaceSegmentedTabClass(active: boolean) {
   return cn(
-    "rounded-[11px] px-3 py-1.5 text-[13px] font-bold transition-colors duration-150",
+    "rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
     active
-      ? "bg-white text-[#102033] shadow-[0_2px_6px_rgba(16,31,46,0.1)] ring-1 ring-primary-dark/10"
-      : "text-[#5c6b7e] hover:bg-white/80 hover:text-[#102033]",
+      ? "bg-white text-zinc-900 shadow-sm"
+      : "text-zinc-600 hover:text-zinc-900",
   );
 }
 
-/** Bloco auxiliar (toggle RD, chips) no header. */
-export const crmSurfaceHeaderPanelClass =
-  "rounded-[14px] border border-primary-dark/12 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(16,31,46,0.07)] ring-1 ring-primary-dark/[0.04]";
+/** Linha auxiliar (ex.: toggle RD) — sem caixa extra. */
+export const crmSurfaceHeaderPanelClass = "flex items-center gap-2.5";
+
+export const crmSurfaceMetaClass = "text-[13px] tabular-nums text-zinc-500";

@@ -22,8 +22,10 @@ import {
 } from "@/components/crm/pipeline-stage-panels";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SignerAppUserLookup } from "@/lib/crm/signer-avatar-catalog";
+import { isRdKanbanViewOnlyLead } from "@/lib/crm/rd-kanban-view";
+import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { getLeadPipelineSituation } from "@/modules/crm/application/lead-pipeline-situation";
-import type { Oportunidade } from "@/modules/crm/domain/entities";
+import type { DemandType, Oportunidade } from "@/modules/crm/domain/entities";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import {
   latestSignerSignedAt,
@@ -108,12 +110,124 @@ function LossReasonTooltipBody({ motivo }: { motivo: string }) {
   );
 }
 
+const TIPO_DEMANDA_LABEL: Record<DemandType, string> = {
+  novo_lead: "Novo lead",
+  novo_contrato: "Novo contrato",
+  aditivo: "Aditivo",
+};
+
+/** Card enxuto para negociações espelhadas do RD — sem painéis operacionais do CRM. */
+function PipelineRdLeadCardContent({
+  item,
+  daysCompact,
+  showOpenLink,
+}: PipelineLeadCardContentProps) {
+  const situacaoComercial = getLeadPipelineSituation(item);
+  const rdNome = item.solicitanteRd?.trim();
+  const showRdNome =
+    rdNome && rdNome.toLowerCase() !== item.solicitante.trim().toLowerCase();
+
+  return (
+    <>
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        <span
+          className="inline-flex items-center rounded-full border border-orange-300/50 bg-orange-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-orange-900"
+          title="Sincronizado do RD Station — somente visualização no kanban"
+        >
+          RD Station
+        </span>
+        {situacaoComercial === "vendidas" ? (
+          <span className="inline-flex items-center rounded-full border border-emerald-600/35 bg-emerald-500/18 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-950">
+            Vendida
+          </span>
+        ) : null}
+        {situacaoComercial === "perdidas" ? (
+          <span className="inline-flex items-center rounded-full border border-rose-400/45 bg-rose-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-rose-950">
+            Perdida
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Negociação (RD)
+          </p>
+          <p className="mt-0.5 text-[13px] font-extrabold leading-snug tracking-[-0.03em] text-primary-dark">
+            {item.solicitante}
+          </p>
+        </div>
+        {showOpenLink ? (
+          <Link
+            href={`/crm/leads/${encodeURIComponent(item.id)}`}
+            className={cn(
+              "mt-0.5 inline-flex shrink-0 rounded-md p-1 text-muted-foreground transition-colors",
+              "hover:bg-primary-dark/10 hover:text-primary-dark",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-dark/35 focus-visible:ring-offset-1",
+            )}
+            title="Ver ficha (dados do RD)"
+            aria-label="Ver ficha (dados do RD)"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
+          </Link>
+        ) : null}
+      </div>
+
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        <span className="font-medium text-primary-dark/80">
+          {OPPORTUNITY_STAGE_LABELS[item.etapa] ?? item.etapa}
+        </span>
+        <span className="text-muted-foreground"> · {TIPO_DEMANDA_LABEL[item.tipo]}</span>
+      </p>
+
+      {showRdNome ? (
+        <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
+          Solicitante RD: <span className="font-medium text-primary-dark/85">{rdNome}</span>
+        </p>
+      ) : null}
+
+      {item.ownerUserName?.trim() ? (
+        <div className="mt-2">
+          <AvatarNameBlock
+            label="Responsável (mapeado)"
+            name={item.ownerUserName}
+            imageUrl={item.ownerUserAvatarUrl}
+          />
+        </div>
+      ) : null}
+
+      {situacaoComercial === "perdidas" && item.motivoPerda?.trim() ? (
+        <p className="mt-2 text-[11px] leading-snug text-rose-900/90">
+          Motivo: {item.motivoPerda.trim()}
+        </p>
+      ) : null}
+
+      <DaysInStagePanel item={item} className="mt-2" compact={daysCompact} />
+
+      <p className="mt-2 text-[10px] leading-snug text-orange-900/75">
+        Somente visualização — etapa e operação no RD Station.
+      </p>
+    </>
+  );
+}
+
 export function PipelineLeadCardContent({
   item,
   daysCompact,
   showOpenLink,
   appUsersByEmail,
 }: PipelineLeadCardContentProps) {
+  if (isRdKanbanViewOnlyLead(item)) {
+    return (
+      <PipelineRdLeadCardContent
+        item={item}
+        daysCompact={daysCompact}
+        showOpenLink={showOpenLink}
+      />
+    );
+  }
+
   const temSolicitanteUsuario =
     item.solicitanteUsuarioNome != null && item.solicitanteUsuarioNome.trim() !== "";
   const temResponsavel =

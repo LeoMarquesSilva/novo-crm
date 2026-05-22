@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { TemplateTextareaField } from "@/components/crm/scope-catalog/template-textarea-field";
 import { PROPOSTA_AREA_OPTIONS } from "@/data/proposta-tipos-catalog";
 import type { ProposalCatalogAdminData } from "@/lib/crm/proposal-catalog-db";
 import { cn } from "@/lib/utils";
@@ -167,15 +168,15 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
               <Label className="text-xs font-semibold text-primary-dark">
                 Texto do escopo <span className="text-muted-foreground">(opcional)</span>
               </Label>
-              <Textarea
+              <TemplateTextareaField
+                kind="scope"
                 value={escopoTemplate}
-                onChange={(e) => setEscopoTemplate(e.target.value)}
+                onChange={setEscopoTemplate}
                 disabled={saving}
                 placeholder="Prestação de serviços advocatícios em favor de [NOME EMPRESA]..."
-                className="min-h-[100px] resize-y border-primary-dark/15 bg-white font-mono text-[12px] leading-relaxed"
               />
               <p className="text-[10px] text-muted-foreground">
-                Pode editar depois com preview ao vivo. Use <code>[CHAVE]</code> para placeholders.
+                Pode editar depois com preview ao vivo.
               </p>
             </div>
           ) : null}
@@ -198,12 +199,12 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
                 <Label className="text-xs font-semibold text-primary-dark">
                   Texto do investimento <span className="text-muted-foreground">(opcional)</span>
                 </Label>
-                <Textarea
+                <TemplateTextareaField
+                  kind="investment"
                   value={template}
-                  onChange={(e) => setTemplate(e.target.value)}
+                  onChange={setTemplate}
                   disabled={saving}
                   placeholder="O investimento será de R$ [VALORMENSAL] mensais..."
-                  className="min-h-[100px] resize-y border-primary-dark/15 bg-white font-mono text-[12px] leading-relaxed"
                 />
               </div>
             </>

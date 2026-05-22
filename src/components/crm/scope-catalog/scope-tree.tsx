@@ -11,14 +11,19 @@ import type {
   ScopeTreeSubtype,
 } from "./scope-catalog-shell";
 
-export type ScopeTreeSelection = {
-  /** ID do subtipo selecionado (linha clicada). */
-  subtypeId: string;
-  /** Label do subtipo selecionado. */
-  subtypeLabel: string;
-  /** Caminho navegável (Área › Tipo › Subtipo) para mostrar no editor. */
-  breadcrumb: string[];
-};
+export type ScopeTreeSelection =
+  | {
+      level: "type";
+      typeId: string;
+      typeLabel: string;
+      breadcrumb: string[];
+    }
+  | {
+      level: "subtype";
+      subtypeId: string;
+      subtypeLabel: string;
+      breadcrumb: string[];
+    };
 
 type Props = {
   groups: ScopeTreeGroup[];
@@ -28,6 +33,14 @@ type Props = {
   onCreateSubtype?: (typeId: string, typeLabel: string) => void;
   emptyHint: string;
 };
+
+function isTypeSelected(selection: ScopeTreeSelection | null, typeId: string): boolean {
+  return selection?.level === "type" && selection.typeId === typeId;
+}
+
+function isSubtypeSelected(selection: ScopeTreeSelection | null, subtypeId: string): boolean {
+  return selection?.level === "subtype" && selection.subtypeId === subtypeId;
+}
 
 /** Cores por área de prática. */
 function getAreaColors(area: string): { bg: string; text: string; ring: string } {
@@ -103,11 +116,23 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
   const isL1Open = (key: string) => Boolean(q) || openL1.has(key);
   const isL2Open = (key: string) => Boolean(q) || openL2.has(key);
 
-  function handleSelect(s: ScopeTreeSubtype) {
+  function handleSelectSubtype(s: ScopeTreeSubtype) {
     onSelect({
+      level: "subtype",
       subtypeId: s.key,
       subtypeLabel: s.label,
       breadcrumb: [...s.parentBreadcrumb, s.label],
+    });
+  }
+
+  function handleSelectType(it: ScopeTreeItem, group: ScopeTreeGroup) {
+    const breadcrumb =
+      group.key === "__all__" ? [it.label] : [group.label, it.label];
+    onSelect({
+      level: "type",
+      typeId: it.key,
+      typeLabel: it.label,
+      breadcrumb,
     });
   }
 
@@ -149,7 +174,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
                   <button
                     type="button"
                     onClick={() => toggleL1(g.key)}
-                    className="group flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left transition-colors hover:bg-primary-dark/5"
+                    className="group flex w-full min-w-0 items-center gap-2 rounded-xl px-2 py-2 text-left transition-colors hover:bg-primary-dark/5"
                   >
                     {/* Ícone colorido da área */}
                     <span
@@ -162,7 +187,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
                       <AreaIcon className={cn("size-3.5", areaColors.text)} aria-hidden />
                     </span>
 
-                    <span className="flex-1 truncate text-[11px] font-black uppercase tracking-[0.08em] text-primary-dark">
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-black uppercase tracking-[0.08em] text-primary-dark">
                       {g.label}
                     </span>
 
@@ -191,66 +216,74 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
                         {/* L2 — Tipo */}
                         <div
                           className={cn(
-                            "group flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors",
-                            it.isActive
-                              ? "hover:bg-primary-dark/5"
-                              : "opacity-60 hover:bg-slate-100/60",
+                            "flex min-w-0 items-center gap-0.5 rounded-lg px-1 py-1 transition-colors",
+                            it.isActive ? "" : "opacity-60",
+                            isTypeSelected(selection, it.key)
+                              ? "bg-primary-dark/8 ring-1 ring-primary-dark/15"
+                              : "hover:bg-primary-dark/5",
                           )}
                         >
                           <button
                             type="button"
                             onClick={() => toggleL2(`${g.key}/${it.key}`)}
-                            className="flex flex-1 items-center gap-1.5 text-left"
+                            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-primary-dark/50 hover:bg-primary-dark/8 hover:text-primary-dark"
+                            aria-label={isL2Open(`${g.key}/${it.key}`) ? "Recolher" : "Expandir"}
                           >
                             {isL2Open(`${g.key}/${it.key}`) ? (
-                              <ChevronDown className="size-3 shrink-0 text-primary-dark/40" aria-hidden />
+                              <ChevronDown className="size-3.5" aria-hidden />
                             ) : (
-                              <ChevronRight className="size-3 shrink-0 text-primary-dark/40" aria-hidden />
+                              <ChevronRight className="size-3.5" aria-hidden />
                             )}
-                            <span
-                              className={cn(
-                                "flex-1 truncate text-xs font-semibold",
-                                it.isActive ? "text-primary-dark" : "text-muted-foreground",
-                              )}
-                            >
-                              {it.label}
-                            </span>
                           </button>
 
-                          {/* Count badge */}
-                          <span className="rounded bg-primary-dark/8 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-primary-dark/60">
-                            {it.subtypes.length}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectType(it, g)}
+                            title={it.label}
+                            className={cn(
+                              "min-w-0 flex-1 truncate rounded-md px-1 py-1 text-left text-xs font-semibold",
+                              it.isActive ? "text-primary-dark" : "text-muted-foreground",
+                              isTypeSelected(selection, it.key) && "text-primary-dark",
+                            )}
+                          >
+                            {it.label}
+                          </button>
 
-                          {/* "+" para criar subtipo */}
-                          {onCreateSubtype ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onCreateSubtype(it.key, it.label);
-                              }}
-                              title={`Novo subtipo em ${it.label}`}
-                              className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-all hover:bg-accent-teal hover:text-white group-hover:opacity-100"
-                              aria-label={`Novo subtipo em ${it.label}`}
-                            >
-                              <Plus className="size-3" aria-hidden />
-                            </button>
-                          ) : null}
+                          <div className="flex shrink-0 items-center gap-0.5 pl-0.5">
+                            <span className="rounded bg-primary-dark/8 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-primary-dark/60">
+                              {it.subtypes.length}
+                            </span>
+
+                            {onCreateSubtype ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onCreateSubtype(it.key, it.label);
+                                }}
+                                title={`Novo subtipo em ${it.label}`}
+                                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:border-accent-teal/30 hover:bg-accent-teal hover:text-white"
+                                aria-label={`Novo subtipo em ${it.label}`}
+                              >
+                                <Plus className="size-3.5" aria-hidden />
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
 
                         {/* L3 — Subtipos */}
                         {isL2Open(`${g.key}/${it.key}`) && it.subtypes.length > 0 ? (
                           <ul className="mb-1 ml-4 space-y-px border-l-2 border-primary-dark/8 pl-2">
                             {it.subtypes.map((s) => {
-                              const isSelected = selection?.subtypeId === s.key;
+                              const isSelected = isSubtypeSelected(selection, s.key);
                               return (
                                 <li key={s.key}>
                                   <button
                                     type="button"
-                                    onClick={() => handleSelect(s)}
+                                    onClick={() => handleSelectSubtype(s)}
+                                    title={s.label}
                                     className={cn(
-                                      "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11.5px] transition-all",
+                                      "flex w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11.5px] transition-all",
                                       isSelected
                                         ? "bg-accent-teal font-semibold text-white shadow-sm shadow-accent-teal/20"
                                         : s.isActive
@@ -258,7 +291,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
                                           : "text-slate-400 hover:bg-slate-100/60",
                                     )}
                                   >
-                                    <span className="flex-1 truncate leading-snug">{s.label}</span>
+                                    <span className="min-w-0 flex-1 truncate leading-snug">{s.label}</span>
                                     {!s.isActive ? (
                                       <span
                                         className={cn(

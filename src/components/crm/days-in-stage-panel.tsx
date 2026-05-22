@@ -113,7 +113,7 @@ export function DaysInStagePanel({ item, className, compact }: DaysInStagePanelP
   const triggerClass = cn(
     "inline-flex cursor-default items-center gap-1.5 rounded-md border border-slate-400/35 bg-white/70 px-2 py-1 shadow-sm",
     "text-primary-dark outline-none transition-[background-color,border-color] hover:border-slate-500/45 hover:bg-white/90",
-    "focus-visible:border-slate-500/50 focus-visible:ring-2 focus-visible:ring-primary-dark/30 focus-visible:ring-offset-1",
+    "focus-visible:border-accent-teal/45 focus-visible:ring-2 focus-visible:ring-accent-teal/30 focus-visible:ring-offset-1",
     compact ? "px-1.5 py-0.5" : "py-1",
     className,
   );

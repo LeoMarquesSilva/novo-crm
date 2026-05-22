@@ -16,6 +16,7 @@ import {
   type PipelineCode,
 } from "@/lib/crm/compute-transition-requirements";
 import { allDueReviewTasksApprovedForCycle } from "@/lib/crm/due-area-tasks";
+import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
 export type EmpresaIntakeForModal = {
@@ -107,17 +108,32 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createSupabaseAdminClient();
 
-    const { data: row, error: fetchError } = await supabase
-      .from("oportunidades")
-      .select("id, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle")
-      .eq("id", opportunityId)
-      .maybeSingle();
+    const [{ data: row, error: fetchError }, { data: reconRow }] = await Promise.all([
+      supabase
+        .from("oportunidades")
+        .select("id, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle")
+        .eq("id", opportunityId)
+        .maybeSingle(),
+      supabase
+        .from("rd_deal_reconciliacao")
+        .select("oportunidade_id")
+        .eq("oportunidade_id", opportunityId)
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
     if (fetchError) {
       return NextResponse.json({ ok: false, error: fetchError.message }, { status: 500 });
     }
     if (!row) {
       return NextResponse.json({ ok: false, error: "Oportunidade não encontrada" }, { status: 404 });
+    }
+
+    if (reconRow) {
+      return NextResponse.json(
+        { ok: false, error: RD_KANBAN_VIEW_ONLY_MESSAGE },
+        { status: 403 },
+      );
     }
 
     const links = linkFieldsMissing({

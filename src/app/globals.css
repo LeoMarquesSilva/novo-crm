@@ -241,6 +241,25 @@
   .font-new-lead-modal {
     font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   }
+
+  /** Painel de busca de leads (kanban): foco/clique verde, sem azul do browser. */
+  .lead-search-suggestions .lead-search-option {
+    -webkit-tap-highlight-color: transparent;
+    accent-color: var(--accent-teal);
+  }
+
+  .lead-search-suggestions .lead-search-option:focus,
+  .lead-search-suggestions .lead-search-option:focus-visible {
+    outline: none;
+    background-color: #ecfdf5;
+    box-shadow: inset 0 0 0 2px rgba(15, 159, 143, 0.38);
+  }
+
+  .lead-search-suggestions .lead-search-option::selection,
+  .lead-search-suggestions .lead-search-option *::selection {
+    background-color: rgba(16, 185, 129, 0.22);
+    color: #064e3b;
+  }
 }
 
 /* Radix Popper: o wrapper externo copia o z-index do content após layout; até lá pode ficar abaixo do painel direito (z-30) e bloquear cliques. */

@@ -16,24 +16,24 @@ import {
   PipelineKanbanRefreshIndicator,
 } from "@/components/crm/pipeline-kanban-status";
 import {
-  CrmSurfaceHeaderBackdrop,
   crmSurfaceCardClass,
   crmSurfaceHeaderClass,
   crmSurfaceHeaderPanelClass,
-  crmSurfaceHeaderSubtitleClass,
-  crmSurfaceHeaderTitleClass,
+  crmSurfaceMetaClass,
   crmSurfaceSegmentedRootClass,
   crmSurfaceSegmentedTabClass,
 } from "@/components/crm/crm-surface-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   POS_VENDA_PIPELINE_COLUMNS,
   SALES_PIPELINE_COLUMNS,
+  isCadastroLeadOnlyStage,
   isPosVendaPipelineStage,
   isSalesPipelineStage,
 } from "@/lib/crm/pipeline-board-config";
+import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { cn } from "@/lib/utils";
 import { getLeadPipelineSituation } from "@/modules/crm/application/lead-pipeline-situation";
 import type { Oportunidade } from "@/modules/crm/domain/entities";
@@ -109,8 +109,18 @@ function matchesOwnerAndSituation(
   return true;
 }
 
-function matchesPipelineTab(o: Oportunidade, tab: PipelineTab): boolean {
-  if (tab === "vendas") return isSalesPipelineStage(o.etapa);
+function matchesPipelineTab(
+  o: Oportunidade,
+  tab: PipelineTab,
+  mostrarLeadsRd: boolean,
+): boolean {
+  if (tab === "vendas") {
+    if (isSalesPipelineStage(o.etapa)) return true;
+    if (mostrarLeadsRd && o.origemRd === true && isCadastroLeadOnlyStage(o.etapa)) {
+      return true;
+    }
+    return false;
+  }
   return isPosVendaPipelineStage(o.etapa);
 }
 
@@ -128,7 +138,7 @@ function leadMatchesPipelineFilters(
   mostrarLeadsRd: boolean,
 ): boolean {
   if (!matchesRdVisibility(o, mostrarLeadsRd)) return false;
-  if (!matchesPipelineTab(o, tab)) return false;
+  if (!matchesPipelineTab(o, tab, mostrarLeadsRd)) return false;
   return matchesOwnerAndSituation(o, ownerFilter, situation);
 }
 
@@ -373,10 +383,20 @@ export default function LeadsPage() {
       .slice(0, 12);
   }, [search, opportunities, ownerFilter, situation, pipelineTab, mostrarLeadsRd]);
 
-  const activeStageColumns = useMemo(
-    () => (pipelineTab === "vendas" ? SALES_PIPELINE_COLUMNS : POS_VENDA_PIPELINE_COLUMNS),
-    [pipelineTab],
-  );
+  const activeStageColumns = useMemo(() => {
+    if (pipelineTab === "pos_venda") return POS_VENDA_PIPELINE_COLUMNS;
+    if (!mostrarLeadsRd) return SALES_PIPELINE_COLUMNS;
+    if (SALES_PIPELINE_COLUMNS.some((c) => c.stage === "cadastro_lead")) {
+      return SALES_PIPELINE_COLUMNS;
+    }
+    return [
+      {
+        stage: "cadastro_lead" as const,
+        title: OPPORTUNITY_STAGE_LABELS.cadastro_lead,
+      },
+      ...SALES_PIPELINE_COLUMNS,
+    ];
+  }, [pipelineTab, mostrarLeadsRd]);
 
   const handleToolbarSearchChange = useCallback((value: string) => {
     setPinnedLeadId(null);
@@ -407,6 +427,7 @@ export default function LeadsPage() {
         situation={situation}
         onSituationChange={setSituation}
         onNovoCadastro={() => setIsCadastroOpen(true)}
+        pinnedLeadId={pinnedLeadId}
       />
 
       <motion.div
@@ -421,96 +442,70 @@ export default function LeadsPage() {
           "flex min-h-[calc(100dvh-16.5rem)] flex-1 flex-col overflow-hidden py-0 lg:min-h-[calc(100dvh-14.5rem)]",
         )}
       >
-        <CardHeader className={cn(crmSurfaceHeaderClass, "shrink-0 px-4 py-3.5 pl-5 sm:px-5 sm:pl-6")}>
-          <CrmSurfaceHeaderBackdrop />
-          <div className="relative space-y-2">
+        <CardHeader className={cn(crmSurfaceHeaderClass, "shrink-0 rounded-t-xl px-4 py-3")}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className={crmSurfaceSegmentedRootClass}>
-              <button
-                type="button"
-                onClick={() => setPipelineTab("vendas")}
-                className={crmSurfaceSegmentedTabClass(pipelineTab === "vendas")}
-              >
-                Vendas
-                <span className="ml-1.5 tabular-nums opacity-80">({salesBoardCount})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPipelineTab("pos_venda")}
-                className={crmSurfaceSegmentedTabClass(pipelineTab === "pos_venda")}
-              >
-                Pós-venda
-                <span className="ml-1.5 tabular-nums opacity-80">({posVendaBoardCount})</span>
-              </button>
-            </div>
-            <div
-              className={cn(
-                crmSurfaceHeaderPanelClass,
-                "flex shrink-0 items-center justify-between gap-3 sm:justify-end sm:py-1.5",
-              )}
-            >
-              <div className="min-w-0 sm:text-right">
-                <Label
-                  htmlFor="kanban-toggle-rd-leads"
-                  className="cursor-pointer text-xs font-bold text-[#102033]"
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <div className={crmSurfaceSegmentedRootClass}>
+                <button
+                  type="button"
+                  onClick={() => setPipelineTab("vendas")}
+                  className={crmSurfaceSegmentedTabClass(pipelineTab === "vendas")}
                 >
-                  Leads do RD Station
-                </Label>
-                <p
-                  className={cn(
-                    "text-[10px] leading-snug sm:ml-auto sm:max-w-[200px]",
-                    crmSurfaceHeaderSubtitleClass,
-                  )}
+                  Vendas
+                  <span className="ml-1.5 tabular-nums text-zinc-500">({salesBoardCount})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPipelineTab("pos_venda")}
+                  className={crmSurfaceSegmentedTabClass(pipelineTab === "pos_venda")}
                 >
-                  {mostrarLeadsRd
-                    ? "Negociações com sincronização RD aparecem no quadro."
-                    : "Ocultas do kanban; demais leads inalterados."}
-                </p>
+                  Pós-venda
+                  <span className="ml-1.5 tabular-nums text-zinc-500">({posVendaBoardCount})</span>
+                </button>
               </div>
+              <p className={cn("flex flex-wrap items-center gap-2", crmSurfaceMetaClass)}>
+                <span>
+                  {loading
+                    ? "Carregando…"
+                    : pipelineTab === "vendas"
+                      ? `${filteredOpportunities.length} ${
+                          filteredOpportunities.length === 1 ? "lead" : "leads"
+                        }${mostrarLeadsRd ? "" : " · RD oculto"}`
+                      : `${filteredOpportunities.length} ${
+                          filteredOpportunities.length === 1 ? "item" : "itens"
+                        }${mostrarLeadsRd ? "" : " · RD oculto"}`}
+                </span>
+                {!loading && lastRefreshedAt ? (
+                  <PipelineKanbanRefreshIndicator
+                    lastRefreshedAt={lastRefreshedAt}
+                    justRefreshed={justRefreshed}
+                    silentRefreshing={silentRefreshing}
+                  />
+                ) : null}
+              </p>
+            </div>
+            <div className={crmSurfaceHeaderPanelClass}>
+              <Label
+                htmlFor="kanban-toggle-rd-leads"
+                className="cursor-pointer text-[13px] font-medium text-zinc-700"
+              >
+                RD Station
+              </Label>
               <Switch
                 id="kanban-toggle-rd-leads"
                 checked={mostrarLeadsRd}
                 onCheckedChange={setMostrarLeadsRd}
                 aria-label={
                   mostrarLeadsRd
-                    ? "Desligar exibição de leads do RD Station no kanban"
-                    : "Ligar exibição de leads do RD Station no kanban"
+                    ? "Ocultar leads do RD Station no kanban"
+                    : "Mostrar leads do RD Station no kanban"
                 }
               />
             </div>
           </div>
-          <div className="space-y-1">
-            <CardTitle className={cn("text-lg sm:text-xl", crmSurfaceHeaderTitleClass)}>
-              {pipelineTab === "vendas"
-                ? "Pipeline de vendas (kanban)"
-                : "Pipeline de pós-venda (kanban)"}
-            </CardTitle>
-            <p
-              className={cn(
-                "flex flex-wrap items-center gap-2 text-xs sm:text-sm",
-                crmSurfaceHeaderSubtitleClass,
-              )}
-            >
-              <span>
-                {loading
-                  ? "Carregando leads do banco..."
-                  : pipelineTab === "vendas"
-                    ? `${filteredOpportunities.length} lead(s) com os filtros atuais${mostrarLeadsRd ? "" : " (RD oculto)"}. Arraste os cards entre colunas; cada coluna rola sozinha quando houver muitos itens.`
-                    : `${filteredOpportunities.length} oportunidade(s) no pós-venda${mostrarLeadsRd ? "" : " (RD oculto)"}. Etapas alinhadas ao funil RD após “Marcar venda”. Itens sincronizados do RD mostram o chip “RD Station”.`}
-              </span>
-              {!loading && lastRefreshedAt ? (
-                <PipelineKanbanRefreshIndicator
-                  lastRefreshedAt={lastRefreshedAt}
-                  justRefreshed={justRefreshed}
-                  silentRefreshing={silentRefreshing}
-                />
-              ) : null}
-            </p>
-            {loadError && opportunities.length > 0 ? (
-              <p className="text-sm font-medium text-red-600">{loadError}</p>
-            ) : null}
-          </div>
-          </div>
+          {loadError && opportunities.length > 0 ? (
+            <p className="mt-2 text-sm font-medium text-red-600">{loadError}</p>
+          ) : null}
         </CardHeader>
         <CardContent className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2 md:p-3">
           {loading ? (

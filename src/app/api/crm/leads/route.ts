@@ -250,7 +250,7 @@ export async function GET() {
     const { data: reconciliationRows, error: reconciliationError } = await supabase
       .from("rd_deal_reconciliacao")
       .select("oportunidade_id, detalhes, reconciled_at")
-      .in("oportunidade_id", [...opportunityIdSet])
+      .not("oportunidade_id", "is", null)
       .order("reconciled_at", { ascending: false });
 
     if (reconciliationError) {
@@ -317,8 +317,10 @@ export async function GET() {
 
     const reconciliationByOpportunity = new Map<string, unknown>();
     for (const row of reconciliationRows ?? []) {
-      if (row.oportunidade_id && !reconciliationByOpportunity.has(row.oportunidade_id)) {
-        reconciliationByOpportunity.set(row.oportunidade_id, row.detalhes);
+      const oid = row.oportunidade_id ? String(row.oportunidade_id) : "";
+      if (!oid || !opportunityIdSet.has(oid)) continue;
+      if (!reconciliationByOpportunity.has(oid)) {
+        reconciliationByOpportunity.set(oid, row.detalhes);
       }
     }
 

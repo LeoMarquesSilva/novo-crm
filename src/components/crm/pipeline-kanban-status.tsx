@@ -32,8 +32,8 @@ export function PipelineKanbanRefreshIndicator({
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums transition-all duration-300",
         justRefreshed
-          ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80"
-          : "bg-[#f1f5f9] text-[#64748b] ring-1 ring-[#e2e8f0]",
+          ? "bg-zinc-100 text-zinc-700"
+          : "text-zinc-400",
         className,
       )}
       aria-live="polite"

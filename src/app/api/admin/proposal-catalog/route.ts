@@ -49,6 +49,11 @@ const createSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+const deleteSchema = z.object({
+  kind: kindSchema,
+  id: z.string().uuid(),
+});
+
 const patchSchema = z.object({
   kind: kindSchema,
   id: z.string().uuid(),
@@ -234,6 +239,23 @@ async function seedDefaults(supabase: ReturnType<typeof createSupabaseAdminClien
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await requireAdminApi();
+    if (!auth.ok) return auth.response;
+
+    const body = deleteSchema.parse(await request.json());
+    const supabase = createSupabaseAdminClient();
+    const { error } = await deleteCatalogRow(supabase, body.kind, body.id);
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+
+    return NextResponse.json({ ok: true, data: await loadProposalCatalogAdmin(supabase) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro ao excluir item.";
+    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const auth = await requireAdminApi();
@@ -325,5 +347,34 @@ function updateCatalogRow(
         .from("proposal_investment_subtypes")
         .update(patch as InvestmentSubtypeUpdate)
         .eq("id", id);
+  }
+}
+
+async function deleteCatalogRow(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  kind: z.infer<typeof kindSchema>,
+  id: string,
+) {
+  switch (kind) {
+    case "scope_subtype":
+      return supabase.from("proposal_scope_subtypes").delete().eq("id", id);
+    case "scope_type": {
+      const { error: childError } = await supabase
+        .from("proposal_scope_subtypes")
+        .delete()
+        .eq("scope_type_id", id);
+      if (childError) return { error: childError };
+      return supabase.from("proposal_scope_types").delete().eq("id", id);
+    }
+    case "investment_subtype":
+      return supabase.from("proposal_investment_subtypes").delete().eq("id", id);
+    case "investment_type": {
+      const { error: childError } = await supabase
+        .from("proposal_investment_subtypes")
+        .delete()
+        .eq("investment_type_id", id);
+      if (childError) return { error: childError };
+      return supabase.from("proposal_investment_types").delete().eq("id", id);
+    }
   }
 }

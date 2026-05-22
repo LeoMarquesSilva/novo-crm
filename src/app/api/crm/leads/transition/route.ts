@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
+import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import { resolvePipelineEtapaFromDbAndRd } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
 import {
   applyConfeccaoPropostaDefaults,
@@ -138,6 +139,13 @@ export async function POST(request: Request) {
     }
     if (!row) {
       return NextResponse.json({ ok: false, error: "Oportunidade não encontrada" }, { status: 404 });
+    }
+
+    if (reconRow?.detalhes) {
+      return NextResponse.json(
+        { ok: false, error: RD_KANBAN_VIEW_ONLY_MESSAGE },
+        { status: 403 },
+      );
     }
 
     const dbEtapa = row.etapa as OpportunityStage;

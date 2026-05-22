@@ -11,6 +11,14 @@ const LABELS: Record<string, string> = {
   "PARTE_CONTRÁRIA": "Parte contrária",
   "VALOR_CAUSA": "Valor da causa",
   "QTD DE PROCESSOS": "Quantidade de processos",
+  CNPJ: "CNPJ da empresa",
+  DOCUMENTO: "CPF/CNPJ (documento)",
+  EMPRESA: "Razão social (Word: EMPRESA)",
+  CIDADE: "Cidade do cliente",
+  UF: "UF do cliente",
+  CEP: "CEP do cliente",
+  NUMERO: "Número do endereço",
+  "DATA VIGENCIA": "Data de vigência da proposta",
   [PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO]: "Resumo do processo",
 
   // Investimento (honorários)
@@ -40,4 +48,72 @@ export function getPropostaPlaceholderLabel(phKey: string): string {
   const k = phKey.trim();
   if (LABELS[k]) return LABELS[k];
   return k.replace(/_/g, " ").replace(/\s+/g, " ").trim() || k;
+}
+
+export type PropostaTemplatePlaceholderOption = {
+  key: string;
+  label: string;
+};
+
+/** Variáveis sugeridas ao montar texto de escopo no catálogo admin. */
+export const PROPOSTA_SCOPE_TEMPLATE_PLACEHOLDERS: PropostaTemplatePlaceholderOption[] = [
+  { key: "NOME EMPRESA", label: getPropostaPlaceholderLabel("NOME EMPRESA") },
+  { key: "EMPRESA", label: getPropostaPlaceholderLabel("EMPRESA") },
+  { key: "CNPJ", label: getPropostaPlaceholderLabel("CNPJ") },
+  { key: "DOCUMENTO", label: getPropostaPlaceholderLabel("DOCUMENTO") },
+  { key: "CIDADE", label: getPropostaPlaceholderLabel("CIDADE") },
+  { key: "UF", label: getPropostaPlaceholderLabel("UF") },
+  { key: "CEP", label: getPropostaPlaceholderLabel("CEP") },
+  { key: "NUMERO", label: getPropostaPlaceholderLabel("NUMERO") },
+  { key: "TIPO DA AÇÃO", label: getPropostaPlaceholderLabel("TIPO DA AÇÃO") },
+  { key: "NUM. DO PROCESSO", label: getPropostaPlaceholderLabel("NUM. DO PROCESSO") },
+  { key: "PARTE_CONTRÁRIA", label: getPropostaPlaceholderLabel("PARTE_CONTRÁRIA") },
+  { key: "VALOR_CAUSA", label: getPropostaPlaceholderLabel("VALOR_CAUSA") },
+  { key: "QTD DE PROCESSOS", label: getPropostaPlaceholderLabel("QTD DE PROCESSOS") },
+  {
+    key: PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO,
+    label: getPropostaPlaceholderLabel(PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO),
+  },
+  { key: "DATA VIGENCIA", label: getPropostaPlaceholderLabel("DATA VIGENCIA") },
+];
+
+/** Variáveis sugeridas em templates de investimento (honorários). */
+export const PROPOSTA_INVESTMENT_TEMPLATE_PLACEHOLDERS: PropostaTemplatePlaceholderOption[] = [
+  "VALORMENSAL",
+  "VALORMENSALESCALONADO",
+  "CONDICAOESCALONADO",
+  "VALORMENSALVARIAVEL",
+  "CONDICAOVARIAVEL",
+  "VALORHORA",
+  "HORASPREVISTAS",
+  "VALORMENSALESTIMADO",
+  "VALORMENSALBASE",
+  "VALORSPOT",
+  "PARCELAS",
+  "VALORPARCELA",
+  "ITEM",
+  "VALORMANUTENCAO",
+  "CONDICAOFINAL",
+  "PORCENTAGEMHONORARIOS",
+  "BASECALCULO",
+  "VALOREXITO",
+  "PRAZOPAGAMENTO",
+].map((key) => ({ key, label: getPropostaPlaceholderLabel(key) }));
+
+export function formatPropostaPlaceholderToken(key: string): string {
+  return `[${key.trim()}]`;
+}
+
+/** Insere `[chave]` na posição do cursor (ou no fim do texto). */
+export function insertPropostaPlaceholderInText(
+  text: string,
+  key: string,
+  selectionStart: number,
+  selectionEnd: number,
+): { text: string; cursor: number } {
+  const token = formatPropostaPlaceholderToken(key);
+  const start = Math.max(0, Math.min(selectionStart, text.length));
+  const end = Math.max(start, Math.min(selectionEnd, text.length));
+  const next = `${text.slice(0, start)}${token}${text.slice(end)}`;
+  return { text: next, cursor: start + token.length };
 }

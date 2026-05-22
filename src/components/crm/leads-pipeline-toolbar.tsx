@@ -1,16 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Search, SlidersHorizontal, UserPlus, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
-  CrmSurfaceHeaderBackdrop,
   CrmSurfaceHeaderIcon,
   crmSurfaceCardClass,
   crmSurfaceHeaderClass,
-  crmSurfaceHeaderSubtitleClass,
   crmSurfaceHeaderTitleClass,
+  crmSurfaceSegmentedRootClass,
 } from "@/components/crm/crm-surface-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,11 +43,13 @@ function OwnerAvatar({
   className?: string;
 }) {
   return (
-    <Avatar className={cn("h-8 w-8 shrink-0 border border-white/50 shadow-sm", className)}>
+    <Avatar className={cn("h-8 w-8 shrink-0 border border-zinc-200 bg-zinc-50", className)}>
       {avatarUrl ? (
         <AvatarImage src={avatarUrl} alt="" className="object-cover" />
       ) : null}
-      <AvatarFallback className="text-[10px]">{initialsFromName(name)}</AvatarFallback>
+      <AvatarFallback className="bg-emerald-50 text-[10px] font-medium text-emerald-800">
+        {initialsFromName(name)}
+      </AvatarFallback>
     </Avatar>
   );
 }
@@ -60,34 +62,47 @@ const tipoLeadLabel: Record<DemandType, string> = {
   aditivo: "Aditivo",
 };
 
+const LEAD_SEARCH_SITUATION_BADGE: Record<LeadPipelineSituation, string> = {
+  em_andamento:
+    "border-emerald-200/90 bg-emerald-50 text-emerald-800",
+  vendidas: "border-teal-200/90 bg-teal-50 text-teal-800",
+  perdidas: "border-zinc-200 bg-zinc-50 text-zinc-600",
+};
+
 function LeadSearchSituationBadge({ situ }: { situ: LeadPipelineSituation }) {
-  if (situ === "vendidas") {
-    return (
-      <span
-        className="inline-flex shrink-0 items-center rounded-full border border-emerald-600/35 bg-emerald-500/18 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-950 dark:border-emerald-400/35 dark:bg-emerald-500/20 dark:text-emerald-100"
-        title="Vendida"
-      >
-        Vendida
-      </span>
-    );
-  }
-  if (situ === "perdidas") {
-    return (
-      <span
-        className="inline-flex shrink-0 items-center rounded-full border border-rose-400/45 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-950 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-100"
-        title="Perdida"
-      >
-        Perdida
-      </span>
-    );
-  }
+  const label =
+    situ === "vendidas" ? "Vendida" : situ === "perdidas" ? "Perdida" : "Em andamento";
   return (
     <span
-      className="inline-flex shrink-0 items-center rounded-full border border-sky-500/40 bg-sky-500/14 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-950 dark:border-sky-400/35 dark:bg-sky-500/20 dark:text-sky-100"
-      title="Em andamento"
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+        LEAD_SEARCH_SITUATION_BADGE[situ],
+      )}
+      title={label}
     >
-      Em andamento
+      {label}
     </span>
+  );
+}
+
+function leadSearchOptionClassName(isActive: boolean) {
+  return cn(
+    "lead-search-option flex w-full flex-col gap-1.5 border-b border-zinc-100 px-3 py-2.5 text-left text-sm transition-colors last:border-b-0",
+    "outline-none [-webkit-tap-highlight-color:transparent] [accent-color:var(--accent-teal)]",
+    "hover:bg-emerald-50",
+    "focus:outline-none focus:bg-emerald-50 focus:shadow-[inset_0_0_0_2px_rgba(15,159,143,0.35)]",
+    "focus-visible:outline-none focus-visible:bg-emerald-50 focus-visible:shadow-[inset_0_0_0_2px_rgba(15,159,143,0.35)]",
+    "active:bg-emerald-100",
+    isActive && "bg-emerald-50 shadow-[inset_0_0_0_2px_rgba(15,159,143,0.35)]",
+  );
+}
+
+function situationFilterTabClass(active: boolean) {
+  return cn(
+    "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors duration-150",
+    active
+      ? "bg-accent-teal text-white shadow-sm"
+      : "text-zinc-600 hover:bg-white hover:text-zinc-900",
   );
 }
 
@@ -111,6 +126,8 @@ interface LeadsPipelineToolbarProps {
   situation: SituationFilter;
   onSituationChange: (value: SituationFilter) => void;
   onNovoCadastro: () => void;
+  /** Lead escolhido na busca — mantém destaque verde no painel. */
+  pinnedLeadId?: string | null;
 }
 
 export function LeadsPipelineToolbar({
@@ -125,9 +142,18 @@ export function LeadsPipelineToolbar({
   situation,
   onSituationChange,
   onNovoCadastro,
+  pinnedLeadId = null,
 }: LeadsPipelineToolbarProps) {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [hoveredLeadId, setHoveredLeadId] = useState<string | null>(null);
+  const searchAnchorRef = useRef<HTMLDivElement | null>(null);
+  const suggestionsPanelRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [suggestionsPanelStyle, setSuggestionsPanelStyle] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const selectedOwner =
     ownerFilter !== "todos" ? owners.find((o) => o.id === ownerFilter) ?? null : null;
 
@@ -165,6 +191,30 @@ export function LeadsPipelineToolbar({
   const showSuggestionPanel =
     suggestionsOpen && qTrim.length >= searchMinChars;
 
+  const updateSuggestionsPosition = useCallback(() => {
+    const el = searchAnchorRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const width = Math.max(rect.width, 320);
+    const left = Math.min(rect.left, window.innerWidth - width - 12);
+    setSuggestionsPanelStyle({ top: rect.bottom + 6, left, width });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!showSuggestionPanel) {
+      setSuggestionsPanelStyle(null);
+      return;
+    }
+    updateSuggestionsPosition();
+    const onReflow = () => updateSuggestionsPosition();
+    window.addEventListener("resize", onReflow);
+    window.addEventListener("scroll", onReflow, true);
+    return () => {
+      window.removeEventListener("resize", onReflow);
+      window.removeEventListener("scroll", onReflow, true);
+    };
+  }, [showSuggestionPanel, updateSuggestionsPosition, searchSuggestions.length]);
+
   const handlePick = (lead: Oportunidade) => {
     cancelCloseSuggestions();
     setSuggestionsOpen(false);
@@ -176,29 +226,22 @@ export function LeadsPipelineToolbar({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
+      className="relative z-20"
     >
     <Card className={cn(crmSurfaceCardClass, "shrink-0")}>
-      <CardHeader className={cn(crmSurfaceHeaderClass, "rounded-t-[18px] px-4 py-3.5 pl-5")}>
-        <CrmSurfaceHeaderBackdrop />
-        <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
+      <CardHeader className={cn(crmSurfaceHeaderClass, "rounded-t-xl px-4 py-3")}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2.5">
             <CrmSurfaceHeaderIcon>
-              <SlidersHorizontal className="size-4" strokeWidth={1.9} aria-hidden />
+              <SlidersHorizontal className="size-3.5" strokeWidth={2} aria-hidden />
             </CrmSurfaceHeaderIcon>
-            <div className="min-w-0">
-              <CardTitle className={cn("text-lg", crmSurfaceHeaderTitleClass)}>
-                Filtros do pipeline
-              </CardTitle>
-              <p className={cn("mt-0.5 text-xs", crmSurfaceHeaderSubtitleClass)}>
-                Encontre leads, ajuste responsáveis e refine a situação em segundos.
-              </p>
-            </div>
+            <CardTitle className={crmSurfaceHeaderTitleClass}>Filtros</CardTitle>
           </div>
           <Button
-            variant="hero"
-            size="lg"
+            variant="default"
+            size="sm"
             onClick={onNovoCadastro}
-            className="h-10 shrink-0 gap-2 px-5 text-sm font-bold sm:min-w-[176px]"
+            className="h-9 shrink-0 gap-1.5 px-4 sm:min-w-[140px]"
           >
             <UserPlus className="h-4 w-4" aria-hidden />
             Novo cadastro
@@ -209,15 +252,15 @@ export function LeadsPipelineToolbar({
         <div className="grid gap-3 lg:grid-cols-[minmax(320px,1fr)_minmax(200px,240px)] xl:grid-cols-[minmax(320px,1fr)_minmax(200px,240px)_minmax(250px,auto)]">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="lead-search" className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary-light">
+              <Label htmlFor="lead-search" className="text-xs font-medium text-zinc-600">
                 Buscar lead
               </Label>
-              <span className="hidden text-[11px] text-slate-400 sm:inline">
-                mínimo {searchMinChars} letras
+              <span className="hidden text-[11px] text-zinc-400 sm:inline">
+                mín. {searchMinChars} letras
               </span>
             </div>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <div ref={searchAnchorRef} className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <Input
                 id="lead-search"
                 role="combobox"
@@ -231,96 +274,109 @@ export function LeadsPipelineToolbar({
                   setSuggestionsOpen(true);
                 }}
                 onBlur={scheduleCloseSuggestions}
-                placeholder="Nome da oportunidade, tipo ou solicitante…"
+                placeholder="Nome, tipo ou solicitante…"
                 autoComplete="off"
-                className="h-10 rounded-[13px] border-primary-dark/10 bg-white pl-10 text-sm shadow-[0_1px_2px_rgba(16,31,46,0.03)]"
+                className="h-10 rounded-lg border-zinc-200 bg-white pl-10 text-sm shadow-sm focus-visible:border-accent-teal/45 focus-visible:ring-accent-teal/30"
               />
-              {showSuggestionPanel ? (
-                <div
-                  id="lead-search-suggestions"
-                  role="listbox"
-                  aria-label="Leads encontrados"
-                  className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(24rem,70dvh)] overflow-y-auto rounded-[16px] border border-primary-dark/10 bg-white py-1 shadow-[0_22px_60px_rgba(49,70,96,0.16)] dark:border-white/15 dark:bg-primary-dark/95"
-                  onMouseEnter={cancelCloseSuggestions}
-                >
-                  {searchSuggestions.length === 0 ? (
-                    <p className="px-3 py-2.5 text-sm text-muted-foreground">
-                      Nenhum lead encontrado com os filtros atuais.
-                    </p>
-                  ) : (
-                    searchSuggestions.map((lead) => {
-                      const situ = getLeadPipelineSituation(lead);
-                      const nomeNegociacao = lead.solicitante.trim() || "—";
-                      const usuarioNome = lead.solicitanteUsuarioNome?.trim() ?? "";
-                      const temUsuarioSolicitante = usuarioNome.length > 0;
-                      const avatarSolicitante = lead.solicitanteUsuarioAvatarUrl ?? null;
-                      const rdNome = lead.solicitanteRd?.trim();
+              {showSuggestionPanel &&
+              suggestionsPanelStyle &&
+              typeof document !== "undefined"
+                ? createPortal(
+                    <div
+                      ref={suggestionsPanelRef}
+                      id="lead-search-suggestions"
+                      role="listbox"
+                      aria-label="Leads encontrados"
+                      className="lead-search-suggestions crm-scrollbar fixed z-[100] max-h-[min(24rem,70dvh)] overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
+                      style={{
+                        top: suggestionsPanelStyle.top,
+                        left: suggestionsPanelStyle.left,
+                        width: suggestionsPanelStyle.width,
+                      }}
+                      onMouseEnter={cancelCloseSuggestions}
+                    >
+                      {searchSuggestions.length === 0 ? (
+                        <p className="px-3 py-2.5 text-sm text-zinc-500">
+                          Nenhum lead com os filtros atuais.
+                        </p>
+                      ) : (
+                        searchSuggestions.map((lead) => {
+                          const situ = getLeadPipelineSituation(lead);
+                          const nomeNegociacao = lead.solicitante.trim() || "—";
+                          const usuarioNome = lead.solicitanteUsuarioNome?.trim() ?? "";
+                          const temUsuarioSolicitante = usuarioNome.length > 0;
+                          const avatarSolicitante = lead.solicitanteUsuarioAvatarUrl ?? null;
+                          const rdNome = lead.solicitanteRd?.trim();
 
-                      return (
-                        <button
-                          key={lead.id}
-                          type="button"
-                          role="option"
-                          aria-selected={false}
-                          className="flex w-full flex-col gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-primary-dark/5 dark:hover:bg-white/10"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handlePick(lead)}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="truncate text-base font-bold leading-snug text-primary-dark dark:text-white">
-                                  {nomeNegociacao}
-                                </span>
-                                <LeadSearchSituationBadge situ={situ} />
-                              </div>
-                              {temUsuarioSolicitante ? (
-                                <div className="mt-1.5 flex items-center gap-2">
-                                  <Avatar className="h-8 w-8 shrink-0 border border-white/55 shadow-sm dark:border-white/20">
-                                    {avatarSolicitante ? (
-                                      <AvatarImage
-                                        src={avatarSolicitante}
-                                        alt=""
-                                        className="object-cover"
-                                      />
-                                    ) : null}
-                                    <AvatarFallback className="text-[10px]">
-                                      {initialsFromName(usuarioNome)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="min-w-0">
-                                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                      Solicitante
-                                    </p>
-                                    <p className="truncate text-sm font-medium text-primary-dark/90 dark:text-white/90">
-                                      {usuarioNome}
-                                    </p>
+                          const isActive =
+                            hoveredLeadId === lead.id || pinnedLeadId === lead.id;
+
+                          return (
+                            <button
+                              key={lead.id}
+                              type="button"
+                              role="option"
+                              aria-selected={pinnedLeadId === lead.id}
+                              className={leadSearchOptionClassName(isActive)}
+                              onMouseEnter={() => setHoveredLeadId(lead.id)}
+                              onMouseLeave={() =>
+                                setHoveredLeadId((prev) => (prev === lead.id ? null : prev))
+                              }
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handlePick(lead)}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="truncate text-sm font-semibold text-zinc-900">
+                                      {nomeNegociacao}
+                                    </span>
+                                    <LeadSearchSituationBadge situ={situ} />
                                   </div>
+                                  {temUsuarioSolicitante ? (
+                                    <div className="mt-1.5 flex items-center gap-2">
+                                      <OwnerAvatar
+                                        name={usuarioNome}
+                                        avatarUrl={avatarSolicitante}
+                                        className="h-7 w-7"
+                                      />
+                                      <div className="min-w-0">
+                                        <p className="truncate text-xs text-zinc-600">
+                                          {usuarioNome}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  <p className="mt-0.5 text-xs text-zinc-500">
+                                    {tipoLeadLabel[lead.tipo]}
+                                    {rdNome &&
+                                    rdNome.toLowerCase() !== nomeNegociacao.toLowerCase()
+                                      ? ` · ${rdNome}`
+                                      : ""}
+                                  </p>
                                 </div>
-                              ) : null}
-                              <p className="mt-1 text-xs leading-snug text-muted-foreground">
-                                {tipoLeadLabel[lead.tipo]}
-                                {rdNome && rdNome.toLowerCase() !== nomeNegociacao.toLowerCase()
-                                  ? ` · RD: ${rdNome}`
-                                  : ""}
-                              </p>
-                            </div>
-                            {situ === "em_andamento" ? (
-                              <span
-                                className="shrink-0 self-start pt-0.5"
-                                onClick={(e) => e.stopPropagation()}
-                                onPointerDown={(e) => e.stopPropagation()}
-                              >
-                                <DaysInStagePanel item={lead} compact />
-                              </span>
-                            ) : null}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              ) : null}
+                                {situ === "em_andamento" ? (
+                                  <span
+                                    className="shrink-0 self-start pt-0.5"
+                                    onClick={(e) => e.stopPropagation()}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                  >
+                                    <DaysInStagePanel
+                                      item={lead}
+                                      compact
+                                      className="focus-visible:border-accent-teal/40 focus-visible:ring-accent-teal/25"
+                                    />
+                                  </span>
+                                ) : null}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>,
+                    document.body,
+                  )
+                : null}
             </div>
           </div>
           <div className="space-y-1.5">
@@ -381,27 +437,19 @@ export function LeadsPipelineToolbar({
           </div>
 
           <div className="space-y-1.5 lg:col-span-2 xl:col-span-1">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary-light">
-              Situação
-            </p>
-            <div className="flex flex-wrap gap-1.5 rounded-[13px] border border-primary-dark/10 bg-[#f8f9fb] p-1">
-            {situationOptions.map((opt) => (
-              <Button
-                key={opt.value}
-                type="button"
-                variant={situation === opt.value ? "default" : "outline"}
-                size="sm"
-                onClick={() => onSituationChange(opt.value)}
-                className={cn(
-                  "h-8 rounded-[10px] border-transparent px-2.5 text-xs font-semibold shadow-none",
-                  situation === opt.value
-                    ? "bg-primary-dark text-white"
-                    : "bg-transparent text-slate-600 hover:bg-white hover:text-primary-dark"
-                )}
-              >
-                {opt.label}
-              </Button>
-            ))}
+            <p className="text-xs font-medium text-zinc-600">Situação</p>
+            <div className={cn(crmSurfaceSegmentedRootClass, "flex flex-wrap gap-0.5")}>
+              {situationOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={situation === opt.value}
+                  onClick={() => onSituationChange(opt.value)}
+                  className={situationFilterTabClass(situation === opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>

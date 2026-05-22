@@ -57,6 +57,7 @@ import {
 import type { PipelineBoardColumn } from "@/lib/crm/pipeline-board-config";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { getLeadPipelineSituation } from "@/modules/crm/application/lead-pipeline-situation";
+import { isRdKanbanViewOnlyLead, RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import { canMoveToStage } from "@/modules/crm/domain/workflow";
 import { Oportunidade, OpportunityStage } from "@/modules/crm/domain/entities";
 import { cn } from "@/lib/utils";
@@ -195,8 +196,9 @@ function LeadCard({
   item: Oportunidade;
   appUsersByEmail?: SignerAppUserLookup;
 }) {
+  const rdViewOnly = isRdKanbanViewOnlyLead(item);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: item.id });
+    useSortable({ id: item.id, disabled: rdViewOnly });
   const situacao = getLeadPipelineSituation(item);
 
   const style = {
@@ -212,16 +214,22 @@ function LeadCard({
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
+      {...(rdViewOnly ? {} : listeners)}
       data-situacao={situacao}
+      data-rd-view-only={rdViewOnly ? "true" : undefined}
       aria-hidden={isDragging}
       className={cn(
-        "cursor-grab rounded-[14px] border p-3 shadow-sm shadow-primary-dark/[0.025] transition-[box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(16,31,46,0.08)] active:cursor-grabbing",
-        situacao === "em_andamento" && "border-primary-dark/10 bg-white/80",
-        situacao === "vendidas" &&
-          "border-emerald-600/28 bg-emerald-50/80 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.22)] ring-1 ring-emerald-800/10",
-        situacao === "perdidas" &&
-          "border-rose-400/35 bg-rose-50/80 shadow-[inset_0_1px_0_0_rgba(244,63,94,0.18)] ring-1 ring-rose-900/10",
+        "rounded-[14px] border p-3 shadow-sm transition-[box-shadow,transform,opacity] duration-150",
+        rdViewOnly
+          ? "cursor-default border-dashed border-orange-200/90 bg-orange-50/25 shadow-none hover:shadow-sm"
+          : cn(
+              "cursor-grab shadow-primary-dark/[0.025] hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(16,31,46,0.08)] active:cursor-grabbing",
+              situacao === "em_andamento" && "border-primary-dark/10 bg-white/80",
+              situacao === "vendidas" &&
+                "border-emerald-600/28 bg-emerald-50/80 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.22)] ring-1 ring-emerald-800/10",
+              situacao === "perdidas" &&
+                "border-rose-400/35 bg-rose-50/80 shadow-[inset_0_1px_0_0_rgba(244,63,94,0.18)] ring-1 ring-rose-900/10",
+            ),
       )}
       data-dragging={isDragging}
     >
@@ -553,6 +561,11 @@ export function PipelineBoard({
 
     if (!item || !sourceStage || !targetStage) return;
     if (sourceStage === targetStage) return;
+
+    if (isRdKanbanViewOnlyLead(item)) {
+      setBoardError(RD_KANBAN_VIEW_ONLY_MESSAGE);
+      return;
+    }
 
     const allowed = canMoveToStage({
       currentStage: sourceStage,

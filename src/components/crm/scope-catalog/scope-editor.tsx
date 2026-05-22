@@ -23,6 +23,11 @@ import {
 } from "@/lib/crm/proposta-escopo-preview";
 import { extractPlaceholderKeysFromText } from "@/data/proposta-tipos-catalog";
 import { getAreaLucideIcon } from "@/lib/crm/area-lucide-icon";
+import { CatalogDeleteButton } from "@/components/crm/scope-catalog/catalog-delete-button";
+import {
+  TemplateTextareaField,
+} from "@/components/crm/scope-catalog/template-textarea-field";
+import type { TemplatePlaceholderKind } from "@/components/crm/scope-catalog/template-placeholder-insert-bar";
 import type { ProposalCatalogAdminData } from "@/lib/crm/proposal-catalog-db";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +44,7 @@ type Props = {
   mode: EditorMode;
   /** Notifica quando salvar com sucesso (com payload novo para o shell sincronizar). */
   onSaved: (catalog: ProposalCatalogAdminData) => void;
+  onDeleted: (catalog: ProposalCatalogAdminData) => void;
 };
 
 const EXAMPLE_NOME_EMPRESA = "ACME Logística Ltda.";
@@ -46,6 +52,13 @@ const EXAMPLE_NOME_EMPRESA = "ACME Logística Ltda.";
 /** Placeholders de exemplo para o preview ao vivo. Cobre os mais comuns. */
 const EXAMPLE_PLACEHOLDER_VALUES: Record<string, string> = {
   "NOME EMPRESA": EXAMPLE_NOME_EMPRESA,
+  EMPRESA: EXAMPLE_NOME_EMPRESA,
+  CNPJ: "12.345.678/0001-90",
+  DOCUMENTO: "12.345.678/0001-90",
+  CIDADE: "Campinas",
+  UF: "SP",
+  CEP: "13025-002",
+  NUMERO: "nº 1.266",
   "TIPO DA AÇÃO": "AÇÃO DE COBRANÇA",
   PARTE_CONTRÁRIA: "DEVEDOR EXEMPLO LTDA",
   VALOR_CAUSA: "R$ 150.000,00",
@@ -76,7 +89,7 @@ function buildExamplePlaceholders(keys: string[]): Record<string, string> {
   return out;
 }
 
-export function ScopeEditor({ mode, onSaved }: Props) {
+export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
   const router = useRouter();
 
   // ── Estado: draft vs saved ───────────────────────────────────────────────────
@@ -239,7 +252,15 @@ export function ScopeEditor({ mode, onSaved }: Props) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <CatalogDeleteButton
+            kind={mode.kind === "scope" ? "scope_subtype" : "investment_subtype"}
+            id={mode.row.id}
+            itemLabel={draft.label}
+            onDeleted={onDeleted}
+            disabled={saving}
+          />
+
           {/* Toggle ativo/inativo */}
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-primary-dark/10 bg-white px-3 py-1.5 text-[11px] font-semibold text-primary-dark transition-colors hover:bg-primary-dark/5">
             <input
@@ -324,10 +345,11 @@ export function ScopeEditor({ mode, onSaved }: Props) {
               <>
                 <FieldTextarea
                   label="Texto do escopo"
-                  hint="Use [NOME EMPRESA], [VALOR_CAUSA], etc. Veja o preview à direita."
+                  hint="Posicione o cursor e use os botões de variável, ou digite [CHAVE]. Preview à direita."
                   value={draft.escopoTemplate}
                   onChange={(v) => setDraft((p) => ({ ...(p as Extract<Draft, { kind: "scope" }>), escopoTemplate: v }))}
                   disabled={saving}
+                  placeholderKind="scope"
                 />
                 <FieldTextarea
                   label="Texto de investimento (legado)"
@@ -338,6 +360,7 @@ export function ScopeEditor({ mode, onSaved }: Props) {
                   }
                   disabled={saving}
                   legacy
+                  placeholderKind="investment"
                 />
               </>
             ) : (
@@ -353,12 +376,13 @@ export function ScopeEditor({ mode, onSaved }: Props) {
                 />
                 <FieldTextarea
                   label="Texto do investimento (template)"
-                  hint="Use [VALORMENSAL], [VALORHORA], etc. Valores monetários ganham extenso automático."
+                  hint="Posicione o cursor e insira variáveis. Valores monetários ganham extenso automático."
                   value={draft.template}
                   onChange={(v) =>
                     setDraft((p) => ({ ...(p as Extract<Draft, { kind: "investment" }>), template: v }))
                   }
                   disabled={saving}
+                  placeholderKind="investment"
                 />
               </>
             )}
@@ -455,6 +479,7 @@ function FieldTextarea({
   onChange,
   disabled,
   legacy,
+  placeholderKind,
 }: {
   label: string;
   hint?: string;
@@ -462,26 +487,41 @@ function FieldTextarea({
   onChange: (v: string) => void;
   disabled?: boolean;
   legacy?: boolean;
+  placeholderKind?: TemplatePlaceholderKind;
 }) {
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <Label className="text-xs font-semibold text-primary-dark">{label}</Label>
         {legacy ? (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800">
+          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800">
             Legado
           </span>
         ) : null}
       </div>
-      <Textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className={cn(
-          "min-h-[120px] resize-y border-primary-dark/15 bg-white font-mono text-[12.5px] leading-relaxed",
-          legacy && "bg-amber-50/40",
-        )}
-      />
+      {placeholderKind ? (
+        <TemplateTextareaField
+          kind={placeholderKind}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          minHeightClass="min-h-[120px]"
+          className={cn(
+            "text-[12.5px]",
+            legacy && "bg-amber-50/40",
+          )}
+        />
+      ) : (
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          className={cn(
+            "min-h-[120px] resize-y border-primary-dark/15 bg-white font-mono text-[12.5px] leading-relaxed",
+            legacy && "bg-amber-50/40",
+          )}
+        />
+      )}
       {hint ? <p className="text-[10px] leading-relaxed text-muted-foreground">{hint}</p> : null}
     </div>
   );

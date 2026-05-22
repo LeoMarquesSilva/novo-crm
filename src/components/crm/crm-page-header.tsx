@@ -1,13 +1,4 @@
 import type { LucideIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import {
-  CrmSurfaceHeaderBackdrop,
-  CrmSurfaceHeaderEyebrow,
-  CrmSurfaceHeaderIcon,
-  crmSurfaceHeaderClass,
-  crmSurfaceHeaderSubtitleClass,
-  crmSurfaceHeaderTitleClass,
-} from "@/components/crm/crm-surface-header";
 import { cn } from "@/lib/utils";
 
 type HeaderBadge = {
@@ -23,7 +14,7 @@ type HeaderStat = {
 };
 
 type CrmPageHeaderProps = {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description: string;
   icon: LucideIcon;
@@ -32,6 +23,24 @@ type CrmPageHeaderProps = {
   actions?: React.ReactNode;
   className?: string;
 };
+
+function CrmPageHeaderStat({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string | number;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight text-zinc-900">{value}</p>
+      {detail ? <p className="mt-1 text-xs leading-snug text-zinc-500">{detail}</p> : null}
+    </div>
+  );
+}
 
 export function CrmPageHeader({
   eyebrow,
@@ -43,7 +52,7 @@ export function CrmPageHeader({
   actions,
   className,
 }: CrmPageHeaderProps) {
-  const hasAside = stats.length > 0 || actions;
+  const hasStats = stats.length > 0;
 
   return (
     <section
@@ -52,71 +61,56 @@ export function CrmPageHeader({
         className,
       )}
     >
-      <div className={cn("grid gap-0", hasAside && "lg:grid-cols-[1.15fr_0.85fr]")}>
-        <div className={cn(crmSurfaceHeaderClass, "px-6 py-6 md:px-8")}>
-          <CrmSurfaceHeaderBackdrop />
-
-          <div className="relative flex flex-col gap-5">
-            <div className="flex items-center gap-3">
-              <CrmSurfaceHeaderIcon className="size-11 rounded-2xl">
-                <Icon className="h-5 w-5" />
-              </CrmSurfaceHeaderIcon>
+      <div
+        className={cn("grid gap-0", hasStats && "lg:grid-cols-[1.15fr_0.85fr]")}
+      >
+        <div className="px-6 py-6 md:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200/90 bg-white text-zinc-700 shadow-sm">
+                <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+              </div>
               <div className="min-w-0">
-                <CrmSurfaceHeaderEyebrow className="text-[11px]">{eyebrow}</CrmSurfaceHeaderEyebrow>
-                <h1
-                  className={cn(
-                    "mt-2 text-2xl font-bold leading-tight md:text-3xl",
-                    crmSurfaceHeaderTitleClass,
-                  )}
-                >
+                {eyebrow ? (
+                  <p className="text-xs font-medium text-zinc-500">{eyebrow}</p>
+                ) : null}
+                <h1 className="mt-0.5 text-2xl font-bold leading-tight tracking-tight text-zinc-900 md:text-[1.65rem]">
                   {title}
                 </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{description}</p>
               </div>
             </div>
-
-            <p className={cn("max-w-2xl text-sm leading-6", crmSurfaceHeaderSubtitleClass)}>
-              {description}
-            </p>
-
-            {badges.length ? (
-              <div className="flex flex-wrap gap-2">
-                {badges.map((badge) => {
-                  const BadgeIcon = badge.icon;
-                  return (
-                    <Badge
-                      key={badge.label}
-                      className="h-7 rounded-full border-[#e2e8f0] bg-white px-3 text-[#102033] shadow-sm"
-                    >
-                      {BadgeIcon ? <BadgeIcon className="h-3.5 w-3.5" /> : null}
-                      {badge.label}
-                    </Badge>
-                  );
-                })}
-              </div>
-            ) : null}
+            {actions ? <div className="shrink-0 sm:pt-1">{actions}</div> : null}
           </div>
+
+          {badges.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {badges.map((badge) => {
+                const BadgeIcon = badge.icon;
+                return (
+                  <span
+                    key={badge.label}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-700"
+                  >
+                    {BadgeIcon ? <BadgeIcon className="h-3.5 w-3.5 text-zinc-500" /> : null}
+                    {badge.label}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
 
-        {hasAside ? (
-          <div className="grid grid-cols-1 divide-y divide-primary-dark/10 bg-white/55 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-            {stats.map((stat) => {
-              const StatIcon = stat.icon;
-              return (
-                <div key={stat.label} className="flex min-h-32 flex-col justify-between p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      {stat.label}
-                    </span>
-                    {StatIcon ? <StatIcon className="h-4 w-4 text-accent-teal" /> : null}
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-primary-dark">{stat.value}</p>
-                    {stat.detail ? <p className="mt-1 text-xs text-muted-foreground">{stat.detail}</p> : null}
-                  </div>
-                </div>
-              );
-            })}
-            {actions ? <div className="flex min-h-32 items-center justify-end p-5">{actions}</div> : null}
+        {hasStats ? (
+          <div className="grid gap-3 border-t border-zinc-200/70 bg-zinc-50/50 p-5 sm:grid-cols-2 lg:border-l lg:border-t-0">
+            {stats.map((stat) => (
+              <CrmPageHeaderStat
+                key={stat.label}
+                label={stat.label}
+                value={stat.value}
+                detail={stat.detail}
+              />
+            ))}
           </div>
         ) : null}
       </div>

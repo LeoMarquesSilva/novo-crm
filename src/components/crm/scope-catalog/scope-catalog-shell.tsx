@@ -6,6 +6,7 @@ import { BookOpenText, Loader2, Sparkles, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ProposalCatalogAdminData } from "@/lib/crm/proposal-catalog-db";
 import { cn } from "@/lib/utils";
+import { CatalogTypeEditor } from "./catalog-type-editor";
 import { NewItemButton, NewItemDialog, type NewItemKind } from "./new-item-dialog";
 import { ScopeEditor } from "./scope-editor";
 import { ScopeTree, type ScopeTreeSelection } from "./scope-tree";
@@ -22,6 +23,13 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
 
   function handleCreated(next: ProposalCatalogAdminData) {
     setData(next);
+    router.refresh();
+  }
+
+  function handleCatalogDeleted(next: ProposalCatalogAdminData) {
+    setData(next);
+    if (tab === "scope") setScopeSelection(null);
+    else setInvestmentSelection(null);
     router.refresh();
   }
 
@@ -64,17 +72,28 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
   const activeSelection = tab === "scope" ? scopeSelection : investmentSelection;
   const setActiveSelection = tab === "scope" ? setScopeSelection : setInvestmentSelection;
 
-  const selectedScopeRow = useMemo(() => {
-    if (tab !== "scope" || !scopeSelection) return null;
+  const selectedScopeSubtype = useMemo(() => {
+    if (tab !== "scope" || scopeSelection?.level !== "subtype") return null;
     return data.adminRows.scopeSubtypes.find((s) => s.id === scopeSelection.subtypeId) ?? null;
   }, [tab, scopeSelection, data.adminRows.scopeSubtypes]);
 
-  const selectedInvestmentRow = useMemo(() => {
-    if (tab !== "investment" || !investmentSelection) return null;
+  const selectedScopeType = useMemo(() => {
+    if (tab !== "scope" || scopeSelection?.level !== "type") return null;
+    return data.adminRows.scopeTypes.find((t) => t.id === scopeSelection.typeId) ?? null;
+  }, [tab, scopeSelection, data.adminRows.scopeTypes]);
+
+  const selectedInvestmentSubtype = useMemo(() => {
+    if (tab !== "investment" || investmentSelection?.level !== "subtype") return null;
     return (
-      data.adminRows.investmentSubtypes.find((s) => s.id === investmentSelection.subtypeId) ?? null
+      data.adminRows.investmentSubtypes.find((s) => s.id === investmentSelection.subtypeId) ??
+      null
     );
   }, [tab, investmentSelection, data.adminRows.investmentSubtypes]);
+
+  const selectedInvestmentType = useMemo(() => {
+    if (tab !== "investment" || investmentSelection?.level !== "type") return null;
+    return data.adminRows.investmentTypes.find((t) => t.id === investmentSelection.typeId) ?? null;
+  }, [tab, investmentSelection, data.adminRows.investmentTypes]);
 
   return (
     <section className="overflow-hidden rounded-[24px] border border-white/55 bg-white/72 shadow-sm shadow-primary-dark/10">
@@ -145,9 +164,9 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
       ) : null}
 
       {/* ── Master-detail ── */}
-      <div className="grid min-h-[640px] gap-0 lg:grid-cols-[20rem_1fr]">
+      <div className="grid min-h-[640px] min-w-0 gap-0 lg:grid-cols-[minmax(13rem,20rem)_minmax(0,1fr)]">
         {/* Sidebar — árvore */}
-        <aside className="border-b border-primary-dark/10 bg-white/30 lg:border-b-0 lg:border-r">
+        <aside className="min-w-0 border-b border-primary-dark/10 bg-white/30 lg:border-b-0 lg:border-r">
           <ScopeTree
             groups={activeTree}
             selection={activeSelection}
@@ -168,26 +187,63 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
         </aside>
 
         {/* Editor / empty state */}
-        <main className="bg-white/40 p-5 sm:p-6">
-          {tab === "scope" && selectedScopeRow && scopeSelection ? (
+        <main className="min-w-0 bg-white/40 p-5 sm:p-6">
+          {tab === "scope" && selectedScopeSubtype && scopeSelection?.level === "subtype" ? (
             <ScopeEditor
-              key={selectedScopeRow.id}
+              key={selectedScopeSubtype.id}
               mode={{
                 kind: "scope",
-                row: selectedScopeRow,
+                row: selectedScopeSubtype,
                 breadcrumb: scopeSelection.breadcrumb,
               }}
               onSaved={setData}
+              onDeleted={handleCatalogDeleted}
             />
-          ) : tab === "investment" && selectedInvestmentRow && investmentSelection ? (
+          ) : tab === "scope" && selectedScopeType && scopeSelection?.level === "type" ? (
+            <CatalogTypeEditor
+              key={selectedScopeType.id}
+              mode={{
+                kind: "scope",
+                row: selectedScopeType,
+                breadcrumb: scopeSelection.breadcrumb,
+              }}
+              subtypeCount={
+                data.adminRows.scopeSubtypes.filter((s) => s.scopeTypeId === selectedScopeType.id)
+                  .length
+              }
+              onSaved={setData}
+              onDeleted={handleCatalogDeleted}
+            />
+          ) : tab === "investment" &&
+            selectedInvestmentSubtype &&
+            investmentSelection?.level === "subtype" ? (
             <ScopeEditor
-              key={selectedInvestmentRow.id}
+              key={selectedInvestmentSubtype.id}
               mode={{
                 kind: "investment",
-                row: selectedInvestmentRow,
+                row: selectedInvestmentSubtype,
                 breadcrumb: investmentSelection.breadcrumb,
               }}
               onSaved={setData}
+              onDeleted={handleCatalogDeleted}
+            />
+          ) : tab === "investment" &&
+            selectedInvestmentType &&
+            investmentSelection?.level === "type" ? (
+            <CatalogTypeEditor
+              key={selectedInvestmentType.id}
+              mode={{
+                kind: "investment",
+                row: selectedInvestmentType,
+                breadcrumb: investmentSelection.breadcrumb,
+              }}
+              subtypeCount={
+                data.adminRows.investmentSubtypes.filter(
+                  (s) => s.investmentTypeId === selectedInvestmentType.id,
+                ).length
+              }
+              onSaved={setData}
+              onDeleted={handleCatalogDeleted}
             />
           ) : (
             <EmptyState tab={tab} />
@@ -267,8 +323,9 @@ function EmptyState({ tab }: { tab: Tab }) {
           Selecione um {tab === "scope" ? "escopo" : "investimento"}
         </h3>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-          Clique em qualquer item da árvore à esquerda para editar o texto, placeholders e
-          visualizar o preview ao vivo.
+          Clique em um <strong className="font-semibold text-primary-dark">tipo</strong> para editar
+          nome, área e ordem; em um <strong className="font-semibold text-primary-dark">subtipo</strong>{" "}
+          para editar textos, placeholders e preview ao vivo.
         </p>
       </div>
     </div>
