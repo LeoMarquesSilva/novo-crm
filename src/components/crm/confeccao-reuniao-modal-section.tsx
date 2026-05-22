@@ -15,7 +15,9 @@ import { Button } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { EscopoDirecionamentoAreaPicker } from "@/components/crm/escopo-direcionamento-area-picker";
+import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { maskDocument } from "@/lib/crm/br-document-mask";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { PROPOSAL_SCOPE_OPTIONS } from "@/lib/crm/proposta-scope-options";
@@ -140,18 +142,29 @@ export function ConfeccaoReuniaoModalSection({
     [customValues.cp_proposta_empresas_json],
   );
 
-  const empresaPrincipal = empresasIntake[0] ?? null;
-
   const setEmpresasPayload = useCallback(
     (next: PropostaEmpresasPayload) => {
-      const primaryIndex = empresaPrincipal?.index ?? next.primaryIndex;
-      patchField(
-        "cp_proposta_empresas_json",
-        serializePropostaEmpresas({ ...next, primaryIndex }),
-      );
+      patchField("cp_proposta_empresas_json", serializePropostaEmpresas(next));
     },
-    [patchField, empresaPrincipal?.index],
+    [patchField],
   );
+
+  const primaryStr =
+    empresasIntake.length === 0
+      ? "0"
+      : String(empresasPayload.primaryIndex > 0 ? empresasPayload.primaryIndex : empresasIntake[0]?.index ?? 1);
+
+  const empresaSelectLabels = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const e of empresasIntake) {
+      const doc = e.documento ? maskDocument(e.documento, e.tipo_documento) : "";
+      m[String(e.index)] = `${e.razao_social || "—"} — ${e.tipo_documento}${doc ? ` ${doc}` : ""}`;
+    }
+    return m;
+  }, [empresasIntake]);
+
+  const empresaPrincipalLabel =
+    primaryStr && primaryStr !== "0" ? empresaSelectLabels[primaryStr] ?? "" : "";
 
   const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(PROPOSTA_TIPOS_CATALOG);
 
@@ -313,27 +326,35 @@ export function ConfeccaoReuniaoModalSection({
 
         <div className="space-y-2">
           <Label className="text-xs font-medium text-[#111827]">Empresa principal na proposta (cadastro)</Label>
-          {empresaPrincipal ? (
-            <div
-              className={cn(
-                newLeadModalFieldClass,
-                "flex min-h-12 flex-col justify-center gap-0.5 bg-[#f8fafc] py-2.5",
-              )}
-            >
-              <p className="text-sm font-semibold text-[#111827]">
-                {empresaPrincipal.razao_social || "—"}
-              </p>
-              <p className="text-xs text-[#6b7280]">
-                {empresaPrincipal.tipo_documento}
-                {empresaPrincipal.documento
-                  ? ` ${maskDocument(empresaPrincipal.documento, empresaPrincipal.tipo_documento)}`
-                  : ""}
-              </p>
-            </div>
-          ) : (
+          {empresasIntake.length === 0 ? (
             <p className="text-sm leading-relaxed text-[#6b7280]">
               Nenhuma empresa no cadastro inicial. Use &quot;Razão social / CNPJ adicional&quot; abaixo.
             </p>
+          ) : (
+            <Select
+              value={primaryStr}
+              disabled={disabled}
+              onValueChange={(v) => {
+                const idx = Number(v);
+                setEmpresasPayload({ ...empresasPayload, primaryIndex: idx });
+              }}
+            >
+              <SelectTrigger
+                className={cn(newLeadModalFieldClass, "!h-12 w-full justify-between font-normal whitespace-normal")}
+              >
+                <SelectValue placeholder="Selecione">
+                  {empresaPrincipalLabel || "Selecione"}
+                </SelectValue>
+              </SelectTrigger>
+              <CrmSelectContent inModal className="max-h-[min(280px,50dvh)]">
+                {empresasIntake.map((e) => (
+                  <CrmSelectItem key={e.index} value={String(e.index)}>
+                    {e.razao_social || "—"} — {e.tipo_documento}{" "}
+                    {e.documento ? maskDocument(e.documento, e.tipo_documento) : ""}
+                  </CrmSelectItem>
+                ))}
+              </CrmSelectContent>
+            </Select>
           )}
         </div>
 

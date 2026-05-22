@@ -154,6 +154,8 @@ const REUNIAO_CONFECCAO_HIDDEN_FROM_GENERIC = new Set([
   "cp_captador",
   "cp_info_adicionais",
   "cp_primeiro_vencimento",
+  /** Preenchido no builder da proposta, não neste modal de transição. */
+  "cp_tributacao",
 ]);
 const MEETING_TIME_SUGGESTIONS = ["09:30", "11:30", "14:30", "16:30"];
 const MEETING_LOCATION_PENDING = "Não definido ainda";
@@ -746,7 +748,14 @@ export function PipelineBoard({
       };
     }
 
-    const blocking = listBlockingCustomFields(m.customFields, mergedValues);
+    let blocking = listBlockingCustomFields(m.customFields, mergedValues);
+    if (isReuniaoConf) {
+      blocking = blocking.filter(
+        (f) =>
+          !REUNIAO_CONFECCAO_HIDDEN_FROM_GENERIC.has(f.field_code) &&
+          !REUNIAO_CONFECCAO_MANAGED_CODES.has(f.field_code),
+      );
+    }
     if (blocking.length > 0) {
       if (
         blocking.some((f) => f.field_code === "cp_nome_focal") &&

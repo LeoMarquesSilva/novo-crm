@@ -56,6 +56,8 @@ const HIDDEN_CONFECCAO_PROPOSTA_FIELD_CODES = new Set([
   /** Desativado no CRM (só obrigatório em fluxo RD legado). */
   "cp_demais_razoes",
   "demais_razoes_sociais_cp",
+  /** Preenchido no builder da proposta, não no modal reunião → confecção. */
+  "cp_tributacao",
 ]);
 
 export function filterConfeccaoPropostaTransitionDefinitions(
