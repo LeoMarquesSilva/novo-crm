@@ -98,7 +98,6 @@ export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
         kind: "scope";
         label: string;
         escopoTemplate: string;
-        investimentoTemplate: string;
         placeholderKeys: string[];
         sortOrder: number;
         isActive: boolean;
@@ -136,7 +135,7 @@ export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
   // ── Placeholders: detectados vs declarados ──────────────────────────────────
   const detected = useMemo(() => {
     if (draft.kind === "scope") {
-      return extractPlaceholderKeysFromText(draft.escopoTemplate, draft.investimentoTemplate);
+      return extractPlaceholderKeysFromText(draft.escopoTemplate);
     }
     return extractPlaceholderKeysFromText(draft.template);
   }, [draft]);
@@ -165,9 +164,6 @@ export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
         escopo: mergeEscopoTemplate(draft.escopoTemplate, examples, {
           defaultNomeEmpresa: EXAMPLE_NOME_EMPRESA,
         }),
-        investimento: mergeInvestimentoTemplate(draft.investimentoTemplate, examples, {
-          defaultNomeEmpresa: EXAMPLE_NOME_EMPRESA,
-        }),
       };
     }
     return {
@@ -191,7 +187,6 @@ export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
               id: mode.kind === "scope" ? mode.row.id : "",
               label: draft.label,
               escopoTemplate: draft.escopoTemplate,
-              investimentoTemplate: draft.investimentoTemplate,
               placeholderKeys: draft.placeholderKeys,
               sortOrder: draft.sortOrder,
               isActive: draft.isActive,
@@ -345,22 +340,11 @@ export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
               <>
                 <FieldTextarea
                   label="Texto do escopo"
-                  hint="Posicione o cursor e use os botões de variável, ou digite [CHAVE]. Preview à direita."
+                  hint="Posicione o cursor e use os botões de variável, ou digite [CHAVE]. Honorários na aba Investimentos. Preview à direita."
                   value={draft.escopoTemplate}
                   onChange={(v) => setDraft((p) => ({ ...(p as Extract<Draft, { kind: "scope" }>), escopoTemplate: v }))}
                   disabled={saving}
                   placeholderKind="scope"
-                />
-                <FieldTextarea
-                  label="Texto de investimento (legado)"
-                  hint="Campo legado. Prefira criar Investimentos na aba específica para reutilizar entre escopos."
-                  value={draft.investimentoTemplate}
-                  onChange={(v) =>
-                    setDraft((p) => ({ ...(p as Extract<Draft, { kind: "scope" }>), investimentoTemplate: v }))
-                  }
-                  disabled={saving}
-                  legacy
-                  placeholderKind="investment"
                 />
               </>
             ) : (
@@ -453,10 +437,7 @@ export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
           </div>
           <div className="p-4">
             {draft.kind === "scope" ? (
-              <ScopePreview
-                escopo={(livePreview as { escopo: string; investimento: string }).escopo}
-                investimento={(livePreview as { escopo: string; investimento: string }).investimento}
-              />
+              <ScopePreview escopo={(livePreview as { escopo: string }).escopo} />
             ) : (
               <InvestmentPreview
                 conceito={(livePreview as { conceito: string; template: string }).conceito}
@@ -656,7 +637,7 @@ function PreviewSection({
   );
 }
 
-function ScopePreview({ escopo, investimento }: { escopo: string; investimento: string }) {
+function ScopePreview({ escopo }: { escopo: string }) {
   return (
     <div className="space-y-4 rounded-xl bg-white/92 p-4 text-[13px] leading-[1.65] text-primary-dark shadow-sm ring-1 ring-primary-dark/8">
       <PreviewSection label="Texto do escopo">
@@ -666,13 +647,6 @@ function ScopePreview({ escopo, investimento }: { escopo: string; investimento: 
           <p className="italic text-slate-400">Nenhum texto definido ainda.</p>
         )}
       </PreviewSection>
-      {investimento.trim() ? (
-        <div className="border-t border-amber-200/60 pt-4">
-          <PreviewSection label="Investimento (legado)" labelColor="text-amber-700/70">
-            <p className="whitespace-pre-wrap">{investimento}</p>
-          </PreviewSection>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -708,7 +682,6 @@ function draftFromScope(row: ScopeSubtypeRow): Extract<
     kind: "scope",
     label: row.label,
     escopoTemplate: row.escopoTemplate,
-    investimentoTemplate: row.investimentoTemplate,
     placeholderKeys: [...row.placeholderKeys],
     sortOrder: row.sortOrder,
     isActive: row.isActive,
@@ -735,7 +708,6 @@ type AnyDraft =
       kind: "scope";
       label: string;
       escopoTemplate: string;
-      investimentoTemplate: string;
       placeholderKeys: string[];
       sortOrder: number;
       isActive: boolean;
@@ -758,7 +730,7 @@ function draftsEqual(a: AnyDraft, b: AnyDraft): boolean {
     if (a.placeholderKeys[i] !== b.placeholderKeys[i]) return false;
   }
   if (a.kind === "scope" && b.kind === "scope") {
-    return a.escopoTemplate === b.escopoTemplate && a.investimentoTemplate === b.investimentoTemplate;
+    return a.escopoTemplate === b.escopoTemplate;
   }
   if (a.kind === "investment" && b.kind === "investment") {
     return a.conceito === b.conceito && a.template === b.template;

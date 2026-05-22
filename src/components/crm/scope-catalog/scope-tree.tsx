@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { getAreaLucideIcon } from "@/lib/crm/area-lucide-icon";
+import { getAreaLucideIcon, getPracticeAreaColors } from "@/lib/crm/area-lucide-icon";
 import { cn } from "@/lib/utils";
 import type {
   ScopeTreeGroup,
@@ -42,24 +42,6 @@ function isSubtypeSelected(selection: ScopeTreeSelection | null, subtypeId: stri
   return selection?.level === "subtype" && selection.subtypeId === subtypeId;
 }
 
-/** Cores por área de prática. */
-function getAreaColors(area: string): { bg: string; text: string; ring: string } {
-  const a = area.trim().toLowerCase();
-  if (a.includes("cível") || a.includes("civel"))
-    return { bg: "bg-blue-100", text: "text-blue-700", ring: "ring-blue-200" };
-  if (a.includes("trabalh"))
-    return { bg: "bg-orange-100", text: "text-orange-700", ring: "ring-orange-200" };
-  if (a.includes("societ") || a.includes("contrat"))
-    return { bg: "bg-violet-100", text: "text-violet-700", ring: "ring-violet-200" };
-  if (a.includes("recupera") || a.includes("crédito") || a.includes("credito"))
-    return { bg: "bg-amber-100", text: "text-amber-700", ring: "ring-amber-200" };
-  if (a.includes("tribut"))
-    return { bg: "bg-emerald-100", text: "text-emerald-700", ring: "ring-emerald-200" };
-  if (a.includes("reestrutura") || a.includes("insolvê") || a.includes("insolvencia"))
-    return { bg: "bg-rose-100", text: "text-rose-700", ring: "ring-rose-200" };
-  return { bg: "bg-slate-100", text: "text-slate-600", ring: "ring-slate-200" };
-}
-
 export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyHint }: Props) {
   const [query, setQuery] = useState("");
   // Controle de quais L1/L2 estão expandidos. Por padrão, tudo aberto.
@@ -71,6 +53,22 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
   });
 
   const q = query.trim().toLowerCase();
+
+  // Ao trocar Escopos ↔ Investimentos (ou recarregar dados), inclui chaves da árvore atual no estado aberto.
+  useEffect(() => {
+    setOpenL1((prev) => {
+      const next = new Set(prev);
+      for (const g of groups) next.add(g.key);
+      return next;
+    });
+    setOpenL2((prev) => {
+      const next = new Set(prev);
+      for (const g of groups) {
+        for (const i of g.items) next.add(`${g.key}/${i.key}`);
+      }
+      return next;
+    });
+  }, [groups]);
 
   // Filtragem: mantém o nó se ele OU algum descendente match. Auto-expande os ancestrais.
   const filtered = useMemo(() => {
@@ -113,7 +111,9 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
     });
   }
 
-  const isL1Open = (key: string) => Boolean(q) || openL1.has(key);
+  /** Investimentos usam um único grupo (`__all__`); sem isso a lista ficava invisível após vir da aba Escopos. */
+  const isL1Open = (key: string) =>
+    Boolean(q) || openL1.has(key) || filtered.length <= 1;
   const isL2Open = (key: string) => Boolean(q) || openL2.has(key);
 
   function handleSelectSubtype(s: ScopeTreeSubtype) {
@@ -163,7 +163,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
         ) : (
           filtered.map((g) => {
             const AreaIcon = getAreaLucideIcon(g.label);
-            const areaColors = getAreaColors(g.label);
+            const areaColors = getPracticeAreaColors(g.label);
             const totalSubtypes = g.items.reduce((acc, it) => acc + it.subtypes.length, 0);
             const isOpen = isL1Open(g.key);
 

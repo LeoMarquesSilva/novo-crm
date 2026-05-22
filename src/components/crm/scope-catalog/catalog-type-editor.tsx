@@ -204,8 +204,9 @@ export function CatalogTypeEditor({ mode, subtypeCount, onSaved, onDeleted }: Pr
       <div className="rounded-2xl border border-primary-dark/10 bg-white/85 p-5 shadow-sm">
         <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
           O <strong className="text-primary-dark">tipo</strong> agrupa os subtipos na árvore. Os
-          textos de escopo ou investimento ficam em cada <strong className="text-primary-dark">subtipo</strong>{" "}
-          — selecione um na lista à esquerda ou use o botão + ao lado do tipo.
+          textos de <strong className="text-primary-dark">escopo</strong> ficam em cada subtipo desta aba;{" "}
+          <strong className="text-primary-dark">honorários</strong> na aba Investimentos. Selecione um subtipo na
+          lista à esquerda ou use o botão + ao lado do tipo.
         </p>
 
         <div className="space-y-4">

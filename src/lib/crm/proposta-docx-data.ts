@@ -10,7 +10,7 @@ import {
 } from "@/data/proposta-tipos-catalog";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { findInvestmentSubtype, findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
-import { getEscopoEntryForArea } from "@/lib/crm/proposta-escopo-entry";
+import { getEscopoEntriesForArea, getEscopoEntryForArea } from "@/lib/crm/proposta-escopo-entry";
 import { mergeEscopoTemplate, mergeInvestimentoTemplate } from "@/lib/crm/proposta-escopo-preview";
 import { parseEscopoJson, parseAreasList } from "@/lib/crm/proposta-escopo-json";
 import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-principal";
@@ -85,29 +85,45 @@ export function buildPropostaDocxTemplateData(input: PropostaDocxTemplateInput):
   let resumoDocx = "";
 
   for (const area of areas) {
-    const entry = getEscopoEntryForArea(escopo, area);
-    const phEscopo = entry?.placeholders ?? {};
+    const entries = getEscopoEntriesForArea(escopo, area);
     const areaLabel = normalizePracticeAreaKey(area);
-    if (entry?.tipoId && entry.subtipoId) {
-      const sub = findScopeSubtype(scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId);
-      if (sub) {
-        const text = mergeEscopoTemplate(sub.escopoTemplate, phEscopo, { defaultNomeEmpresa: nomeEmpresa }).trim();
-        if (text) escopoParts.push(areas.length > 1 ? `${areaLabel}\n${text}` : text);
-        const { resumoSintese } = splitEscopoTextForDocx(text);
-        const resumoFromPlaceholder = String(phEscopo[PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO] ?? "").trim();
-        if (!resumoDocx) resumoDocx = resumoFromPlaceholder || resumoSintese;
+    const areaEscopoTexts: string[] = [];
+    const areaInvTexts: string[] = [];
+
+    for (const entry of entries) {
+      const phEscopo = entry.placeholders ?? {};
+      if (entry.tipoId && entry.subtipoId) {
+        const sub = findScopeSubtype(scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId);
+        if (sub) {
+          const text = mergeEscopoTemplate(sub.escopoTemplate, phEscopo, {
+            defaultNomeEmpresa: nomeEmpresa,
+          }).trim();
+          if (text) areaEscopoTexts.push(text);
+          const { resumoSintese } = splitEscopoTextForDocx(text);
+          const resumoFromPlaceholder = String(phEscopo[PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO] ?? "").trim();
+          if (!resumoDocx) resumoDocx = resumoFromPlaceholder || resumoSintese;
+        }
+      }
+
+      const inv = entry.investimento;
+      if (inv?.tipoId && inv.subtipoId) {
+        const invSub = findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId);
+        if (invSub) {
+          const text = mergeInvestimentoTemplate(invSub.template, inv.placeholders ?? {}, {
+            defaultNomeEmpresa: nomeEmpresa,
+          }).trim();
+          if (text) areaInvTexts.push(text);
+        }
       }
     }
 
-    const inv = entry?.investimento;
-    if (inv?.tipoId && inv.subtipoId) {
-      const invSub = findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId);
-      if (invSub) {
-        const text = mergeInvestimentoTemplate(invSub.template, inv.placeholders ?? {}, {
-          defaultNomeEmpresa: nomeEmpresa,
-        }).trim();
-        if (text) investimentoParts.push(areas.length > 1 ? `${areaLabel}\n${text}` : text);
-      }
+    if (areaEscopoTexts.length > 0) {
+      const joined = areaEscopoTexts.join("\n\n");
+      escopoParts.push(areas.length > 1 ? `${areaLabel}\n${joined}` : joined);
+    }
+    if (areaInvTexts.length > 0) {
+      const joined = areaInvTexts.join("\n\n");
+      investimentoParts.push(areas.length > 1 ? `${areaLabel}\n${joined}` : joined);
     }
   }
 

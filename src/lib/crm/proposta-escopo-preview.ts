@@ -1,4 +1,14 @@
 import {
+  DETALHE_PARCELAS_KEY,
+  formatDetalheParcelasForMerge,
+  formatInvestimentoCurrencyForMerge,
+  formatValorParcelaPlaceholderForMerge,
+  investmentSubtypeHasParcelas,
+  PARCELAS_VENCIMENTOS_KEY,
+  parseParcelasCount,
+  VALOR_PARCELA_KEY,
+} from "@/lib/crm/proposta-investimento-parcelas";
+import {
   formatNumberPtBr2,
   parseBrlUserInput,
   valorReaisPorExtensoPtBr,
@@ -83,17 +93,26 @@ export function mergeInvestimentoTemplate(
 ): string {
   return template.replace(/\[([^\]]+)\]/g, (_, inner: string) => {
     const key = inner.trim();
+
+    if (key === DETALHE_PARCELAS_KEY) {
+      return formatDetalheParcelasForMerge(placeholders);
+    }
+    if (
+      key === VALOR_PARCELA_KEY &&
+      (investmentSubtypeHasParcelas(Object.keys(placeholders)) ||
+        parseParcelasCount(placeholders) > 0 ||
+        Boolean(placeholders[PARCELAS_VENCIMENTOS_KEY]?.trim()))
+    ) {
+      return formatValorParcelaPlaceholderForMerge(placeholders);
+    }
+
     let v = placeholders[key];
     if ((v == null || v === "") && key === ESCOPO_PLACEHOLDER_NOME_EMPRESA) {
       v = opts.defaultNomeEmpresa ?? "";
     }
     if (v == null || v === "") return "";
     if (PROPOSTA_INVESTIMENTO_PLACEHOLDER_CURRENCY.has(key)) {
-      const n = parseBrlUserInput(String(v));
-      if (n == null) return String(v);
-      const numPart = formatNumberPtBr2(n);
-      const ex = valorReaisPorExtensoPtBr(n);
-      return `${numPart} (${ex})`;
+      return formatInvestimentoCurrencyForMerge(String(v));
     }
     return String(v);
   });

@@ -10,20 +10,40 @@ import {
   type PropostaTiposCatalog,
 } from "@/data/proposta-tipos-catalog";
 import { findInvestmentSubtype, findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
+import {
+  investmentSubtypeHasParcelas,
+  validateParcelasPlaceholders,
+} from "@/lib/crm/proposta-investimento-parcelas";
+import { normalizeEntriesForArea } from "@/lib/crm/proposta-escopo-json";
 
-/** Entrada no JSON pode estar na chave legada (`Civel`) ou canónica (`Cível`). */
+/** Entradas no JSON podem estar na chave legada ou canónica da área. */
+export function getEscopoEntriesForArea(
+  escopo: PropostaEscopoDetalhe,
+  areaKey: string,
+): PropostaEscopoDetalheEntry[] {
+  const k = areaKey.trim();
+  if (escopo[k]) return escopo[k].map((e) => ({ ...e }));
+  const canon = normalizePracticeAreaKey(k);
+  if (canon !== k && escopo[canon]) return escopo[canon].map((e) => ({ ...e }));
+  for (const [key, val] of Object.entries(escopo)) {
+    if (normalizePracticeAreaKey(key) === canon) {
+      return Array.isArray(val) ? val.map((e) => ({ ...e })) : normalizeEntriesForArea(val);
+    }
+  }
+  return [];
+}
+
+/** Primeiro bloco da área (compatibilidade com leituras antigas). */
 export function getEscopoEntryForArea(
   escopo: PropostaEscopoDetalhe,
   areaKey: string,
 ): PropostaEscopoDetalheEntry | undefined {
-  const k = areaKey.trim();
-  if (escopo[k]) return escopo[k];
-  const canon = normalizePracticeAreaKey(k);
-  if (canon !== k && escopo[canon]) return escopo[canon];
-  for (const [key, val] of Object.entries(escopo)) {
-    if (normalizePracticeAreaKey(key) === canon) return val;
-  }
-  return undefined;
+  return getEscopoEntriesForArea(escopo, areaKey)[0];
+}
+
+export function isEscopoEntryStarted(entry: PropostaEscopoDetalheEntry | undefined): boolean {
+  if (!entry) return false;
+  return Boolean(entry.tipoId?.trim() || entry.subtipoId?.trim());
 }
 
 /** Mesmas regras que `refreshSolicitacaoConcluidaForEscopoJson` no servidor. */
@@ -59,9 +79,33 @@ export function isEscopoEntryCompleteWithCatalog(
   if (!inv?.tipoId?.trim() || !inv?.subtipoId?.trim()) return false;
   const invSub = findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId);
   if (!invSub) return false;
+  const invPh = inv.placeholders ?? {};
+  if (investmentSubtypeHasParcelas(invSub.placeholderKeys)) {
+    if (!validateParcelasPlaceholders(invPh)) return false;
+  }
   for (const k of invSub.placeholderKeys) {
-    const v = inv.placeholders?.[k]?.trim() ?? "";
+    if (k === "PARCELAS" || k === "VALORPARCELA" || k === "DETALHEPARCELAS") continue;
+    const v = invPh[k]?.trim() ?? "";
     if (!v) return false;
   }
   return true;
+}
+
+/** Área concluída quando há ao menos um bloco completo e nenhum bloco iniciado está incompleto. */
+export function isEscopoAreaComplete(
+  areaKeyFromRow: string,
+  entries: PropostaEscopoDetalheEntry[] | undefined,
+  scopeCatalog: PropostaTiposCatalog = PROPOSTA_TIPOS_CATALOG,
+  investmentCatalog: InvestimentoTipoDef[] = PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
+): boolean {
+  const list = entries ?? [];
+  const started = list.filter(isEscopoEntryStarted);
+  if (started.length === 0) return false;
+  const anyComplete = started.some((e) =>
+    isEscopoEntryCompleteWithCatalog(areaKeyFromRow, e, scopeCatalog, investmentCatalog),
+  );
+  if (!anyComplete) return false;
+  return started.every((e) =>
+    isEscopoEntryCompleteWithCatalog(areaKeyFromRow, e, scopeCatalog, investmentCatalog),
+  );
 }

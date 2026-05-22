@@ -42,7 +42,6 @@ export type ProposalCatalogAdminData = ProposalCatalogData & {
       subtypeKey: string;
       label: string;
       escopoTemplate: string;
-      investimentoTemplate: string;
       placeholderKeys: string[];
       sortOrder: number;
       isActive: boolean;
@@ -198,7 +197,6 @@ async function loadAdminRows(supabase: ReturnType<typeof createSupabaseAdminClie
         subtypeKey: String(row.subtype_key),
         label: String(row.label),
         escopoTemplate: String(row.escopo_template ?? ""),
-        investimentoTemplate: String(row.investimento_template ?? ""),
         placeholderKeys: Array.isArray(row.placeholder_keys) ? row.placeholder_keys.map(String) : [],
         sortOrder: Number(row.sort_order ?? 0),
         isActive: Boolean(row.is_active),
@@ -254,7 +252,6 @@ function mapScopeCatalog(
         subtipoId: String(subtype.subtype_key),
         label: String(subtype.label),
         escopoTemplate: String(subtype.escopo_template ?? ""),
-        investimentoTemplate: String(subtype.investimento_template ?? ""),
         placeholderKeys: Array.isArray(subtype.placeholder_keys)
           ? subtype.placeholder_keys.map(String)
           : [],

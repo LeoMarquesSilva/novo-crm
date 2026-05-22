@@ -62,12 +62,16 @@ export function CrmSelectValue({
   placeholder = "Selecione…",
   className,
 }: CrmSelectValueProps) {
-  const display =
-    value != null && value !== "" && labels && labels[value] != null
-      ? labels[value]
-      : value != null && value !== "" && !labels
-        ? value
-        : null;
+  const key = value != null ? String(value).trim() : "";
+  let display: string | null = null;
+  if (key) {
+    if (labels) {
+      const label = labels[key];
+      display = label != null && String(label).trim() !== "" ? label : null;
+    } else {
+      display = key;
+    }
+  }
 
   return (
     <SelectValue placeholder={placeholder} className={className}>

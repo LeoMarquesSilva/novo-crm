@@ -8,7 +8,7 @@ import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { parseEmpresasIntakeFromRecord } from "@/lib/crm/parse-lead-intake-empresas";
 import { loadProposalCatalog } from "@/lib/crm/proposal-catalog-db";
 import { findInvestmentSubtype, findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
-import { getEscopoEntryForArea } from "@/lib/crm/proposta-escopo-entry";
+import { getEscopoEntriesForArea, isEscopoEntryCompleteWithCatalog } from "@/lib/crm/proposta-escopo-entry";
 import { mergeEscopoTemplate, mergeInvestimentoTemplate } from "@/lib/crm/proposta-escopo-preview";
 import { parseAreasList, parseEscopoJson } from "@/lib/crm/proposta-escopo-json";
 import { buildPropostaDocxTemplateData } from "@/lib/crm/proposta-docx-data";
@@ -243,36 +243,52 @@ function buildAreaPreview(
   const escopo = parseEscopoJson(cpEscopoDetalheJson);
   return parseAreasList(fieldByCode.cp_areas_objeto ?? "").map((areaKey) => {
     const areaLabel = normalizePracticeAreaKey(areaKey);
-    const entry = getEscopoEntryForArea(escopo, areaKey);
-    const sub =
-      entry?.tipoId && entry.subtipoId
-        ? findScopeSubtype(scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId)
-        : undefined;
-    const inv = entry?.investimento;
-    const invSub =
-      inv?.tipoId && inv.subtipoId
-        ? findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId)
-        : undefined;
-    const scopeComplete =
-      Boolean(sub) &&
-      (sub?.placeholderKeys ?? []).every((key) =>
-        String(entry?.placeholders?.[key] ?? "").trim(),
+    const entries = getEscopoEntriesForArea(escopo, areaKey);
+    const escopoTexts: string[] = [];
+    const investimentoTexts: string[] = [];
+    let complete = entries.length > 0;
+
+    for (const entry of entries) {
+      const sub =
+        entry.tipoId && entry.subtipoId
+          ? findScopeSubtype(scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId)
+          : undefined;
+      const inv = entry.investimento;
+      const invSub =
+        inv?.tipoId && inv.subtipoId
+          ? findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId)
+          : undefined;
+      const entryComplete = isEscopoEntryCompleteWithCatalog(
+        areaKey,
+        entry,
+        scopeCatalog,
+        investmentCatalog,
       );
-    const investmentComplete =
-      Boolean(invSub) &&
-      (invSub?.placeholderKeys ?? []).every((key) =>
-        String(inv?.placeholders?.[key] ?? "").trim(),
-      );
+      if (!entryComplete) complete = false;
+      if (sub) {
+        const text = mergeEscopoTemplate(sub.escopoTemplate, entry.placeholders ?? {}, {
+          defaultNomeEmpresa,
+        }).trim();
+        if (text) escopoTexts.push(text);
+      }
+      if (invSub) {
+        const text = mergeInvestimentoTemplate(invSub.template, inv?.placeholders ?? {}, {
+          defaultNomeEmpresa,
+        }).trim();
+        if (text) investimentoTexts.push(text);
+      }
+    }
+
+    const anyComplete = entries.some((entry) =>
+      isEscopoEntryCompleteWithCatalog(areaKey, entry, scopeCatalog, investmentCatalog),
+    );
+
     return {
       key: areaKey,
       label: areaLabel,
-      complete: scopeComplete && investmentComplete,
-      escopo: sub
-        ? mergeEscopoTemplate(sub.escopoTemplate, entry?.placeholders ?? {}, { defaultNomeEmpresa }).trim()
-        : "",
-      investimento: invSub
-        ? mergeInvestimentoTemplate(invSub.template, inv?.placeholders ?? {}, { defaultNomeEmpresa }).trim()
-        : "",
+      complete: anyComplete && complete,
+      escopo: escopoTexts.join("\n\n---\n\n"),
+      investimento: investimentoTexts.join("\n\n---\n\n"),
     };
   });
 }

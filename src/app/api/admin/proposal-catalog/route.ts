@@ -27,7 +27,6 @@ const createSchema = z.discriminatedUnion("kind", [
     label: z.string().min(1).max(180),
     subtypeKey: z.string().optional(),
     escopoTemplate: z.string().optional(),
-    investimentoTemplate: z.string().optional(),
     placeholderKeys: z.array(z.string()).optional(),
     sortOrder: z.number().int().optional(),
   }),
@@ -60,7 +59,6 @@ const patchSchema = z.object({
   label: z.string().min(1).max(180).optional(),
   areaKey: z.string().min(1).optional(),
   escopoTemplate: z.string().optional(),
-  investimentoTemplate: z.string().optional(),
   conceito: z.string().optional(),
   template: z.string().optional(),
   placeholderKeys: z.array(z.string()).optional(),
@@ -121,14 +119,13 @@ export async function POST(request: NextRequest) {
       insertError = error;
     } else if (body.kind === "scope_subtype") {
       const escopoTemplate = body.escopoTemplate ?? "";
-      const investimentoTemplate = body.investimentoTemplate ?? "";
       const { error } = await supabase.from("proposal_scope_subtypes").insert({
         scope_type_id: body.scopeTypeId,
         subtype_key: cleanKey(body.subtypeKey, body.label),
         label: body.label.trim(),
         escopo_template: escopoTemplate,
-        investimento_template: investimentoTemplate,
-        placeholder_keys: cleanPlaceholders(body.placeholderKeys, escopoTemplate, investimentoTemplate),
+        investimento_template: "",
+        placeholder_keys: cleanPlaceholders(body.placeholderKeys, escopoTemplate),
         sort_order: body.sortOrder ?? 0,
       });
       insertError = error;
@@ -190,7 +187,7 @@ async function seedDefaults(supabase: ReturnType<typeof createSupabaseAdminClien
               subtype_key: subtype.subtipoId,
               label: subtype.label,
               escopo_template: subtype.escopoTemplate,
-              investimento_template: subtype.investimentoTemplate,
+              investimento_template: "",
               placeholder_keys: subtype.placeholderKeys ?? [],
               sort_order: subtypeIndex * 10,
               is_active: true,
@@ -297,9 +294,7 @@ function buildCatalogPatch(
       const patch: ScopeSubtypeUpdate = {};
       addCommonCatalogPatchFields(patch, body);
       if (body.escopoTemplate !== undefined) patch.escopo_template = body.escopoTemplate;
-      if (body.investimentoTemplate !== undefined) {
-        patch.investimento_template = body.investimentoTemplate;
-      }
+      patch.investimento_template = "";
       if (body.placeholderKeys !== undefined) {
         patch.placeholder_keys = cleanPlaceholders(body.placeholderKeys);
       }

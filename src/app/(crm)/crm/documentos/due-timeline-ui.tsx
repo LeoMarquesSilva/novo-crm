@@ -76,8 +76,9 @@ function AreaRow({ area }: { area: DueAreaTempo }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <AreaIconLabel
             area={label}
-            className="text-[13px] font-semibold tracking-[-0.01em] text-primary-dark"
-            iconClassName="h-3.5 w-3.5 text-primary-dark/50"
+            size="sm"
+            className="text-[13px] tracking-[-0.01em]"
+            nameClassName="font-semibold text-primary-dark"
           />
           {area.cicloRevisao != null && (
             <span className="rounded border border-border bg-muted px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">

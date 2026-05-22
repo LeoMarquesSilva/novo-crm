@@ -548,7 +548,6 @@ function ScopeSubtypeForm({
     label: "",
     subtypeKey: "",
     escopoTemplate: "",
-    investimentoTemplate: "",
     placeholderKeys: "",
   });
 
@@ -561,11 +560,10 @@ function ScopeSubtypeForm({
         label: form.label,
         subtypeKey: form.subtypeKey,
         escopoTemplate: form.escopoTemplate,
-        investimentoTemplate: form.investimentoTemplate,
         placeholderKeys: parsePlaceholders(form.placeholderKeys),
       },
       "POST",
-      () => setForm({ label: "", subtypeKey: "", escopoTemplate: "", investimentoTemplate: "", placeholderKeys: "" }),
+      () => setForm({ label: "", subtypeKey: "", escopoTemplate: "", placeholderKeys: "" }),
     );
   }
 
@@ -602,13 +600,6 @@ function ScopeSubtypeForm({
         placeholder="Prestação de serviços advocatícios em favor de [NOME EMPRESA]..."
         minHeight="min-h-32"
       />
-      <TextAreaField
-        label="Texto de investimento legado"
-        help="Use apenas quando este subtipo ainda carregar uma condição de investimento antiga."
-        value={form.investimentoTemplate}
-        onChange={(value) => setForm((prev) => ({ ...prev, investimentoTemplate: value }))}
-        placeholder="Condição de investimento vinculada ao escopo, se houver."
-      />
       <div className="space-y-1.5">
         <Label className={fieldLabelClassName}>Placeholders extras</Label>
         <Input
@@ -638,7 +629,6 @@ function ScopeSubtypeEditor({
   const [draft, setDraft] = useState({
     label: subtype.label,
     escopoTemplate: subtype.escopoTemplate,
-    investimentoTemplate: subtype.investimentoTemplate,
     placeholderKeys: placeholdersRaw(subtype.placeholderKeys),
   });
 
@@ -678,12 +668,6 @@ function ScopeSubtypeEditor({
         onChange={(value) => setDraft((prev) => ({ ...prev, escopoTemplate: value }))}
         minHeight="min-h-32"
       />
-      <TextAreaField
-        label="Texto de investimento legado"
-        help="Campo mantido para casos antigos; novos honorários devem usar a aba Investimentos."
-        value={draft.investimentoTemplate}
-        onChange={(value) => setDraft((prev) => ({ ...prev, investimentoTemplate: value }))}
-      />
       <div className="space-y-1.5">
         <Label className={fieldLabelClassName}>Placeholders</Label>
         <Input
@@ -705,7 +689,6 @@ function ScopeSubtypeEditor({
               id: subtype.id,
               label: draft.label,
               escopoTemplate: draft.escopoTemplate,
-              investimentoTemplate: draft.investimentoTemplate,
               placeholderKeys: parsePlaceholders(draft.placeholderKeys),
             },
             "PATCH",

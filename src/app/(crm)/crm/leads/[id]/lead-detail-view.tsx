@@ -47,7 +47,7 @@ import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area
 import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-tasks";
 import { resolveRdFieldEditor } from "@/lib/crm/lead-rd-field-editor-map";
 import { resolvePropostaEmpresaPrincipalNome } from "@/lib/crm/proposta-empresa-principal";
-import { getEscopoEntryForArea, isEscopoEntryComplete } from "@/lib/crm/proposta-escopo-entry";
+import { getEscopoEntriesForArea, isEscopoAreaComplete } from "@/lib/crm/proposta-escopo-entry";
 import { parseEscopoJson, syncEscopoToAreas } from "@/lib/crm/proposta-escopo-json";
 import { cn } from "@/lib/utils";
 import { useLeadDetailRealtime } from "@/lib/crm/use-lead-detail-realtime";
@@ -546,8 +546,8 @@ function computeProposalScopeSummary(
   const nowIso = new Date().toISOString();
   const areaRows = selectedAreas.map((area) => {
     const request = lead.escopoSolicitacoes?.find((item) => areaKeyMatches(item.areaKey, area)) ?? null;
-    const entry = getEscopoEntryForArea(escopoDetalhe, area);
-    const scopeComplete = isEscopoEntryComplete(area, entry);
+    const entries = getEscopoEntriesForArea(escopoDetalhe, area);
+    const scopeComplete = isEscopoAreaComplete(area, entries);
     const completed = Boolean(request?.concluidoEm) || scopeComplete;
     const overdue = !completed && request?.prazoAte ? request.prazoAte < nowIso : false;
     const status: ProposalScopeAreaStatus["status"] = completed

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Loader2, Pencil, Save, Send } from "lucide-react";
+import { Check, ChevronDown, Loader2, Pencil, Plus, Save, Send, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,9 @@ import {
 } from "@/data/proposta-tipos-catalog";
 import { findInvestmentSubtype, findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
 import { appUserAreaMatchesScopeKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
-import { getEscopoEntryForArea } from "@/lib/crm/proposta-escopo-entry";
+import { AreaIconLabel, PracticeAreaIconBadge } from "@/lib/crm/area-lucide-icon";
+import { getEscopoEntriesForArea, isEscopoAreaComplete } from "@/lib/crm/proposta-escopo-entry";
+import { getEscopoDirecionamentoHint } from "@/lib/crm/proposta-escopo-direcionamento";
 import { initialsFromFullName, type ResolvedAppUser } from "@/lib/crm/resolve-app-user-display";
 import {
   canEditEscopoArea,
@@ -44,12 +46,15 @@ import {
 } from "@/lib/crm/proposta-escopo-permissions";
 import { getPropostaPlaceholderLabel } from "@/lib/crm/proposta-placeholder-labels";
 import {
+  createEmptyEscopoEntry,
   escopoJsonEqual,
+  normalizeEscopoEntry,
   parseAreasList,
   parseEscopoJson,
   syncEscopoToAreas,
 } from "@/lib/crm/proposta-escopo-json";
 import { Input } from "@/components/ui/input";
+import { PropostaEscopoEntryForm } from "@/components/crm/proposta-escopo-entry-form";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import {
   ESCOPO_PLACEHOLDER_NOME_EMPRESA,
@@ -66,33 +71,23 @@ const SELECT_EMPTY = "__crm_escopo_none__";
 const EMPTY_PLACEHOLDER_KEYS: string[] = [];
 const EMPTY_RESPONSAVEIS: Array<ResolvedAppUser & { id: string }> = [];
 
-function isEntryCompleteWithCatalog(
-  areaKeyFromRow: string,
-  entry: PropostaEscopoDetalheEntry | undefined,
-  scopeCatalog: PropostaTiposCatalog,
-  investmentCatalog: InvestimentoTipoDef[],
-): boolean {
-  if (!entry?.tipoId?.trim() || !entry?.subtipoId?.trim()) return false;
-  const catalogArea = normalizePracticeAreaKey(areaKeyFromRow);
-  const sub = findScopeSubtype(scopeCatalog, catalogArea, entry.tipoId, entry.subtipoId);
-  if (!sub) return false;
-
-  for (const key of sub.placeholderKeys ?? []) {
-    const value = entry.placeholders?.[key]?.trim() ?? "";
-    if (!value) return false;
+function mergeEscopoEntryPatch(
+  cur: PropostaEscopoDetalheEntry,
+  patch: Partial<PropostaEscopoDetalheEntry>,
+): PropostaEscopoDetalheEntry {
+  const merged: PropostaEscopoDetalheEntry = {
+    ...cur,
+    tipoId: patch.tipoId !== undefined ? patch.tipoId : cur.tipoId,
+    subtipoId: patch.subtipoId !== undefined ? patch.subtipoId : cur.subtipoId,
+    placeholders:
+      patch.placeholders !== undefined ? patch.placeholders : { ...(cur.placeholders ?? {}) },
+  };
+  if (patch.investimento !== undefined) {
+    merged.investimento = patch.investimento;
+  } else if (cur.investimento) {
+    merged.investimento = cur.investimento;
   }
-
-  const inv = entry.investimento;
-  if (!inv?.tipoId?.trim() || !inv?.subtipoId?.trim()) return false;
-  const invSub = findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId);
-  if (!invSub) return false;
-
-  for (const key of invSub.placeholderKeys) {
-    const value = inv.placeholders?.[key]?.trim() ?? "";
-    if (!value) return false;
-  }
-
-  return true;
+  return normalizeEscopoEntry(merged);
 }
 
 type Props = {
@@ -217,8 +212,8 @@ export function PropostaEscopoPorArea({
         const out = { ...prev };
         for (const a of parseAreasList(areasDisplay)) {
           if (!canEditEscopoArea(viewerRole, viewerProfileArea, a)) continue;
-          const ent = getEscopoEntryForArea(nextEscopo, a);
-          if (isEntryCompleteWithCatalog(a, ent, scopeCatalog, investmentCatalog)) out[a] = false;
+          const ents = getEscopoEntriesForArea(nextEscopo, a);
+          if (isEscopoAreaComplete(a, ents, scopeCatalog, investmentCatalog)) out[a] = false;
         }
         return out;
       });
@@ -234,11 +229,7 @@ export function PropostaEscopoPorArea({
         options?.restrictToArea
           ? {
               [normalizePracticeAreaKey(options.restrictToArea)]:
-                getEscopoEntryForArea(normalizedNext, options.restrictToArea) ?? {
-                  tipoId: "",
-                  subtipoId: "",
-                  placeholders: {},
-                },
+                getEscopoEntriesForArea(normalizedNext, options.restrictToArea),
             }
           : normalizedNext;
       const payloadBody = JSON.stringify(payloadEscopo);
@@ -283,9 +274,9 @@ export function PropostaEscopoPorArea({
   }, [areasDisplay]);
 
   const isAreaDirty = useCallback((areaKey: string): boolean => {
-    const a = getEscopoEntryForArea(escopo, areaKey);
-    const b = getEscopoEntryForArea(lastSavedSnapshot.current, areaKey);
-    return JSON.stringify(a ?? null) !== JSON.stringify(b ?? null);
+    const a = getEscopoEntriesForArea(escopo, areaKey);
+    const b = getEscopoEntriesForArea(lastSavedSnapshot.current, areaKey);
+    return JSON.stringify(a) !== JSON.stringify(b);
   }, [escopo]);
 
   const notifyOtherAreas = useCallback(async () => {
@@ -336,23 +327,38 @@ export function PropostaEscopoPorArea({
     ],
   );
 
-  const patchArea = useCallback((area: string, patch: Partial<PropostaEscopoDetalheEntry>) => {
-    setEscopo((prev) => {
-      const cur = getEscopoEntryForArea(prev, area) ?? { tipoId: "", subtipoId: "", placeholders: {} };
-      const merged: PropostaEscopoDetalheEntry = {
-        tipoId: patch.tipoId !== undefined ? patch.tipoId : cur.tipoId,
-        subtipoId: patch.subtipoId !== undefined ? patch.subtipoId : cur.subtipoId,
-        placeholders:
-          patch.placeholders !== undefined ? patch.placeholders : { ...(cur.placeholders ?? {}) },
-      };
-      if (patch.investimento !== undefined) {
-        merged.investimento = patch.investimento;
-      } else if (cur.investimento) {
-        merged.investimento = cur.investimento;
-      }
-      return syncEscopoToAreas({ ...prev, [area]: merged }, parseAreasList(areasDisplay));
-    });
-  }, [areasDisplay]);
+  const patchAreaEntry = useCallback(
+    (area: string, entryId: string, patch: Partial<PropostaEscopoDetalheEntry>) => {
+      setEscopo((prev) => {
+        const list = getEscopoEntriesForArea(prev, area).map((e) =>
+          e.id === entryId ? mergeEscopoEntryPatch(e, patch) : e,
+        );
+        return syncEscopoToAreas({ ...prev, [area]: list }, parseAreasList(areasDisplay));
+      });
+    },
+    [areasDisplay],
+  );
+
+  const addAreaEntry = useCallback(
+    (area: string) => {
+      setEscopo((prev) => {
+        const list = [...getEscopoEntriesForArea(prev, area), createEmptyEscopoEntry()];
+        return syncEscopoToAreas({ ...prev, [area]: list }, parseAreasList(areasDisplay));
+      });
+    },
+    [areasDisplay],
+  );
+
+  const removeAreaEntry = useCallback(
+    (area: string, entryId: string) => {
+      setEscopo((prev) => {
+        let list = getEscopoEntriesForArea(prev, area).filter((e) => e.id !== entryId);
+        if (list.length === 0) list = [createEmptyEscopoEntry()];
+        return syncEscopoToAreas({ ...prev, [area]: list }, parseAreasList(areasDisplay));
+      });
+    },
+    [areasDisplay],
+  );
 
   const areas = parseAreasList(areasDisplay);
   const anyAreaDirty = areas.some((a) => isAreaDirty(a));
@@ -382,9 +388,9 @@ export function PropostaEscopoPorArea({
       <div className="min-w-0">
         <p className="text-sm font-semibold text-primary-dark">Escopo detalhado por área</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Cada área abre e fecha no cabeçalho. Use <span className="font-medium text-foreground/90">Salvar esta área</span>{" "}
-          para registrar o que você preencheu nessa área. Nas áreas de outras equipes, peça o preenchimento com{" "}
-          <span className="font-medium text-foreground/90">Solicitar escopo</span>.
+          Cada área pode ter <span className="font-medium text-foreground/90">vários escopos</span> (ex.: dois processos
+          distintos em Cível). Use <span className="font-medium text-foreground/90">Salvar esta área</span> após
+          preencher. Nas áreas de outras equipes, use <span className="font-medium text-foreground/90">Solicitar escopo</span>.
         </p>
         {anyAreaDirty ? (
           <p className="mt-2 text-xs font-medium text-amber-900/90">Há alterações não salvas em uma ou mais áreas.</p>
@@ -407,11 +413,10 @@ export function PropostaEscopoPorArea({
       <div className="space-y-4">
         {areas.map((area) => {
           const catalogArea = normalizePracticeAreaKey(area) as PropostaAreaKey;
-          const entry =
-            getEscopoEntryForArea(escopo, area) ?? { tipoId: "", subtipoId: "", placeholders: {} };
+          const entries = getEscopoEntriesForArea(escopo, area);
           const canEdit = canEditEscopoArea(viewerRole, viewerProfileArea, area);
           const canRequest = canRequestGestorFillForArea(viewerRole, viewerProfileArea, area);
-          const complete = isEntryCompleteWithCatalog(area, entry, scopeCatalog, investmentCatalog);
+          const complete = isEscopoAreaComplete(area, entries, scopeCatalog, investmentCatalog);
           const panelOpen = areaPanelOpen[area] ?? false;
           const dirty = isAreaDirty(area);
           const request = requestForArea(area);
@@ -427,7 +432,7 @@ export function PropostaEscopoPorArea({
                 className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-muted-foreground"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-extrabold text-primary-dark">{normalizePracticeAreaKey(area)}</span>
+                  <AreaIconLabel area={normalizePracticeAreaKey(area)} size="sm" nameClassName="font-extrabold text-primary-dark" />
                   <Badge variant="outline" className="border-slate-300 bg-white text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">
                     Sem acesso
                   </Badge>
@@ -449,7 +454,7 @@ export function PropostaEscopoPorArea({
                 leadId={leadId}
                 area={area}
                 catalogArea={catalogArea}
-                entry={entry}
+                entries={entries}
                 scopeCatalog={scopeCatalog}
                 investmentCatalog={investmentCatalog}
                 defaultNomeEmpresa={defaultNomeEmpresa}
@@ -465,6 +470,7 @@ export function PropostaEscopoPorArea({
               <EscopoAreaSavedCompact
                 key={area}
                 areaLabel={normalizePracticeAreaKey(area)}
+                scopeCount={entries.length}
                 request={request}
                 onEdit={() => {
                   setEditingMyArea((p) => ({ ...p, [area]: true }));
@@ -479,14 +485,16 @@ export function PropostaEscopoPorArea({
               key={area}
               area={area}
               catalogArea={catalogArea}
-              entry={entry}
+              entries={entries}
               scopeCatalog={scopeCatalog}
               investmentCatalog={investmentCatalog}
               defaultNomeEmpresa={defaultNomeEmpresa}
               request={request}
               panelOpen={panelOpen}
               onTogglePanel={() => toggleAreaPanel(area)}
-              onPatch={(patch) => patchArea(area, patch)}
+              onPatchEntry={(entryId, patch) => patchAreaEntry(area, entryId, patch)}
+              onAddEntry={() => addAreaEntry(area)}
+              onRemoveEntry={(entryId) => removeAreaEntry(area, entryId)}
               areaDirty={dirty}
               savingThisArea={savingAreaKey === area}
               notifyingThisArea={notifyingAreaKey === area}
@@ -503,11 +511,51 @@ export function PropostaEscopoPorArea({
   );
 }
 
+function buildEntriesPreviewText(
+  entries: PropostaEscopoDetalheEntry[],
+  catalogArea: PropostaAreaKey,
+  scopeCatalog: PropostaTiposCatalog,
+  investmentCatalog: InvestimentoTipoDef[],
+  defaultNomeEmpresa: string | null,
+): { escopo: string; investimento: string } {
+  const escopoParts: string[] = [];
+  const invParts: string[] = [];
+  const areaLabel = normalizePracticeAreaKey(catalogArea);
+
+  entries.forEach((entry, index) => {
+    const prefix = entries.length > 1 ? `Escopo ${index + 1}\n` : "";
+    if (entry.tipoId && entry.subtipoId) {
+      const sub = findScopeSubtype(scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId);
+      if (sub) {
+        const text = mergeEscopoTemplate(sub.escopoTemplate, entry.placeholders ?? {}, {
+          defaultNomeEmpresa,
+        }).trim();
+        if (text) escopoParts.push(`${prefix}${text}`);
+      }
+    }
+    const inv = entry.investimento;
+    if (inv?.tipoId && inv.subtipoId) {
+      const invSub = findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId);
+      if (invSub) {
+        const text = mergeInvestimentoTemplate(invSub.template, inv.placeholders ?? {}, {
+          defaultNomeEmpresa,
+        }).trim();
+        if (text) invParts.push(`${prefix}${text}`);
+      }
+    }
+  });
+
+  return {
+    escopo: escopoParts.join("\n\n") || "—",
+    investimento: invParts.join("\n\n") || "—",
+  };
+}
+
 function EscopoAreaDelegatedModal({
   leadId,
   area,
   catalogArea,
-  entry,
+  entries,
   scopeCatalog,
   investmentCatalog,
   defaultNomeEmpresa,
@@ -518,7 +566,7 @@ function EscopoAreaDelegatedModal({
   leadId: string;
   area: string;
   catalogArea: PropostaAreaKey;
-  entry: PropostaEscopoDetalheEntry;
+  entries: PropostaEscopoDetalheEntry[];
   scopeCatalog: PropostaTiposCatalog;
   investmentCatalog: InvestimentoTipoDef[];
   defaultNomeEmpresa: string | null;
@@ -532,20 +580,13 @@ function EscopoAreaDelegatedModal({
   const [selectedTargetIds, setSelectedTargetIds] = useState<string[]>([]);
   const areaLabel = normalizePracticeAreaKey(area);
   const responsaveis = request?.responsaveis ?? EMPTY_RESPONSAVEIS;
-  const tipos = scopeCatalog[catalogArea] ?? [];
-  const tipo = tipos.find((t) => t.tipoId === entry.tipoId);
-  const subtipos = tipo?.subtipos ?? [];
-  const sub = subtipos.find((s) => s.subtipoId === entry.subtipoId);
-  const previewEscopo = sub
-    ? mergeEscopoTemplate(sub.escopoTemplate, entry.placeholders ?? {}, { defaultNomeEmpresa }).trim() || "—"
-    : "—";
-  const invE = entry.investimento;
-  const invSubDef =
-    invE?.tipoId && invE?.subtipoId ? findInvestmentSubtype(investmentCatalog, invE.tipoId, invE.subtipoId) : undefined;
-  const previewInv = invSubDef
-    ? mergeInvestimentoTemplate(invSubDef.template, invE?.placeholders ?? {}, { defaultNomeEmpresa }).trim() ||
-      "—"
-    : "—";
+  const { escopo: previewEscopo, investimento: previewInv } = buildEntriesPreviewText(
+    entries,
+    catalogArea,
+    scopeCatalog,
+    investmentCatalog,
+    defaultNomeEmpresa,
+  );
 
   useEffect(() => {
     const ids = responsaveis.map((user) => user.id);
@@ -608,10 +649,20 @@ function EscopoAreaDelegatedModal({
               </div>
             </div>
             <div className="grid gap-3 text-sm sm:grid-cols-2">
-              <ReadOnlyPair label="Tipo (escopo)" value={tipo?.label ?? "—"} />
-              <ReadOnlyPair label="Subtipo (escopo)" value={sub?.label ?? "—"} />
-              <ReadOnlyPair label="Tipo (investimento)" value={investmentCatalog.find((t) => t.tipoId === invE?.tipoId)?.label ?? "—"} />
-              <ReadOnlyPair label="Subtipo (investimento)" value={invSubDef?.label ?? "—"} />
+              <ReadOnlyPair
+                label="Blocos de escopo"
+                value={entries.length > 0 ? String(entries.length) : "—"}
+              />
+              <ReadOnlyPair
+                label="Resumo"
+                value={
+                  entries.length > 1
+                    ? `${entries.length} escopos configurados (prévia abaixo)`
+                    : entries[0]?.tipoId
+                      ? "1 escopo em configuração"
+                      : "—"
+                }
+              />
             </div>
           </div>
           <div className="mt-5 rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
@@ -667,7 +718,7 @@ function EscopoAreaDelegatedModal({
             )}
           </div>
           <div className="mt-5">
-            <PreviewGrid escopo={sub ? previewEscopo : "—"} investimento={previewInv} />
+            <PreviewGrid escopo={previewEscopo} investimento={previewInv} />
           </div>
         </div>
         <div className="flex flex-col gap-3 border-t border-[#dfe5ee] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
@@ -694,7 +745,7 @@ function EscopoAreaDelegated({
   leadId,
   area,
   catalogArea,
-  entry,
+  entries,
   scopeCatalog,
   investmentCatalog,
   defaultNomeEmpresa,
@@ -705,7 +756,7 @@ function EscopoAreaDelegated({
   leadId: string;
   area: string;
   catalogArea: PropostaAreaKey;
-  entry: PropostaEscopoDetalheEntry;
+  entries: PropostaEscopoDetalheEntry[];
   scopeCatalog: PropostaTiposCatalog;
   investmentCatalog: InvestimentoTipoDef[];
   defaultNomeEmpresa: string | null;
@@ -718,6 +769,7 @@ function EscopoAreaDelegated({
     <>
       <AreaSummaryCard
         areaLabel={areaLabel}
+        scopeCount={entries.length}
         request={request}
         complete={Boolean(request?.concluidoEm)}
         dirty={false}
@@ -729,7 +781,7 @@ function EscopoAreaDelegated({
         leadId={leadId}
         area={area}
         catalogArea={catalogArea}
-        entry={entry}
+        entries={entries}
         scopeCatalog={scopeCatalog}
         investmentCatalog={investmentCatalog}
         defaultNomeEmpresa={defaultNomeEmpresa}
@@ -743,16 +795,19 @@ function EscopoAreaDelegated({
 
 function EscopoAreaSavedCompact({
   areaLabel,
+  scopeCount = 1,
   request,
   onEdit,
 }: {
   areaLabel: string;
+  scopeCount?: number;
   request: EscopoAreaSolicitacao | null;
   onEdit: () => void;
 }) {
   return (
     <AreaSummaryCard
       areaLabel={areaLabel}
+      scopeCount={scopeCount}
       request={request}
       complete
       dirty={false}
@@ -766,14 +821,16 @@ function EscopoAreaSavedCompact({
 function EscopoAreaBlock({
   area,
   catalogArea,
-  entry,
+  entries,
   scopeCatalog,
   investmentCatalog,
   defaultNomeEmpresa,
   request,
   panelOpen,
   onTogglePanel,
-  onPatch,
+  onPatchEntry,
+  onAddEntry,
+  onRemoveEntry,
   areaDirty,
   savingThisArea,
   notifyingThisArea,
@@ -783,14 +840,16 @@ function EscopoAreaBlock({
 }: {
   area: string;
   catalogArea: PropostaAreaKey;
-  entry: PropostaEscopoDetalheEntry;
+  entries: PropostaEscopoDetalheEntry[];
   scopeCatalog: PropostaTiposCatalog;
   investmentCatalog: InvestimentoTipoDef[];
   defaultNomeEmpresa: string | null;
   request: EscopoAreaSolicitacao | null;
   panelOpen: boolean;
   onTogglePanel: () => void;
-  onPatch: (patch: Partial<PropostaEscopoDetalheEntry>) => void;
+  onPatchEntry: (entryId: string, patch: Partial<PropostaEscopoDetalheEntry>) => void;
+  onAddEntry: () => void;
+  onRemoveEntry: (entryId: string) => void;
   areaDirty: boolean;
   savingThisArea: boolean;
   notifyingThisArea: boolean;
@@ -800,39 +859,19 @@ function EscopoAreaBlock({
 }) {
   const areaLabel = normalizePracticeAreaKey(area);
   const tipos = scopeCatalog[catalogArea] ?? [];
-  const tipo = tipos.find((t) => t.tipoId === entry.tipoId);
-  const subtipos = tipo?.subtipos ?? [];
-  const sub = subtipos.find((s) => s.subtipoId === entry.subtipoId);
-  const placeholderKeys = sub?.placeholderKeys ?? EMPTY_PLACEHOLDER_KEYS;
-  const seedSigRef = useRef<string>("");
-  const onPatchRef = useRef(onPatch);
-
-  useEffect(() => {
-    onPatchRef.current = onPatch;
-  }, [onPatch]);
-
-  useEffect(() => {
-    const sig = `${catalogArea}|${entry.tipoId}|${entry.subtipoId}|${defaultNomeEmpresa ?? ""}`;
-    if (!sub || !defaultNomeEmpresa) return;
-    if (!placeholderKeys.some((k) => k.trim() === ESCOPO_PLACEHOLDER_NOME_EMPRESA)) return;
-    if (entry.placeholders?.[ESCOPO_PLACEHOLDER_NOME_EMPRESA]?.trim()) return;
-    if (seedSigRef.current === sig) return;
-    seedSigRef.current = sig;
-    onPatchRef.current({
-      placeholders: {
-        ...(entry.placeholders ?? {}),
-        [ESCOPO_PLACEHOLDER_NOME_EMPRESA]: defaultNomeEmpresa,
-      },
-    });
-  }, [
+  const { escopo: previewEscopo, investimento: previewInv } = buildEntriesPreviewText(
+    entries,
     catalogArea,
-    sub,
-    entry.tipoId,
-    entry.subtipoId,
-    entry.placeholders,
+    scopeCatalog,
+    investmentCatalog,
     defaultNomeEmpresa,
-    placeholderKeys,
-  ]);
+  );
+  const complete = isEscopoAreaComplete(area, entries, scopeCatalog, investmentCatalog);
+  const direcionamentoHint = getEscopoDirecionamentoHint(
+    scopeCatalog,
+    area,
+    entries.map((e) => e.tipoId ?? "").filter((id) => id.trim()),
+  );
 
   if (!tipos.length) {
     return (
@@ -846,7 +885,7 @@ function EscopoAreaBlock({
             className={cn("size-5 shrink-0 text-amber-800/80 transition-transform", panelOpen && "rotate-180")}
             aria-hidden
           />
-          <span className="text-base font-semibold text-primary-dark">{areaLabel}</span>
+          <AreaIconLabel area={areaLabel} size="md" nameClassName="text-base font-semibold text-primary-dark" />
         </button>
         {panelOpen ? (
           <div className="border-t border-amber-200/80 px-4 py-3">
@@ -860,34 +899,11 @@ function EscopoAreaBlock({
     );
   }
 
-  const previewEscopo = sub
-    ? mergeEscopoTemplate(sub.escopoTemplate, entry.placeholders ?? {}, { defaultNomeEmpresa }).trim() || "—"
-    : "—";
-  const invE = entry.investimento;
-  const invSubDef =
-    invE?.tipoId && invE?.subtipoId ? findInvestmentSubtype(investmentCatalog, invE.tipoId, invE.subtipoId) : undefined;
-  const previewInv = invSubDef
-    ? mergeInvestimentoTemplate(invSubDef.template, invE?.placeholders ?? {}, { defaultNomeEmpresa }).trim() ||
-      "—"
-    : "—";
-
-  const invEntry = {
-    tipoId: invE?.tipoId ?? "",
-    subtipoId: invE?.subtipoId ?? "",
-    placeholders: invE?.placeholders ?? {},
-  };
-  const invTipoSel = investmentCatalog.find((t) => t.tipoId === invEntry.tipoId);
-  const invSubtiposList = invTipoSel?.subtipos ?? [];
-  const invPlaceholderKeys = invSubDef?.placeholderKeys ?? [];
-
-  const tipoSelectValue = (entry.tipoId ?? "").trim();
-  const subtipoSelectValue = (entry.subtipoId ?? "").trim();
-  const complete = isEntryCompleteWithCatalog(area, entry, scopeCatalog, investmentCatalog);
-
   return (
     <>
       <AreaSummaryCard
         areaLabel={areaLabel}
+        scopeCount={entries.length}
         request={request}
         complete={complete}
         dirty={areaDirty}
@@ -914,212 +930,37 @@ function EscopoAreaBlock({
             areaLabel={areaLabel}
             request={request}
             statusLabel={complete ? "Preenchido" : areaDirty ? "Alterações não salvas" : "Em preenchimento"}
+            direcionamentoHint={!complete ? direcionamentoHint : null}
           />
           <div className="crm-scrollbar max-h-[calc(92vh-185px)] overflow-y-auto px-5 py-5 sm:px-7">
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
               <div className="space-y-4">
-                <div className="rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#24615b]">1. Escopo técnico</p>
-                      <p className="mt-1 text-sm text-slate-500">Escolha a natureza do trabalho e complete os campos que entram no documento.</p>
-                    </div>
-                    <span className="rounded-full border border-[#d8bf82]/45 bg-[#fff7df] px-3 py-1 text-xs font-bold text-[#73531c]">
-                      Documento
-                    </span>
-                  </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tipo (escopo)</Label>
-          <Select
-            value={tipoSelectValue ? tipoSelectValue : SELECT_EMPTY}
-            onValueChange={(v) => {
-              const tipoId = v === SELECT_EMPTY || v == null ? "" : v;
-              onPatch({ tipoId, subtipoId: "", placeholders: {} });
-            }}
-          >
-            <SelectTrigger className="h-10 w-full min-w-[12rem] border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
-              <SelectValue
-                placeholder="Selecione o tipo"
-                className={!tipoSelectValue ? "text-muted-foreground" : undefined}
-              >
-                {!tipoSelectValue
-                  ? "Selecione o tipo"
-                  : tipo?.label ?? "Selecione o tipo"}
-              </SelectValue>
-            </SelectTrigger>
-            <CrmSelectContent>
-              <CrmSelectItem value={SELECT_EMPTY}>Selecione o tipo</CrmSelectItem>
-              {tipos.map((t) => (
-                <CrmSelectItem key={t.tipoId} value={t.tipoId}>
-                  {t.label}
-                </CrmSelectItem>
-              ))}
-            </CrmSelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Subtipo (escopo)</Label>
-          <Select
-            value={subtipoSelectValue ? subtipoSelectValue : SELECT_EMPTY}
-            onValueChange={(v) => {
-              const subtipoId = v === SELECT_EMPTY || v == null ? "" : v;
-              onPatch({ subtipoId, placeholders: {} });
-            }}
-            disabled={!entry.tipoId}
-          >
-            <SelectTrigger className="h-10 w-full min-w-[12rem] border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
-              <SelectValue
-                placeholder="Selecione o subtipo"
-                className={!subtipoSelectValue ? "text-muted-foreground" : undefined}
-              >
-                {!subtipoSelectValue
-                  ? "Selecione o subtipo"
-                  : sub?.label ?? "Selecione o subtipo"}
-              </SelectValue>
-            </SelectTrigger>
-            <CrmSelectContent>
-              <CrmSelectItem value={SELECT_EMPTY}>Selecione o subtipo</CrmSelectItem>
-              {subtipos.map((s) => (
-                <CrmSelectItem key={s.subtipoId} value={s.subtipoId}>
-                  {s.label}
-                </CrmSelectItem>
-              ))}
-            </CrmSelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {placeholderKeys.length > 0 && sub ? (
-        <div className="grid gap-3 border-t border-[#edf0f4] pt-4 sm:grid-cols-2">
-          {placeholderKeys.map((key) => (
-            <PlaceholderField
-              key={key}
-              phKey={key}
-              value={entry.placeholders?.[key] ?? ""}
-              onChange={(next) =>
-                onPatch({
-                  placeholders: { ...(entry.placeholders ?? {}), [key]: next },
-                })
-              }
-            />
-          ))}
-        </div>
-      ) : null}
-                </div>
-
-      <div className="rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#24615b]">2. Investimento</p>
-            <p className="mt-1 text-sm text-slate-500">Defina o modelo comercial e os valores que serão refletidos na proposta.</p>
-          </div>
-          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
-            Comercial
-          </span>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</Label>
-            <Select
-              value={invEntry.tipoId ? invEntry.tipoId : SELECT_EMPTY}
-              onValueChange={(v) => {
-                const tipoId = v === SELECT_EMPTY || v == null ? "" : v;
-                onPatch({
-                  investimento: {
-                    tipoId,
-                    subtipoId: "",
-                    placeholders: {},
-                  },
-                });
-              }}
-            >
-              <SelectTrigger className="h-10 w-full min-w-[12rem] border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
-                <SelectValue
-                  placeholder="Selecione o tipo de investimento"
-                  className={!invEntry.tipoId ? "text-muted-foreground" : undefined}
-                >
-                  {!invEntry.tipoId
-                    ? "Selecione o tipo de investimento"
-                    : invTipoSel?.label ?? "Selecione o tipo de investimento"}
-                </SelectValue>
-              </SelectTrigger>
-              <CrmSelectContent>
-                <CrmSelectItem value={SELECT_EMPTY}>Selecione o tipo de investimento</CrmSelectItem>
-                {investmentCatalog.map((t) => (
-                  <CrmSelectItem key={t.tipoId} value={t.tipoId}>
-                    {t.label}
-                  </CrmSelectItem>
+                {entries.map((entry, index) => (
+                  <PropostaEscopoEntryForm
+                    key={entry.id}
+                    entryIndex={index}
+                    entryCount={entries.length}
+                    entry={entry}
+                    catalogArea={catalogArea}
+                    tipos={tipos}
+                    investmentCatalog={investmentCatalog}
+                    defaultNomeEmpresa={defaultNomeEmpresa}
+                    canRemove={entries.length > 1}
+                    onPatch={(patch) => onPatchEntry(entry.id, patch)}
+                    onRemove={() => onRemoveEntry(entry.id)}
+                  />
                 ))}
-              </CrmSelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Subtipo</Label>
-            <Select
-              value={invEntry.subtipoId ? invEntry.subtipoId : SELECT_EMPTY}
-              onValueChange={(v) => {
-                const subtipoId = v === SELECT_EMPTY || v == null ? "" : v;
-                onPatch({
-                  investimento: {
-                    tipoId: invEntry.tipoId,
-                    subtipoId,
-                    placeholders: {},
-                  },
-                });
-              }}
-              disabled={!invEntry.tipoId}
-            >
-              <SelectTrigger className="h-10 w-full min-w-[12rem] border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
-                <SelectValue
-                  placeholder="Selecione o subtipo de investimento"
-                  className={!invEntry.subtipoId ? "text-muted-foreground" : undefined}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2 border-dashed border-[#24615b]/35 text-[#24615b] hover:bg-[#24615b]/5"
+                  onClick={onAddEntry}
                 >
-                  {!invEntry.subtipoId
-                    ? "Selecione o subtipo de investimento"
-                    : invSubtiposList.find((s) => s.subtipoId === invEntry.subtipoId)?.label ??
-                      "Selecione o subtipo de investimento"}
-                </SelectValue>
-              </SelectTrigger>
-              <CrmSelectContent>
-                <CrmSelectItem value={SELECT_EMPTY}>Selecione o subtipo de investimento</CrmSelectItem>
-                {invSubtiposList.map((s) => (
-                  <CrmSelectItem key={s.subtipoId} value={s.subtipoId}>
-                    {s.label}
-                  </CrmSelectItem>
-                ))}
-              </CrmSelectContent>
-            </Select>
-          </div>
-        </div>
-        {invSubDef?.conceito ? (
-          <p className="rounded-2xl border border-[#edf0f4] bg-[#f8fafc] p-3 text-xs leading-relaxed text-slate-600">{invSubDef.conceito}</p>
-        ) : null}
-        {invSubDef && invPlaceholderKeys.length > 0 ? (
-          <div className="grid gap-3 border-t border-[#edf0f4] pt-4 sm:grid-cols-2">
-            {invPlaceholderKeys.map((key) => (
-              <PlaceholderField
-                key={`inv-${key}`}
-                phKey={key}
-                value={invEntry.placeholders[key] ?? ""}
-                isCurrency={PROPOSTA_INVESTIMENTO_PLACEHOLDER_CURRENCY.has(key)}
-                onChange={(next) =>
-                  onPatch({
-                    investimento: {
-                      tipoId: invEntry.tipoId,
-                      subtipoId: invEntry.subtipoId,
-                      placeholders: { ...invEntry.placeholders, [key]: next },
-                    },
-                  })
-                }
-              />
-            ))}
-          </div>
-        ) : null}
-      </div>
-
+                  <Plus className="size-4" aria-hidden />
+                  Adicionar outro escopo nesta área
+                </Button>
               </div>
-              <PreviewGrid escopo={sub ? previewEscopo || "—" : "—"} investimento={previewInv} />
+              <PreviewGrid escopo={previewEscopo} investimento={previewInv} />
             </div>
           </div>
           <div className="flex flex-col gap-3 border-t border-[#dfe5ee] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
@@ -1182,6 +1023,7 @@ function areaStatusLabel(params: {
 
 function AreaSummaryCard({
   areaLabel,
+  scopeCount = 1,
   request,
   complete,
   dirty,
@@ -1190,6 +1032,7 @@ function AreaSummaryCard({
   onOpen,
 }: {
   areaLabel: string;
+  scopeCount?: number;
   request: EscopoAreaSolicitacao | null;
   complete: boolean;
   dirty: boolean;
@@ -1233,17 +1076,23 @@ function AreaSummaryCard({
       <div className="pointer-events-none absolute -right-10 -top-12 h-28 w-28 rounded-full bg-[#c8a96b]/15 blur-2xl" />
       <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <Avatar className="h-11 w-11 shrink-0 border-2 border-white shadow-sm">
+          <PracticeAreaIconBadge area={areaLabel} size="lg" />
+          <Avatar className="h-9 w-9 shrink-0 border-2 border-white shadow-sm ring-1 ring-[#dfe5ee]">
             {request?.gestor?.avatarUrl ? (
               <AvatarImage src={request.gestor.avatarUrl} alt="" className="object-cover" />
             ) : null}
-            <AvatarFallback className="bg-[#102033] text-[11px] font-black text-white">
+            <AvatarFallback className="bg-[#102033] text-[10px] font-black text-white">
               {initialsFromFullName(request?.gestor?.fullName ?? areaLabel)}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-base font-extrabold tracking-[-0.02em] text-primary-dark">{areaLabel}</p>
+              {scopeCount > 1 ? (
+                <Badge variant="outline" className="h-6 border-slate-200 bg-white text-[10px] font-bold text-slate-600">
+                  {scopeCount} escopos
+                </Badge>
+              ) : null}
               <Badge variant="outline" className={cn("h-6 border text-[11px]", statusTone)}>
                 {status}
               </Badge>
@@ -1288,10 +1137,12 @@ function EscopoModalHeader({
   areaLabel,
   request,
   statusLabel,
+  direcionamentoHint,
 }: {
   areaLabel: string;
   request: EscopoAreaSolicitacao | null;
   statusLabel: string;
+  direcionamentoHint?: string | null;
 }) {
   return (
     <DialogHeader className="relative overflow-hidden border-b border-[#dfe5ee] bg-[linear-gradient(135deg,#ffffff_0%,#f7f9fc_58%,#eef5f3_100%)] px-5 py-5 text-primary-dark sm:px-7 sm:py-6">
@@ -1299,11 +1150,12 @@ function EscopoModalHeader({
       <div className="pointer-events-none absolute right-10 top-0 h-36 w-36 rounded-full bg-emerald-300/20 blur-3xl" />
       <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <Avatar className="h-12 w-12 border-2 border-white shadow-md shadow-slate-900/10">
+          <PracticeAreaIconBadge area={areaLabel} size="lg" className="shadow-sm" />
+          <Avatar className="h-10 w-10 border-2 border-white shadow-md shadow-slate-900/10 ring-1 ring-[#dfe5ee]">
             {request?.gestor?.avatarUrl ? (
               <AvatarImage src={request.gestor.avatarUrl} alt="" className="object-cover" />
             ) : null}
-            <AvatarFallback className="bg-[#102033] text-sm font-black text-white">
+            <AvatarFallback className="bg-[#102033] text-xs font-black text-white">
               {initialsFromFullName(request?.gestor?.fullName ?? areaLabel)}
             </AvatarFallback>
           </Avatar>
@@ -1319,8 +1171,13 @@ function EscopoModalHeader({
             <DialogTitle className="text-2xl font-extrabold tracking-[-0.045em] text-primary-dark sm:text-3xl">
               {areaLabel}
             </DialogTitle>
-            <DialogDescription className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
-              {request?.gestor?.fullName ? `Responsável: ${request.gestor.fullName}` : "Responsável ainda não resolvido"}
+            <DialogDescription className="mt-1 max-w-2xl space-y-1 text-sm leading-relaxed text-slate-500">
+              <span className="block">
+                {request?.gestor?.fullName ? `Responsável: ${request.gestor.fullName}` : "Responsável ainda não resolvido"}
+              </span>
+              {direcionamentoHint ? (
+                <span className="block font-semibold text-[#24615b]">{direcionamentoHint}</span>
+              ) : null}
             </DialogDescription>
           </div>
         </div>

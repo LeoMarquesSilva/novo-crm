@@ -400,7 +400,7 @@ function buildInvestmentTree(data: ProposalCatalogAdminData): ScopeTreeGroup[] {
   return [
     {
       key: "__all__",
-      label: "Tipos",
+      label: "Investimentos",
       items: items.sort(
         (a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, "pt-BR"),
       ),

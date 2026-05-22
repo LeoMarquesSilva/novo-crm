@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { appUserAreaCandidatesForScopeKey } from "@/lib/crm/area-keys-alignment";
 import type { InAppNotificationActor } from "@/lib/crm/in-app-notification-meta";
 import { loadProposalCatalog } from "@/lib/crm/proposal-catalog-db";
-import { getEscopoEntryForArea, isEscopoEntryCompleteWithCatalog } from "@/lib/crm/proposta-escopo-entry";
+import {
+  getEscopoEntriesForArea,
+  isEscopoAreaComplete,
+} from "@/lib/crm/proposta-escopo-entry";
 import { parseAreasList } from "@/lib/crm/proposta-escopo-json";
 import type { PropostaEscopoDetalhe } from "@/data/proposta-tipos-catalog";
 import { dispatchPropostaEscopoChannelNotifications } from "@/lib/crm/proposta-escopo-notify-channels";
@@ -29,7 +32,7 @@ export async function findGestorAppUserIdForArea(
   return data.id;
 }
 
-export { getEscopoEntryForArea } from "@/lib/crm/proposta-escopo-entry";
+export { getEscopoEntriesForArea, getEscopoEntryForArea } from "@/lib/crm/proposta-escopo-entry";
 
 /** Marca `concluido_em` quando o JSON de escopo satisfaz tipo/subtipo/placeholders para essa área. */
 export async function refreshSolicitacaoConcluidaForEscopoJson(
@@ -48,8 +51,8 @@ export async function refreshSolicitacaoConcluidaForEscopoJson(
   const catalog = await loadProposalCatalog(supabase);
   for (const row of rows) {
     const area = row.area_key;
-    const entry = getEscopoEntryForArea(escopo, area);
-    const done = isEscopoEntryCompleteWithCatalog(area, entry, catalog.scope, catalog.investment);
+    const entries = getEscopoEntriesForArea(escopo, area);
+    const done = isEscopoAreaComplete(area, entries, catalog.scope, catalog.investment);
     if (done && !row.concluido_em) {
       await supabase
         .from("proposta_escopo_solicitacao")

@@ -137,3 +137,24 @@ export function formatNumberPtBr2(valor: number): string {
     maximumFractionDigits: 2,
   }).format(valor);
 }
+
+/** Exibe valor monetário no input com prefixo `R$` e máscara pt-BR. */
+export function displayBrlCurrencyField(stored: string): string {
+  const t = stored.trim();
+  if (!t) return "";
+  const n = parseBrlUserInput(t);
+  if (n != null) return `R$ ${formatNumberPtBr2(n)}`;
+  const digits = t.replace(/\D/g, "");
+  if (!digits) return t;
+  return `R$ ${formatNumberPtBr2(Number(digits) / 100)}`;
+}
+
+/**
+ * Máscara enquanto digita (centavos à direita): `1` → `R$ 0,01`, `1720000` → `R$ 17.200,00`.
+ * Valor salvo permanece parseável por `parseBrlUserInput`.
+ */
+export function maskBrlCurrencyFromInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 15);
+  if (!digits) return "";
+  return `R$ ${formatNumberPtBr2(Number(digits) / 100)}`;
+}

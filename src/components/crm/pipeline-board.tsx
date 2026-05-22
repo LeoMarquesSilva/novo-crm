@@ -68,6 +68,9 @@ import {
   parsePropostaEmpresasJson,
   type EmpresaIntakeRow,
 } from "@/components/crm/confeccao-reuniao-modal-section";
+import { PROPOSTA_TIPOS_CATALOG, type PropostaAreaKey } from "@/data/proposta-tipos-catalog";
+import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
+import { areaHasEscopoTipoFilled, extractTiposByAreaFromEscopoJson } from "@/lib/crm/proposta-escopo-direcionamento";
 import {
   ModalHeader,
   newLeadModalFieldClass,
@@ -106,6 +109,7 @@ const REUNIAO_CONFECCAO_MANAGED_CODES = new Set([
   "cp_cliente_complemento",
   "cp_qualificacao",
   "cp_areas_objeto",
+  "cp_escopo_detalhe_json",
   "cp_prazo_entrega",
   "cp_objeto_proposta",
 ]);
@@ -351,6 +355,18 @@ function validateReuniaoConfeccaoModal(m: TransitionModalState): string | null {
   const areas = normalizeAreasObjetoFromServer(m.customValues.cp_areas_objeto);
   if (!areas || areas.length === 0) {
     return "Selecione pelo menos uma área de escopo.";
+  }
+  const escopoRaw =
+    typeof m.customValues.cp_escopo_detalhe_json === "string"
+      ? m.customValues.cp_escopo_detalhe_json
+      : "";
+  const tiposByArea = extractTiposByAreaFromEscopoJson(escopoRaw, areas);
+  for (const area of areas) {
+    const catalogArea = normalizePracticeAreaKey(area) as PropostaAreaKey;
+    const tipos = PROPOSTA_TIPOS_CATALOG[catalogArea] ?? [];
+    if (tipos.length > 0 && !areaHasEscopoTipoFilled(tiposByArea, area)) {
+      return `Selecione pelo menos um tipo de escopo para a área ${area}.`;
+    }
   }
   if (!String(m.customValues.cp_prazo_entrega ?? "").trim()) {
     return "Informe o prazo para entrega.";

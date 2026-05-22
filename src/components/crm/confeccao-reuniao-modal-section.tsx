@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, Loader2, MapPin, Search, Target } from "lucide-react";
+import { PROPOSTA_TIPOS_CATALOG, type PropostaAreaKey, type PropostaTiposCatalog } from "@/data/proposta-tipos-catalog";
 import {
   DynamicField,
   evaluateCondition,
@@ -14,10 +15,15 @@ import { Button } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
-import { Select, SelectTrigger } from "@/components/ui/select";
+import { EscopoDirecionamentoAreaPicker } from "@/components/crm/escopo-direcionamento-area-picker";
 import { maskDocument } from "@/lib/crm/br-document-mask";
+import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { PROPOSAL_SCOPE_OPTIONS } from "@/lib/crm/proposta-scope-options";
+import {
+  extractTiposByAreaFromEscopoJson,
+  mergeEscopoJsonWithAreaTipos,
+  type EscopoTiposByArea,
+} from "@/lib/crm/proposta-escopo-direcionamento";
 import { cn } from "@/lib/utils";
 
 export { PROPOSAL_SCOPE_OPTIONS };
@@ -134,37 +140,82 @@ export function ConfeccaoReuniaoModalSection({
     [customValues.cp_proposta_empresas_json],
   );
 
+  const empresaPrincipal = empresasIntake[0] ?? null;
+
   const setEmpresasPayload = useCallback(
     (next: PropostaEmpresasPayload) => {
-      patchField("cp_proposta_empresas_json", serializePropostaEmpresas(next));
+      const primaryIndex = empresaPrincipal?.index ?? next.primaryIndex;
+      patchField(
+        "cp_proposta_empresas_json",
+        serializePropostaEmpresas({ ...next, primaryIndex }),
+      );
     },
-    [patchField],
+    [patchField, empresaPrincipal?.index],
   );
 
-  const primaryStr =
-    empresasIntake.length === 0
-      ? "0"
-      : String(empresasPayload.primaryIndex > 0 ? empresasPayload.primaryIndex : empresasIntake[0]?.index ?? 1);
+  const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(PROPOSTA_TIPOS_CATALOG);
 
-  const empresaSelectLabels = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const e of empresasIntake) {
-      const doc = e.documento ? maskDocument(e.documento, e.tipo_documento) : "";
-      m[String(e.index)] = `${e.razao_social || "—"} — ${e.tipo_documento}${doc ? ` ${doc}` : ""}`;
-    }
-    return m;
-  }, [empresasIntake]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/crm/proposal-catalog")
+      .then((res) => res.json())
+      .then((json: { ok?: boolean; data?: { scope?: PropostaTiposCatalog } }) => {
+        if (!cancelled && json.ok && json.data?.scope) {
+          setScopeCatalog(json.data.scope);
+        }
+      })
+      .catch(() => {
+        /* fallback estático */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const areasSelected = useMemo(
     () => parseAreasValue(customValues.cp_areas_objeto),
     [customValues.cp_areas_objeto],
   );
 
+  const escopoJsonRaw =
+    typeof customValues.cp_escopo_detalhe_json === "string"
+      ? customValues.cp_escopo_detalhe_json
+      : "";
+
+  const tiposByArea = useMemo(
+    () => extractTiposByAreaFromEscopoJson(escopoJsonRaw, areasSelected),
+    [escopoJsonRaw, areasSelected],
+  );
+
+  const syncAreasAndEscopo = useCallback(
+    (nextAreas: string[], nextTiposByArea: EscopoTiposByArea) => {
+      const filteredTipos = Object.fromEntries(
+        Object.entries(nextTiposByArea).filter(([a]) => nextAreas.includes(a)),
+      );
+      patchField("cp_areas_objeto", nextAreas);
+      patchField(
+        "cp_escopo_detalhe_json",
+        mergeEscopoJsonWithAreaTipos(escopoJsonRaw, nextAreas, filteredTipos),
+      );
+    },
+    [patchField, escopoJsonRaw],
+  );
+
   const toggleArea = (label: string) => {
     const set = new Set(areasSelected);
-    if (set.has(label)) set.delete(label);
-    else set.add(label);
-    patchField("cp_areas_objeto", [...set]);
+    const nextTipos = { ...tiposByArea };
+    if (set.has(label)) {
+      set.delete(label);
+      delete nextTipos[label];
+    } else {
+      set.add(label);
+      if (!nextTipos[label]) nextTipos[label] = [];
+    }
+    syncAreasAndEscopo([...set], nextTipos);
+  };
+
+  const setTiposForArea = (area: string, tipoIds: string[]) => {
+    syncAreasAndEscopo(areasSelected, { ...tiposByArea, [area]: tipoIds });
   };
 
   const buscarCep = async () => {
@@ -262,37 +313,27 @@ export function ConfeccaoReuniaoModalSection({
 
         <div className="space-y-2">
           <Label className="text-xs font-medium text-[#111827]">Empresa principal na proposta (cadastro)</Label>
-          {empresasIntake.length === 0 ? (
+          {empresaPrincipal ? (
+            <div
+              className={cn(
+                newLeadModalFieldClass,
+                "flex min-h-12 flex-col justify-center gap-0.5 bg-[#f8fafc] py-2.5",
+              )}
+            >
+              <p className="text-sm font-semibold text-[#111827]">
+                {empresaPrincipal.razao_social || "—"}
+              </p>
+              <p className="text-xs text-[#6b7280]">
+                {empresaPrincipal.tipo_documento}
+                {empresaPrincipal.documento
+                  ? ` ${maskDocument(empresaPrincipal.documento, empresaPrincipal.tipo_documento)}`
+                  : ""}
+              </p>
+            </div>
+          ) : (
             <p className="text-sm leading-relaxed text-[#6b7280]">
               Nenhuma empresa no cadastro inicial. Use &quot;Razão social / CNPJ adicional&quot; abaixo.
             </p>
-          ) : (
-            <Select
-              value={primaryStr}
-              disabled={disabled}
-              onValueChange={(v) => {
-                const idx = Number(v);
-                setEmpresasPayload({ ...empresasPayload, primaryIndex: idx });
-              }}
-            >
-              <SelectTrigger
-                className={cn(newLeadModalFieldClass, "!h-12 w-full justify-between font-normal whitespace-normal")}
-              >
-                <CrmSelectValue
-                  value={primaryStr}
-                  labels={empresaSelectLabels}
-                  placeholder="Selecione"
-                />
-              </SelectTrigger>
-              <CrmSelectContent className="max-h-[min(280px,50dvh)]">
-                {empresasIntake.map((e) => (
-                  <CrmSelectItem key={e.index} value={String(e.index)}>
-                    {e.razao_social || "—"} — {e.tipo_documento}{" "}
-                    {e.documento ? maskDocument(e.documento, e.tipo_documento) : ""}
-                  </CrmSelectItem>
-                ))}
-              </CrmSelectContent>
-            </Select>
           )}
         </div>
 
@@ -453,29 +494,33 @@ export function ConfeccaoReuniaoModalSection({
       <SectionCard
         icon={Target}
         title="Escopo e prazo"
-        subtitle="Marque as áreas de escopo e a data prevista para entrega, como no cadastro guiado."
+        subtitle="Marque as áreas, indique um ou mais tipos de escopo por área e a data de entrega."
       >
         <div className="space-y-2">
           <Label className="text-xs font-medium text-[#111827]">Escopo da proposta *</Label>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {PROPOSAL_SCOPE_OPTIONS.map((opt) => (
-              <label
-                key={opt}
-                className={cn(
-                  "flex cursor-pointer items-start gap-2.5 rounded-[13px] border border-[#dfe5ee] bg-white px-3.5 py-2.5 text-sm text-[#111827] shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-[border-color,box-shadow] duration-150 hover:border-[#101f2e]/25",
-                  disabled && "pointer-events-none opacity-60",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={areasSelected.includes(opt)}
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Para cada área marcada, marque os tipos de escopo esperados (múltipla escolha). Quem elaborar verá
+            um bloco por tipo na proposta.
+          </p>
+          <div className="space-y-3">
+            {PROPOSAL_SCOPE_OPTIONS.map((opt) => {
+              const selected = areasSelected.includes(opt);
+              const catalogArea = normalizePracticeAreaKey(opt) as PropostaAreaKey;
+              const tipos = scopeCatalog[catalogArea] ?? [];
+              const tipoIds = tiposByArea[opt] ?? [];
+              return (
+                <EscopoDirecionamentoAreaPicker
+                  key={opt}
+                  area={opt}
+                  selected={selected}
+                  tipos={tipos}
+                  tipoIds={tipoIds}
                   disabled={disabled}
-                  onChange={() => toggleArea(opt)}
+                  onToggleArea={() => toggleArea(opt)}
+                  onTipoIdsChange={(next) => setTiposForArea(opt, next)}
                 />
-                <span>{opt}</span>
-              </label>
-            ))}
+              );
+            })}
           </div>
         </div>
 
