@@ -24,6 +24,35 @@ export const ESCOPO_PLACEHOLDER_UPPERCASE = new Set([
 /** Placeholder da razão social na proposta (não forçar maiúsculas). */
 export const ESCOPO_PLACEHOLDER_NOME_EMPRESA = "NOME EMPRESA";
 
+/** Horas mensais no escopo — na proposta vira «12 horas por mês.» */
+export const ESCOPO_PLACEHOLDER_HORAS_MES = "HORAS MES";
+
+export function isHorasMesPlaceholderKey(key: string): boolean {
+  const k = key
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+  return k === "HORAS MES" || k === "HORAS_MES" || k === "HORASMES";
+}
+
+/** Aceita só o número (ex.: `12`) ou texto já redigido; padrão: «N horas por mês.» */
+export function formatHorasMesForMerge(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "";
+  if (/horas?\s+por\s+m[eê]s/i.test(t)) {
+    const normalized = t.replace(/\s+/g, " ").trim();
+    return normalized.endsWith(".") ? normalized : `${normalized}.`;
+  }
+  const digits = t.replace(/\D/g, "");
+  if (!digits) return t;
+  const n = Number.parseInt(digits, 10);
+  if (!Number.isFinite(n) || n <= 0) return t;
+  if (n === 1) return "1 hora por mês.";
+  return `${n} horas por mês.`;
+}
+
 /** Detecta chave de número de processo (máscara CNJ). */
 export function isNumeroProcessoPlaceholderKey(key: string): boolean {
   const k = key.trim().toUpperCase();
@@ -78,7 +107,11 @@ export function mergeEscopoTemplate(
     if ((v == null || v === "") && key === ESCOPO_PLACEHOLDER_NOME_EMPRESA) {
       v = opts.defaultNomeEmpresa ?? "";
     }
-    return v ?? "";
+    if (v == null || v === "") return "";
+    if (isHorasMesPlaceholderKey(key)) {
+      return formatHorasMesForMerge(String(v));
+    }
+    return String(v);
   });
 }
 

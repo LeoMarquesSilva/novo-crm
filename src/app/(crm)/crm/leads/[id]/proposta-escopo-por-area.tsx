@@ -628,7 +628,7 @@ function EscopoAreaDelegatedModal({
   return (
     <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-h-[92vh] max-w-[min(1120px,calc(100vw-2rem))] overflow-hidden rounded-[30px] border-[#dfe5ee] bg-[#f6f8fb] p-0 text-primary-dark shadow-[0_40px_120px_rgba(16,31,46,0.26)] [&>button]:right-5 [&>button]:top-5 [&>button]:rounded-full [&>button]:bg-white/85 [&>button]:p-2 [&>button]:text-[#102033] [&>button]:shadow-sm [&>button]:hover:bg-white"
+        className="flex max-h-[min(92dvh,900px)] w-[calc(100vw-1rem)] max-w-[min(1120px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[30px] border-[#dfe5ee] bg-[#f6f8fb] p-0 text-primary-dark shadow-[0_40px_120px_rgba(16,31,46,0.26)] [&>button]:right-5 [&>button]:top-5 [&>button]:rounded-full [&>button]:bg-white/85 [&>button]:p-2 [&>button]:text-[#102033] [&>button]:shadow-sm [&>button]:hover:bg-white"
         onPointerDownOutside={(event) => {
           if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
         }}
@@ -636,9 +636,11 @@ function EscopoAreaDelegatedModal({
           if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
         }}
       >
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <EscopoModalHeader areaLabel={areaLabel} request={request} statusLabel="Outra equipe" />
-        <div className="crm-scrollbar max-h-[calc(92vh-170px)] overflow-y-auto px-5 py-5 sm:px-7">
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(340px,1.1fr)]">
+        <div className="crm-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-5 sm:px-7">
+          <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-start">
+            <div className="min-w-0 flex-1 space-y-5">
             <div className="rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#24615b]">Acionamento da área</p>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
@@ -664,8 +666,7 @@ function EscopoAreaDelegatedModal({
                 }
               />
             </div>
-          </div>
-          <div className="mt-5 rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
+          <div className="rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#24615b]">Quem notificar</p>
@@ -717,12 +718,14 @@ function EscopoAreaDelegatedModal({
               </p>
             )}
           </div>
-          <div className="mt-5">
+            </div>
+          <div className="min-w-0 w-full lg:max-w-[400px] lg:shrink-0">
             <PreviewGrid escopo={previewEscopo} investimento={previewInv} />
           </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-3 border-t border-[#dfe5ee] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-          <p className="text-xs text-muted-foreground">
+        <div className="flex shrink-0 flex-col gap-3 border-t border-[#dfe5ee] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          <p className="min-w-0 text-xs text-muted-foreground">
             {feedback ?? "Solicite o preenchimento para registrar prazo e canais de notificação."}
           </p>
           <Button
@@ -735,6 +738,7 @@ function EscopoAreaDelegatedModal({
             {status === "loading" ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             Notificar selecionados
           </Button>
+        </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -917,7 +921,7 @@ function EscopoAreaBlock({
         <DialogContent
           // z-[130] no content + z-[120] no backdrop garantem que este sub-dialog
           // fique acima do dialog pai "Elaborar Proposta" (z-[110]/z-[100]).
-          className="z-[130] max-h-[92vh] max-w-[min(1220px,calc(100vw-2rem))] overflow-hidden rounded-[30px] border-[#dfe5ee] bg-[#f6f8fb] p-0 text-primary-dark shadow-[0_40px_120px_rgba(16,31,46,0.26)] [&>button]:right-5 [&>button]:top-5 [&>button]:rounded-full [&>button]:bg-white/85 [&>button]:p-2 [&>button]:text-[#102033] [&>button]:shadow-sm [&>button]:hover:bg-white"
+          className="z-[130] flex max-h-[min(92dvh,900px)] w-[calc(100vw-1rem)] max-w-[min(1220px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[30px] border-[#dfe5ee] bg-[#f6f8fb] p-0 text-primary-dark shadow-[0_40px_120px_rgba(16,31,46,0.26)] [&>button]:right-5 [&>button]:top-5 [&>button]:rounded-full [&>button]:bg-white/85 [&>button]:p-2 [&>button]:text-[#102033] [&>button]:shadow-sm [&>button]:hover:bg-white"
           overlayClassName="z-[120]"
           onPointerDownOutside={(event) => {
             if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
@@ -926,15 +930,16 @@ function EscopoAreaBlock({
             if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
           }}
         >
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <EscopoModalHeader
             areaLabel={areaLabel}
             request={request}
             statusLabel={complete ? "Preenchido" : areaDirty ? "Alterações não salvas" : "Em preenchimento"}
             direcionamentoHint={!complete ? direcionamentoHint : null}
           />
-          <div className="crm-scrollbar max-h-[calc(92vh-185px)] overflow-y-auto px-5 py-5 sm:px-7">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
-              <div className="space-y-4">
+          <div className="crm-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-5 sm:px-7">
+            <div className="flex min-w-0 flex-col gap-5 xl:flex-row xl:items-start">
+              <div className="min-w-0 w-full flex-1 space-y-4">
                 {entries.map((entry, index) => (
                   <PropostaEscopoEntryForm
                     key={entry.id}
@@ -960,10 +965,12 @@ function EscopoAreaBlock({
                   Adicionar outro escopo nesta área
                 </Button>
               </div>
-              <PreviewGrid escopo={previewEscopo} investimento={previewInv} />
+              <div className="min-w-0 w-full xl:max-w-[min(100%,400px)] xl:shrink-0">
+                <PreviewGrid escopo={previewEscopo} investimento={previewInv} />
+              </div>
             </div>
           </div>
-          <div className="flex flex-col gap-3 border-t border-[#dfe5ee] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          <div className="flex shrink-0 flex-col gap-3 border-t border-[#dfe5ee] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div className="min-w-0 text-xs text-muted-foreground">
               {areaDirty ? "Há alterações não salvas nesta área." : "Tudo salvo nesta área até o momento."}
             </div>
@@ -1001,6 +1008,7 @@ function EscopoAreaBlock({
               </Button>
             ) : null}
             </div>
+          </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1145,10 +1153,10 @@ function EscopoModalHeader({
   direcionamentoHint?: string | null;
 }) {
   return (
-    <DialogHeader className="relative overflow-hidden border-b border-[#dfe5ee] bg-[linear-gradient(135deg,#ffffff_0%,#f7f9fc_58%,#eef5f3_100%)] px-5 py-5 text-primary-dark sm:px-7 sm:py-6">
+    <DialogHeader className="relative shrink-0 overflow-hidden border-b border-[#dfe5ee] bg-[linear-gradient(135deg,#ffffff_0%,#f7f9fc_58%,#eef5f3_100%)] px-5 py-5 text-primary-dark sm:px-7 sm:py-6">
       <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[#d8bf82]/20 blur-3xl" />
       <div className="pointer-events-none absolute right-10 top-0 h-36 w-36 rounded-full bg-emerald-300/20 blur-3xl" />
-      <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <PracticeAreaIconBadge area={areaLabel} size="lg" className="shadow-sm" />
           <Avatar className="h-10 w-10 border-2 border-white shadow-md shadow-slate-900/10 ring-1 ring-[#dfe5ee]">
@@ -1181,7 +1189,7 @@ function EscopoModalHeader({
             </DialogDescription>
           </div>
         </div>
-        <div className="grid gap-2 text-xs sm:grid-cols-3 md:min-w-[520px]">
+        <div className="grid min-w-0 gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3 lg:min-w-0 xl:min-w-[480px]">
           <ReadOnlyPair label="Prazo" value={request?.prazoAte ? formatDateTimeBr(request.prazoAte) : "Não definido"} />
           <ReadOnlyPair
             label="Preenchido por"
@@ -1207,31 +1215,31 @@ function ReadOnlyPair({ label, value, dark }: { label: string; value: string; da
 
 function PreviewGrid({ escopo, investimento }: { escopo: string; investimento: string }) {
   return (
-    <aside className="sticky top-0 overflow-hidden rounded-[26px] border border-[#dfe5ee] bg-[#eef2f6] p-3 shadow-sm">
-      <div className="rounded-[22px] border border-white bg-white p-5 shadow-[0_18px_50px_rgba(16,31,46,0.08)]">
-        <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#edf0f4] pb-3">
-          <div>
+    <aside className="min-w-0 overflow-hidden rounded-[26px] border border-[#dfe5ee] bg-[#eef2f6] p-3 shadow-sm xl:sticky xl:top-4">
+      <div className="min-w-0 rounded-[22px] border border-white bg-white p-4 shadow-[0_18px_50px_rgba(16,31,46,0.08)] sm:p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-[#edf0f4] pb-3">
+          <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#24615b]">Preview da proposta</p>
             <p className="mt-1 text-xs text-slate-500">Leitura aproximada do que entrará no documento.</p>
           </div>
-          <span className="rounded-full border border-[#dfe5ee] bg-[#f8fafc] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+          <span className="shrink-0 rounded-full border border-[#dfe5ee] bg-[#f8fafc] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
             Word
           </span>
         </div>
-      <div className="grid gap-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Escopo</p>
-          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 font-sans text-xs leading-relaxed text-primary-dark">
-            {escopo}
-          </pre>
+        <div className="grid min-w-0 gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Escopo</p>
+            <pre className="mt-2 max-h-[min(40vh,280px)] overflow-auto break-words whitespace-pre-wrap rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 font-sans text-xs leading-relaxed text-primary-dark">
+              {escopo}
+            </pre>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Investimento</p>
+            <pre className="mt-2 max-h-[min(32vh,220px)] overflow-auto break-words whitespace-pre-wrap rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 font-sans text-xs leading-relaxed text-primary-dark">
+              {investimento}
+            </pre>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Investimento</p>
-          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 font-sans text-xs leading-relaxed text-primary-dark">
-            {investimento}
-          </pre>
-        </div>
-      </div>
       </div>
     </aside>
   );

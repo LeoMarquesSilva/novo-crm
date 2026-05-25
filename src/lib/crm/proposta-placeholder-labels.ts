@@ -19,6 +19,8 @@ const LABELS: Record<string, string> = {
   CEP: "CEP do cliente",
   NUMERO: "Número do endereço",
   "DATA VIGENCIA": "Data de vigência da proposta",
+  "HORAS MES": "Horas por mês",
+  HORAS_MES: "Horas por mês",
   [PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO]: "Resumo do processo",
 
   // Investimento (honorários)
@@ -76,6 +78,7 @@ export const PROPOSTA_SCOPE_TEMPLATE_PLACEHOLDERS: PropostaTemplatePlaceholderOp
     label: getPropostaPlaceholderLabel(PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO),
   },
   { key: "DATA VIGENCIA", label: getPropostaPlaceholderLabel("DATA VIGENCIA") },
+  { key: "HORAS MES", label: getPropostaPlaceholderLabel("HORAS MES") },
 ];
 
 /** Variáveis sugeridas em templates de investimento (honorários). */

@@ -76,7 +76,8 @@ const EXAMPLE_PLACEHOLDER_VALUES: Record<string, string> = {
   VALORMANUTENCAO: "1500",
   VALOREXITO: "20",
   QTD_PROCESSOS: "30",
-  HORAS_MES: "20",
+  HORAS_MES: "12",
+  "HORAS MES": "12",
 };
 
 function exampleFor(key: string): string {
