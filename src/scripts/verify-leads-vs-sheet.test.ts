@@ -143,45 +143,31 @@ describe("CRM-BP xlsx vs etapas no Supabase", () => {
         }
       }
 
-      // eslint-disable-next-line no-console -- relatório para o operador
       console.log("\n=== CRM-BP-14-04.xlsx vs CRM ===\n");
-      // eslint-disable-next-line no-console
       console.log("Linhas na planilha (com Deal_id):", sheetDealIds.length);
-      // eslint-disable-next-line no-console
       console.log("OK (etapa planilha = etapa CRM resolvida):", ok);
-      // eslint-disable-next-line no-console
       console.log("Sem reconciliação ou sem oportunidade ligada:", noRecon.length);
-      // eslint-disable-next-line no-console
       console.log("Divergências:", mismatches.length);
       if (unmappedLabels.size > 0) {
-        // eslint-disable-next-line no-console
         console.log(
           "\nRótulos na planilha sem chave em RD_PIPELINE_STAGE_MAP (caem em cadastro_lead):",
         );
-        // eslint-disable-next-line no-console
         console.log([...unmappedLabels].sort().join(" | "));
       }
       if (noRecon.length > 0) {
-        // eslint-disable-next-line no-console
         console.log("\n--- Primeiros sem CRM (deal / nome / stage_name) ---");
-        // eslint-disable-next-line no-console
         console.log(noRecon.slice(0, 30).join("\n"));
         if (noRecon.length > 30) {
-          // eslint-disable-next-line no-console
           console.log(`... +${noRecon.length - 30} linhas`);
         }
       }
       if (mismatches.length > 0) {
-        // eslint-disable-next-line no-console
         console.log("\n--- Divergências (deal / cols tab-separadas) ---");
-        // eslint-disable-next-line no-console
         console.log(mismatches.slice(0, 80).join("\n"));
         if (mismatches.length > 80) {
-          // eslint-disable-next-line no-console
           console.log(`... +${mismatches.length - 80} linhas`);
         }
       }
-      // eslint-disable-next-line no-console
       console.log("\n(fim)\n");
 
       if (process.env.VERIFY_SHEET_STRICT === "1") {

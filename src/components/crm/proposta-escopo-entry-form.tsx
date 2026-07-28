@@ -9,15 +9,11 @@ import { PropostaBrlCurrencyInput } from "@/components/crm/proposta-brl-currency
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
-import {
-  PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
-  type InvestimentoTipoDef,
-} from "@/data/proposta-investimento-catalog";
+import { type InvestimentoTipoDef } from "@/data/proposta-investimento-catalog";
 import {
   PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO,
   type PropostaAreaKey,
   type PropostaEscopoDetalheEntry,
-  type PropostaTiposCatalog,
   type TipoDef,
 } from "@/data/proposta-tipos-catalog";
 import { findInvestmentSubtype } from "@/lib/crm/proposal-catalog-utils";

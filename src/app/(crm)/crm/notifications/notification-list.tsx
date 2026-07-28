@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AlertCircle, Check, ChevronDown, Clock } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -278,11 +278,7 @@ export function NotificationList({ initial }: { initial: Row[] }) {
     return map;
   }, [items]);
 
-  useEffect(() => {
-    if (activeTab === "outras" && !hasOutras) {
-      setActiveTab("todas");
-    }
-  }, [activeTab, hasOutras]);
+  const visibleTab = activeTab === "outras" && !hasOutras ? "todas" : activeTab;
 
   const refreshList = useCallback(async () => {
     try {
@@ -324,7 +320,7 @@ export function NotificationList({ initial }: { initial: Row[] }) {
 
   return (
     <Tabs
-      value={activeTab}
+      value={visibleTab}
       onValueChange={(v) => setActiveTab(v as NotificationTabGroupId)}
       className="gap-4"
     >

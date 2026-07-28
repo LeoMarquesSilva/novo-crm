@@ -17,6 +17,7 @@ export default async function LoginPage({
 }) {
   const { reason } = await searchParams;
   const showConfigError = reason === "missing_supabase_env";
+  const showProfileError = reason === "profile_missing";
 
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-crm-gradient-dark px-4 py-12">
@@ -71,6 +72,17 @@ export default async function LoginPage({
                 NEXT_PUBLIC_SUPABASE_ANON_KEY
               </code>{" "}
               configuradas. Defina-as no ambiente para aceder ao CRM.
+            </p>
+          ) : null}
+
+          {showProfileError ? (
+            <p
+              className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+              role="alert"
+            >
+              Sua conta está autenticada, mas ainda não possui um perfil ativo
+              no CRM. Solicite a liberação a um administrador ou entre com
+              outra conta.
             </p>
           ) : null}
 

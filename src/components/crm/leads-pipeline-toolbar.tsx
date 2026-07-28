@@ -201,15 +201,13 @@ export function LeadsPipelineToolbar({
   }, []);
 
   useLayoutEffect(() => {
-    if (!showSuggestionPanel) {
-      setSuggestionsPanelStyle(null);
-      return;
-    }
-    updateSuggestionsPosition();
+    if (!showSuggestionPanel) return;
+    const frame = window.requestAnimationFrame(updateSuggestionsPosition);
     const onReflow = () => updateSuggestionsPosition();
     window.addEventListener("resize", onReflow);
     window.addEventListener("scroll", onReflow, true);
     return () => {
+      window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", onReflow);
       window.removeEventListener("scroll", onReflow, true);
     };

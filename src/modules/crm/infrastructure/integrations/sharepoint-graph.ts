@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+
 export interface SharePointGraphConfig {
   tenantId: string;
   clientId: string;
@@ -61,7 +63,7 @@ export class SharePointGraphClient {
       grant_type: "client_credentials",
     });
 
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
@@ -88,7 +90,7 @@ export class SharePointGraphClient {
     const pathList = encodeURIComponent(this.config.listId);
     const url = `https://graph.microsoft.com/v1.0/sites/${pathSite}/lists/${pathList}/items`;
 
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

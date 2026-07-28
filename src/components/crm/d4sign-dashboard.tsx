@@ -687,10 +687,20 @@ export function D4SignDashboard({
   useD4SignDocumentsRealtime(() => router.refresh());
 
   function toggleArea(key: string) {
-    setOpenAreas((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setOpenAreas((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
   }
   function toggleClient(key: string) {
-    setOpenClients((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setOpenClients((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
   }
 
   // ── Portal URL (fallback para abrir no D4Sign logado) ──

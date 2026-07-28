@@ -90,8 +90,6 @@ export async function generateContratoDocxBuffer(
 
   const hasLimitacoes = !!(page.limiteProcessos || page.limiteHoras);
   const hasExito = !!page.exitoAreas && !(page.areas?.some((a) => a.key === "exito"));
-  // hasPrazo legado: mantém compat com dados antigos que ainda usam cc_prazo_confeccao
-  const hasPrazo = !!page.prazoConfeccao && !page.prazoRevisao;
 
   // Numeração dinâmica de cláusulas
   let cn = 0;

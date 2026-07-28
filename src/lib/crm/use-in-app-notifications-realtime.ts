@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
@@ -18,8 +18,7 @@ function newChannelTopicSuffix(): string {
 }
 
 export function useCrmInAppNotificationsRealtime(onChange: () => void) {
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  const notifyChange = useEffectEvent(onChange);
   /** Cada montagem do hook precisa de um canal com nome único (vários sinos + página usam o hook). */
   const topicSuffixRef = useRef<string>(newChannelTopicSuffix());
 
@@ -33,7 +32,7 @@ export function useCrmInAppNotificationsRealtime(onChange: () => void) {
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
         debounce = null;
-        if (!cancelled) onChangeRef.current();
+        if (!cancelled) notifyChange();
       }, DEBOUNCE_MS);
     };
 

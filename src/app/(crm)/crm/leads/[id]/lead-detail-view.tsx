@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { createElement, type ReactNode } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import {
@@ -13,13 +13,10 @@ import {
   ExternalLink,
   FileSignature,
   FileText,
-  History,
   Layers3,
   LinkIcon,
   ListChecks,
   Mail,
-  MessageSquareText,
-  PencilLine,
   Presentation,
   ShieldCheck,
   UserRound,
@@ -141,11 +138,8 @@ export function LeadDetailView({
 
   useLeadDetailRealtime(lead.id, () => router.refresh());
 
-  useEffect(() => {
-    if (!lead.haveraDueDiligence && activeTab === "due") {
-      setActiveTab("overview");
-    }
-  }, [lead.haveraDueDiligence, activeTab]);
+  const visibleTab =
+    !lead.haveraDueDiligence && activeTab === "due" ? "overview" : activeTab;
 
   const handleTabChange = (tab: LeadDetailTab) => {
     if (tab === "crm" && !isRdLead) {
@@ -183,7 +177,7 @@ export function LeadDetailView({
 
       <main className="min-w-0">
           <Tabs
-            value={activeTab}
+            value={visibleTab}
             onValueChange={(value) => handleTabChange(value as LeadDetailTab)}
             className="gap-4"
           >
@@ -568,6 +562,16 @@ function computeProposalScopeSummary(
   return { scopeProgressLabel, pendingCount, areas: areaRows };
 }
 
+function StageGlyph({
+  stage,
+  className,
+}: {
+  stage: LeadDetailData["etapa"];
+  className: string;
+}) {
+  return createElement(getStageIcon(stage), { className, "aria-hidden": true });
+}
+
 function LeadDetailHero({
   lead,
   etapaLabel,
@@ -585,7 +589,7 @@ function LeadDetailHero({
   propostaEmpresaPrincipalNome: string | null;
   proposalScopeSummary: ProposalScopeSummary | null;
 }) {
-  const StageIcon = getStageIcon(lead.etapa);
+  const stageIcon = getStageIcon(lead.etapa);
   const isPosVenda = isPosVendaPipelineStage(lead.etapa);
   const pipelineColumns = isPosVenda ? POS_VENDA_PIPELINE_COLUMNS : SALES_PIPELINE_COLUMNS;
   const stageIndex = pipelineColumns.findIndex((column) => column.stage === lead.etapa);
@@ -638,7 +642,7 @@ function LeadDetailHero({
           {/* Identidade */}
           <div className="mt-4 flex flex-col gap-4 sm:mt-5 sm:flex-row sm:items-start sm:gap-5">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 sm:h-14 sm:w-14">
-              <StageIcon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
+              <StageGlyph stage={lead.etapa} className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -681,7 +685,7 @@ function LeadDetailHero({
           {/* Meta chips — scroll horizontal no mobile */}
           <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:overflow-visible sm:px-0">
             <div className="flex w-max min-w-full flex-wrap gap-2 sm:w-auto">
-              <HeroMetaChip icon={StageIcon} label="Etapa" value={etapaLabel} accent="teal" />
+              <HeroMetaChip icon={stageIcon} label="Etapa" value={etapaLabel} accent="teal" />
               <HeroMetaChip icon={BriefcaseBusiness} label="Tipo" value={leadTypeDisplay} accent="gold" />
               <HeroMetaChip
                 icon={ListChecks}

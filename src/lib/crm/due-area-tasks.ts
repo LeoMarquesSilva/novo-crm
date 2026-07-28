@@ -3,6 +3,7 @@ import { appUserAreaCandidatesForScopeKey, normalizePracticeAreaKey } from "@/li
 import { actorFromAppUserRow, type InAppNotificationActor } from "@/lib/crm/in-app-notification-meta";
 import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 export { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
 
 export type DueAreaTaskSummary = {
@@ -200,7 +201,7 @@ async function sendResendEmail(to: string, subject: string, html: string): Promi
   const key = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL ?? "CRM <onboarding@resend.dev>";
   if (!key) return false;
-  const res = await fetch("https://api.resend.com/emails", {
+  const res = await fetchWithTimeout("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from, to: [to], subject, html }),

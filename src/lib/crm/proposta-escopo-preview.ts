@@ -8,11 +8,6 @@ import {
   parseParcelasCount,
   VALOR_PARCELA_KEY,
 } from "@/lib/crm/proposta-investimento-parcelas";
-import {
-  formatNumberPtBr2,
-  parseBrlUserInput,
-  valorReaisPorExtensoPtBr,
-} from "@/lib/crm/proposta-valor-brl-extenso";
 
 /** Chaves cujo valor é salvo e mostrado em MAIÚSCULAS (exceto máscara de processo). `RESUMO_DO_PROCESSO` fica de fora (texto livre). */
 export const ESCOPO_PLACEHOLDER_UPPERCASE = new Set([

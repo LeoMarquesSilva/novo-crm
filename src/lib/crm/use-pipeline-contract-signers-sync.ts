@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useMemo } from "react";
 import type { Oportunidade } from "@/modules/crm/domain/entities";
 
 /** Só em dev/local — produção usa webhook D4Sign + Realtime Supabase (0 req API). */
@@ -22,16 +22,19 @@ export function usePipelineContractSignersSync(
   opportunities: Oportunidade[],
   onSynced: () => void,
 ) {
-  const onSyncedRef = useRef(onSynced);
-  onSyncedRef.current = onSynced;
+  const notifySynced = useEffectEvent(onSynced);
 
   const pollingEnabled = isKanbanSignersPollingEnabled();
 
-  const pendingIds = pollingEnabled
-    ? opportunities
-        .filter((o) => o.etapa === "contrato_enviado" && o.d4signUpdatedAt)
-        .map((o) => o.id)
-    : [];
+  const pendingIds = useMemo(
+    () =>
+      pollingEnabled
+        ? opportunities
+            .filter((o) => o.etapa === "contrato_enviado" && o.d4signUpdatedAt)
+            .map((o) => o.id)
+        : [],
+    [opportunities, pollingEnabled],
+  );
 
   const pendingKey = pendingIds.join(",");
 
@@ -63,7 +66,7 @@ export function usePipelineContractSignersSync(
 
         nextDelayMs = DEV_POLL_MS;
         if (response.ok && payload.ok && (payload.synced ?? 0) > 0) {
-          onSyncedRef.current();
+          notifySynced();
         }
       } catch {
         // silencioso — próximo ciclo tenta de novo

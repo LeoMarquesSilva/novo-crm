@@ -112,10 +112,17 @@ export function SharePointConfigPanel() {
     });
   }
 
-  // Carrega ao montar
+  // Carrega ao montar (fetch assíncrono dentro de transition — evita setState síncrono no effect)
   useEffect(() => {
-    loadStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    startTransition(async () => {
+      const res = await fetch("/api/admin/sharepoint-config");
+      if (!res.ok) {
+        setLoadError("Falha ao carregar status da integração.");
+        return;
+      }
+      const data = (await res.json()) as ConfigStatus;
+      setStatus(data);
+    });
   }, []);
 
   const isFullyConfigured = status?.configured ?? false;

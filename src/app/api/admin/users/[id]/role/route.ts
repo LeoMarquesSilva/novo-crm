@@ -20,13 +20,14 @@ export async function PATCH(
     const { role } = bodySchema.parse(body);
 
     const supabase = createSupabaseAdminClient();
-    const { error } = await supabase
-      .from("app_users")
-      .update({ role })
-      .eq("id", id);
+    const { error } = await supabase.rpc("admin_change_user_role", {
+      p_actor: auth.profile.id,
+      p_target: id,
+      p_next_role: role,
+    });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return adminMutationRpcError(error.message);
     }
 
     return NextResponse.json({ ok: true, id, role });
@@ -34,4 +35,22 @@ export async function PATCH(
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 400 });
   }
+}
+
+function adminMutationRpcError(message: string): NextResponse {
+  if (message === "USER_NOT_FOUND") {
+    return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+  }
+  if (
+    message === "Não é possível excluir a própria conta administrativa." ||
+    message === "Não é possível excluir o último administrador." ||
+    message === "Não é possível remover o papel do último administrador."
+  ) {
+    return NextResponse.json({ error: message }, { status: 409 });
+  }
+  if (message === "ADMIN_MUTATION_FORBIDDEN") {
+    return NextResponse.json({ error: "Sem permissão para alterar usuários." }, { status: 403 });
+  }
+
+  return NextResponse.json({ error: message }, { status: 500 });
 }

@@ -460,25 +460,37 @@ export type Database = {
       }
       d4sign_webhook_events: {
         Row: {
+          attempt_count: number
           created_at: string
           document_uuid: string
           id: string
+          last_error: string | null
+          processed_at: string | null
+          processing_status: string
           raw_payload: Json
           signer_email: string | null
           type_post: string
         }
         Insert: {
+          attempt_count?: number
           created_at?: string
           document_uuid: string
           id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          processing_status?: string
           raw_payload?: Json
           signer_email?: string | null
           type_post: string
         }
         Update: {
+          attempt_count?: number
           created_at?: string
           document_uuid?: string
           id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          processing_status?: string
           raw_payload?: Json
           signer_email?: string | null
           type_post?: string
@@ -1973,9 +1985,59 @@ export type Database = {
       }
     }
     Functions: {
+      admin_change_user_role: {
+        Args: {
+          p_actor: string
+          p_next_role: string
+          p_target: string
+        }
+        Returns: boolean
+      }
+      admin_delete_user: {
+        Args: {
+          p_actor: string
+          p_target: string
+        }
+        Returns: string
+      }
       auth_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      delete_crm_lead_atomic: {
+        Args: { p_opportunity_id: string }
+        Returns: boolean
+      }
+      finalize_d4sign_opportunity: {
+        Args: {
+          p_now: string
+          p_opportunity_id: string
+          p_signers: Json
+        }
+        Returns: string | null
+      }
+      transition_opportunity_atomic: {
+        Args: {
+          p_changed_by: string
+          p_due_compilacao_entrada_em: string | null
+          p_due_revisao_entrada_em: string | null
+          p_due_revision_cycle: number | null
+          p_expected_stage: Database["public"]["Enums"]["opportunity_stage"]
+          p_field_values: Json
+          p_lead_intake: Json
+          p_link_contrato: string | null
+          p_link_proposta: string | null
+          p_next_stage: Database["public"]["Enums"]["opportunity_stage"]
+          p_opportunity_id: string
+          p_set_link_contrato: boolean
+          p_set_link_proposta: boolean
+          p_updated_at: string
+        }
+        Returns: {
+          link_contrato: string | null
+          link_proposta: string | null
+          transition_id: string
+        }[]
       }
     }
     Enums: {

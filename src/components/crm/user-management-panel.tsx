@@ -195,7 +195,7 @@ interface UserFormState {
 const DEFAULT_FORM: UserFormState = {
   full_name: "",
   email: "",
-  password: "123456",
+  password: "",
   role: "comercial",
   area: "",
   avatar_url: "",
@@ -341,13 +341,18 @@ function UserFormDialog({
                 <Label className="text-xs font-bold text-slate-500">Senha inicial</Label>
                 <Input
                   type="password"
+                  autoComplete="new-password"
                   value={form.password}
                   onChange={(e) => set("password", e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 12 caracteres"
                   className="border-[#dfe5ee] bg-[#fbfcfd] shadow-sm"
+                  minLength={12}
+                  maxLength={128}
+                  required
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Padrão: 123456. O usuário pode alterar depois.
+                  Use letras maiúsculas e minúsculas, além de pelo menos um
+                  número. Não existe mais senha padrão.
                 </p>
               </div>
             </>

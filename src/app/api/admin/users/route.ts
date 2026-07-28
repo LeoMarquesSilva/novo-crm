@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { adminInitialPasswordSchema } from "@/lib/auth/admin-user-policy";
 import { requireAdminApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const createUserSchema = z.object({
-  full_name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(6).default("123456"),
+  full_name: z.string().trim().min(2).max(160),
+  email: z.string().trim().toLowerCase().email(),
+  password: adminInitialPasswordSchema,
   role: z.enum(["admin", "comercial", "controladoria", "financeiro"]).default("comercial"),
   area: z.string().optional(),
   avatar_url: z.string().url().optional().or(z.literal("")),
@@ -89,7 +90,12 @@ export async function POST(request: NextRequest) {
 
     if (profileError) {
       // Rollback: remove o auth user criado
-      await supabase.auth.admin.deleteUser(authData.user.id);
+      const { error: rollbackError } = await supabase.auth.admin.deleteUser(
+        authData.user.id,
+      );
+      if (rollbackError) {
+        console.error("Falha ao reverter criação do usuário Auth", rollbackError);
+      }
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { getAreaLucideIcon, getPracticeAreaColors } from "@/lib/crm/area-lucide-icon";
@@ -45,31 +45,12 @@ function isSubtypeSelected(selection: ScopeTreeSelection | null, subtypeId: stri
 export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyHint }: Props) {
   const [query, setQuery] = useState("");
   // Controle de quais L1/L2 estão expandidos. Por padrão, tudo aberto.
-  const [openL1, setOpenL1] = useState<Set<string>>(() => new Set(groups.map((g) => g.key)));
-  const [openL2, setOpenL2] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    for (const g of groups) for (const i of g.items) initial.add(`${g.key}/${i.key}`);
-    return initial;
-  });
+  const [closedL1, setClosedL1] = useState<Set<string>>(() => new Set());
+  const [closedL2, setClosedL2] = useState<Set<string>>(() => new Set());
 
   const q = query.trim().toLowerCase();
 
   // Ao trocar Escopos ↔ Investimentos (ou recarregar dados), inclui chaves da árvore atual no estado aberto.
-  useEffect(() => {
-    setOpenL1((prev) => {
-      const next = new Set(prev);
-      for (const g of groups) next.add(g.key);
-      return next;
-    });
-    setOpenL2((prev) => {
-      const next = new Set(prev);
-      for (const g of groups) {
-        for (const i of g.items) next.add(`${g.key}/${i.key}`);
-      }
-      return next;
-    });
-  }, [groups]);
-
   // Filtragem: mantém o nó se ele OU algum descendente match. Auto-expande os ancestrais.
   const filtered = useMemo(() => {
     if (!q) return groups;
@@ -95,7 +76,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
   }, [groups, q]);
 
   function toggleL1(key: string) {
-    setOpenL1((prev) => {
+    setClosedL1((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -103,7 +84,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
     });
   }
   function toggleL2(key: string) {
-    setOpenL2((prev) => {
+    setClosedL2((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -113,8 +94,8 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
 
   /** Investimentos usam um único grupo (`__all__`); sem isso a lista ficava invisível após vir da aba Escopos. */
   const isL1Open = (key: string) =>
-    Boolean(q) || openL1.has(key) || filtered.length <= 1;
-  const isL2Open = (key: string) => Boolean(q) || openL2.has(key);
+    Boolean(q) || !closedL1.has(key) || filtered.length <= 1;
+  const isL2Open = (key: string) => Boolean(q) || !closedL2.has(key);
 
   function handleSelectSubtype(s: ScopeTreeSubtype) {
     onSelect({

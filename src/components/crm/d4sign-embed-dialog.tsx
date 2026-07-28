@@ -42,7 +42,20 @@ type EmbedSignDialogProps = {
   onSigned?: () => void;
 };
 
-export function EmbedSignDialog({
+export function EmbedSignDialog(props: EmbedSignDialogProps) {
+  if (!props.open) {
+    return <Dialog open={false} onOpenChange={props.onOpenChange} />;
+  }
+
+  return (
+    <EmbedSignDialogContent
+      key={`${props.documentUuid}:${props.signerEmail}`}
+      {...props}
+    />
+  );
+}
+
+function EmbedSignDialogContent({
   open,
   onOpenChange,
   documentUuid,
@@ -63,8 +76,6 @@ export function EmbedSignDialog({
   // Listener para mensagens do iframe
   useEffect(() => {
     if (!open) return;
-    setStatus("loading");
-    setErrorMsg(null);
 
     function handleMessage(event: MessageEvent) {
       // D4Sign manda strings simples via postMessage

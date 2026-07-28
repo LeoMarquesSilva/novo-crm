@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appUserAreaCandidatesForScopeKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import type { InAppNotificationActor } from "@/lib/crm/in-app-notification-meta";
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 
 type SolicitacaoRow = {
   id: string;
@@ -23,7 +24,7 @@ async function sendResendEmail(to: string, subject: string, html: string): Promi
   const key = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL ?? "CRM <onboarding@resend.dev>";
   if (!key) return false;
-  const res = await fetch("https://api.resend.com/emails", {
+  const res = await fetchWithTimeout("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from, to: [to], subject, html }),
@@ -32,13 +33,16 @@ async function sendResendEmail(to: string, subject: string, html: string): Promi
 }
 
 async function sendEvolutionGroupText(text: string): Promise<boolean> {
-  const base = process.env.EVOLUTION_API_BASE_URL?.replace(/\/$/, "");
+  const base = (
+    process.env.EVOLUTION_API_BASE_URL ?? process.env.EVOLUTION_API_URL
+  )?.replace(/\/$/, "");
   const apiKey = process.env.EVOLUTION_API_KEY;
-  const instance = process.env.EVOLUTION_INSTANCE_NAME;
+  const instance =
+    process.env.EVOLUTION_INSTANCE_NAME ?? process.env.EVOLUTION_INSTANCE;
   const groupJid = process.env.EVOLUTION_GROUP_JID;
   if (!base || !apiKey || !instance || !groupJid) return false;
   const url = `${base}/message/sendText/${encodeURIComponent(instance)}`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { apikey: apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({ number: groupJid, text }),

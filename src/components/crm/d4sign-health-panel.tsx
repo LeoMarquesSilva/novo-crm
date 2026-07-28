@@ -18,9 +18,9 @@ type HealthData = {
   usage_24h: { total: number; by_source: Record<string, number> };
 };
 
-function fmtRel(iso: string | null): string {
+function fmtRel(iso: string | null, now: number): string {
   if (!iso) return "nunca";
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  const mins = Math.floor((now - new Date(iso).getTime()) / 60_000);
   if (mins < 60) return `há ${mins} min`;
   return `há ${Math.floor(mins / 60)}h`;
 }
@@ -28,6 +28,7 @@ function fmtRel(iso: string | null): string {
 export function D4SignHealthPanel({ className }: { className?: string }) {
   const [data, setData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [renderedAt] = useState(() => Date.now());
 
   useEffect(() => {
     void fetch("/api/crm/d4sign/health")
@@ -50,7 +51,7 @@ export function D4SignHealthPanel({ className }: { className?: string }) {
 
   const webhookStale =
     !data.webhook.last_at ||
-    Date.now() - new Date(data.webhook.last_at).getTime() > 7 * 24 * 60 * 60 * 1000;
+    renderedAt - new Date(data.webhook.last_at).getTime() > 7 * 24 * 60 * 60 * 1000;
 
   return (
     <div className={cn("rounded-xl border border-slate-200 bg-white p-4 shadow-sm", className)}>
@@ -67,11 +68,11 @@ export function D4SignHealthPanel({ className }: { className?: string }) {
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <Webhook className="size-3" />
-          Webhook: {fmtRel(data.webhook.last_at)}
+          Webhook: {fmtRel(data.webhook.last_at, renderedAt)}
           {data.webhook.last_type ? ` (${data.webhook.last_type})` : ""}
           {webhookStale ? <span className="font-semibold text-amber-600"> · verificar config</span> : null}
         </span>
-        <span>Última sync: {fmtRel(data.quota.lastSyncedAt)}</span>
+        <span>Última sync: {fmtRel(data.quota.lastSyncedAt, renderedAt)}</span>
       </div>
     </div>
   );

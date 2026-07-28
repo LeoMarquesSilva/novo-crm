@@ -29,6 +29,7 @@ import {
 } from "@/lib/crm/due-area-tasks";
 import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
 import { transitionOpportunity } from "@/modules/crm/application/services/transition-opportunity";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
@@ -432,121 +433,80 @@ export async function POST(request: Request) {
       updateRow.due_revisao_entrada_em = new Date().toISOString();
     }
 
-    const { error: updateError } = await supabase
-      .from("oportunidades")
-      .update(updateRow)
-      .eq("id", opportunityId);
-
-    if (updateError) {
-      return NextResponse.json(
-        { ok: false, error: updateError.message },
-        { status: 500 },
-      );
-    }
-
+    let atomicLeadIntake: {
+      local_reuniao: string;
+      data_reuniao: string;
+      horario_reuniao: string;
+    } | null = null;
     if (nextStage === "reuniao" && pipeline === "vendas" && leadIntake) {
       const hora = leadIntake.horario_reuniao.trim();
       const horaSql = hora.length === 5 && hora.includes(":") ? `${hora}:00` : hora;
-      const { error: intakeUpdErr } = await supabase
-        .from("lead_intakes")
-        .update({
-          local_reuniao: leadIntake.local_reuniao.trim(),
-          data_reuniao: leadIntake.data_reuniao.trim(),
-          horario_reuniao: horaSql,
-        })
-        .eq("oportunidade_id", opportunityId);
-      if (intakeUpdErr) {
-        return NextResponse.json(
-          { ok: false, error: `Falha ao salvar dados da reunião: ${intakeUpdErr.message}` },
-          { status: 500 },
-        );
-      }
+      atomicLeadIntake = {
+        local_reuniao: leadIntake.local_reuniao.trim(),
+        data_reuniao: leadIntake.data_reuniao.trim(),
+        horario_reuniao: horaSql,
+      };
     }
 
+    const atomicFieldValues: Array<{
+      id: string | null;
+      fieldDefinitionId: string;
+      value: string | string[];
+    }> = [];
     if (fieldValuesByCode && Object.keys(fieldValuesByCode).length > 0) {
-      const now = new Date().toISOString();
       for (const [code, val] of Object.entries(fieldValuesByCode)) {
         const def = defs.find((d) => d.field_code === code);
         if (!def) continue;
-        const valueJson = Array.isArray(val) ? val : String(val);
-        const existingId = existingValueIdByDefId.get(def.id);
-
-        if (existingId) {
-          const { error: fvErr } = await supabase
-            .from("field_values")
-            .update({ value_json: valueJson, updated_at: now })
-            .eq("id", existingId);
-          if (fvErr) {
-            return NextResponse.json(
-              { ok: false, error: `Falha ao gravar campo ${code}: ${fvErr.message}` },
-              { status: 500 },
-            );
-          }
-        } else {
-          const { error: insErr } = await supabase.from("field_values").insert({
-            entity_name: "oportunidade",
-            entity_record_id: opportunityId,
-            field_definition_id: def.id,
-            value_json: valueJson,
-          });
-          if (insErr) {
-            return NextResponse.json(
-              { ok: false, error: `Falha ao salvar campo ${code}: ${insErr.message}` },
-              { status: 500 },
-            );
-          }
-        }
+        atomicFieldValues.push({
+          id: existingValueIdByDefId.get(def.id) ?? null,
+          fieldDefinitionId: def.id,
+          value: Array.isArray(val) ? val : String(val),
+        });
       }
     }
 
-    const { data: updatedRow, error: readBackError } = await supabase
-      .from("oportunidades")
-      .select("link_proposta, link_contrato")
-      .eq("id", opportunityId)
+    const atomicArgs = buildAtomicTransitionRpcArgs({
+      opportunityId,
+      expectedStage: dbEtapa,
+      nextStage,
+      changedBy: auth.profile.id,
+      update: {
+        updated_at: updateRow.updated_at as string,
+        ...(Object.hasOwn(updateRow, "link_proposta")
+          ? { link_proposta: updateRow.link_proposta ?? null }
+          : {}),
+        ...(Object.hasOwn(updateRow, "link_contrato")
+          ? { link_contrato: updateRow.link_contrato ?? null }
+          : {}),
+        due_compilacao_entrada_em: updateRow.due_compilacao_entrada_em,
+        due_revision_cycle: updateRow.due_revision_cycle,
+        due_revisao_entrada_em: updateRow.due_revisao_entrada_em,
+      },
+      leadIntake: atomicLeadIntake,
+      fieldValues: atomicFieldValues,
+    });
+
+    const { data: atomicRow, error: atomicError } = await supabase
+      .rpc("transition_opportunity_atomic", atomicArgs)
       .single();
 
-    if (readBackError) {
-      return NextResponse.json(
-        { ok: false, error: readBackError.message },
-        { status: 500 },
-      );
-    }
-
-    const { data: transRow, error: auditError } = await supabase
-      .from("transicoes_etapa")
-      .insert({
-        oportunidade_id: opportunityId,
-        etapa_origem: currentStage,
-        etapa_destino: nextStage,
-        alterado_por: auth.profile.id,
-        observacao: null,
-      })
-      .select("id")
-      .single();
-
-    if (auditError) {
-      const { error: revertError } = await supabase
-        .from("oportunidades")
-        .update({
-          etapa: dbEtapa,
-          updated_at: row.updated_at,
-          link_proposta: row.link_proposta,
-          link_contrato: row.link_contrato,
-        })
-        .eq("id", opportunityId);
-
+    if (atomicError) {
+      const conflict =
+        atomicError.code === "40001" ||
+        atomicError.message.includes("OPPORTUNITY_STAGE_CONFLICT");
+      console.error("Falha na transição atômica da oportunidade", atomicError);
       return NextResponse.json(
         {
           ok: false,
-          error: auditError.message,
-          reverted: !revertError,
-          revertError: revertError?.message,
+          error: conflict
+            ? "A oportunidade foi alterada por outro usuário. Atualize a tela e tente novamente."
+            : "Não foi possível concluir a transição.",
         },
-        { status: 500 },
+        { status: conflict ? 409 : 500 },
       );
     }
 
-    if (transRow?.id) {
+    if (atomicRow?.transition_id) {
       await recordLeadActivityEvent(supabase, {
         oportunidadeId: opportunityId,
         kind: "etapa_alterada",
@@ -554,7 +514,7 @@ export async function POST(request: Request) {
         detail: `${currentStage} → ${nextStage}`,
         etapa: nextStage,
         actorAppUserId: auth.profile.id,
-        sourceId: `trans:${transRow.id}`,
+        sourceId: `trans:${atomicRow.transition_id}`,
         metadata: { from: currentStage, to: nextStage },
       });
     }
@@ -600,8 +560,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       etapa: nextStage,
-      linkProposta: updatedRow?.link_proposta?.toString().trim() || null,
-      linkContrato: updatedRow?.link_contrato?.toString().trim() || null,
+      linkProposta: atomicRow?.link_proposta?.toString().trim() || null,
+      linkContrato: atomicRow?.link_contrato?.toString().trim() || null,
     });
   } catch (error) {
     const message =

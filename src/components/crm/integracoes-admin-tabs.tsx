@@ -21,10 +21,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const TAB_VALUES = ["rd", "sharepoint", "email", "whatsapp"] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
-function normalizeTab(tab: string | undefined): TabValue {
-  if (tab && (TAB_VALUES as readonly string[]).includes(tab)) return tab as TabValue;
-  return "rd";
-}
+type OauthBanner = {
+  variant: "default" | "destructive";
+  title: string;
+  description: string;
+};
 
 type IntegracoesAdminTabsProps = {
   whatsappInitialConfig: WhatsappDueConfig | null;
@@ -40,11 +41,26 @@ export function IntegracoesAdminTabs({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<TabValue>(initialTab);
-  const [oauthBanner, setOauthBanner] = useState<{
-    variant: "default" | "destructive";
-    title: string;
-    description: string;
-  } | null>(null);
+  const [oauthBanner] = useState<OauthBanner | null>(() => {
+    const outcome = searchParams.get("email_oauth");
+    if (!outcome) return null;
+    if (outcome === "success") {
+      return {
+        variant: "default",
+        title: "Outlook ligado",
+        description:
+          "A conta Microsoft foi associada (OAuth delegado, como no n8n). Os e-mails de novos leads passam a ser enviados por essa conta.",
+      };
+    }
+    const message = searchParams.get("message");
+    return {
+      variant: "destructive",
+      title: "Falha ao ligar Outlook",
+      description: message
+        ? decodeURIComponent(message)
+        : "Tente novamente ou verifique o registo da aplicação no Azure AD.",
+    };
+  });
   const oauthHandled = useRef(false);
 
   useEffect(() => {
@@ -52,21 +68,6 @@ export function IntegracoesAdminTabs({
     const o = searchParams.get("email_oauth");
     if (!o) return;
     oauthHandled.current = true;
-    const msg = searchParams.get("message");
-    if (o === "success") {
-      setOauthBanner({
-        variant: "default",
-        title: "Outlook ligado",
-        description:
-          "A conta Microsoft foi associada (OAuth delegado, como no n8n). Os e-mails de novos leads passam a ser enviados por essa conta.",
-      });
-    } else {
-      setOauthBanner({
-        variant: "destructive",
-        title: "Falha ao ligar Outlook",
-        description: msg ? decodeURIComponent(msg) : "Tente novamente ou verifique o registo da aplicação no Azure AD.",
-      });
-    }
     const t = searchParams.get("tab");
     const qs = new URLSearchParams();
     if (t && (TAB_VALUES as readonly string[]).includes(t)) qs.set("tab", t);

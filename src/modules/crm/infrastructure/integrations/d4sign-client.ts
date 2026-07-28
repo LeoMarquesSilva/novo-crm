@@ -5,6 +5,7 @@ import {
   SIGNATURE_PAGE_LAST,
   type ContratoSignaturePin,
 } from "@/lib/crm/contrato-signature-pins";
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 
 // ─── Tipos de resposta D4Sign ──────────────────────────────────────────────
 
@@ -259,7 +260,7 @@ export class D4SignConnector {
     const method = (init?.method ?? "GET").toUpperCase();
     let res: Response;
     try {
-      res = await fetch(url, init);
+      res = await fetchWithTimeout(url, init, 20_000);
     } catch (err) {
       logD4SignApiCall({ endpoint, method, source, httpStatus: null });
       throw err;

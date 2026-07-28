@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 
 /** Resposta normalizada para o CRM (ViaCEP JSON). */
 export type ViaCepNormalized = {
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const url = `https://viacep.com.br/ws/${cep}/json/`;
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: { Accept: "application/json" },
       next: { revalidate: 3600 },
     });

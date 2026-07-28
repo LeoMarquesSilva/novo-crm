@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
@@ -17,8 +17,7 @@ export function useContractReviewTaskRealtime(
   oportunidadeId: string | null | undefined,
   onChange: () => void,
 ) {
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  const notifyChange = useEffectEvent(onChange);
 
   useEffect(() => {
     if (!oportunidadeId) return;
@@ -32,7 +31,7 @@ export function useContractReviewTaskRealtime(
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
         debounce = null;
-        if (!cancelled) onChangeRef.current();
+        if (!cancelled) notifyChange();
       }, DEBOUNCE_MS);
     };
 

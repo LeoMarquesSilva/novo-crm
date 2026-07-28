@@ -516,7 +516,7 @@ export function WhatsappDueConfigPanel({
 
             {configs.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-[#d5dbe6] bg-white/45 p-6 text-center text-sm text-muted-foreground">
-                Nenhum destino salvo ainda. Clique em "Novo destino" ou salve um contato da Agenda.
+                Nenhum destino salvo ainda. Clique em &quot;Novo destino&quot; ou salve um contato da Agenda.
               </div>
             ) : (
               <div className="grid gap-3">
@@ -761,7 +761,7 @@ export function WhatsappDueConfigPanel({
               <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#dfe5ee] py-6 text-center">
                 <Wifi className="h-6 w-6 text-muted-foreground/40" />
                 <p className="text-xs text-muted-foreground">
-                  Clique em "Atualizar" para carregar a agenda da instância conectada.
+                  Clique em &quot;Atualizar&quot; para carregar a agenda da instância conectada.
                 </p>
               </div>
             )}

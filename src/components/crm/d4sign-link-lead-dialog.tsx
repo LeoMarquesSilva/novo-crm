@@ -166,10 +166,11 @@ export function D4SignOriginBadge({
   lastSyncedAt: string | null;
   d4signStatus: string | null;
 }) {
+  const [renderedAt] = useState(() => Date.now());
   const isCrm = Boolean(sentByAppUserId);
   const stale =
     lastSyncedAt &&
-    Date.now() - new Date(lastSyncedAt).getTime() > 12 * 60 * 60 * 1000 &&
+    renderedAt - new Date(lastSyncedAt).getTime() > 12 * 60 * 60 * 1000 &&
     d4signStatus &&
     ["2", "3", "sent", "processing"].includes(d4signStatus);
 

@@ -15,7 +15,7 @@ Se houver conflito entre este documento e o código, o código atual prevalece e
 
 O CRM está em produção interna com persistência Supabase e fluxos principais ligados:
 
-- Autenticação Supabase Auth + middleware em `/crm/*`
+- Autenticação Supabase Auth + proxy (`src/proxy.ts`, matcher `/crm`, `/login`) em rotas protegidas
 - Kanban e ficha do lead com dados reais (`oportunidades`, campos dinâmicos, intake)
 - Motor de workflow com transições via `POST /api/crm/leads/transition`
 - DUE por área (tarefas, revisão, ajustes) e proposta por área
@@ -23,11 +23,19 @@ O CRM está em produção interna com persistência Supabase e fluxos principais
 - Histórico do lead (`lead_activity_events`) na aba **Histórico** da ficha
 - Admin: usuários, campos dinâmicos, config WhatsApp DUE
 
-Pontos em evolução:
+Pontos em evolução (Ondas 2–3):
 
 - Funil de pós-venda parcialmente modelado (etapas após `contrato_assinado`)
-- Autorização fina na UI (ocultar ações por perfil/área) ainda incompleta em alguns pontos
+- Autorização fina por área na UI (ocultar ações por perfil/área) — incompleta; prevista para Ondas 2–3
+- `/crm/clientes` e `/crm/contratos` permanecem mock (CRUD real na Onda 3)
 - Integração RD CRM e VIOS conforme variáveis de ambiente
+
+Hardening 2026-07-27 (Onda 1):
+
+- Policies RLS admin/CRM reforçadas; webhooks de integração fail-closed
+- RPCs transacionais `transition_opportunity_atomic` e `delete_crm_lead_atomic` (service_role)
+- `fetchWithTimeout` nos conectores externos
+- CI: `.github/workflows/ci.yml` (lint, test, build)
 
 Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tokens RD/D4Sign conforme `.env.example`.
 
@@ -56,7 +64,7 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 ## 4) Rotas web e comportamento
 
 - `/`: landing técnica para entrada no CRM.
-- `/login`: formulário de entrada (Supabase Auth); rotas `/crm/*` exigem sessão (`src/middleware.ts`). Sem `NEXT_PUBLIC_SUPABASE_*` o CRM redireciona para login com aviso de configuração.
+- `/login`: formulário de entrada (Supabase Auth); rotas `/crm/*` exigem sessão (`src/proxy.ts`, matcher `/crm`, `/login`). Sem `NEXT_PUBLIC_SUPABASE_*` o CRM redireciona para login com aviso de configuração.
 - `/crm`: dashboard com KPIs e filas operacionais (dados Supabase).
 - `/crm/leads`: kanban interativo, ficha do lead (Visão geral, Histórico, DUE, proposta, contrato, D4Sign).
 - `/crm/clientes`: tabela de clientes (mock).
@@ -244,10 +252,10 @@ Resumo:
 
 ## 12) Limites conhecidos
 
-- UI principal usa dados mock em áreas críticas (incluindo cards do kanban).
-- Repositório em memória ainda é padrão para dashboard/listagens — banco real ainda não conectado às telas.
-- Auth (Supabase Auth) ainda não está ligado ao fluxo de UI; RLS está ativo no banco mas não bloqueia as telas enquanto o cliente usa a `anon key` sem sessão autenticada.
-- Endpoints de integração VIOS/D4Sign e o relatório de reconciliação ainda estão em stub.
+- Autenticação Supabase Auth e proxy já protegem as rotas CRM; a autorização fina de ações e visibilidade na UI por perfil/área permanece incompleta e está prevista para a Onda 2.
+- Kanban, dashboard e ficha do lead consomem dados reais do Supabase; não há repositório em memória como fonte padrão dessas telas.
+- `/crm/clientes` e `/crm/contratos` continuam páginas mock até o CRUD real da Onda 3.
+- O conector VIOS retorna cliente stub; o relatório de reconciliação também permanece stub. D4Sign possui envio, webhook e consulta reais.
 - Tipos TypeScript gerados em `src/lib/supabase/database.types.ts` atualizados com schema v2 (incluindo `opportunity_stage` pos-venda, `field_definitions` extendido, `app_users` com area/avatar).
 - Admin pages (`/crm/admin/*`) requerem `SUPABASE_SERVICE_ROLE_KEY` no `.env` para funcionar (usa `createSupabaseAdminClient` em `src/lib/supabase/admin.ts`).
 - `DynamicForm` está criado mas ainda não integrado ao `NewDemandForm` — integração é próximo passo.

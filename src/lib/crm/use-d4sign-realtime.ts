@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
@@ -15,8 +15,7 @@ const DEBOUNCE_MS = 400;
  * (migration realtime_d4sign_documents).
  */
 export function useD4SignDocumentsRealtime(onChange: () => void) {
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  const notifyChange = useEffectEvent(onChange);
 
   useEffect(() => {
     const supabase = createSupabaseClient();
@@ -28,7 +27,7 @@ export function useD4SignDocumentsRealtime(onChange: () => void) {
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
         debounce = null;
-        if (!cancelled) onChangeRef.current();
+        if (!cancelled) notifyChange();
       }, DEBOUNCE_MS);
     };
 
@@ -62,8 +61,7 @@ export function useOportunidadeRealtime(
   oportunidadeId: string | null | undefined,
   onChange: () => void,
 ) {
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  const notifyChange = useEffectEvent(onChange);
 
   useEffect(() => {
     if (!oportunidadeId) return;
@@ -77,7 +75,7 @@ export function useOportunidadeRealtime(
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
         debounce = null;
-        if (!cancelled) onChangeRef.current();
+        if (!cancelled) notifyChange();
       }, DEBOUNCE_MS);
     };
 

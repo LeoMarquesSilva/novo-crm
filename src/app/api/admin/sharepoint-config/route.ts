@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/auth/server";
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 
 function maskSecret(value: string | undefined): string | null {
   if (!value?.trim()) return null;
@@ -52,7 +53,7 @@ export async function POST() {
     const siteId = process.env.SHAREPOINT_SITE_ID ?? "";
     const listId = process.env.SHAREPOINT_AGENDAMENTOS_LIST_ID ?? "";
 
-    const tokenRes = await fetch(
+    const tokenRes = await fetchWithTimeout(
       `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`,
       {
         method: "POST",
@@ -78,7 +79,7 @@ export async function POST() {
     }
 
     // Verifica se consegue acessar a lista
-    const listRes = await fetch(
+    const listRes = await fetchWithTimeout(
       `https://graph.microsoft.com/v1.0/sites/${encodeURI(siteId)}/lists/${encodeURIComponent(listId)}`,
       {
         headers: { Authorization: `Bearer ${tokenJson.access_token}` },
