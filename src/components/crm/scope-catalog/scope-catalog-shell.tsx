@@ -1,11 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { BookOpenText, Loader2, Sparkles, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ProposalCatalogAdminData } from "@/lib/crm/proposal-catalog-db";
 import { cn } from "@/lib/utils";
+import {
+  buildInvestmentTree,
+  buildScopeTree,
+  findCreatedId,
+  selectionStillValid,
+} from "./scope-catalog-tree";
+
+export type { ScopeTreeGroup, ScopeTreeItem, ScopeTreeSubtype } from "./scope-catalog-tree";
+import { CatalogEmptyDetail } from "./catalog-empty-detail";
 import { CatalogTypeEditor } from "./catalog-type-editor";
 import { NewItemButton, NewItemDialog, type NewItemKind } from "./new-item-dialog";
 import { ScopeEditor } from "./scope-editor";
@@ -13,24 +21,140 @@ import { ScopeTree, type ScopeTreeSelection } from "./scope-tree";
 
 type Tab = "scope" | "investment";
 
+type CreatedCatalogItem = {
+  tab: Tab;
+  level: "type" | "subtype";
+  id: string;
+};
+
+function createdMetaFromKind(kind: NewItemKind, id: string): CreatedCatalogItem {
+  switch (kind.type) {
+    case "scope_type":
+      return { tab: "scope", level: "type", id };
+    case "scope_subtype":
+      return { tab: "scope", level: "subtype", id };
+    case "investment_type":
+      return { tab: "investment", level: "type", id };
+    case "investment_subtype":
+      return { tab: "investment", level: "subtype", id };
+  }
+}
+
+function selectionForCreatedItem(
+  catalog: ProposalCatalogAdminData,
+  created: CreatedCatalogItem,
+): ScopeTreeSelection | null {
+  if (created.level === "type") {
+    if (created.tab === "scope") {
+      const row = catalog.adminRows.scopeTypes.find((t) => t.id === created.id);
+      if (!row) return null;
+      return {
+        level: "type",
+        typeId: row.id,
+        typeLabel: row.label,
+        breadcrumb: [row.areaKey, row.label],
+      };
+    }
+    const row = catalog.adminRows.investmentTypes.find((t) => t.id === created.id);
+    if (!row) return null;
+    return {
+      level: "type",
+      typeId: row.id,
+      typeLabel: row.label,
+      breadcrumb: [row.label],
+    };
+  }
+
+  if (created.tab === "scope") {
+    const row = catalog.adminRows.scopeSubtypes.find((s) => s.id === created.id);
+    if (!row) return null;
+    const parentType = catalog.adminRows.scopeTypes.find((t) => t.id === row.scopeTypeId);
+    if (!parentType) return null;
+    const parentBreadcrumb = [parentType.areaKey, parentType.label];
+    return {
+      level: "subtype",
+      subtypeId: row.id,
+      subtypeLabel: row.label,
+      breadcrumb: [...parentBreadcrumb, row.label],
+    };
+  }
+
+  const row = catalog.adminRows.investmentSubtypes.find((s) => s.id === created.id);
+  if (!row) return null;
+  const parentType = catalog.adminRows.investmentTypes.find((t) => t.id === row.investmentTypeId);
+  if (!parentType) return null;
+  return {
+    level: "subtype",
+    subtypeId: row.id,
+    subtypeLabel: row.label,
+    breadcrumb: [parentType.label, row.label],
+  };
+}
+
 export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalogAdminData }) {
-  const router = useRouter();
   const [data, setData] = useState<ProposalCatalogAdminData>(initialData);
   const [tab, setTab] = useState<Tab>("scope");
   const [newItem, setNewItem] = useState<NewItemKind | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
+  const [scopeSelection, setScopeSelection] = useState<ScopeTreeSelection | null>(null);
+  const [investmentSelection, setInvestmentSelection] = useState<ScopeTreeSelection | null>(null);
+  const [scopeAreaFilter, setScopeAreaFilter] = useState<string[]>([]);
+  const [editorDirty, setEditorDirty] = useState(false);
 
-  function handleCreated(next: ProposalCatalogAdminData) {
+  function applyCatalog(next: ProposalCatalogAdminData) {
     setData(next);
-    router.refresh();
+  }
+
+  function confirmDiscardDirtyChanges(): boolean {
+    if (!editorDirty) return true;
+    return window.confirm("Descartar alterações não salvas?");
+  }
+
+  function applySelectionForTab(targetTab: Tab, next: ScopeTreeSelection | null) {
+    if (!confirmDiscardDirtyChanges()) return;
+    setEditorDirty(false);
+    if (targetTab === "scope") {
+      setScopeSelection(next);
+    } else {
+      setInvestmentSelection(next);
+    }
+  }
+
+  function handleCreated(
+    next: ProposalCatalogAdminData,
+    created?: CreatedCatalogItem,
+    kind?: NewItemKind | null,
+  ) {
+    const prev = data;
+    applyCatalog(next);
+
+    const resolved =
+      created ??
+      (kind
+        ? (() => {
+            const id = findCreatedId(prev, next, kind);
+            return id ? createdMetaFromKind(kind, id) : null;
+          })()
+        : null);
+
+    if (!resolved) return;
+
+    const selection = selectionForCreatedItem(next, resolved);
+    if (!selection) return;
+
+    applySelectionForTab(resolved.tab, selection);
   }
 
   function handleCatalogDeleted(next: ProposalCatalogAdminData) {
-    setData(next);
-    if (tab === "scope") setScopeSelection(null);
-    else setInvestmentSelection(null);
-    router.refresh();
+    applyCatalog(next);
+    if (tab === "scope") {
+      if (!selectionStillValid(scopeSelection, next, "scope")) {
+        setScopeSelection(null);
+      }
+    } else if (!selectionStillValid(investmentSelection, next, "investment")) {
+      setInvestmentSelection(null);
+    }
   }
 
   async function seedDefaults() {
@@ -50,8 +174,7 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
       if (!res.ok || !json.ok || !json.data) {
         throw new Error(json.error ?? "Falha ao popular padrões.");
       }
-      setData(json.data);
-      router.refresh();
+      applyCatalog(json.data);
     } catch (e) {
       setSeedError(e instanceof Error ? e.message : "Erro ao popular catálogo.");
     } finally {
@@ -62,15 +185,33 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
   const isEmpty =
     data.adminRows.scopeTypes.length === 0 && data.adminRows.investmentTypes.length === 0;
 
-  const [scopeSelection, setScopeSelection] = useState<ScopeTreeSelection | null>(null);
-  const [investmentSelection, setInvestmentSelection] = useState<ScopeTreeSelection | null>(null);
-
   const scopeTree = useMemo(() => buildScopeTree(data), [data]);
   const investmentTree = useMemo(() => buildInvestmentTree(data), [data]);
 
+  const scopeAreaOptions = useMemo(() => {
+    const keys = new Set<string>();
+    for (const t of data.adminRows.scopeTypes) keys.add(t.areaKey);
+    return [...keys].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [data.adminRows.scopeTypes]);
+
   const activeTree = tab === "scope" ? scopeTree : investmentTree;
   const activeSelection = tab === "scope" ? scopeSelection : investmentSelection;
-  const setActiveSelection = tab === "scope" ? setScopeSelection : setInvestmentSelection;
+
+  function requestSelect(next: ScopeTreeSelection | null) {
+    applySelectionForTab(tab, next);
+  }
+
+  function requestTabSwitch(next: Tab) {
+    if (next === tab) return;
+    if (!confirmDiscardDirtyChanges()) return;
+    setEditorDirty(false);
+    setTab(next);
+  }
+
+  function handleEditorSaved(catalog: ProposalCatalogAdminData) {
+    applyCatalog(catalog);
+    setEditorDirty(false);
+  }
 
   const selectedScopeSubtype = useMemo(() => {
     if (tab !== "scope" || scopeSelection?.level !== "subtype") return null;
@@ -96,21 +237,21 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
   }, [tab, investmentSelection, data.adminRows.investmentTypes]);
 
   return (
-    <section className="overflow-hidden rounded-[24px] border border-white/55 bg-white/72 shadow-sm shadow-primary-dark/10">
+    <section className="overflow-hidden rounded-2xl border border-primary-dark/10 bg-white shadow-sm">
       {/* ── Toolbar: Tabs + ação primária ── */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-primary-dark/10 bg-white/70 px-4 py-2.5">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-primary-dark/10 bg-white px-4 py-2.5">
         {/* Tabs */}
         <div className="flex items-center gap-1 rounded-xl bg-primary-dark/5 p-1">
           <TabButton
             active={tab === "scope"}
-            onClick={() => setTab("scope")}
+            onClick={() => requestTabSwitch("scope")}
             icon={BookOpenText}
             label="Escopos"
             count={data.scopeSubtypeCount}
           />
           <TabButton
             active={tab === "investment"}
-            onClick={() => setTab("investment")}
+            onClick={() => requestTabSwitch("investment")}
             icon={WalletCards}
             label="Investimentos"
             count={data.investmentSubtypeCount}
@@ -128,10 +269,10 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
 
       {/* ── Banner: catálogo vazio ── */}
       {isEmpty ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200/80 bg-gradient-to-r from-amber-50 to-amber-50/40 px-5 py-3.5">
-          <div className="flex items-start gap-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-              <Sparkles className="size-4" aria-hidden />
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/80 bg-amber-50 px-4 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+              <Sparkles className="size-3.5" aria-hidden />
             </span>
             <div>
               <p className="text-sm font-bold text-amber-900">Catálogo vazio</p>
@@ -166,11 +307,12 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
       {/* ── Master-detail ── */}
       <div className="grid min-h-[640px] min-w-0 gap-0 lg:grid-cols-[minmax(13rem,20rem)_minmax(0,1fr)]">
         {/* Sidebar — árvore */}
-        <aside className="min-w-0 border-b border-primary-dark/10 bg-white/30 lg:border-b-0 lg:border-r">
+        <aside className="flex min-w-0 max-h-[calc(100dvh-12rem)] flex-col border-b border-primary-dark/10 bg-white lg:border-b-0 lg:border-r">
           <ScopeTree
+            key={tab}
             groups={activeTree}
             selection={activeSelection}
-            onSelect={setActiveSelection}
+            onSelect={requestSelect}
             onCreateSubtype={(typeId, parentLabel) =>
               setNewItem(
                 tab === "scope"
@@ -183,11 +325,15 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
                 ? "Nenhum tipo de escopo cadastrado."
                 : "Nenhum tipo de investimento cadastrado."
             }
+            areaOptions={tab === "scope" ? scopeAreaOptions : undefined}
+            areaFilterKeys={tab === "scope" ? scopeAreaFilter : null}
+            onAreaFilterChange={tab === "scope" ? setScopeAreaFilter : undefined}
+            collapseL1Above={3}
           />
         </aside>
 
         {/* Editor / empty state */}
-        <main className="min-w-0 bg-white/40 p-5 sm:p-6">
+        <main className="crm-scrollbar min-w-0 max-h-[calc(100dvh-12rem)] overflow-y-auto bg-white p-5 sm:p-6">
           {tab === "scope" && selectedScopeSubtype && scopeSelection?.level === "subtype" ? (
             <ScopeEditor
               key={selectedScopeSubtype.id}
@@ -196,8 +342,9 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
                 row: selectedScopeSubtype,
                 breadcrumb: scopeSelection.breadcrumb,
               }}
-              onSaved={setData}
+              onSaved={handleEditorSaved}
               onDeleted={handleCatalogDeleted}
+              onDirtyChange={setEditorDirty}
             />
           ) : tab === "scope" && selectedScopeType && scopeSelection?.level === "type" ? (
             <CatalogTypeEditor
@@ -211,8 +358,16 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
                 data.adminRows.scopeSubtypes.filter((s) => s.scopeTypeId === selectedScopeType.id)
                   .length
               }
-              onSaved={setData}
+              onAddSubtype={() =>
+                setNewItem({
+                  type: "scope_subtype",
+                  scopeTypeId: selectedScopeType.id,
+                  parentLabel: selectedScopeType.label,
+                })
+              }
+              onSaved={handleEditorSaved}
               onDeleted={handleCatalogDeleted}
+              onDirtyChange={setEditorDirty}
             />
           ) : tab === "investment" &&
             selectedInvestmentSubtype &&
@@ -224,8 +379,9 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
                 row: selectedInvestmentSubtype,
                 breadcrumb: investmentSelection.breadcrumb,
               }}
-              onSaved={setData}
+              onSaved={handleEditorSaved}
               onDeleted={handleCatalogDeleted}
+              onDirtyChange={setEditorDirty}
             />
           ) : tab === "investment" &&
             selectedInvestmentType &&
@@ -242,11 +398,24 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
                   (s) => s.investmentTypeId === selectedInvestmentType.id,
                 ).length
               }
-              onSaved={setData}
+              onAddSubtype={() =>
+                setNewItem({
+                  type: "investment_subtype",
+                  investmentTypeId: selectedInvestmentType.id,
+                  parentLabel: selectedInvestmentType.label,
+                })
+              }
+              onSaved={handleEditorSaved}
               onDeleted={handleCatalogDeleted}
+              onDirtyChange={setEditorDirty}
             />
           ) : (
-            <EmptyState tab={tab} />
+            <CatalogEmptyDetail
+              tab={tab}
+              onCreateType={() =>
+                setNewItem({ type: tab === "scope" ? "scope_type" : "investment_type" })
+              }
+            />
           )}
         </main>
       </div>
@@ -259,7 +428,7 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
             if (!v) setNewItem(null);
           }}
           kind={newItem}
-          onCreated={handleCreated}
+          onCreated={(next) => handleCreated(next, undefined, newItem)}
         />
       ) : null}
     </section>
@@ -306,128 +475,3 @@ function TabButton({
   );
 }
 
-// ─── Empty states ─────────────────────────────────────────────────────────────
-
-function EmptyState({ tab }: { tab: Tab }) {
-  return (
-    <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-primary-dark/15 bg-white/40 p-10 text-center">
-      <div className="flex size-14 items-center justify-center rounded-2xl bg-primary-dark/8 text-primary-dark">
-        {tab === "scope" ? (
-          <BookOpenText className="size-6" aria-hidden />
-        ) : (
-          <WalletCards className="size-6" aria-hidden />
-        )}
-      </div>
-      <div className="max-w-xs">
-        <h3 className="text-base font-bold text-primary-dark">
-          Selecione um {tab === "scope" ? "escopo" : "investimento"}
-        </h3>
-        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-          Clique em um <strong className="font-semibold text-primary-dark">tipo</strong> para editar
-          nome, área e ordem; em um <strong className="font-semibold text-primary-dark">subtipo</strong>{" "}
-          para editar textos, placeholders e preview ao vivo.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tree builders ────────────────────────────────────────────────────────────
-
-function buildScopeTree(data: ProposalCatalogAdminData): ScopeTreeGroup[] {
-  const typeById = new Map(data.adminRows.scopeTypes.map((t) => [t.id, t]));
-  const groups = new Map<string, ScopeTreeGroup>();
-  for (const t of data.adminRows.scopeTypes) {
-    if (!groups.has(t.areaKey)) {
-      groups.set(t.areaKey, { key: t.areaKey, label: t.areaKey, items: [] });
-    }
-    const g = groups.get(t.areaKey)!;
-    g.items.push({
-      key: t.id,
-      label: t.label,
-      isActive: t.isActive,
-      sortOrder: t.sortOrder,
-      subtypes: [],
-    });
-  }
-  for (const s of data.adminRows.scopeSubtypes) {
-    const parentType = typeById.get(s.scopeTypeId);
-    if (!parentType) continue;
-    const g = groups.get(parentType.areaKey);
-    if (!g) continue;
-    const item = g.items.find((i) => i.key === parentType.id);
-    if (!item) continue;
-    item.subtypes.push({
-      key: s.id,
-      label: s.label,
-      isActive: s.isActive,
-      sortOrder: s.sortOrder,
-      parentBreadcrumb: [g.label, item.label],
-    });
-  }
-  return [...groups.values()]
-    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"))
-    .map((g) => ({
-      ...g,
-      items: g.items
-        .sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, "pt-BR"))
-        .map((i) => ({
-          ...i,
-          subtypes: i.subtypes.sort(
-            (a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, "pt-BR"),
-          ),
-        })),
-    }));
-}
-
-function buildInvestmentTree(data: ProposalCatalogAdminData): ScopeTreeGroup[] {
-  const items = data.adminRows.investmentTypes.map((t) => ({
-    key: t.id,
-    label: t.label,
-    isActive: t.isActive,
-    sortOrder: t.sortOrder,
-    subtypes: data.adminRows.investmentSubtypes
-      .filter((s) => s.investmentTypeId === t.id)
-      .map((s) => ({
-        key: s.id,
-        label: s.label,
-        isActive: s.isActive,
-        sortOrder: s.sortOrder,
-        parentBreadcrumb: [t.label],
-      }))
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, "pt-BR")),
-  }));
-  return [
-    {
-      key: "__all__",
-      label: "Investimentos",
-      items: items.sort(
-        (a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, "pt-BR"),
-      ),
-    },
-  ];
-}
-
-// ─── Tree types ───────────────────────────────────────────────────────────────
-
-export type ScopeTreeGroup = {
-  key: string;
-  label: string;
-  items: ScopeTreeItem[];
-};
-
-export type ScopeTreeItem = {
-  key: string;
-  label: string;
-  isActive: boolean;
-  sortOrder: number;
-  subtypes: ScopeTreeSubtype[];
-};
-
-export type ScopeTreeSubtype = {
-  key: string;
-  label: string;
-  isActive: boolean;
-  sortOrder: number;
-  parentBreadcrumb: string[];
-};

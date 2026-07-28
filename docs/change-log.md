@@ -33,3 +33,39 @@ Formato: data (ISO) | onda | resumo | validações.
 - Adiado: padrões React 19 de refs/ícones/estado derivado (Task 8 Steps 2–4), pois exigem regressão visual e funcional transversal.
 
 **Onda 1 fechada — próximo: Onda 2 autorização fina.**
+
+## 2026-07-28 — Catálogo de escopos (admin) — redesign
+
+- Spec: `docs/superpowers/specs/2026-07-28-catalogo-escopos-redesign-design.md`
+- Plan: `docs/superpowers/plans/2026-07-28-catalogo-escopos-redesign.md`
+- Branch: `catalogo-escopos-redesign` (sem commit automático)
+- Rota: `/crm/admin/proposta-escopo` — fora de escopo: `proposta-escopo-por-area` (lead)
+
+### Bugs corrigidos (B1–B8)
+
+| ID | Correção |
+|----|----------|
+| B1 | Removido `router.refresh()` dos handlers CRUD do catálogo |
+| B2 | Investimentos sem L1 fantasma (`hideLabel`, lista plana) |
+| B3 | Seleção órfã limpa via `selectionStillValid` pós-delete |
+| B4 | Seleções separadas por aba + empty detail coerente |
+| B5 | **Ignorado intencionalmente** — `NewItemDialog` mantém `<select>` nativo (sem Base UI Select); padrão `modal-select-safety` não aplicável |
+| B6 | Contagens da UI lidas do `data` devolvido pela API |
+| B7 | `catalog-empty-detail.tsx` com CTAs |
+| B8 | Dirty-guard (`window.confirm`) ao trocar seleção/aba |
+
+### Testes
+
+- `scope-catalog-tree.test.ts`: 14 testes (builders, filtro, seleção pós-CRUD, `findCreatedId`)
+
+### Gate final (Task 6) — 2026-07-28
+
+| Comando | Exit |
+|---------|-----:|
+| `npm test -- src/components/crm/scope-catalog` | 0 — 1 file, 14 tests |
+| `npm test` | 0 — 25 files, 134 tests |
+| `npx tsc --noEmit` | 0 |
+| `npm run lint` | 0 — 0 errors, 4 warnings pré-existentes (`no-img-element` ×3, `no-unused-vars` ×1) |
+| `git diff --name-only -- src/app/(crm)/crm/leads/` | 0 — sem alterações em leads |
+
+**Smoke manual (browser): pendente** — seed → criar tipo/subtipo → editar/salvar → trocar aba → delete → busca/filtro área.
