@@ -65,8 +65,14 @@ export type ContractComponentDraft = {
 export type ContractConfigurationDraft = {
   clientId: string | null;
   startsAt: string | null;
+  indefinite: boolean;
+  dueDay: number | null;
+  renewalDate: string | null;
+  renewalAlertDate: string | null;
+  adjustmentIndex: string | null;
   firstInvoiceAt: string | null;
   firstInvoiceConditioned: boolean;
+  substitutionEvidence: Array<{ field: string; source: ContractSource; originalValue: string; overrideReason: string }>;
   responsibles: Array<{ id: string; role: string }>;
   areas: Array<{
     id: string;
@@ -416,8 +422,14 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
   const configuration: ContractConfigurationDraft | null = editableVersion ? {
     clientId: contract.cliente_id,
     startsAt: contract.vigente_de,
+    indefinite: contract.prazo_indeterminado,
+    dueDay: contract.dia_vencimento,
+    renewalDate: contract.data_base_renovacao,
+    renewalAlertDate: contract.data_alerta_renovacao,
+    adjustmentIndex: contract.indice_reajuste,
     firstInvoiceAt: contract.primeiro_vencimento,
     firstInvoiceConditioned: contract.primeiro_faturamento_condicionado,
+    substitutionEvidence: [],
     responsibles: (responsiblesResult.data ?? [])
       .filter((responsible): responsible is typeof responsible & { app_user_id: string } => Boolean(responsible.app_user_id))
       .map((responsible) => ({ id: responsible.app_user_id, role: responsible.papel })),
@@ -443,6 +455,12 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     for (const [key, value] of Object.entries({
       clientId: configuration.clientId,
       startsAt: configuration.startsAt,
+      effectiveTo: configuration.version.effectiveTo,
+      indefinite: configuration.indefinite,
+      dueDay: configuration.dueDay,
+      renewalDate: configuration.renewalDate,
+      renewalAlertDate: configuration.renewalAlertDate,
+      adjustmentIndex: configuration.adjustmentIndex,
       firstInvoiceAt: configuration.firstInvoiceAt,
       areas: configuration.areas,
       components: configuration.version.components,

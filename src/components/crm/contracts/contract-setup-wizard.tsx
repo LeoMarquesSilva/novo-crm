@@ -75,6 +75,12 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
     if (field.source === "manual") return false;
     const current = key === "clientId" ? configuration.clientId
       : key === "startsAt" ? configuration.startsAt
+      : key === "effectiveTo" ? configuration.version.effectiveTo
+      : key === "indefinite" ? configuration.indefinite
+      : key === "dueDay" ? configuration.dueDay
+      : key === "renewalDate" ? configuration.renewalDate
+      : key === "renewalAlertDate" ? configuration.renewalAlertDate
+      : key === "adjustmentIndex" ? configuration.adjustmentIndex
       : key === "firstInvoiceAt" ? configuration.firstInvoiceAt
       : key === "areas" ? configuration.areas
       : key === "components" ? configuration.version.components
@@ -110,11 +116,10 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
       const response = await fetch(`/api/crm/contracts/${contract.id}/configuration`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          expectedVersionUpdatedAt: expectedUpdatedAt,
-          configuration,
+        body: JSON.stringify({ expectedVersionUpdatedAt: expectedUpdatedAt, configuration: {
+          ...configuration,
           substitutionEvidence: sourceChanges.map(([field, source]) => ({ field, source: source.source, originalValue: source.originalValue, overrideReason: overrideReason.trim() })),
-        }),
+        } }),
       });
       const result = await response.json() as ApiResult;
       if (!response.ok || !result.ok || !result.updatedAt) {
@@ -169,12 +174,17 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
     </ol>
 
     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold text-zinc-900">{steps[step]}</h3><p className="text-sm text-zinc-500">{dirty ? "Alterações não salvas" : "Rascunho sincronizado"}</p></div><SourceBadges fields={contract.sourceFields} keys={step === 0 ? ["clientId", "startsAt", "firstInvoiceAt"] : step === 1 ? ["areas"] : step === 2 ? ["components"] : step === 3 ? ["allocations"] : step === 4 ? ["partnerShares", "commissions"] : []} /></div>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold text-zinc-900">{steps[step]}</h3><p className="text-sm text-zinc-500">{dirty ? "Alterações não salvas" : "Rascunho sincronizado"}</p></div><SourceBadges fields={contract.sourceFields} keys={step === 0 ? ["clientId", "startsAt", "effectiveTo", "indefinite", "dueDay", "renewalDate", "renewalAlertDate", "adjustmentIndex", "firstInvoiceAt"] : step === 1 ? ["areas"] : step === 2 ? ["components"] : step === 3 ? ["allocations"] : step === 4 ? ["partnerShares", "commissions"] : []} /></div>
 
       {step === 0 ? <div className="grid gap-4 md:grid-cols-2">
         <Field label="Cliente"><select className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm" value={configuration.clientId ?? ""} disabled={!canConfigure} onChange={(event) => patch({ clientId: event.target.value || null })}><option value="">Selecione</option>{contract.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field>
         <Field label="Início da vigência"><Input type="date" value={configuration.startsAt ?? ""} disabled={!canConfigure} onChange={(event) => patch({ startsAt: event.target.value || null, version: { ...configuration.version, effectiveFrom: event.target.value } })} /></Field>
         <Field label="Fim da vigência"><Input type="date" value={configuration.version.effectiveTo ?? ""} disabled={!canConfigure} onChange={(event) => patchVersion({ effectiveTo: event.target.value || null })} /></Field>
+        <label className="flex items-center gap-2 self-end rounded-xl border border-zinc-200 p-3 text-sm"><input type="checkbox" checked={configuration.indefinite} disabled={!canConfigure} onChange={(event) => patch({ indefinite: event.target.checked, version: { ...configuration.version, effectiveTo: event.target.checked ? null : configuration.version.effectiveTo } })} />Prazo indeterminado</label>
+        <Field label="Dia de vencimento"><Input type="number" min={1} max={31} value={configuration.dueDay ?? ""} disabled={!canConfigure} onChange={(event) => patch({ dueDay: event.target.value ? Number(event.target.value) : null })} /></Field>
+        <Field label="Data-base de renovação"><Input type="date" value={configuration.renewalDate ?? ""} disabled={!canConfigure} onChange={(event) => patch({ renewalDate: event.target.value || null })} /></Field>
+        <Field label="Data do alerta de renovação"><Input type="date" value={configuration.renewalAlertDate ?? ""} disabled={!canConfigure} onChange={(event) => patch({ renewalAlertDate: event.target.value || null })} /></Field>
+        <Field label="Índice de reajuste"><Input value={configuration.adjustmentIndex ?? ""} disabled={!canConfigure} onChange={(event) => patch({ adjustmentIndex: event.target.value || null })} /></Field>
         <Field label="Primeiro vencimento"><Input type="date" value={configuration.firstInvoiceAt ?? ""} disabled={!canConfigure || configuration.firstInvoiceConditioned} onChange={(event) => patch({ firstInvoiceAt: event.target.value || null })} /></Field>
         <label className="flex items-center gap-2 self-end rounded-xl border border-zinc-200 p-3 text-sm"><input type="checkbox" checked={configuration.firstInvoiceConditioned} disabled={!canConfigure} onChange={(event) => patch({ firstInvoiceConditioned: event.target.checked, firstInvoiceAt: event.target.checked ? null : configuration.firstInvoiceAt })} />Vencimento condicionado</label>
         <JsonEditor label="Responsáveis" value={configuration.responsibles} disabled={!canConfigure} onChange={(responsibles) => patch({ responsibles })} />

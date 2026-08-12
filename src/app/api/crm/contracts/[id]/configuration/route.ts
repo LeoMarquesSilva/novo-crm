@@ -89,8 +89,19 @@ const commission = z.discriminatedUnion("mode", [
 const configuration = z.object({
   clientId: uuid.nullable(),
   startsAt: date.nullable(),
+  indefinite: z.boolean(),
+  dueDay: z.number().int().min(1).max(31).nullable(),
+  renewalDate: date.nullable(),
+  renewalAlertDate: date.nullable(),
+  adjustmentIndex: z.string().trim().max(80).nullable(),
   firstInvoiceAt: date.nullable(),
   firstInvoiceConditioned: z.boolean(),
+  substitutionEvidence: z.array(z.object({
+    field: z.string().trim().min(1),
+    source: z.enum(["proposta", "contrato", "rd", "manual"]),
+    originalValue: z.string(),
+    overrideReason: z.string().trim().min(1),
+  })),
   responsibles: z.array(z.object({ id: uuid, role: z.string().trim().min(1) })),
   areas: z.array(z.object({
     id: uuid,

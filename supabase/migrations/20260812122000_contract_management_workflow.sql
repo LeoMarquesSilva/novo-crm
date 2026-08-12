@@ -546,6 +546,12 @@ begin
   update public.contratos
   set cliente_id = (p_contract ->> 'clientId')::uuid,
       vigente_de = (p_contract ->> 'startsAt')::date,
+      vigente_ate = nullif(p_configuration #>> '{version,effectiveTo}', '')::date,
+      prazo_indeterminado = coalesce((p_contract ->> 'indefinite')::boolean, false),
+      dia_vencimento = nullif(p_contract ->> 'dueDay', '')::integer,
+      data_base_renovacao = nullif(p_contract ->> 'renewalDate', '')::date,
+      data_alerta_renovacao = nullif(p_contract ->> 'renewalAlertDate', '')::date,
+      indice_reajuste = nullif(btrim(p_contract ->> 'adjustmentIndex'), ''),
       primeiro_vencimento = nullif(p_contract ->> 'firstInvoiceAt', '')::date,
       primeiro_faturamento_condicionado = coalesce(
         (p_contract ->> 'firstInvoiceConditioned')::boolean,
@@ -741,7 +747,10 @@ begin
     'Versão em rascunho atualizada.',
     p_actor_id,
     'gerenciador_contratos',
-    jsonb_build_object('version_id', p_version_id),
+    jsonb_build_object(
+      'version_id', p_version_id,
+      'substitution_evidence', coalesce(p_configuration -> 'substitutionEvidence', '[]'::jsonb)
+    ),
     p_now,
     p_now
   );

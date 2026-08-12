@@ -24,8 +24,14 @@ export type ContractAreaConfiguration = {
 export type ContractConfigurationInput = {
   clientId: string | null;
   startsAt: string | null;
+  indefinite: boolean;
+  dueDay: number | null;
+  renewalDate: string | null;
+  renewalAlertDate: string | null;
+  adjustmentIndex: string | null;
   firstInvoiceAt: string | null;
   firstInvoiceConditioned: boolean;
+  substitutionEvidence: Array<{ field: string; source: string; originalValue: string; overrideReason: string }>;
   responsibles: Array<{ id: string; role: string }>;
   areas: ContractAreaConfiguration[];
   version: ContractVersionSnapshot;

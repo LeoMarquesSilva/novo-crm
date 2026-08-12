@@ -9,8 +9,14 @@ function validConfiguration(): ContractConfigurationInput {
   return {
     clientId: "11111111-1111-4111-8111-111111111111",
     startsAt: "2026-09-01",
+    indefinite: false,
+    dueDay: 10,
+    renewalDate: "2027-09-01",
+    renewalAlertDate: "2027-08-02",
+    adjustmentIndex: "IPCA",
     firstInvoiceAt: "2026-09-10",
     firstInvoiceConditioned: false,
+    substitutionEvidence: [{ field: "startsAt", source: "proposta", originalValue: "2026-08-01", overrideReason: "Ajuste aprovado" }],
     responsibles: [{ id: "22222222-2222-4222-8222-222222222222", role: "socio" }],
     areas: [{
       id: "33333333-3333-4333-8333-333333333333",
