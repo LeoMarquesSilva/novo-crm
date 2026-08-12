@@ -47,7 +47,8 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
   const [overrideConfirmed, setOverrideConfirmed] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const initial = useMemo(() => stringify(contract.configuration), [contract.configuration]);
-  const dirty = configuration !== null && stringify(configuration) !== initial;
+  const [baseline, setBaseline] = useState(initial);
+  const dirty = configuration !== null && stringify(configuration) !== baseline;
 
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
@@ -56,7 +57,14 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", guard);
-    return () => window.removeEventListener("beforeunload", guard);
+    const guardLink = (event: MouseEvent) => {
+      if (!dirty || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element | null)?.closest("a[href]");
+      if (!anchor || anchor.getAttribute("target") === "_blank" || anchor.getAttribute("href")?.startsWith("#")) return;
+      if (!window.confirm("Há alterações não salvas. Deseja sair desta página?")) event.preventDefault();
+    };
+    document.addEventListener("click", guardLink, true);
+    return () => { window.removeEventListener("beforeunload", guard); document.removeEventListener("click", guardLink, true); };
   }, [dirty]);
 
   if (!configuration || !expectedUpdatedAt) {
@@ -89,6 +97,10 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
   async function saveDraft(): Promise<string | null> {
     setIssues([]);
     setMessage(null);
+    if (document.querySelector('[data-contract-json="true"][aria-invalid="true"]')) {
+      setMessage("Corrija o JSON inválido antes de salvar.");
+      return null;
+    }
     if (sourceChanges.length && (!overrideConfirmed || !overrideReason.trim())) {
       setMessage("Confirme a substituição e informe o motivo para alterar dados sugeridos.");
       return null;
@@ -98,7 +110,11 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
       const response = await fetch(`/api/crm/contracts/${contract.id}/configuration`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expectedVersionUpdatedAt: expectedUpdatedAt, configuration }),
+        body: JSON.stringify({
+          expectedVersionUpdatedAt: expectedUpdatedAt,
+          configuration,
+          substitutionEvidence: sourceChanges.map(([field, source]) => ({ field, source: source.source, originalValue: source.originalValue, overrideReason: overrideReason.trim() })),
+        }),
       });
       const result = await response.json() as ApiResult;
       if (!response.ok || !result.ok || !result.updatedAt) {
@@ -107,6 +123,7 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
         return null;
       }
       setExpectedUpdatedAt(result.updatedAt);
+      setBaseline(stringify(configuration));
       setMessage("Rascunho salvo.");
       router.refresh();
       return result.updatedAt;
@@ -157,6 +174,7 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
       {step === 0 ? <div className="grid gap-4 md:grid-cols-2">
         <Field label="Cliente"><select className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm" value={configuration.clientId ?? ""} disabled={!canConfigure} onChange={(event) => patch({ clientId: event.target.value || null })}><option value="">Selecione</option>{contract.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field>
         <Field label="Início da vigência"><Input type="date" value={configuration.startsAt ?? ""} disabled={!canConfigure} onChange={(event) => patch({ startsAt: event.target.value || null, version: { ...configuration.version, effectiveFrom: event.target.value } })} /></Field>
+        <Field label="Fim da vigência"><Input type="date" value={configuration.version.effectiveTo ?? ""} disabled={!canConfigure} onChange={(event) => patchVersion({ effectiveTo: event.target.value || null })} /></Field>
         <Field label="Primeiro vencimento"><Input type="date" value={configuration.firstInvoiceAt ?? ""} disabled={!canConfigure || configuration.firstInvoiceConditioned} onChange={(event) => patch({ firstInvoiceAt: event.target.value || null })} /></Field>
         <label className="flex items-center gap-2 self-end rounded-xl border border-zinc-200 p-3 text-sm"><input type="checkbox" checked={configuration.firstInvoiceConditioned} disabled={!canConfigure} onChange={(event) => patch({ firstInvoiceConditioned: event.target.checked, firstInvoiceAt: event.target.checked ? null : configuration.firstInvoiceAt })} />Vencimento condicionado</label>
         <JsonEditor label="Responsáveis" value={configuration.responsibles} disabled={!canConfigure} onChange={(responsibles) => patch({ responsibles })} />
@@ -188,5 +206,5 @@ function SourceBadges({ fields, keys }: { fields: ContractDetailViewModel["sourc
 function JsonEditor<T>({ label, value, disabled, onChange }: { label: string; value: T; disabled: boolean; onChange: (value: T) => void }) {
   const [text, setText] = useState(() => stringify(value));
   const [error, setError] = useState<string | null>(null);
-  return <label className="block text-sm font-medium text-zinc-700"><span>{label}</span><textarea spellCheck={false} className="mt-1 min-h-64 w-full overflow-auto rounded-xl border border-zinc-200 bg-zinc-950 p-3 font-mono text-xs text-zinc-100 focus:border-teal-500 focus:outline-none" value={text} disabled={disabled} onChange={(event) => { const next = event.target.value; setText(next); try { onChange(JSON.parse(next) as T); setError(null); } catch { setError("JSON inválido; corrija antes de salvar."); } }} />{error ? <span className="mt-1 block text-xs text-rose-700">{error}</span> : null}</label>;
+  return <label className="block text-sm font-medium text-zinc-700"><span>{label}</span><textarea data-contract-json="true" aria-invalid={Boolean(error)} spellCheck={false} className="mt-1 min-h-64 w-full overflow-auto rounded-xl border border-zinc-200 bg-zinc-950 p-3 font-mono text-xs text-zinc-100 focus:border-teal-500 focus:outline-none" value={text} disabled={disabled} onChange={(event) => { const next = event.target.value; setText(next); try { onChange(JSON.parse(next) as T); setError(null); } catch { setError("JSON inválido; corrija antes de salvar."); } }} />{error ? <span className="mt-1 block text-xs text-rose-700">{error}</span> : null}</label>;
 }
