@@ -1,6 +1,7 @@
 import { FileSignature } from "lucide-react";
 import { CrmPageHeader } from "@/components/crm/crm-page-header";
 import { D4SignDashboard } from "@/components/crm/d4sign-dashboard";
+import { ContractsHub } from "@/components/crm/contracts/contracts-hub";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/server";
 import { getD4SignEnv } from "@/lib/d4sign/env";
@@ -8,6 +9,7 @@ import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { EnsureContractDraftBanner } from "@/components/crm/contracts/ensure-contract-draft-banner";
 import { canEnsureContractDraft } from "@/lib/auth/crm-access-policy";
+import { getContractsPortfolio } from "@/modules/contracts/infrastructure/contract-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -119,10 +121,11 @@ export default async function ContratosPage({
   const setupOpportunityId =
     typeof query.setupOpportunityId === "string" ? query.setupOpportunityId : null;
 
-  const [{ linked, unlinked, missingNames, error }, appUsersByEmail, quota] = await Promise.all([
+  const [{ linked, unlinked, missingNames, error }, appUsersByEmail, quota, portfolioResult] = await Promise.all([
     getD4SignData(),
     getAppUsersByEmail(),
     getD4SignQuotaStatus(),
+    getContractsPortfolio(),
   ]);
   const env = getD4SignEnv();
   const d4signPortalBase = env.apiBaseUrl.replace(/\/api\/.*$/, "");
@@ -171,21 +174,20 @@ export default async function ContratosPage({
         />
       ) : null}
 
-      {error ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          Erro ao carregar contratos: {error}
-        </div>
-      ) : (
-        <D4SignDashboard
-          initialLinked={linked as Parameters<typeof D4SignDashboard>[0]["initialLinked"]}
-          initialUnlinked={unlinked as Parameters<typeof D4SignDashboard>[0]["initialUnlinked"]}
-          initialMissingNames={missingNames}
-          initialQuota={quota}
-          firmSigners={firmSigners}
-          d4signPortalBase={d4signPortalBase}
-          appUsersByEmail={appUsersByEmail}
-        />
-      )}
+      <ContractsHub
+        portfolio={portfolioResult.items}
+        portfolioError={portfolioResult.error}
+        d4signError={error}
+        d4sign={{
+          initialLinked: linked as Parameters<typeof D4SignDashboard>[0]["initialLinked"],
+          initialUnlinked: unlinked as Parameters<typeof D4SignDashboard>[0]["initialUnlinked"],
+          initialMissingNames: missingNames,
+          initialQuota: quota,
+          firmSigners,
+          d4signPortalBase,
+          appUsersByEmail,
+        }}
+      />
     </div>
   );
 }
