@@ -2858,6 +2858,18 @@ export type Database = {
         }
         Returns: string | null
       }
+      get_contract_billing_transition_state: {
+        Args: {
+          p_on_date: string
+          p_opportunity_id: string
+        }
+        Returns: {
+          code: string | null
+          contract_id: string | null
+          is_valid: boolean
+          reason: string | null
+        }[]
+      }
       ensure_contract_draft_for_opportunity: {
         Args: {
           p_now: string

@@ -31,3 +31,12 @@
 - `npx.cmd tsc --noEmit` — exit 0.
 - `git diff --check` — exit 0; apenas avisos de normalização LF/CRLF.
 - Untracked preexistentes foram preservados e não entram no stage.
+
+## Fix round 1/5
+
+- RED: 3 testes do mapper falharam recebendo `undefined` para contrato ausente, contrato inválido e estado válido.
+- GREEN: `buildContractTransitionBlocker` passou a retornar CTA de bootstrap com `contractId: null`, CTA de setup para contrato existente e `null` para estado válido.
+- O GET agora usa uma única RPC `get_contract_billing_transition_state(p_opportunity_id, p_on_date)`, `STABLE`, read-only e executável apenas por `service_role`.
+- Contrato ausente retorna blocker acionável para `/crm/contratos?setupOpportunityId={opportunityId}` no GET e no POST.
+- Área deixou de contar como requisito universal no progresso visual; a validação SQL de transição continua sem exigir área.
+- Checks: 2 arquivos/10 testes aprovados; `npx.cmd tsc --noEmit` e `git diff --check` com exit 0.

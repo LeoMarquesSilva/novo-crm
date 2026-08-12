@@ -7,6 +7,38 @@ export interface TransitionPayload {
   financeiroConcluido?: boolean;
 }
 
+export type ContractBillingTransitionState = {
+  contractId: string | null;
+  isValid: boolean;
+  code: string | null;
+  reason: string | null;
+};
+
+export type ContractTransitionBlocker = {
+  code: "contract_billing_setup_required";
+  message: string;
+  contractId: string | null;
+  actionHref: string;
+};
+
+export const CONTRACT_BILLING_BLOCKER_MESSAGE =
+  "Conclua a configuração de faturamento e ative o contrato antes de avançar para Boas-vindas.";
+
+export function buildContractTransitionBlocker(
+  state: ContractBillingTransitionState,
+  opportunityId: string,
+): ContractTransitionBlocker | null {
+  if (state.isValid) return null;
+  return {
+    code: "contract_billing_setup_required",
+    message: CONTRACT_BILLING_BLOCKER_MESSAGE,
+    contractId: state.contractId,
+    actionHref: state.contractId
+      ? `/crm/contratos/${state.contractId}?setup=1&returnTo=/crm/leads/${opportunityId}`
+      : `/crm/contratos?setupOpportunityId=${opportunityId}`,
+  };
+}
+
 const stageRequirements: Partial<Record<OpportunityStage, (keyof TransitionPayload)[]>> = {
   proposta_enviada: ["linkProposta"],
   contrato_elaborado: ["linkContrato"],

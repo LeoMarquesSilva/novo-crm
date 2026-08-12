@@ -88,6 +88,91 @@ from public, anon, authenticated;
 grant execute on function public.ensure_contract_draft_for_opportunity(uuid, timestamptz)
 to service_role;
 
+create or replace function public.get_contract_billing_transition_state(
+  p_opportunity_id uuid,
+  p_on_date date
+)
+returns table (
+  contract_id uuid,
+  is_valid boolean,
+  code text,
+  reason text
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with linked_contract as (
+    select
+      c.id as contract_id,
+      c.status as contract_status,
+      c.cliente_id,
+      c.vigente_de as contract_vigente_de,
+      c.vigente_ate as contract_vigente_ate,
+      c.primeiro_vencimento,
+      c.primeiro_faturamento_condicionado,
+      v.id as version_id,
+      v.status as version_status,
+      v.vigente_de as version_vigente_de,
+      v.vigente_ate as version_vigente_ate
+    from public.contratos c
+    left join public.contrato_versoes v
+      on v.id = c.versao_ativa_id
+     and v.contrato_id = c.id
+    where c.oportunidade_id = p_opportunity_id
+    limit 1
+  ), evaluated as (
+    select
+      c.contract_id,
+      coalesce(
+        c.contract_status = 'ativo'::public.contract_lifecycle_status
+        and c.version_status = 'ativa'::public.contract_version_status
+        and c.cliente_id is not null
+        and c.contract_vigente_de is not null
+        and c.contract_vigente_de <= p_on_date
+        and (c.contract_vigente_ate is null or c.contract_vigente_ate >= p_on_date)
+        and (c.primeiro_vencimento is not null or c.primeiro_faturamento_condicionado)
+        and c.version_vigente_de is not null
+        and c.version_vigente_de <= p_on_date
+        and (c.version_vigente_ate is null or c.version_vigente_ate >= p_on_date)
+        and exists (
+          select 1
+          from public.contrato_responsaveis r
+          where r.contrato_id = c.contract_id
+        )
+        and exists (
+          select 1
+          from public.contrato_componentes_cobranca cc
+          where cc.versao_id = c.version_id
+        ),
+        false
+      ) as is_valid
+    from (select 1) seed
+    left join linked_contract c on true
+  )
+  select
+    e.contract_id,
+    e.is_valid,
+    case
+      when e.is_valid then null
+      when e.contract_id is null then 'contract_not_found'
+      else 'contract_billing_setup_required'
+    end,
+    case
+      when e.is_valid then null
+      when e.contract_id is null then 'Contrato vinculado não encontrado.'
+      else 'Configuração de faturamento incompleta ou fora da vigência.'
+    end
+  from evaluated e;
+$$;
+
+revoke all on function public.get_contract_billing_transition_state(uuid, date)
+from public, anon, authenticated;
+
+grant execute on function public.get_contract_billing_transition_state(uuid, date)
+to service_role;
+
 create or replace function public.transition_opportunity_atomic(
   p_opportunity_id uuid,
   p_expected_stage public.opportunity_stage,

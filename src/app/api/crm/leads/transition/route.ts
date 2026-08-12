@@ -32,6 +32,11 @@ import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
 import { transitionOpportunity } from "@/modules/crm/application/services/transition-opportunity";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
+import {
+  buildContractTransitionBlocker,
+  CONTRACT_BILLING_BLOCKER_MESSAGE,
+  type ContractTransitionBlocker,
+} from "@/modules/crm/domain/workflow-rules";
 
 type OportunidadeUpdate = Database["public"]["Tables"]["oportunidades"]["Update"];
 
@@ -72,16 +77,6 @@ const bodySchema = z.object({
     .record(z.string(), z.union([z.string(), z.array(z.string())]))
     .optional(),
 });
-
-type ContractTransitionBlocker = {
-  code: "contract_billing_setup_required";
-  message: string;
-  contractId: string;
-  actionHref: string;
-};
-
-const CONTRACT_BILLING_BLOCKER_MESSAGE =
-  "Conclua a configuração de faturamento e ative o contrato antes de avançar para Boas-vindas.";
 
 function normalizeToken(value: string): string {
   return value
@@ -188,17 +183,33 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: contractError.message }, { status: 500 });
       }
       if (!contract) {
+        const transitionBlocker = buildContractTransitionBlocker(
+          {
+            contractId: null,
+            isValid: false,
+            code: "contract_not_found",
+            reason: "Contrato vinculado não encontrado.",
+          },
+          opportunityId,
+        );
         return NextResponse.json(
-          { ok: false, error: "Contrato vinculado à oportunidade não encontrado." },
-          { status: 409 },
+          {
+            ok: false,
+            errors: [CONTRACT_BILLING_BLOCKER_MESSAGE],
+            transitionBlocker,
+          },
+          { status: 422 },
         );
       }
-      contractTransitionBlocker = {
-        code: "contract_billing_setup_required",
-        message: CONTRACT_BILLING_BLOCKER_MESSAGE,
-        contractId: contract.id,
-        actionHref: `/crm/contratos/${contract.id}?setup=1&returnTo=/crm/leads/${opportunityId}`,
-      };
+      contractTransitionBlocker = buildContractTransitionBlocker(
+        {
+          contractId: contract.id,
+          isValid: false,
+          code: "contract_billing_setup_required",
+          reason: "Configuração incompleta.",
+        },
+        opportunityId,
+      );
 
       if (
         contract.status === "ativo" &&

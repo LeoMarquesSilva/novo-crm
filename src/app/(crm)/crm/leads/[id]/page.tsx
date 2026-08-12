@@ -655,18 +655,12 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
         versions?.[0] ??
         null;
 
-      const [{ count: responsibleCount }, { count: areaCount }, { count: componentCount }] =
+      const [{ count: responsibleCount }, { count: componentCount }] =
         await Promise.all([
           supabase
             .from("contrato_responsaveis")
             .select("id", { count: "exact", head: true })
             .eq("contrato_id", contract.id),
-          version
-            ? supabase
-                .from("contrato_areas")
-                .select("id", { count: "exact", head: true })
-                .eq("versao_id", version.id)
-            : Promise.resolve({ count: 0 }),
           version
             ? supabase
                 .from("contrato_componentes_cobranca")
@@ -682,7 +676,6 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
         Boolean(contract.cliente_id),
         Boolean(contract.vigente_de && firstInvoiceComplete),
         (responsibleCount ?? 0) > 0,
-        (areaCount ?? 0) > 0,
         (componentCount ?? 0) > 0,
         contract.status === "ativo" && version?.status === "ativa",
       ];

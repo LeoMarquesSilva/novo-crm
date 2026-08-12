@@ -636,7 +636,7 @@ export function PipelineBoard({
           transitionBlocker?: {
             code: "contract_billing_setup_required";
             message: string;
-            contractId: string;
+            contractId: string | null;
             actionHref: string;
           } | null;
         };
