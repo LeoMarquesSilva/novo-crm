@@ -32,11 +32,17 @@ export function getPayloadFieldsRequiredForStage(
 }
 
 export function validateStagePreconditions(params: {
+  currentStage: OpportunityStage;
   nextStage: OpportunityStage;
   payload: TransitionPayload;
 }): string[] {
-  const { nextStage, payload } = params;
-  const requirements = stageRequirements[nextStage] ?? [];
+  const { currentStage, nextStage, payload } = params;
+  const requirements = [
+    ...(stageRequirements[nextStage] ?? []),
+    ...(currentStage === "inclusao_faturamento" && nextStage === "boas_vindas"
+      ? (["financeiroConcluido"] as const)
+      : []),
+  ];
   const missingFields = requirements.filter(
     (field) => !payloadFieldPresent(payload, field),
   );

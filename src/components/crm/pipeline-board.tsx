@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -79,6 +79,7 @@ import {
 } from "@/components/crm/new-lead-modal";
 import { AlertCircle, Calendar, FileText, Link2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface PipelineBoardProps {
   opportunities: Oportunidade[];
@@ -178,6 +179,15 @@ type TransitionModalState = {
   /** Avisos não bloqueantes vindos do servidor (ex.: prazo &lt; 2 dias úteis). */
   transitionWarnings: string[];
 };
+
+type BoardError = { message: string; actionHref?: string };
+
+class TransitionRequestError extends Error {
+  constructor(message: string, readonly actionHref?: string) {
+    super(message);
+    this.name = "TransitionRequestError";
+  }
+}
 
 function transitionModalIsDirty(m: TransitionModalState): boolean {
   const customDirty = Object.values(m.customValues).some((v) => {
@@ -418,7 +428,7 @@ export function PipelineBoard({
   const router = useRouter();
   const [boardItems, setBoardItems] = useState<Oportunidade[]>(opportunities);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [boardError, setBoardError] = useState<string | null>(null);
+  const [boardError, setBoardError] = useState<BoardError | null>(null);
   const [transitionModal, setTransitionModal] = useState<TransitionModalState | null>(
     null,
   );
@@ -522,6 +532,7 @@ export function PipelineBoard({
         etapa?: OpportunityStage;
         linkProposta?: string | null;
         linkContrato?: string | null;
+        transitionBlocker?: { message?: string; actionHref?: string };
       };
 
       if (!response.ok || data.ok === false) {
@@ -529,7 +540,7 @@ export function PipelineBoard({
           (Array.isArray(data.errors) && data.errors.join("; ")) ||
           data.error ||
           "Não foi possível atualizar a etapa.";
-        throw new Error(msg);
+        throw new TransitionRequestError(msg, data.transitionBlocker?.actionHref);
       }
 
       const sentProposta = payload.linkProposta?.trim() ?? "";
@@ -581,7 +592,7 @@ export function PipelineBoard({
     if (sourceStage === targetStage) return;
 
     if (isRdKanbanViewOnlyLead(item)) {
-      setBoardError(RD_KANBAN_VIEW_ONLY_MESSAGE);
+      setBoardError({ message: RD_KANBAN_VIEW_ONLY_MESSAGE });
       return;
     }
 
@@ -591,9 +602,9 @@ export function PipelineBoard({
       hasDueDiligence: item.haveraDueDiligence,
     });
     if (!allowed) {
-      setBoardError(
-        "Só é permitido avançar ou voltar uma etapa por vez, na ordem do funil (sem pular).",
-      );
+      setBoardError({
+        message: "Só é permitido avançar ou voltar uma etapa por vez, na ordem do funil (sem pular).",
+      });
       return;
     }
 
@@ -622,15 +633,29 @@ export function PipelineBoard({
           customFields?: FieldDefinition[];
           fieldValues?: Record<string, string | string[] | undefined>;
           warnings?: string[];
+          transitionBlocker?: {
+            code: "contract_billing_setup_required";
+            message: string;
+            contractId: string;
+            actionHref: string;
+          } | null;
         };
 
         if (!res.ok || data.ok === false) {
-          setBoardError(data.error ?? "Não foi possível validar a transição.");
+          setBoardError({ message: data.error ?? "Não foi possível validar a transição." });
+          return;
+        }
+
+        if (data.transitionBlocker) {
+          setBoardError({
+            message: data.transitionBlocker.message,
+            actionHref: data.transitionBlocker.actionHref,
+          });
           return;
         }
 
         if (data.leadIntakeBlockingReason) {
-          setBoardError(data.leadIntakeBlockingReason);
+          setBoardError({ message: data.leadIntakeBlockingReason });
           return;
         }
 
@@ -666,7 +691,12 @@ export function PipelineBoard({
           transitionWarnings: Array.isArray(data.warnings) ? data.warnings : [],
         });
       } catch (e) {
-        setBoardError(e instanceof Error ? e.message : "Falha ao validar a etapa.");
+        setBoardError({
+          message: e instanceof Error ? e.message : "Falha ao validar a etapa.",
+          ...(e instanceof TransitionRequestError && e.actionHref
+            ? { actionHref: e.actionHref }
+            : {}),
+        });
       }
     })();
   };
@@ -1368,7 +1398,7 @@ export function PipelineBoard({
                 {boardError ? (
                   <DialogDescription asChild>
                     <p className="text-sm font-normal leading-relaxed text-destructive">
-                      {boardError}
+                      {boardError.message}
                     </p>
                   </DialogDescription>
                 ) : null}
@@ -1376,6 +1406,14 @@ export function PipelineBoard({
             </div>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:justify-end">
+            {boardError?.actionHref ? (
+              <Link
+                href={boardError.actionHref}
+                className={buttonVariants({ variant: "cta" })}
+              >
+                Configurar contrato
+              </Link>
+            ) : null}
             <Button type="button" variant="cta" onClick={() => setBoardError(null)}>
               Entendi
             </Button>

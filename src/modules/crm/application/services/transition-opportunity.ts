@@ -47,6 +47,7 @@ export function transitionOpportunity(
   }
 
   const preconditionErrors = validateStagePreconditions({
+    currentStage: request.currentStage,
     nextStage: request.nextStage,
     payload: request.payload,
   });

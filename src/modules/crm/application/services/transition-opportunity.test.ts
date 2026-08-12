@@ -60,4 +60,46 @@ describe("transitionOpportunity", () => {
     expect(result.audit?.from).toBe("confeccao_proposta");
     expect(result.audit?.to).toBe("proposta_enviada");
   });
+
+  it("allows entering billing inclusion before the financial setup is complete", () => {
+    const result = transitionOpportunity({
+      opportunityId: "opp_1",
+      currentStage: "cadastro_novo_cliente",
+      nextStage: "inclusao_faturamento",
+      hasDueDiligence: false,
+      changedBy: "user_1",
+      payload: {},
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("blocks leaving billing inclusion while the financial setup is incomplete", () => {
+    const result = transitionOpportunity({
+      opportunityId: "opp_1",
+      currentStage: "inclusao_faturamento",
+      nextStage: "boas_vindas",
+      hasDueDiligence: false,
+      changedBy: "user_1",
+      payload: {},
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: ["Campo obrigatório ausente: financeiroConcluido"],
+    });
+  });
+
+  it("allows leaving billing inclusion after the financial setup is complete", () => {
+    const result = transitionOpportunity({
+      opportunityId: "opp_1",
+      currentStage: "inclusao_faturamento",
+      nextStage: "boas_vindas",
+      hasDueDiligence: false,
+      changedBy: "user_1",
+      payload: { financeiroConcluido: true },
+    });
+
+    expect(result.ok).toBe(true);
+  });
 });

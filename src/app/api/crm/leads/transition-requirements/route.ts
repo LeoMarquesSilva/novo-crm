@@ -26,6 +26,16 @@ export type EmpresaIntakeForModal = {
   documento: string;
 };
 
+export type ContractTransitionBlocker = {
+  code: "contract_billing_setup_required";
+  message: string;
+  contractId: string;
+  actionHref: string;
+};
+
+const CONTRACT_BILLING_BLOCKER_MESSAGE =
+  "Conclua a configuração de faturamento e ative o contrato antes de avançar para Boas-vindas.";
+
 function parseEmpresasJson(raw: unknown): EmpresaIntakeForModal[] {
   if (!Array.isArray(raw)) return [];
   const out: EmpresaIntakeForModal[] = [];
@@ -111,7 +121,7 @@ export async function GET(request: NextRequest) {
     const [{ data: row, error: fetchError }, { data: reconRow }] = await Promise.all([
       supabase
         .from("oportunidades")
-        .select("id, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle")
+        .select("id, etapa, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle")
         .eq("id", opportunityId)
         .maybeSingle(),
       supabase
@@ -134,6 +144,65 @@ export async function GET(request: NextRequest) {
         { ok: false, error: RD_KANBAN_VIEW_ONLY_MESSAGE },
         { status: 403 },
       );
+    }
+
+    let transitionBlocker: ContractTransitionBlocker | null = null;
+    if (row.etapa === "inclusao_faturamento" && nextStage === "boas_vindas") {
+      const { data: contract, error: contractError } = await supabase
+        .from("contratos")
+        .select(
+          "id, status, versao_ativa_id, cliente_id, vigente_de, primeiro_vencimento, primeiro_faturamento_condicionado",
+        )
+        .eq("oportunidade_id", opportunityId)
+        .maybeSingle();
+      if (contractError) {
+        return NextResponse.json({ ok: false, error: contractError.message }, { status: 500 });
+      }
+      if (!contract) {
+        return NextResponse.json(
+          { ok: false, error: "Contrato vinculado à oportunidade não encontrado." },
+          { status: 409 },
+        );
+      }
+
+      let setupComplete = false;
+      if (
+        contract.status === "ativo" &&
+        contract.versao_ativa_id &&
+        contract.cliente_id &&
+        contract.vigente_de &&
+        (contract.primeiro_vencimento || contract.primeiro_faturamento_condicionado)
+      ) {
+        const [{ data: version }, { count: responsibleCount }, { count: componentCount }] =
+          await Promise.all([
+            supabase
+              .from("contrato_versoes")
+              .select("id")
+              .eq("id", contract.versao_ativa_id)
+              .eq("contrato_id", contract.id)
+              .eq("status", "ativa")
+              .not("vigente_de", "is", null)
+              .maybeSingle(),
+            supabase
+              .from("contrato_responsaveis")
+              .select("id", { count: "exact", head: true })
+              .eq("contrato_id", contract.id),
+            supabase
+              .from("contrato_componentes_cobranca")
+              .select("id", { count: "exact", head: true })
+              .eq("versao_id", contract.versao_ativa_id),
+          ]);
+        setupComplete = Boolean(version && (responsibleCount ?? 0) > 0 && (componentCount ?? 0) > 0);
+      }
+
+      if (!setupComplete) {
+        transitionBlocker = {
+          code: "contract_billing_setup_required",
+          message: CONTRACT_BILLING_BLOCKER_MESSAGE,
+          contractId: contract.id,
+          actionHref: `/crm/contratos/${contract.id}?setup=1&returnTo=/crm/leads/${opportunityId}`,
+        };
+      }
     }
 
     const links = linkFieldsMissing({
@@ -287,6 +356,7 @@ export async function GET(request: NextRequest) {
       fieldValues,
       blockingCustomFieldCodes: blockingCustom.map((f) => f.field_code),
       warnings,
+      transitionBlocker,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao calcular requisitos.";

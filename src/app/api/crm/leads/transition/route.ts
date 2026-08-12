@@ -73,6 +73,16 @@ const bodySchema = z.object({
     .optional(),
 });
 
+type ContractTransitionBlocker = {
+  code: "contract_billing_setup_required";
+  message: string;
+  contractId: string;
+  actionHref: string;
+};
+
+const CONTRACT_BILLING_BLOCKER_MESSAGE =
+  "Conclua a configuração de faturamento e ative o contrato antes de avançar para Boas-vindas.";
+
 function normalizeToken(value: string): string {
   return value
     .normalize("NFD")
@@ -163,6 +173,71 @@ export async function POST(request: Request) {
     const mergedLinkContrato = (inContrato || rowContrato || "") || undefined;
 
     const pipeline = pipelineCodeForStage(nextStage as OpportunityStage);
+
+    let contractBillingSetupComplete = false;
+    let contractTransitionBlocker: ContractTransitionBlocker | null = null;
+    if (currentStage === "inclusao_faturamento" && nextStage === "boas_vindas") {
+      const { data: contract, error: contractError } = await supabase
+        .from("contratos")
+        .select(
+          "id, status, versao_ativa_id, cliente_id, vigente_de, primeiro_vencimento, primeiro_faturamento_condicionado",
+        )
+        .eq("oportunidade_id", opportunityId)
+        .maybeSingle();
+      if (contractError) {
+        return NextResponse.json({ ok: false, error: contractError.message }, { status: 500 });
+      }
+      if (!contract) {
+        return NextResponse.json(
+          { ok: false, error: "Contrato vinculado à oportunidade não encontrado." },
+          { status: 409 },
+        );
+      }
+      contractTransitionBlocker = {
+        code: "contract_billing_setup_required",
+        message: CONTRACT_BILLING_BLOCKER_MESSAGE,
+        contractId: contract.id,
+        actionHref: `/crm/contratos/${contract.id}?setup=1&returnTo=/crm/leads/${opportunityId}`,
+      };
+
+      if (
+        contract.status === "ativo" &&
+        contract.versao_ativa_id &&
+        contract.cliente_id &&
+        contract.vigente_de &&
+        (contract.primeiro_vencimento || contract.primeiro_faturamento_condicionado)
+      ) {
+        const [{ data: version }, { count: responsibleCount }, { count: componentCount }] =
+          await Promise.all([
+            supabase
+              .from("contrato_versoes")
+              .select("id")
+              .eq("id", contract.versao_ativa_id)
+              .eq("contrato_id", contract.id)
+              .eq("status", "ativa")
+              .not("vigente_de", "is", null)
+              .maybeSingle(),
+            supabase
+              .from("contrato_responsaveis")
+              .select("id", { count: "exact", head: true })
+              .eq("contrato_id", contract.id),
+            supabase
+              .from("contrato_componentes_cobranca")
+              .select("id", { count: "exact", head: true })
+              .eq("versao_id", contract.versao_ativa_id),
+          ]);
+        contractBillingSetupComplete = Boolean(
+          version && (responsibleCount ?? 0) > 0 && (componentCount ?? 0) > 0,
+        );
+      }
+
+      if (!contractBillingSetupComplete) {
+        return NextResponse.json(
+          { ok: false, errors: [CONTRACT_BILLING_BLOCKER_MESSAGE], transitionBlocker: contractTransitionBlocker },
+          { status: 422 },
+        );
+      }
+    }
 
     let leadIntakeSnapshot:
       | { local_reuniao: string; data_reuniao: string; horario_reuniao: string }
@@ -393,6 +468,7 @@ export async function POST(request: Request) {
       payload: {
         linkProposta: mergedLinkProposta,
         linkContrato: mergedLinkContrato,
+        financeiroConcluido: contractBillingSetupComplete,
       },
     });
 
@@ -494,15 +570,23 @@ export async function POST(request: Request) {
       const conflict =
         atomicError.code === "40001" ||
         atomicError.message.includes("OPPORTUNITY_STAGE_CONFLICT");
+      const contractBillingBlocked = atomicError.message.includes(
+        "CONTRACT_BILLING_SETUP_REQUIRED",
+      );
       console.error("Falha na transição atômica da oportunidade", atomicError);
       return NextResponse.json(
         {
           ok: false,
-          error: conflict
+          error: contractBillingBlocked
+            ? CONTRACT_BILLING_BLOCKER_MESSAGE
+            : conflict
             ? "A oportunidade foi alterada por outro usuário. Atualize a tela e tente novamente."
             : "Não foi possível concluir a transição.",
+          ...(contractBillingBlocked && contractTransitionBlocker
+            ? { transitionBlocker: contractTransitionBlocker }
+            : {}),
         },
-        { status: conflict ? 409 : 500 },
+        { status: contractBillingBlocked ? 422 : conflict ? 409 : 500 },
       );
     }
 

@@ -131,6 +131,36 @@ begin
       message = 'OPPORTUNITY_STAGE_CONFLICT';
   end if;
 
+  if p_expected_stage = 'inclusao_faturamento'::public.opportunity_stage
+    and p_next_stage = 'boas_vindas'::public.opportunity_stage
+    and not exists (
+      select 1
+      from public.contratos c
+      join public.contrato_versoes v
+        on v.id = c.versao_ativa_id
+       and v.contrato_id = c.id
+      where c.oportunidade_id = p_opportunity_id
+        and c.status = 'ativo'::public.contract_lifecycle_status
+        and v.status = 'ativa'::public.contract_version_status
+        and c.cliente_id is not null
+        and c.vigente_de is not null
+        and (c.primeiro_vencimento is not null or c.primeiro_faturamento_condicionado)
+        and v.vigente_de is not null
+        and exists (
+          select 1 from public.contrato_responsaveis r where r.contrato_id = c.id
+        )
+        and exists (
+          select 1
+          from public.contrato_componentes_cobranca cc
+          where cc.versao_id = v.id
+        )
+    )
+  then
+    raise exception using
+      errcode = '55000',
+      message = 'CONTRACT_BILLING_SETUP_REQUIRED';
+  end if;
+
   update public.oportunidades
   set
     etapa = p_next_stage,

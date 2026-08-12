@@ -64,11 +64,12 @@ import { ContratoDocumentBuilder } from "./contrato-document-builder";
 import { LeadNotesTab } from "./lead-notes-tab";
 import { LeadLifecycleTimelinePanel } from "@/components/crm/lead-lifecycle-timeline-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ContractBillingOnboardingPanel } from "./contract-billing-onboarding-panel";
 
 /** Renderizado à parte (JSON); não repetir como campo genérico. */
 const HIDDEN_PIPELINE_CODES = new Set(["cp_escopo_detalhe_json"]);
 const PROPOSAL_FIELD_ORDER = ["cp_qualificacao", "cp_areas_objeto", "cp_objeto_proposta"];
-type LeadDetailTab = "overview" | "proposal" | "contract" | "due" | "crm" | "notes" | "signature" | "history";
+type LeadDetailTab = "overview" | "proposal" | "contract" | "billing" | "due" | "crm" | "notes" | "signature" | "history";
 
 export function LeadDetailView({
   lead,
@@ -92,6 +93,7 @@ export function LeadDetailView({
   const ddSimNao = lead.haveraDueDiligence ? "Sim" : "Não";
   const isProposalStage = lead.etapa === "confeccao_proposta";
   const isContractStage = lead.etapa === "confeccao_contrato";
+  const showBillingTab = ["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(lead.etapa);
   const isRdLead = Boolean(lead.rdDealId || lead.rdDealUrl || lead.filledFields.length > 0);
   const intakeLeadType = lead.intakeFields.find((field) => field.key === "tipo_lead")?.value?.trim();
   const leadTypeDisplay = intakeLeadType || lead.tipo.replace(/_/g, " ");
@@ -197,6 +199,11 @@ export function LeadDetailView({
                 {isContractStage ? (
                   <TabsTrigger value="contract" className="h-10 rounded-2xl px-4 text-sm font-bold">
                     Contrato
+                  </TabsTrigger>
+                ) : null}
+                {showBillingTab ? (
+                  <TabsTrigger value="billing" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                    Faturamento
                   </TabsTrigger>
                 ) : null}
                 {isRdLead ? (
@@ -390,6 +397,15 @@ export function LeadDetailView({
                     appUsersByEmail={appUsersByEmail}
                   />
                 </section>
+              </TabsContent>
+            ) : null}
+
+            {showBillingTab ? (
+              <TabsContent value="billing" className="mt-4 space-y-5">
+                <ContractBillingOnboardingPanel
+                  contractBilling={lead.contractBilling}
+                  showSetupAction={lead.etapa === "inclusao_faturamento"}
+                />
               </TabsContent>
             ) : null}
 
