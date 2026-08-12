@@ -33,7 +33,7 @@ function percentageOf(value: MoneyCents, basisPoints: number): MoneyCents {
   if (!Number.isInteger(basisPoints)) {
     throw new Error("Percentage basis points must be an integer");
   }
-  return moneyCents((value * BigInt(basisPoints)) / 10_000n);
+  return moneyCents((value * BigInt(basisPoints)) / BigInt(10_000));
 }
 
 function isEffective(component: BillingComponent, competency: string): boolean {
@@ -209,12 +209,12 @@ export function allocateCentsByPercentage(
     throw new Error("Allocation percentages must sum to 10000 basis points");
   }
 
-  let allocated = 0n;
+  let allocated = BigInt(0);
   return percentageBasisPoints.map((percentage, index) => {
     if (index === percentageBasisPoints.length - 1) {
       return moneyCents(totalCents - allocated);
     }
-    const amount = (totalCents * BigInt(percentage)) / 10_000n;
+    const amount = (totalCents * BigInt(percentage)) / BigInt(10_000);
     allocated += amount;
     return moneyCents(amount);
   });
@@ -268,7 +268,7 @@ function allocateRules(
     });
     const sum = results
       .filter((result) => result.componentId === componentId)
-      .reduce((total, result) => total + result.amountCents, 0n);
+      .reduce((total, result) => total + result.amountCents, BigInt(0));
     if (sum !== baseCents) {
       throw new Error("Fixed-value allocations must reconcile with the eligible amount");
     }
@@ -279,7 +279,7 @@ function allocateRules(
     const baseCents = moneyCents(
       candidates
         .filter((charge) => charge.component.id === componentId)
-        .reduce((sum, charge) => sum + charge.amountCents, 0n),
+        .reduce((sum, charge) => sum + charge.amountCents, BigInt(0)),
     );
     apply(scopedRules, baseCents, componentId);
   }
@@ -288,7 +288,7 @@ function allocateRules(
   const defaultBase = moneyCents(
     candidates
       .filter((charge) => !componentIds.includes(charge.component.id))
-      .reduce((sum, charge) => sum + charge.amountCents, 0n),
+      .reduce((sum, charge) => sum + charge.amountCents, BigInt(0)),
   );
   apply(defaultRules, defaultBase);
   return results;
@@ -309,7 +309,7 @@ export function calculateCommissions(charges: CalculatedCharge[], rules: Commiss
     const base = moneyCents(
       candidates
         .filter((charge) => rule.componentId === undefined || charge.component.id === rule.componentId)
-        .reduce((sum, charge) => sum + charge.amountCents, 0n),
+        .reduce((sum, charge) => sum + charge.amountCents, BigInt(0)),
     );
     result.push({
       ruleId: rule.id,
@@ -345,9 +345,9 @@ export function calculateMonthlyBilling(input: BillingCalculationInput): Billing
     .map((component) => calculateComponent(component, input, blockers))
     .filter((charge): charge is CalculatedCharge => charge !== null);
 
-  let honorarios = 0n;
-  let tributos = 0n;
-  let reembolsos = 0n;
+  let honorarios = BigInt(0);
+  let tributos = BigInt(0);
+  let reembolsos = BigInt(0);
   const items = charges.map(buildMemoryItem);
 
   for (const charge of charges) {

@@ -16,10 +16,10 @@ const emptyVersion = (components: ContractVersionSnapshot["components"]): Contra
 
 describe("money", () => {
   it.each([
-    ["R$ 14.600,00", 1_460_000n],
-    ["14600.00", 1_460_000n],
-    [10.5, 1_050n],
-    ["-150,25", -15_025n],
+    ["R$ 14.600,00", BigInt(1_460_000)],
+    ["14600.00", BigInt(1_460_000)],
+    [10.5, BigInt(1_050)],
+    ["-150,25", -BigInt(15_025)],
   ])("parses %s into exact integer cents", (value, expected) => {
     expect(decimalToCents(value)).toBe(expected);
   });
@@ -50,8 +50,8 @@ describe("calculateAnnualReference", () => {
       manualResolutions: [],
     });
 
-    expect(result.calculatedCents).toBe(17_520_000n);
-    expect(result.referenceCents).toBe(17_520_000n);
+    expect(result.calculatedCents).toBe(BigInt(17_520_000));
+    expect(result.referenceCents).toBe(BigInt(17_520_000));
     expect(result.competencies).toHaveLength(12);
   });
 
@@ -91,7 +91,7 @@ describe("calculateAnnualReference", () => {
       manualResolutions: [],
     });
 
-    expect(result.calculatedCents).toBe(280_000n);
+    expect(result.calculatedCents).toBe(BigInt(280_000));
   });
 
   it("excludes unreleased success and reimbursement values", () => {
@@ -119,7 +119,7 @@ describe("calculateAnnualReference", () => {
       manualResolutions: [],
     });
 
-    expect(result.calculatedCents).toBe(0n);
+    expect(result.calculatedCents).toBe(BigInt(0));
   });
 
   it("rejects an annual override without a reason", () => {

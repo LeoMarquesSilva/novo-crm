@@ -41,14 +41,14 @@ export function decimalToCents(value: string | number): MoneyCents {
     throw new Error("Money cannot have more than two decimal places");
   }
 
-  const sign = match[1] === "-" ? -1n : 1n;
-  return asMoneyCents(sign * (BigInt(match[2]) * 100n + BigInt(decimals.padEnd(2, "0") || "0")));
+  const sign = match[1] === "-" ? -BigInt(1) : BigInt(1);
+  return asMoneyCents(sign * (BigInt(match[2]) * BigInt(100) + BigInt(decimals.padEnd(2, "0") || "0")));
 }
 
 export function centsToDecimal(value: MoneyCents): string {
-  const sign = value < 0n ? "-" : "";
-  const absolute = value < 0n ? -value : value;
-  return `${sign}${absolute / 100n}.${(absolute % 100n).toString().padStart(2, "0")}`;
+  const sign = value < BigInt(0) ? "-" : "";
+  const absolute = value < BigInt(0) ? -value : value;
+  return `${sign}${absolute / BigInt(100)}.${(absolute % BigInt(100)).toString().padStart(2, "0")}`;
 }
 
 export function moneyCents(value: bigint): MoneyCents {

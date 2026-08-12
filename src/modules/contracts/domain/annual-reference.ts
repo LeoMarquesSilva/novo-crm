@@ -38,7 +38,7 @@ function projectedAmount(
   competency: string,
   resolutions: ManualBillingResolution[],
 ): MoneyCents {
-  if (!isEffective(component, competency)) return moneyCents(0n);
+  if (!isEffective(component, competency)) return moneyCents(BigInt(0));
 
   switch (component.kind) {
     case "mensal_fixo":
@@ -47,40 +47,40 @@ function projectedAmount(
     case "ajuste":
       return component.amountCents;
     case "mensal_preco_fechado":
-      return component.installments.find((entry) => entry.competency === competency)?.amountCents ?? moneyCents(0n);
+      return component.installments.find((entry) => entry.competency === competency)?.amountCents ?? moneyCents(BigInt(0));
     case "variavel_processo":
     case "variavel_hora":
     case "despesa_km":
-      return moneyCents(0n);
+      return moneyCents(BigInt(0));
     case "reembolso":
-      return releasedResolution(component.id, competency, resolutions)?.amountCents ?? moneyCents(0n);
+      return releasedResolution(component.id, competency, resolutions)?.amountCents ?? moneyCents(BigInt(0));
     case "exito_percentual": {
       const resolution = releasedResolution(component.id, competency, resolutions);
       return resolution?.baseCents === undefined
-        ? moneyCents(0n)
-        : moneyCents((resolution.baseCents * BigInt(component.percentageBasisPoints)) / 10_000n);
+        ? moneyCents(BigInt(0))
+        : moneyCents((resolution.baseCents * BigInt(component.percentageBasisPoints)) / BigInt(10_000));
     }
     case "mensal_condicionado":
     case "exito_valor_fixo": {
       const resolution = releasedResolution(component.id, competency, resolutions);
-      return resolution ? resolution.amountCents ?? component.amountCents : moneyCents(0n);
+      return resolution ? resolution.amountCents ?? component.amountCents : moneyCents(BigInt(0));
     }
     case "spot":
     case "acordo": {
       if (component.requiresManualRelease && !releasedResolution(component.id, competency, resolutions)) {
-        return moneyCents(0n);
+        return moneyCents(BigInt(0));
       }
       const installment = component.installments?.find((entry) => entry.competency === competency);
       if (installment) return installment.amountCents;
       if (component.kind === "acordo" && component.percentageBasisPoints !== undefined) {
         const base = releasedResolution(component.id, competency, resolutions)?.baseCents;
         return base === undefined
-          ? moneyCents(0n)
-          : moneyCents((base * BigInt(component.percentageBasisPoints)) / 10_000n);
+          ? moneyCents(BigInt(0))
+          : moneyCents((base * BigInt(component.percentageBasisPoints)) / BigInt(10_000));
       }
       return component.effectiveFrom === competency
-        ? component.amountCents ?? moneyCents(0n)
-        : moneyCents(0n);
+        ? component.amountCents ?? moneyCents(BigInt(0))
+        : moneyCents(BigInt(0));
     }
   }
 }
@@ -94,12 +94,12 @@ export function calculateAnnualReference(input: AnnualReferenceInput): AnnualRef
     const competency = addMonths(input.projectionStart, index);
     const amount = input.version.components.reduce(
       (total, component) => total + projectedAmount(component, competency, input.manualResolutions),
-      0n,
+      BigInt(0),
     );
     return { competency, amountCents: moneyCents(amount) };
   });
   const calculatedCents = moneyCents(
-    competencies.reduce((total, competency) => total + competency.amountCents, 0n),
+    competencies.reduce((total, competency) => total + competency.amountCents, BigInt(0)),
   );
 
   return {

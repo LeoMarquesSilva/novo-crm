@@ -75,7 +75,7 @@ describe("calculateMonthlyBilling", () => {
       },
     ]);
 
-    expect(result.honorariosCents).toBe(210_000n);
+    expect(result.honorariosCents).toBe(BigInt(210_000));
     expect(result.items.filter((item) => item.category === "charge").map((item) => item.componentId)).toEqual([
       "fixed",
       "current-step",
@@ -84,9 +84,9 @@ describe("calculateMonthlyBilling", () => {
   });
 
   it.each([
-    ["variavel_processo" as const, "processo" as const, "quantidade_total" as const, 7, 0, "50", 350_00n],
-    ["variavel_hora" as const, "hora" as const, "excedente" as const, 7, 5, "50", 100_00n],
-    ["despesa_km" as const, "quilometro" as const, "quantidade_total" as const, 40, 0, "2", 80_00n],
+    ["variavel_processo" as const, "processo" as const, "quantidade_total" as const, 7, 0, "50", BigInt(35_000)],
+    ["variavel_hora" as const, "hora" as const, "excedente" as const, 7, 5, "50", BigInt(10_000)],
+    ["despesa_km" as const, "quilometro" as const, "quantidade_total" as const, 40, 0, "2", BigInt(8_000)],
   ])("calculates %s consumption in %s mode", (kind, consumptionKind, mode, quantity, included, rate, expected) => {
     const result = calculate(
       [
@@ -157,9 +157,9 @@ describe("calculateMonthlyBilling", () => {
       },
     );
 
-    expect(result.honorariosCents).toBe(70_000n);
-    expect(result.reembolsosCents).toBe(12_550n);
-    expect(result.totalCents).toBe(82_550n);
+    expect(result.honorariosCents).toBe(BigInt(70_000));
+    expect(result.reembolsosCents).toBe(BigInt(12_550));
+    expect(result.totalCents).toBe(BigInt(82_550));
   });
 
   it("applies discount and accrual before separating added tax", () => {
@@ -193,9 +193,9 @@ describe("calculateMonthlyBilling", () => {
       },
     ]);
 
-    expect(result.honorariosCents).toBe(95_000n);
-    expect(result.tributosCents).toBe(10_000n);
-    expect(result.totalCents).toBe(105_000n);
+    expect(result.honorariosCents).toBe(BigInt(95_000));
+    expect(result.tributosCents).toBe(BigInt(10_000));
+    expect(result.totalCents).toBe(BigInt(105_000));
   });
 
   it("reconciles percentage and value area allocations exactly", () => {
@@ -248,12 +248,12 @@ describe("calculateMonthlyBilling", () => {
       manualResolutions: [],
     });
 
-    expect(percentageResult.areaAllocations.map((line) => line.amountCents)).toEqual([5_000n, 5_001n]);
-    expect(valueResult.areaAllocations.map((line) => line.amountCents)).toEqual([6_000n, 4_000n]);
+    expect(percentageResult.areaAllocations.map((line) => line.amountCents)).toEqual([BigInt(5_000), BigInt(5_001)]);
+    expect(valueResult.areaAllocations.map((line) => line.amountCents)).toEqual([BigInt(6_000), BigInt(4_000)]);
     expect(allocateCentsByPercentage(decimalToCents("0.01"), [3_333, 3_333, 3_334])).toEqual([
-      0n,
-      0n,
-      1n,
+      BigInt(0),
+      BigInt(0),
+      BigInt(1),
     ]);
   });
 
@@ -287,8 +287,8 @@ describe("calculateMonthlyBilling", () => {
       manualResolutions: [],
     });
 
-    expect(result.partnerShares.map((line) => line.amountCents)).toEqual([60_000n, 40_000n]);
-    expect(result.commissions.map((line) => line.amountCents)).toEqual([10_000n, 2_500n]);
+    expect(result.partnerShares.map((line) => line.amountCents)).toEqual([BigInt(60_000), BigInt(40_000)]);
+    expect(result.commissions.map((line) => line.amountCents)).toEqual([BigInt(10_000), BigInt(2_500)]);
     expect(result.items.map((item) => item.category)).toEqual([
       "charge",
       "partner_share",
@@ -296,7 +296,7 @@ describe("calculateMonthlyBilling", () => {
       "commission",
       "commission",
     ]);
-    expect(result.totalCents).toBe(100_000n);
+    expect(result.totalCents).toBe(BigInt(100_000));
   });
 
   it("preserves the Ingevity calculation and emits missing-rate blockers", () => {
@@ -377,7 +377,7 @@ describe("calculateMonthlyBilling", () => {
       },
     );
 
-    expect(result.totalCents).toBe(1_468_000n);
+    expect(result.totalCents).toBe(BigInt(1_468_000));
     expect(result.blockers.map((blocker) => [blocker.code, blocker.componentId, blocker.excessQuantity])).toEqual([
       ["missing_excess_rate", "labor-hours", 2],
       ["missing_excess_rate", "contract-hours", 1],
