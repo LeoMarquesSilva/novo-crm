@@ -162,6 +162,35 @@ describe("calculateMonthlyBilling", () => {
     expect(result.totalCents).toBe(BigInt(82_550));
   });
 
+  it("prefers a competency-specific resolution over an earlier global resolution", () => {
+    const result = calculate(
+      [
+        {
+          id: "reimbursement",
+          kind: "reembolso",
+          description: "Reembolso",
+          effectiveFrom: "2026-01-01",
+          effectiveTo: null,
+          requiresManualRelease: true,
+        },
+      ],
+      {
+        manualResolutions: [
+          { componentId: "reimbursement", released: true, amountCents: decimalToCents("100") },
+          {
+            componentId: "reimbursement",
+            competency: "2026-08-01",
+            released: true,
+            amountCents: decimalToCents("250"),
+          },
+        ],
+      },
+    );
+
+    expect(result.reembolsosCents).toBe(BigInt(25_000));
+    expect(result.totalCents).toBe(BigInt(25_000));
+  });
+
   it("applies discount and accrual before separating added tax", () => {
     const result = calculate([
       {

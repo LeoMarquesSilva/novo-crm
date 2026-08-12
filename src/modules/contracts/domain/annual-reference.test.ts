@@ -122,6 +122,61 @@ describe("calculateAnnualReference", () => {
     expect(result.calculatedCents).toBe(BigInt(0));
   });
 
+  it("projects components only while the contract version is effective", () => {
+    const version = emptyVersion([
+      {
+        id: "monthly",
+        kind: "mensal_fixo",
+        description: "Mensalidade",
+        effectiveFrom: "2026-01-01",
+        effectiveTo: null,
+        amountCents: decimalToCents("100"),
+      },
+    ]);
+    version.effectiveTo = "2026-03-01";
+
+    const result = calculateAnnualReference({
+      projectionStart: "2026-01-01",
+      version,
+      manualResolutions: [],
+    });
+
+    expect(result.calculatedCents).toBe(BigInt(30_000));
+    expect(result.competencies.map((entry) => entry.amountCents)).toEqual([
+      BigInt(10_000), BigInt(10_000), BigInt(10_000),
+      BigInt(0), BigInt(0), BigInt(0), BigInt(0), BigInt(0), BigInt(0),
+      BigInt(0), BigInt(0), BigInt(0),
+    ]);
+  });
+
+  it("prefers a competency-specific resolution over an earlier global resolution", () => {
+    const result = calculateAnnualReference({
+      projectionStart: "2026-01-01",
+      version: emptyVersion([
+        {
+          id: "reimbursement",
+          kind: "reembolso",
+          description: "Reembolso",
+          effectiveFrom: "2026-01-01",
+          effectiveTo: null,
+          requiresManualRelease: true,
+        },
+      ]),
+      manualResolutions: [
+        { componentId: "reimbursement", released: true, amountCents: decimalToCents("100") },
+        {
+          componentId: "reimbursement",
+          competency: "2026-01-01",
+          released: true,
+          amountCents: decimalToCents("250"),
+        },
+      ],
+    });
+
+    expect(result.calculatedCents).toBe(BigInt(135_000));
+    expect(result.competencies[0].amountCents).toBe(BigInt(25_000));
+  });
+
   it("rejects an annual override without a reason", () => {
     expect(() =>
       calculateAnnualReference({

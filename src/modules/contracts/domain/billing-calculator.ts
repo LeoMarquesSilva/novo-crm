@@ -56,7 +56,11 @@ function findResolution(
   return resolutions.find(
     (resolution) =>
       resolution.componentId === componentId &&
-      (resolution.competency === undefined || resolution.competency === competency),
+      resolution.competency === competency,
+  ) ?? resolutions.find(
+    (resolution) =>
+      resolution.componentId === componentId &&
+      resolution.competency === undefined,
   );
 }
 

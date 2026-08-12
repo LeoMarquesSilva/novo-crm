@@ -29,7 +29,12 @@ function releasedResolution(
     (resolution) =>
       resolution.componentId === componentId &&
       resolution.released &&
-      (resolution.competency === undefined || resolution.competency === competency),
+      resolution.competency === competency,
+  ) ?? resolutions.find(
+    (resolution) =>
+      resolution.componentId === componentId &&
+      resolution.released &&
+      resolution.competency === undefined,
   );
 }
 
@@ -92,10 +97,14 @@ export function calculateAnnualReference(input: AnnualReferenceInput): AnnualRef
 
   const competencies = Array.from({ length: 12 }, (_, index) => {
     const competency = addMonths(input.projectionStart, index);
-    const amount = input.version.components.reduce(
-      (total, component) => total + projectedAmount(component, competency, input.manualResolutions),
-      BigInt(0),
-    );
+    const versionIsEffective = input.version.effectiveFrom <= competency &&
+      (input.version.effectiveTo === null || competency <= input.version.effectiveTo);
+    const amount = versionIsEffective
+      ? input.version.components.reduce(
+          (total, component) => total + projectedAmount(component, competency, input.manualResolutions),
+          BigInt(0),
+        )
+      : BigInt(0);
     return { competency, amountCents: moneyCents(amount) };
   });
   const calculatedCents = moneyCents(
