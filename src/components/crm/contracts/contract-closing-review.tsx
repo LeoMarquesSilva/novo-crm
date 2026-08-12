@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -10,18 +10,31 @@ type Detail = { closing: { competencia: string; revisao_atual_id: string | null 
 export type ClosingPermissions = { canPrepare: boolean; canApprove: boolean; canRegisterVios: boolean };
 const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
+async function fetchClosingDetail(contractId: string, closingId: string): Promise<Detail> {
+  const response = await fetch(`/api/crm/contracts/${contractId}/closings/${closingId}`, { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? "Falha ao carregar fechamento.");
+  return payload;
+}
+
 export function ContractClosingReview({ contractId, closingId, permissions }: { contractId: string; closingId: string; permissions: ClosingPermissions }) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [reason, setReason] = useState("");
   const [vios, setVios] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    const response = await fetch(`/api/crm/contracts/${contractId}/closings/${closingId}`, { cache: "no-store" });
-    const payload = await response.json();
-    if (!response.ok) return setError(payload.error ?? "Falha ao carregar fechamento.");
-    setError(null); setDetail(payload);
+  async function load() {
+    try { setDetail(await fetchClosingDetail(contractId, closingId)); setError(null); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Falha ao carregar fechamento."); }
+  }
+  useEffect(() => {
+    let cancelled = false;
+    void fetchClosingDetail(contractId, closingId).then((payload) => {
+      if (!cancelled) { setDetail(payload); setError(null); }
+    }).catch((cause: unknown) => {
+      if (!cancelled) setError(cause instanceof Error ? cause.message : "Falha ao carregar fechamento.");
+    });
+    return () => { cancelled = true; };
   }, [contractId, closingId]);
-  useEffect(() => { void load(); }, [load]);
   async function act(body: object) {
     const response = await fetch(`/api/crm/contracts/${contractId}/closings/${closingId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const payload = await response.json();

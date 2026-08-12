@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ContractPortfolioItem } from "@/modules/contracts/infrastructure/contract-queries";
@@ -11,20 +11,36 @@ import { ContractClosingReview, type ClosingPermissions } from "./contract-closi
 type Closing = { id: string; competencia: string; status: string; revisao_atual_id: string | null; currentRevision: number };
 const denied: ClosingPermissions = { canPrepare: false, canApprove: false, canRegisterVios: false };
 
+async function fetchClosings(contractId: string): Promise<{ permissions?: ClosingPermissions; closings: Closing[] }> {
+  const response = await fetch(`/api/crm/contracts/${contractId}/closings`, { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? "Falha ao listar fechamentos.");
+  return payload;
+}
+
 export function ContractClosingsTab({ contractId, portfolio = [], permissions = denied }: { contractId?: string; portfolio?: ContractPortfolioItem[]; permissions?: ClosingPermissions }) {
   const [list, setList] = useState<Closing[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [competency, setCompetency] = useState(new Date().toISOString().slice(0, 7) + "-01");
   const [error, setError] = useState<string | null>(null);
   const [serverPermissions, setServerPermissions] = useState<ClosingPermissions>(permissions);
-  const load = useCallback(async () => {
+  async function load() {
     if (!contractId) return;
-    const response = await fetch(`/api/crm/contracts/${contractId}/closings`, { cache: "no-store" });
-    const payload = await response.json();
-    if (!response.ok) return setError(payload.error ?? "Falha ao listar fechamentos.");
-    setError(null); setServerPermissions(payload.permissions ?? denied); setList(payload.closings); setSelected((current) => current ?? payload.closings[0]?.id ?? null);
+    try {
+      const payload = await fetchClosings(contractId);
+      setError(null); setServerPermissions(payload.permissions ?? denied); setList(payload.closings); setSelected((current) => current ?? payload.closings[0]?.id ?? null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha ao listar fechamentos."); }
+  }
+  useEffect(() => {
+    if (!contractId) return;
+    let cancelled = false;
+    void fetchClosings(contractId).then((payload) => {
+      if (!cancelled) { setError(null); setServerPermissions(payload.permissions ?? denied); setList(payload.closings); setSelected((current) => current ?? payload.closings[0]?.id ?? null); }
+    }).catch((cause: unknown) => {
+      if (!cancelled) setError(cause instanceof Error ? cause.message : "Falha ao listar fechamentos.");
+    });
+    return () => { cancelled = true; };
   }, [contractId]);
-  useEffect(() => { void load(); }, [load]);
   if (!contractId) return <div className="space-y-2">{portfolio.filter((item) => item.lifecycle === "ativo" || item.closingCount).map((item) => <Link className="flex justify-between rounded-xl border bg-white p-4" href={`/crm/contratos/${item.id}?tab=closings`} key={item.id}><strong>{item.clientName}</strong><span>{item.pendingClosingCount} pendente(s)</span></Link>)}</div>;
   async function prepare() {
     const current = list.find((entry) => entry.competencia === competency) ?? null;

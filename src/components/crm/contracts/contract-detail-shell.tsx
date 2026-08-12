@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,10 +16,9 @@ const date = (value: string | null) => value ? new Intl.DateTimeFormat("pt-BR", 
 const money = (cents: string | null) => cents ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(cents) / 100) : "—";
 
 export function ContractDetailShell({ contract, canConfigure }: { contract: ContractDetailViewModel; canConfigure: boolean }) {
-  const [tab, setTab] = useState("overview");
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("tab") === "closings") setTab("closings");
-  }, []);
+  const searchParams = useSearchParams();
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
+  const tab = selectedTab ?? (searchParams.get("tab") === "closings" ? "closings" : "overview");
   const returnTarget = contract.opportunityId ? `/crm/leads/${contract.opportunityId}` : "/crm/contratos";
   const configuration = contract.configuration;
   return <div className="space-y-5">
@@ -27,7 +27,7 @@ export function ContractDetailShell({ contract, canConfigure }: { contract: Cont
       <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-[0.2em] text-teal-300">{contract.clientName}</p><h1 className="mt-2 text-2xl font-bold">{contract.title}</h1><p className="mt-2 text-sm text-zinc-400">Origem: {contract.originLabel}{contract.opportunityName ? ` · ${contract.opportunityName}` : ""}</p></div><div className="flex gap-2"><Badge className="bg-white/10 text-white">{contract.lifecycle.replaceAll("_", " ")}</Badge><Badge className="bg-teal-400/15 text-teal-200">{contract.signatureStatus.replaceAll("_", " ")}</Badge></div></div>
     </header>
 
-    <Tabs value={tab} onValueChange={setTab} className="gap-4">
+    <Tabs value={tab} onValueChange={setSelectedTab} className="gap-4">
       <div className="overflow-x-auto"><TabsList variant="line" className="min-w-max justify-start"><TabsTrigger value="overview">Visão geral</TabsTrigger><TabsTrigger value="setup">Configuração</TabsTrigger><TabsTrigger value="rules">Áreas e regras</TabsTrigger><TabsTrigger value="allocations">Rateios</TabsTrigger><TabsTrigger value="closings">Fechamentos</TabsTrigger><TabsTrigger value="versions">Versões e aditivos</TabsTrigger><TabsTrigger value="records">Documentos e eventos</TabsTrigger></TabsList></div>
       <TabsContent value="overview"><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Metric label="Vigência" value={`${date(contract.startsAt)} — ${contract.indefinite ? "indeterminada" : date(contract.endsAt)}`} /><Metric label="Primeiro vencimento" value={contract.firstInvoiceConditioned ? "Condicionado" : date(contract.firstInvoiceAt)} /><Metric label="Renovação / reajuste" value={`${date(contract.renewalDate)} · ${contract.adjustmentIndex ?? "sem índice"}`} /><Metric label="Referência anual" value={money(contract.annualReferenceCents)} /></div></TabsContent>
       <TabsContent value="setup"><ContractSetupWizard contract={contract} canConfigure={canConfigure} returnTarget={returnTarget} /></TabsContent>
