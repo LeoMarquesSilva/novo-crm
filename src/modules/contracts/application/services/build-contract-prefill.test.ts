@@ -230,4 +230,67 @@ describe("buildContractPrefill", () => {
     ]);
     expect(result.fields.spot_financeiro).toBeUndefined();
   });
+
+  it("keeps proposal monthly and spot components once when lower-priority finance sources repeat them", () => {
+    const result = buildContractPrefill({
+      fieldValues: { cp_escopo_detalhe_json: ingenvityProposal },
+      crmRdFieldOverrides: {
+        mensal_fixo_financeiro: "18.000,00",
+        spot_financeiro: "15.000,00",
+      },
+      latestReconciliationDetails: rdDetails,
+    });
+
+    expect(
+      result.billingComponents
+        .filter(({ value }) => value.kind === "mensal_fixo" || value.kind === "spot")
+        .map(({ value, source }) => ({ kind: value.kind, amountCents: value.amountCents, source })),
+    ).toEqual([
+      { kind: "mensal_fixo", amountCents: moneyCents(BigInt(1_460_000)), source: "proposta" },
+      { kind: "spot", amountCents: moneyCents(BigInt(1_200_000)), source: "proposta" },
+    ]);
+  });
+
+  it("parses a BRL integer with a thousands dot as eighteen thousand reais", () => {
+    const result = buildContractPrefill({
+      crmRdFieldOverrides: { mensal_fixo_financeiro: "18.000" },
+    });
+
+    expect(result.billingComponents[0]?.value.amountCents).toBe(moneyCents(BigInt(1_800_000)));
+  });
+
+  it.each([
+    ["0.5", 50],
+    ["0,5", 50],
+  ] as const)("parses percentage decimal %s without treating it as a thousands value", (raw, want) => {
+    const result = buildContractPrefill({
+      crmRdFieldOverrides: { rateio_porcentagem_civel_financeiro: raw },
+    });
+
+    expect(result.areaAllocations[0]?.value).toEqual({
+      areaKey: "Cível",
+      mode: "percentual",
+      percentageBasisPoints: want,
+    });
+  });
+
+  it("preserves an already-deserialized proposal object stored in value_json", () => {
+    const result = buildContractPrefill({
+      fieldValues: [
+        {
+          field_code: "cp_escopo_detalhe_json",
+          value_json: JSON.parse(ingenvityProposal),
+        },
+      ],
+    });
+
+    expect(result.areas.map(({ value }) => value.areaKey)).toEqual([
+      "Trabalhista",
+      "Societário e Contratos",
+    ]);
+    expect(result.billingComponents.map(({ value }) => value.kind)).toEqual([
+      "mensal_fixo",
+      "spot",
+    ]);
+  });
 });

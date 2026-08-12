@@ -170,15 +170,24 @@ function optionalMoney(raw: unknown): MoneyCents | null {
   const value = scalar(raw);
   if (!value) return null;
   try {
-    return decimalToCents(value);
+    const normalized = /^[+-]?\d{1,3}(?:\.\d{3})+$/.test(value.replace(/\s+/g, ""))
+      ? value.replace(/\./g, "")
+      : value;
+    return decimalToCents(normalized);
   } catch {
     return null;
   }
 }
 
 function optionalBasisPoints(raw: unknown): number | null {
-  const value = optionalNumber(raw);
-  return value === null ? null : Math.round(value * 100);
+  const value = scalar(raw);
+  if (!value) return null;
+  const normalized = value
+    .replace(/\s|%/g, "")
+    .replace(/\.(?=.*[,])/g, "")
+    .replace(",", ".");
+  const percentage = Number(normalized);
+  return Number.isFinite(percentage) ? Math.round(percentage * 100) : null;
 }
 
 function normalizeLabel(label: string): string {
@@ -258,8 +267,15 @@ function placeholder(
   return undefined;
 }
 
+function serializedProposalJson(raw: unknown): string | null {
+  const value = scalar(raw);
+  if (value) return value;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return JSON.stringify(raw);
+  return null;
+}
+
 function proposalAreas(raw: unknown): Array<ContractPrefillSuggestion<ContractPrefillArea>> {
-  const json = scalar(raw);
+  const json = serializedProposalJson(raw);
   if (!json) return [];
   const parsed = parseEscopoJson(json);
   return Object.entries(parsed).map(([rawAreaKey, entries]) => {
@@ -291,7 +307,7 @@ function proposalAreas(raw: unknown): Array<ContractPrefillSuggestion<ContractPr
 }
 
 function proposalComponents(raw: unknown): Array<ContractPrefillSuggestion<ContractPrefillBillingComponent>> {
-  const json = scalar(raw);
+  const json = serializedProposalJson(raw);
   if (!json) return [];
   const parsed = parseEscopoJson(json);
   const result: Array<ContractPrefillSuggestion<ContractPrefillBillingComponent>> = [];
@@ -472,11 +488,19 @@ export function buildContractPrefill(input: ContractPrefillSources): ContractPre
         ),
       ];
 
+  const proposalComponentSuggestions = proposalComponents(
+    selected.get("cp_escopo_detalhe_json")?.raw,
+  );
+  const proposalComponentKinds = new Set(
+    proposalComponentSuggestions.map(({ value }) => value.kind),
+  );
   const billingComponents = input.existingDraft?.billingComponents
     ? input.existingDraft.billingComponents.map((component) => suggestion(component, "contrato"))
     : [
-        ...proposalComponents(selected.get("cp_escopo_detalhe_json")?.raw),
-        ...financeComponents(selected),
+        ...proposalComponentSuggestions,
+        ...financeComponents(selected).filter(
+          ({ value }) => !proposalComponentKinds.has(value.kind),
+        ),
       ];
 
   const areaAllocations = input.existingDraft?.areaAllocations
