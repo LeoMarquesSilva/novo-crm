@@ -298,6 +298,19 @@ export class RdImportConnector {
       encerramentoRd,
     });
 
+    if (stage === "contrato_assinado") {
+      const { error: draftError } = await supabase.rpc(
+        "ensure_contract_draft_for_opportunity",
+        {
+          p_opportunity_id: opportunityId,
+          p_now: new Date().toISOString(),
+        },
+      );
+      if (draftError) {
+        throw draftError;
+      }
+    }
+
     const status = context.source === "webhook" ? "deal_atualizado" : "deal_importado";
     await this.upsertReconciliation(supabase, {
       rdId: rdDealId,

@@ -67,6 +67,23 @@ export async function syncOportunidadeFromD4SignSigners(
   );
   const allSigned = merged.length > 0 && merged.every((s) => s.signed);
 
+  if (options?.advanceStageIfAllSigned && allSigned) {
+    const { error } = await supabase.rpc("finalize_d4sign_opportunity", {
+      p_opportunity_id: oportunidadeId,
+      p_signers: merged,
+      p_now: nowIso,
+    });
+    if (error) throw error;
+    if (options.d4signStatus) {
+      const { error: statusError } = await supabase
+        .from("oportunidades")
+        .update({ d4sign_status: options.d4signStatus } as never)
+        .eq("id", oportunidadeId);
+      if (statusError) throw statusError;
+    }
+    return;
+  }
+
   const updatePayload: Record<string, unknown> = {
     d4sign_signers: merged,
     d4sign_updated_at: nowIso,
@@ -75,29 +92,7 @@ export async function syncOportunidadeFromD4SignSigners(
   if (options?.d4signStatus) {
     updatePayload.d4sign_status = options.d4signStatus;
   }
-  if (
-    options?.advanceStageIfAllSigned &&
-    allSigned &&
-    opp.etapa === "contrato_enviado"
-  ) {
-    updatePayload.etapa = "contrato_assinado";
-  }
-
   await supabase.from("oportunidades").update(updatePayload as never).eq("id", oportunidadeId);
-
-  if (
-    options?.advanceStageIfAllSigned &&
-    allSigned &&
-    opp.etapa === "contrato_enviado"
-  ) {
-    await supabase.from("transicoes_etapa").insert({
-      oportunidade_id: oportunidadeId,
-      etapa_origem: "contrato_enviado",
-      etapa_destino: "contrato_assinado",
-      alterado_por: null,
-      observacao: "Automático após sincronização D4Sign (todos assinaram).",
-    });
-  }
 }
 
 /** Monta signatários iniciais a partir das keys do createlist (não depende de signaturelink). */

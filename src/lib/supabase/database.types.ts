@@ -2839,6 +2839,13 @@ export type Database = {
         }
         Returns: string | null
       }
+      ensure_contract_draft_for_opportunity: {
+        Args: {
+          p_now: string
+          p_opportunity_id: string
+        }
+        Returns: string
+      }
       registrar_lancamento_vios_fechamento: {
         Args: {
           p_lancado_em?: string
