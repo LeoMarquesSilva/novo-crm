@@ -6,6 +6,24 @@ import {
   canViewD4SignDocument,
   canViewD4SignDocumentRecord,
 } from "./crm-access-policy";
+import * as crmAccessPolicy from "./crm-access-policy";
+
+const canEnsureContractDraft = (
+  crmAccessPolicy as unknown as {
+    canEnsureContractDraft?: (role: "admin" | "comercial" | "controladoria" | "financeiro") => boolean;
+  }
+).canEnsureContractDraft;
+
+describe("canEnsureContractDraft", () => {
+  it.each([
+    ["admin", true],
+    ["comercial", true],
+    ["controladoria", true],
+    ["financeiro", false],
+  ] as const)("maps %s to %s for the repair banner", (role, allowed) => {
+    expect(canEnsureContractDraft?.(role)).toBe(allowed);
+  });
+});
 
 describe("canAccessContractCapability", () => {
   it.each([

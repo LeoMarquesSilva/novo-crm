@@ -7,7 +7,13 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function EnsureContractDraftBanner({ opportunityId }: { opportunityId: string }) {
+export function EnsureContractDraftBanner({
+  opportunityId,
+  canEnsureDraft,
+}: {
+  opportunityId: string;
+  canEnsureDraft: boolean;
+}) {
   const [submitting, setSubmitting] = useState(false);
   const [contractId, setContractId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,11 +71,11 @@ export function EnsureContractDraftBanner({ opportunityId }: { opportunityId: st
               >
                 Abrir contrato
               </Link>
-            ) : (
+            ) : canEnsureDraft ? (
               <Button type="button" size="sm" disabled={submitting} onClick={() => void ensureDraft()}>
                 {submitting ? "Criando…" : "Criar rascunho contratual"}
               </Button>
-            )}
+            ) : null}
             <Link
               href={`/crm/leads/${opportunityId}`}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
@@ -77,6 +83,11 @@ export function EnsureContractDraftBanner({ opportunityId }: { opportunityId: st
               Voltar ao lead
             </Link>
           </div>
+          {!contractId && !canEnsureDraft ? (
+            <p className="text-sm text-amber-900">
+              Solicite à Controladoria ou a um administrador a criação do rascunho contratual.
+            </p>
+          ) : null}
         </div>
       </div>
     </section>

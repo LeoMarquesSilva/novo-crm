@@ -49,3 +49,11 @@
 - `/crm/contratos` aguarda `searchParams` e, com `setupOpportunityId`, preserva o dashboard D4Sign e exibe um banner cliente sem mutação automática.
 - O clique cria o rascunho, mostra o `contractId` e oferece links para `/crm/contratos/{id}?setup=1` e de volta ao lead.
 - Checks: 3 arquivos/53 testes aprovados; `npx.cmd tsc --noEmit` e `git diff --check` com exit 0.
+
+## Fix round 3/5
+
+- RED: o mapper nominal de permissão do banner ainda não existia; 4 casos falharam.
+- GREEN: `canEnsureContractDraft` permite admin/comercial/controladoria e nega financeiro, compartilhando a mesma decisão da capability do endpoint.
+- A página usa o profile já autenticado e passa `canEnsureDraft` ao banner.
+- Para financeiro, o botão de criação fica oculto, aparece a orientação para solicitar Controladoria/Admin e o retorno ao lead permanece.
+- Checks: 47 testes focados aprovados; `npx.cmd tsc --noEmit` e `git diff --check` com exit 0.

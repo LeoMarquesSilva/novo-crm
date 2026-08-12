@@ -7,6 +7,7 @@ import { getD4SignEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { EnsureContractDraftBanner } from "@/components/crm/contracts/ensure-contract-draft-banner";
+import { canEnsureContractDraft } from "@/lib/auth/crm-access-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -113,7 +114,7 @@ export default async function ContratosPage({
 }: {
   searchParams: Promise<{ setupOpportunityId?: string | string[] }>;
 }) {
-  await requireAuth("/crm/contratos");
+  const { profile } = await requireAuth("/crm/contratos");
   const query = await searchParams;
   const setupOpportunityId =
     typeof query.setupOpportunityId === "string" ? query.setupOpportunityId : null;
@@ -164,7 +165,10 @@ export default async function ContratosPage({
       />
 
       {setupOpportunityId ? (
-        <EnsureContractDraftBanner opportunityId={setupOpportunityId} />
+        <EnsureContractDraftBanner
+          opportunityId={setupOpportunityId}
+          canEnsureDraft={canEnsureContractDraft(profile.role)}
+        />
       ) : null}
 
       {error ? (
