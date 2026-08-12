@@ -105,7 +105,7 @@ export function planContractDailyWork(input: PlanInput): {
     if (contract.startsAt && contract.startsAt > input.today) continue;
     if (contract.endsAt && contract.endsAt < input.today) continue;
 
-    if (contract.opportunityStage === "inclusao_faturamento" && contract.lifecycle !== "ativo") {
+    if (contract.opportunityStage === "inclusao_faturamento") {
       const idempotencyKey = `contract-setup:${contract.id}`;
       if (!existing.has(idempotencyKey)) {
         alerts.push({

@@ -1139,6 +1139,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          idempotency_key: string | null
           lida_em: string | null
           payload: Json
           tipo: string
@@ -1147,6 +1148,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           lida_em?: string | null
           payload?: Json
           tipo: string
@@ -1155,6 +1157,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           lida_em?: string | null
           payload?: Json
           tipo?: string

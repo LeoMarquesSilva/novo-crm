@@ -15,6 +15,30 @@ export type AppUserActorRow = {
   avatar_url: string | null;
 };
 
+export function buildContractInAppNotification(input: {
+  userId: string;
+  tipo: string;
+  idempotencyKey: string;
+  contractId: string;
+  title: string;
+  preview: string;
+  originadoPor?: InAppNotificationActor | null;
+}) {
+  return {
+    user_id: input.userId,
+    tipo: input.tipo,
+    idempotency_key: input.idempotencyKey,
+    payload: {
+      title: input.title,
+      preview: input.preview,
+      path: `/crm/contratos/${input.contractId}`,
+      contrato_id: input.contractId,
+      idempotency_key: input.idempotencyKey,
+      ...(input.originadoPor ? { originado_por: input.originadoPor } : {}),
+    },
+  };
+}
+
 export const CRM_IN_APP_NOTIFICATION_TIPO_LABELS: Record<string, string> = {
   indicator_pending_approval:     "Indicadores",
   due_area_task:                  "DUE — levantamento",

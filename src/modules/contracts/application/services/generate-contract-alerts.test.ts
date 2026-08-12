@@ -110,6 +110,18 @@ describe("planContractDailyWork", () => {
 
     expect(repeated).toEqual({ alerts: [], closings: [] });
   });
+
+  it("reconcilia implantacao exigida pela etapa mesmo com contrato ja ativo", () => {
+    const result = planContractDailyWork({
+      today: "2026-08-12",
+      contracts: [{ ...activeContract, opportunityStage: "inclusao_faturamento" }],
+    });
+
+    expect(result.alerts).toContainEqual(expect.objectContaining({
+      type: "contrato_implantacao_pendente",
+      idempotencyKey: "contract-setup:contract-1",
+    }));
+  });
 });
 
 describe("saoPauloDateFromInstant", () => {

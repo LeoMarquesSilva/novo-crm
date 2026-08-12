@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { buildContractInAppNotification } from "@/lib/crm/in-app-notification-meta";
 import {
   planContractDailyWork,
   saoPauloDateFromInstant,
@@ -93,24 +94,17 @@ async function run(request: Request) {
       ? [assignedAuth]
       : fallbackUsers.flatMap((user) => user.auth_user_id ? [user.auth_user_id] : []);
     for (const userId of recipients) {
-      const { count, error: lookupError } = await supabase
-        .from("crm_in_app_notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .contains("payload", { idempotency_key: idempotencyKey });
-      if (lookupError) throw lookupError;
-      if ((count ?? 0) > 0) continue;
-      const { error } = await supabase.from("crm_in_app_notifications").insert({
-        user_id: userId,
-        tipo: type,
-        payload: {
+      const { error } = await supabase.from("crm_in_app_notifications").upsert(
+        buildContractInAppNotification({
+          userId,
+          tipo: type,
+          idempotencyKey,
+          contractId,
           title: titleByContract.get(contractId) ?? "Contrato",
           preview,
-          path: `/crm/contratos/${contractId}`,
-          contrato_id: contractId,
-          idempotency_key: idempotencyKey,
-        },
-      });
+        }),
+        { onConflict: "user_id,idempotency_key", ignoreDuplicates: true },
+      );
       if (error) throw error;
       notificationsCreated += 1;
     }

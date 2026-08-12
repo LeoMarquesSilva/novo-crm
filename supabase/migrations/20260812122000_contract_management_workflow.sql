@@ -1157,3 +1157,10 @@ grant execute on function public.create_contract_closing_correction(uuid,uuid,uu
 grant execute on function public.register_contract_closing_vios(uuid,uuid,integer,text,text,uuid) to service_role;
 grant execute on function public.resolve_contract_closing_blocker(uuid,uuid,uuid,integer,text,text,uuid) to service_role;
 grant execute on function public.upsert_contract_consumptions_atomic(uuid,uuid,date,uuid,jsonb) to service_role;
+
+-- Garante que retries concorrentes do cron/transição criem uma única notificação por usuário e intenção.
+alter table public.crm_in_app_notifications
+  add column if not exists idempotency_key text;
+
+create unique index if not exists crm_in_app_notifications_user_intent_key
+  on public.crm_in_app_notifications (user_id, idempotency_key);

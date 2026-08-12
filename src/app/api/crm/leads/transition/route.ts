@@ -27,7 +27,7 @@ import {
   syncDueAreaReviewTasksForOpportunity,
   syncDueAreaTasksForOpportunity,
 } from "@/lib/crm/due-area-tasks";
-import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
+import { actorFromAppUserRow, buildContractInAppNotification } from "@/lib/crm/in-app-notification-meta";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
 import { transitionOpportunity } from "@/modules/crm/application/services/transition-opportunity";
@@ -640,27 +640,27 @@ export async function POST(request: Request) {
           notificationUsers = fallback.data;
         }
         const assigneeId = notificationUsers?.[0]?.id ?? null;
-        const { data: createdAlert } = await supabase.from("contrato_alertas").upsert({
+        await supabase.from("contrato_alertas").upsert({
           contrato_id: contract.id,
           tipo: "contrato_implantacao_pendente",
           data_base: new Date().toISOString().slice(0, 10),
           data_vencimento: new Date().toISOString().slice(0, 10),
           responsavel_app_user_id: assigneeId,
           idempotency_key: idempotencyKey,
-        }, { onConflict: "idempotency_key", ignoreDuplicates: true }).select("id");
-        if ((createdAlert ?? []).length && notificationUsers?.length) {
-          await supabase.from("crm_in_app_notifications").insert(notificationUsers.flatMap((user) => user.auth_user_id ? [{
-            user_id: user.auth_user_id,
-            tipo: "contrato_implantacao_pendente",
-            payload: {
+        }, { onConflict: "idempotency_key", ignoreDuplicates: true });
+        if (notificationUsers?.length) {
+          await supabase.from("crm_in_app_notifications").upsert(
+            notificationUsers.flatMap((user) => user.auth_user_id ? [buildContractInAppNotification({
+              userId: user.auth_user_id,
+              tipo: "contrato_implantacao_pendente",
+              idempotencyKey,
+              contractId: contract.id,
               title: contract.titulo,
               preview: "Implantação financeira pendente.",
-              path: `/crm/contratos/${contract.id}`,
-              contrato_id: contract.id,
-              idempotency_key: idempotencyKey,
-              ...(originadoPor ? { originado_por: originadoPor } : {}),
-            },
-          }] : []));
+              originadoPor,
+            })] : []),
+            { onConflict: "user_id,idempotency_key", ignoreDuplicates: true },
+          );
         }
       }
     }
