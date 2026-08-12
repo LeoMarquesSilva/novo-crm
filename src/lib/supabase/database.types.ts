@@ -311,6 +311,7 @@ export type Database = {
           link_documento: string | null
           oportunidade_id: string | null
           prazo_indeterminado: boolean
+          primeiro_faturamento_condicionado: boolean
           primeiro_vencimento: string | null
           sharepoint_referencia: string | null
           sharepoint_url: string | null
@@ -351,6 +352,7 @@ export type Database = {
           link_documento?: string | null
           oportunidade_id?: string | null
           prazo_indeterminado?: boolean
+          primeiro_faturamento_condicionado?: boolean
           primeiro_vencimento?: string | null
           sharepoint_referencia?: string | null
           sharepoint_url?: string | null
@@ -391,6 +393,7 @@ export type Database = {
           link_documento?: string | null
           oportunidade_id?: string | null
           prazo_indeterminado?: boolean
+          primeiro_faturamento_condicionado?: boolean
           primeiro_vencimento?: string | null
           sharepoint_referencia?: string | null
           sharepoint_url?: string | null
@@ -2808,6 +2811,22 @@ export type Database = {
       }
     }
     Functions: {
+      activate_contract_version_atomic: {
+        Args: {
+          p_actor_id: string
+          p_advance_opportunity: boolean
+          p_contract_id: string
+          p_expected_version_updated_at: string
+          p_now: string
+          p_version_id: string
+        }
+        Returns: {
+          contract_id: string
+          opportunity_id: string | null
+          opportunity_transition_id: string | null
+          version_id: string
+        }[]
+      }
       admin_change_user_role: {
         Args: {
           p_actor: string
@@ -2843,6 +2862,18 @@ export type Database = {
         Args: {
           p_now: string
           p_opportunity_id: string
+        }
+        Returns: string
+      }
+      save_contract_configuration_atomic: {
+        Args: {
+          p_actor_id: string
+          p_configuration: Json
+          p_contract: Json
+          p_contract_id: string
+          p_expected_version_updated_at: string
+          p_now: string
+          p_version_id: string
         }
         Returns: string
       }
