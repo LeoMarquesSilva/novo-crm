@@ -1002,14 +1002,14 @@ end;
 $$;
 
 create or replace function public.approve_contract_closing_revision(
-  p_closing_id uuid, p_expected_revision integer, p_actor_id uuid
+  p_contract_id uuid, p_closing_id uuid, p_expected_revision integer, p_actor_id uuid
 )
 returns public.contrato_fechamento_revisoes
 language plpgsql security invoker set search_path = ''
 as $$
 declare v_closing public.contrato_fechamentos; v_revision public.contrato_fechamento_revisoes;
 begin
-  select * into v_closing from public.contrato_fechamentos where id = p_closing_id for update;
+  select * into v_closing from public.contrato_fechamentos where id = p_closing_id and contrato_id = p_contract_id for update;
   if not found then raise exception using errcode = 'P0002', message = 'CLOSING_NOT_FOUND'; end if;
   select * into v_revision from public.contrato_fechamento_revisoes where id = v_closing.revisao_atual_id for update;
   if v_revision.numero <> p_expected_revision then raise exception using errcode = '40001', message = 'CLOSING_REVISION_CONFLICT'; end if;
@@ -1025,7 +1025,7 @@ end;
 $$;
 
 create or replace function public.create_contract_closing_correction(
-  p_closing_id uuid, p_previous_revision_id uuid, p_expected_revision integer,
+  p_contract_id uuid, p_closing_id uuid, p_previous_revision_id uuid, p_expected_revision integer,
   p_reason text, p_actor_id uuid
 )
 returns public.contrato_fechamento_revisoes
@@ -1034,7 +1034,7 @@ as $$
 declare v_closing public.contrato_fechamentos; v_previous public.contrato_fechamento_revisoes; v_new public.contrato_fechamento_revisoes;
 begin
   if nullif(btrim(p_reason),'') is null then raise exception using errcode='22023', message='CORRECTION_REASON_REQUIRED'; end if;
-  select * into v_closing from public.contrato_fechamentos where id=p_closing_id for update;
+  select * into v_closing from public.contrato_fechamentos where id=p_closing_id and contrato_id=p_contract_id for update;
   if not found then raise exception using errcode='P0002', message='CLOSING_NOT_FOUND'; end if;
   select * into v_previous from public.contrato_fechamento_revisoes where id=p_previous_revision_id and fechamento_id=p_closing_id for update;
   if not found or v_closing.revisao_atual_id <> v_previous.id then raise exception using errcode='40001', message='CLOSING_REVISION_CONFLICT'; end if;
@@ -1059,7 +1059,7 @@ end;
 $$;
 
 create or replace function public.register_contract_closing_vios(
-  p_closing_id uuid, p_expected_revision integer, p_reference text, p_url text, p_actor_id uuid
+  p_contract_id uuid, p_closing_id uuid, p_expected_revision integer, p_reference text, p_url text, p_actor_id uuid
 )
 returns public.contrato_fechamento_revisoes
 language plpgsql security invoker set search_path = ''
@@ -1067,7 +1067,7 @@ as $$
 declare v_closing public.contrato_fechamentos; v_revision public.contrato_fechamento_revisoes;
 begin
   if nullif(btrim(p_reference),'') is null then raise exception using errcode='22023', message='VIOS_REFERENCE_REQUIRED'; end if;
-  select * into v_closing from public.contrato_fechamentos where id=p_closing_id for update;
+  select * into v_closing from public.contrato_fechamentos where id=p_closing_id and contrato_id=p_contract_id for update;
   if not found then raise exception using errcode='P0002', message='CLOSING_NOT_FOUND'; end if;
   select * into v_revision from public.contrato_fechamento_revisoes where id=v_closing.revisao_atual_id for update;
   if v_revision.numero <> p_expected_revision then raise exception using errcode='40001', message='CLOSING_REVISION_CONFLICT'; end if;
@@ -1081,11 +1081,79 @@ begin
 end;
 $$;
 
+create or replace function public.resolve_contract_closing_blocker(
+  p_contract_id uuid, p_closing_id uuid, p_item_id uuid, p_expected_revision integer,
+  p_resolution text, p_reason text, p_actor_id uuid
+)
+returns public.contrato_fechamento_itens
+language plpgsql security invoker set search_path = ''
+as $$
+declare v_closing public.contrato_fechamentos; v_revision public.contrato_fechamento_revisoes; v_item public.contrato_fechamento_itens;
+begin
+  if p_resolution not in ('nao_cobrar','ajuste','aditivo') or nullif(btrim(p_reason),'') is null then
+    raise exception using errcode='22023', message='BLOCKER_RESOLUTION_INVALID';
+  end if;
+  select * into v_closing from public.contrato_fechamentos where id=p_closing_id and contrato_id=p_contract_id for update;
+  if not found then raise exception using errcode='P0002', message='CLOSING_NOT_FOUND'; end if;
+  select * into v_revision from public.contrato_fechamento_revisoes where id=v_closing.revisao_atual_id for update;
+  if v_revision.numero <> p_expected_revision then raise exception using errcode='40001', message='CLOSING_REVISION_CONFLICT'; end if;
+  if v_revision.status <> 'em_revisao' then raise exception using errcode='55000', message='CLOSING_NOT_REVIEWABLE'; end if;
+  update public.contrato_fechamento_itens set resolucao=p_resolution||': '||btrim(p_reason),
+    resolvido_em=now(), resolvido_por=p_actor_id
+  where id=p_item_id and revisao_id=v_revision.id and bloqueante and resolvido_em is null
+  returning * into v_item;
+  if not found then raise exception using errcode='P0002', message='BLOCKER_NOT_FOUND'; end if;
+  return v_item;
+end;
+$$;
+
+create or replace function public.upsert_contract_consumptions_atomic(
+  p_contract_id uuid, p_version_id uuid, p_competencia date, p_actor_id uuid, p_items jsonb
+)
+returns setof public.contrato_consumos_mensais
+language plpgsql security invoker set search_path = ''
+as $$
+declare v_item jsonb; v_id uuid; v_closing public.contrato_fechamentos;
+begin
+  select * into v_closing from public.contrato_fechamentos
+  where contrato_id=p_contract_id and competencia=p_competencia for update;
+  if found and v_closing.status in ('aprovado','lancado_vios') then
+    raise exception using errcode='55000', message='APPROVED_CLOSING_IMMUTABLE';
+  end if;
+  if not exists (select 1 from public.contrato_versoes where id=p_version_id and contrato_id=p_contract_id) then
+    raise exception using errcode='P0002', message='CONTRACT_VERSION_NOT_FOUND';
+  end if;
+  for v_item in select value from jsonb_array_elements(coalesce(p_items,'[]'::jsonb)) loop
+    v_id := coalesce(nullif(v_item->>'id','')::uuid, gen_random_uuid());
+    if exists (select 1 from public.contrato_consumos_mensais where id=v_id and (contrato_id<>p_contract_id or versao_id<>p_version_id) for update) then
+      raise exception using errcode='42501', message='CONSUMPTION_SCOPE_CONFLICT';
+    end if;
+    if nullif(v_item->>'componentId','') is not null and not exists (
+      select 1 from public.contrato_componentes_cobranca where id=(v_item->>'componentId')::uuid and versao_id=p_version_id
+    ) then raise exception using errcode='22023', message='INVALID_CONTRACT_MEMBERSHIP'; end if;
+    if nullif(v_item->>'areaId','') is not null and not exists (
+      select 1 from public.contrato_areas where id=(v_item->>'areaId')::uuid and versao_id=p_version_id
+    ) then raise exception using errcode='22023', message='INVALID_CONTRACT_MEMBERSHIP'; end if;
+    insert into public.contrato_consumos_mensais(id,contrato_id,versao_id,competencia,componente_id,area_id,tipo,quantidade,valor,evidencia_url,observacao,informado_por)
+    values(v_id,p_contract_id,p_version_id,p_competencia,nullif(v_item->>'componentId','')::uuid,nullif(v_item->>'areaId','')::uuid,
+      v_item->>'kind',nullif(v_item->>'quantity','')::numeric,nullif(v_item->>'amount','')::numeric,v_item->>'evidenceUrl',v_item->>'note',p_actor_id)
+    on conflict(id) do update set componente_id=excluded.componente_id,area_id=excluded.area_id,tipo=excluded.tipo,
+      quantidade=excluded.quantidade,valor=excluded.valor,evidencia_url=excluded.evidencia_url,observacao=excluded.observacao,
+      informado_por=excluded.informado_por,updated_at=now();
+  end loop;
+  return query select * from public.contrato_consumos_mensais where contrato_id=p_contract_id and versao_id=p_version_id and competencia=p_competencia order by created_at;
+end;
+$$;
+
 revoke all on function public.create_contract_closing_revision(uuid,uuid,date,integer,uuid,jsonb,jsonb) from public, anon, authenticated;
-revoke all on function public.approve_contract_closing_revision(uuid,integer,uuid) from public, anon, authenticated;
-revoke all on function public.create_contract_closing_correction(uuid,uuid,integer,text,uuid) from public, anon, authenticated;
-revoke all on function public.register_contract_closing_vios(uuid,integer,text,text,uuid) from public, anon, authenticated;
+revoke all on function public.approve_contract_closing_revision(uuid,uuid,integer,uuid) from public, anon, authenticated;
+revoke all on function public.create_contract_closing_correction(uuid,uuid,uuid,integer,text,uuid) from public, anon, authenticated;
+revoke all on function public.register_contract_closing_vios(uuid,uuid,integer,text,text,uuid) from public, anon, authenticated;
+revoke all on function public.resolve_contract_closing_blocker(uuid,uuid,uuid,integer,text,text,uuid) from public, anon, authenticated;
+revoke all on function public.upsert_contract_consumptions_atomic(uuid,uuid,date,uuid,jsonb) from public, anon, authenticated;
 grant execute on function public.create_contract_closing_revision(uuid,uuid,date,integer,uuid,jsonb,jsonb) to service_role;
-grant execute on function public.approve_contract_closing_revision(uuid,integer,uuid) to service_role;
-grant execute on function public.create_contract_closing_correction(uuid,uuid,integer,text,uuid) to service_role;
-grant execute on function public.register_contract_closing_vios(uuid,integer,text,text,uuid) to service_role;
+grant execute on function public.approve_contract_closing_revision(uuid,uuid,integer,uuid) to service_role;
+grant execute on function public.create_contract_closing_correction(uuid,uuid,uuid,integer,text,uuid) to service_role;
+grant execute on function public.register_contract_closing_vios(uuid,uuid,integer,text,text,uuid) to service_role;
+grant execute on function public.resolve_contract_closing_blocker(uuid,uuid,uuid,integer,text,text,uuid) to service_role;
+grant execute on function public.upsert_contract_consumptions_atomic(uuid,uuid,date,uuid,jsonb) to service_role;

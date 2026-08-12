@@ -4,13 +4,14 @@ import { z } from "zod";
 import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { closingActionCapability } from "@/modules/contracts/application/services/prepare-monthly-closing";
 
 const uuid = z.string().uuid();
 const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve"), expectedRevision: z.number().int().positive() }),
   z.object({ action: z.literal("new_revision"), previousRevisionId: uuid, expectedRevision: z.number().int().positive(), reason: z.string().trim().min(3) }),
   z.object({ action: z.literal("register_vios"), expectedRevision: z.number().int().positive(), reference: z.string().trim().min(1), url: z.string().url().optional() }),
-  z.object({ action: z.literal("resolve_blocker"), itemId: uuid, resolution: z.enum(["nao_cobrar", "ajuste", "aditivo"]), reason: z.string().trim().min(3) }),
+  z.object({ action: z.literal("resolve_blocker"), itemId: uuid, expectedRevision: z.number().int().positive(), resolution: z.enum(["nao_cobrar", "ajuste", "aditivo"]), reason: z.string().trim().min(3) }),
 ]);
 const json = (body: object, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
@@ -39,25 +40,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const params = await paramsOf(context);
   const body = actionSchema.safeParse(await request.json().catch(() => null));
   if (!params.success || !body.success) return json({ ok: false, code: "INVALID_REQUEST", issues: body.success ? [] : body.error.issues }, 400);
-  const capability = body.data.action === "approve" || body.data.action === "new_revision" ? "approve_closing" : body.data.action === "register_vios" ? "register_vios" : "prepare_closing";
+  const capability = closingActionCapability(body.data.action);
   if (!canAccessContractCapability({ role: auth.profile.role, capability })) return json({ ok: false, code: "CONTRACT_FORBIDDEN" }, 403);
   const supabase = createSupabaseAdminClient();
   try {
     if (body.data.action === "resolve_blocker") {
-      const { data: closing } = await supabase.from("contrato_fechamentos").select("revisao_atual_id,status").eq("id", params.data.closingId).eq("contrato_id", params.data.id).maybeSingle();
-      if (!closing?.revisao_atual_id) return json({ ok: false, code: "CLOSING_NOT_FOUND" }, 404);
-      if (closing.status !== "em_revisao") return json({ ok: false, code: "APPROVED_CLOSING_IMMUTABLE" }, 409);
-      const { data, error } = await supabase.from("contrato_fechamento_itens").update({
-        resolucao: `${body.data.resolution}: ${body.data.reason}`, resolvido_em: new Date().toISOString(), resolvido_por: auth.profile.id,
-      }).eq("id", body.data.itemId).eq("revisao_id", closing.revisao_atual_id).eq("bloqueante", true).select("*").maybeSingle();
-      if (error) throw error; if (!data) return json({ ok: false, code: "BLOCKER_NOT_FOUND" }, 404);
+      const { data, error } = await supabase.rpc("resolve_contract_closing_blocker", {
+        p_actor_id: auth.profile.id, p_closing_id: params.data.closingId, p_contract_id: params.data.id,
+        p_expected_revision: body.data.expectedRevision, p_item_id: body.data.itemId,
+        p_reason: body.data.reason, p_resolution: body.data.resolution,
+      });
+      if (error) throw error;
       return json({ ok: true, item: data });
     }
     const rpc = body.data.action === "approve"
-      ? await supabase.rpc("approve_contract_closing_revision", { p_actor_id: auth.profile.id, p_closing_id: params.data.closingId, p_expected_revision: body.data.expectedRevision })
+      ? await supabase.rpc("approve_contract_closing_revision", { p_actor_id: auth.profile.id, p_closing_id: params.data.closingId, p_contract_id: params.data.id, p_expected_revision: body.data.expectedRevision })
       : body.data.action === "new_revision"
-        ? await supabase.rpc("create_contract_closing_correction", { p_actor_id: auth.profile.id, p_closing_id: params.data.closingId, p_expected_revision: body.data.expectedRevision, p_previous_revision_id: body.data.previousRevisionId, p_reason: body.data.reason })
-        : await supabase.rpc("register_contract_closing_vios", { p_actor_id: auth.profile.id, p_closing_id: params.data.closingId, p_expected_revision: body.data.expectedRevision, p_reference: body.data.reference, p_url: body.data.url ?? "" });
+        ? await supabase.rpc("create_contract_closing_correction", { p_actor_id: auth.profile.id, p_closing_id: params.data.closingId, p_contract_id: params.data.id, p_expected_revision: body.data.expectedRevision, p_previous_revision_id: body.data.previousRevisionId, p_reason: body.data.reason })
+        : await supabase.rpc("register_contract_closing_vios", { p_actor_id: auth.profile.id, p_closing_id: params.data.closingId, p_contract_id: params.data.id, p_expected_revision: body.data.expectedRevision, p_reference: body.data.reference, p_url: body.data.url ?? "" });
     if (rpc.error) throw rpc.error;
     return json({ ok: true, revision: rpc.data });
   } catch (error) {

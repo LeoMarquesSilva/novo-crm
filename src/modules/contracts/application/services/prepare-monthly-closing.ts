@@ -10,6 +10,17 @@ import type {
 import type { MoneyCents } from "../../domain/money";
 
 export type ClosingRevisionStatus = "a_calcular" | "em_revisao" | "aprovado" | "lancado_vios" | "cancelado";
+export type ClosingMutationAction = "approve" | "new_revision" | "register_vios" | "resolve_blocker";
+
+export function expectedRevisionForPreparation(closing: { currentRevision: number } | null): number {
+  return closing?.currentRevision ?? 0;
+}
+
+export function closingActionCapability(action: ClosingMutationAction) {
+  if (action === "approve" || action === "new_revision") return "approve_closing" as const;
+  if (action === "register_vios") return "register_vios" as const;
+  return "prepare_closing" as const;
+}
 
 export type ExistingClosing = {
   id: string;

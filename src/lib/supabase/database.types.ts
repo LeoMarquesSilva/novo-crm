@@ -2902,13 +2902,14 @@ export type Database = {
         Returns: { closing_id: string; revision_id: string; revision_number: number }[]
       }
       approve_contract_closing_revision: {
-        Args: { p_actor_id: string; p_closing_id: string; p_expected_revision: number }
+        Args: { p_actor_id: string; p_closing_id: string; p_contract_id: string; p_expected_revision: number }
         Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
       }
       create_contract_closing_correction: {
         Args: {
           p_actor_id: string
           p_closing_id: string
+          p_contract_id: string
           p_expected_revision: number
           p_previous_revision_id: string
           p_reason: string
@@ -2919,11 +2920,20 @@ export type Database = {
         Args: {
           p_actor_id: string
           p_closing_id: string
+          p_contract_id: string
           p_expected_revision: number
           p_reference: string
           p_url: string
         }
         Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
+      }
+      resolve_contract_closing_blocker: {
+        Args: { p_actor_id: string; p_closing_id: string; p_contract_id: string; p_expected_revision: number; p_item_id: string; p_reason: string; p_resolution: string }
+        Returns: Database["public"]["Tables"]["contrato_fechamento_itens"]["Row"]
+      }
+      upsert_contract_consumptions_atomic: {
+        Args: { p_actor_id: string; p_competencia: string; p_contract_id: string; p_items: Json; p_version_id: string }
+        Returns: Database["public"]["Tables"]["contrato_consumos_mensais"]["Row"][]
       }
       registrar_lancamento_vios_fechamento: {
         Args: {

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { ContractVersionSnapshot } from "../../domain/entities";
 import { moneyCents } from "../../domain/money";
 import {
+  closingActionCapability,
   ClosingPreparationError,
+  expectedRevisionForPreparation,
   prepareMonthlyClosing,
   type ClosingPreparationRepository,
   type PreparedRevisionWrite,
@@ -53,6 +55,18 @@ function repository(overrides: Partial<ClosingPreparationRepository> = {}) {
 }
 
 describe("prepareMonthlyClosing", () => {
+  it("usa a revisao atual real ao preparar novamente", () => {
+    expect(expectedRevisionForPreparation({ currentRevision: 7 })).toBe(7);
+    expect(expectedRevisionForPreparation(null)).toBe(0);
+  });
+
+  it("separa permissoes de preparar, aprovar e registrar VIOS", () => {
+    expect(closingActionCapability("approve")).toBe("approve_closing");
+    expect(closingActionCapability("new_revision")).toBe("approve_closing");
+    expect(closingActionCapability("register_vios")).toBe("register_vios");
+    expect(closingActionCapability("resolve_blocker")).toBe("prepare_closing");
+  });
+
   it("seleciona a versao ativa pela competencia", async () => {
     let requestedCompetency = "";
     const { repo, writes } = repository({

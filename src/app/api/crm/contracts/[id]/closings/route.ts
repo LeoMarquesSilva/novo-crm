@@ -92,8 +92,22 @@ class SupabaseClosingRepository implements ClosingPreparationRepository {
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await requireAuthApi(); if (!auth.ok) return auth.response;
   const params = z.object({ id: uuid }).safeParse(await context.params); if (!params.success) return json({ ok: false, code: "INVALID_REQUEST" }, 400);
-  const { data, error } = await createSupabaseAdminClient().from("contrato_fechamentos").select("id,competencia,status,revisao_atual_id,versao_id,updated_at").eq("contrato_id", params.data.id).order("competencia", { ascending: false });
-  return error ? json({ ok: false, code: "INTERNAL_ERROR", error: error.message }, 500) : json({ ok: true, closings: data });
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("contrato_fechamentos").select("id,competencia,status,revisao_atual_id,versao_id,updated_at").eq("contrato_id", params.data.id).order("competencia", { ascending: false });
+  if (error) return json({ ok: false, code: "INTERNAL_ERROR", error: error.message }, 500);
+  const revisionIds = (data ?? []).flatMap((closing) => closing.revisao_atual_id ? [closing.revisao_atual_id] : []);
+  const revisions = revisionIds.length ? await supabase.from("contrato_fechamento_revisoes").select("id,numero").in("id", revisionIds) : { data: [], error: null };
+  if (revisions.error) return json({ ok: false, code: "INTERNAL_ERROR", error: revisions.error.message }, 500);
+  const revisionMap = new Map((revisions.data ?? []).map((revision) => [revision.id, revision.numero]));
+  return json({
+    ok: true,
+    permissions: {
+      canPrepare: canAccessContractCapability({ role: auth.profile.role, capability: "prepare_closing" }),
+      canApprove: canAccessContractCapability({ role: auth.profile.role, capability: "approve_closing" }),
+      canRegisterVios: canAccessContractCapability({ role: auth.profile.role, capability: "register_vios" }),
+    },
+    closings: (data ?? []).map((closing) => ({ ...closing, currentRevision: closing.revisao_atual_id ? revisionMap.get(closing.revisao_atual_id) ?? 0 : 0 })),
+  });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
