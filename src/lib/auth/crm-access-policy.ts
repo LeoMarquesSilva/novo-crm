@@ -6,7 +6,8 @@ export type ContractCapability =
   | "prepare_closing"
   | "approve_closing"
   | "register_vios"
-  | "manage_renewal";
+  | "manage_renewal"
+  | "ensure_draft";
 
 export function canAccessContractCapability(input: {
   role: Database["public"]["Enums"]["user_role"];
@@ -24,6 +25,12 @@ export function canAccessContractCapability(input: {
     case "approve_closing":
     case "manage_renewal":
       return input.role === "admin" || input.role === "controladoria";
+    case "ensure_draft":
+      return (
+        input.role === "admin" ||
+        input.role === "comercial" ||
+        input.role === "controladoria"
+      );
     case "prepare_closing":
     case "register_vios":
       return (

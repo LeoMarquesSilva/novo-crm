@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth/server";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
+import { EnsureContractDraftBanner } from "@/components/crm/contracts/ensure-contract-draft-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -107,8 +108,15 @@ async function getAppUsersByEmail(): Promise<Record<string, { avatarUrl: string 
   }
 }
 
-export default async function ContratosPage() {
+export default async function ContratosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ setupOpportunityId?: string | string[] }>;
+}) {
   await requireAuth("/crm/contratos");
+  const query = await searchParams;
+  const setupOpportunityId =
+    typeof query.setupOpportunityId === "string" ? query.setupOpportunityId : null;
 
   const [{ linked, unlinked, missingNames, error }, appUsersByEmail, quota] = await Promise.all([
     getD4SignData(),
@@ -154,6 +162,10 @@ export default async function ContratosPage() {
             : []),
         ]}
       />
+
+      {setupOpportunityId ? (
+        <EnsureContractDraftBanner opportunityId={setupOpportunityId} />
+      ) : null}
 
       {error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

@@ -40,3 +40,12 @@
 - Contrato ausente retorna blocker acionável para `/crm/contratos?setupOpportunityId={opportunityId}` no GET e no POST.
 - Área deixou de contar como requisito universal no progresso visual; a validação SQL de transição continua sem exigir área.
 - Checks: 2 arquivos/10 testes aprovados; `npx.cmd tsc --noEmit` e `git diff --check` com exit 0.
+
+## Fix round 2/5
+
+- RED: a capability `ensure_draft` retornava `undefined` para todos os papéis; 4 casos falharam.
+- GREEN: admin, comercial e controladoria podem reparar o cadastro-base; financeiro e papéis desconhecidos continuam negados.
+- `POST /api/crm/contracts/ensure` valida UUID, revalida autenticação/autorização e chama a RPC idempotente `ensure_contract_draft_for_opportunity`; respostas usam `Cache-Control: no-store`.
+- `/crm/contratos` aguarda `searchParams` e, com `setupOpportunityId`, preserva o dashboard D4Sign e exibe um banner cliente sem mutação automática.
+- O clique cria o rascunho, mostra o `contractId` e oferece links para `/crm/contratos/{id}?setup=1` e de volta ao lead.
+- Checks: 3 arquivos/53 testes aprovados; `npx.cmd tsc --noEmit` e `git diff --check` com exit 0.
