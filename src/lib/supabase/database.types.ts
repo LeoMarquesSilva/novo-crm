@@ -2892,6 +2892,15 @@ export type Database = {
         }
         Returns: string
       }
+      manage_contract_version_atomic: {
+        Args: {
+          p_action: Json
+          p_actor_id: string
+          p_contract_id: string
+          p_now: string
+        }
+        Returns: Json
+      }
       create_contract_closing_revision: {
         Args: {
           p_actor_id: string

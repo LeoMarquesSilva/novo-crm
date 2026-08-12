@@ -13,7 +13,9 @@ export type ContractConfigurationErrorCode =
   | "CONTRACT_CONFIGURATION_INVALID"
   | "CONTRACT_VERSION_CONFLICT"
   | "ACTIVE_CONTRACT_VERSION_IS_IMMUTABLE"
-  | "OPPORTUNITY_STAGE_CONFLICT";
+  | "OPPORTUNITY_STAGE_CONFLICT"
+  | "CONTRACT_LIFECYCLE_REASON_REQUIRED"
+  | "CONTRACT_VERSION_PERIOD_INVALID";
 
 export class ContractConfigurationError extends Error {
   constructor(
@@ -54,6 +56,35 @@ export type SaveContractConfigurationInput = {
   expectedVersionUpdatedAt: string;
   configuration: ContractConfigurationInput;
 };
+
+export type VersionAction =
+  | { action: "clone_draft"; sourceVersionId: string; effectiveFrom: string; addendumId?: string }
+  | { action: "suspend_contract"; reason: string }
+  | { action: "resume_contract"; reason: string }
+  | { action: "end_contract"; endedAt: string; reason: string };
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function validateContractVersionAction(action: VersionAction): VersionAction {
+  if (action.action === "clone_draft") {
+    if (!ISO_DATE.test(action.effectiveFrom)) {
+      throw new ContractConfigurationError("CONTRACT_VERSION_PERIOD_INVALID", "Informe uma vigência inicial válida.");
+    }
+    return action;
+  }
+
+  const reason = action.reason.trim();
+  if (!reason) {
+    throw new ContractConfigurationError("CONTRACT_LIFECYCLE_REASON_REQUIRED", "Informe o motivo da alteração de ciclo de vida.");
+  }
+  if (action.action === "end_contract") {
+    if (!ISO_DATE.test(action.endedAt)) {
+      throw new ContractConfigurationError("CONTRACT_VERSION_PERIOD_INVALID", "Informe uma data de encerramento válida.");
+    }
+    return { ...action, reason };
+  }
+  return { ...action, reason };
+}
 
 export function assertContractActivationOpportunityPolicy(input: {
   opportunityId: string | null;

@@ -849,6 +849,20 @@ begin
     end if;
   end if;
 
+  -- Uma ativação posterior encerra o snapshot anterior na véspera, preservando
+  -- os IDs já gravados em fechamentos históricos.
+  perform set_config('app.contract_version_rpc', 'on', true);
+  update public.contrato_versoes
+  set status = 'substituida'::public.contract_version_status,
+      vigente_ate = v_version.vigente_de - 1,
+      substituida_em = p_now,
+      substituida_por = p_actor_id,
+      atualizado_por = p_actor_id,
+      updated_at = p_now
+  where contrato_id = p_contract_id
+    and status = 'ativa'::public.contract_version_status
+    and id <> p_version_id;
+
   update public.contrato_versoes
   set status = 'ativa'::public.contract_version_status,
       ativada_em = p_now,
@@ -900,6 +914,21 @@ begin
     p_now,
     p_now
   );
+
+  if v_contract.versao_ativa_id is not null and v_contract.versao_ativa_id <> p_version_id then
+    insert into public.contrato_eventos (
+      contrato_id, tipo, titulo, detalhe, ator_app_user_id, origem,
+      metadados_snapshot, created_at, updated_at
+    ) values (
+      p_contract_id, 'versao_substituida', 'Versão contratual substituída',
+      'A versão anterior foi encerrada na véspera da nova vigência.', p_actor_id,
+      'gerenciador_contratos', jsonb_build_object(
+        'previous_version_id', v_contract.versao_ativa_id,
+        'version_id', p_version_id,
+        'effective_from', v_version.vigente_de
+      ), p_now, p_now
+    );
+  end if;
 
   return query select p_contract_id, p_version_id, v_contract.oportunidade_id, v_transition_id;
 end;
@@ -1164,3 +1193,137 @@ alter table public.crm_in_app_notifications
 
 create unique index if not exists crm_in_app_notifications_user_intent_key
   on public.crm_in_app_notifications (user_id, idempotency_key);
+
+-- Versões posteriores substituem snapshots ativos somente por este fluxo auditado.
+create or replace function public.guard_active_contract_version_immutability()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if old.status = 'ativa'::public.contract_version_status
+    and current_setting('app.contract_version_rpc', true) is distinct from 'on'
+  then
+    raise exception using errcode = '55000', message = 'ACTIVE_CONTRACT_VERSION_IS_IMMUTABLE';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+create or replace function public.manage_contract_version_atomic(
+  p_contract_id uuid, p_actor_id uuid, p_action jsonb, p_now timestamptz
+)
+returns jsonb
+language plpgsql security invoker set search_path = ''
+as $$
+declare
+  v_contract public.contratos;
+  v_source public.contrato_versoes;
+  v_new_id uuid;
+  v_effective date;
+  v_addendum_id uuid;
+  v_area record;
+  v_component record;
+  v_new_area_id uuid;
+  v_new_component_id uuid;
+  v_area_map jsonb := '{}'::jsonb;
+  v_component_map jsonb := '{}'::jsonb;
+  v_reason text;
+  v_ended_at date;
+  v_status public.contract_lifecycle_status;
+begin
+  select * into v_contract from public.contratos where id=p_contract_id for update;
+  if not found then raise exception using errcode='P0002', message='CONTRACT_NOT_FOUND'; end if;
+
+  if p_action->>'action' = 'clone_draft' then
+    v_effective := nullif(p_action->>'effectiveFrom','')::date;
+    v_addendum_id := nullif(p_action->>'addendumId','')::uuid;
+    select * into v_source from public.contrato_versoes
+      where id=(p_action->>'sourceVersionId')::uuid and contrato_id=p_contract_id for update;
+    if not found then raise exception using errcode='P0002', message='CONTRACT_VERSION_NOT_FOUND'; end if;
+    if v_effective is null or (v_source.vigente_de is not null and v_effective <= v_source.vigente_de) then
+      raise exception using errcode='22023', message='CONTRACT_VERSION_PERIOD_INVALID';
+    end if;
+    if exists (
+      select 1 from public.contrato_versoes
+      where contrato_id=p_contract_id and id<>v_source.id
+        and status in ('rascunho','ativa')
+        and daterange(vigente_de,coalesce(vigente_ate,'infinity'::date),'[]')
+          && daterange(v_effective,coalesce(v_source.vigente_ate,'infinity'::date),'[]')
+    ) then raise exception using errcode='23P01', message='CONTRACT_VERSION_OVERLAP'; end if;
+    if v_addendum_id is not null and not exists (
+      select 1 from public.aditivos where id=v_addendum_id and contrato_base_id=p_contract_id for update
+    ) then raise exception using errcode='P0002', message='CONTRACT_ADDENDUM_NOT_FOUND'; end if;
+
+    insert into public.contrato_versoes(contrato_id,numero,status,vigente_de,vigente_ate,origem_snapshot,criado_por,atualizado_por,created_at,updated_at)
+    values(p_contract_id,(select coalesce(max(numero),0)+1 from public.contrato_versoes where contrato_id=p_contract_id),
+      'rascunho',v_effective,v_source.vigente_ate,
+      v_source.origem_snapshot || jsonb_build_object('source_version_id',v_source.id,'cloned_at',p_now),
+      p_actor_id,p_actor_id,p_now,p_now) returning id into v_new_id;
+
+    for v_area in select * from public.contrato_areas where versao_id=v_source.id order by created_at,id loop
+      v_new_area_id := gen_random_uuid();
+      v_area_map := v_area_map || jsonb_build_object(v_area.id::text,v_new_area_id);
+      insert into public.contrato_areas(id,versao_id,area_key,processos_incluidos,horas_incluidas,valor_excedente_processo,
+        valor_excedente_hora,valor_km,acompanha_processos,acompanha_horas,observacoes,created_at,updated_at)
+      values(v_new_area_id,v_new_id,v_area.area_key,v_area.processos_incluidos,v_area.horas_incluidas,v_area.valor_excedente_processo,
+        v_area.valor_excedente_hora,v_area.valor_km,v_area.acompanha_processos,v_area.acompanha_horas,v_area.observacoes,p_now,p_now);
+    end loop;
+
+    for v_component in select * from public.contrato_componentes_cobranca where versao_id=v_source.id order by ordem,created_at,id loop
+      v_new_component_id := gen_random_uuid();
+      v_component_map := v_component_map || jsonb_build_object(v_component.id::text,v_new_component_id);
+      insert into public.contrato_componentes_cobranca(id,versao_id,area_id,grupo_faixa_id,tipo,descricao,recorrencia,periodo_inicio,periodo_fim,
+        valor_fixo,valor_unitario,quantidade_incluida,percentual,base_calculo,modo_cobranca_variavel,liberacao_manual_necessaria,
+        condicao_liberacao,tratamento_tributario,elegivel_rateio,elegivel_participacao,elegivel_comissao,ordem,created_at,updated_at)
+      values(v_new_component_id,v_new_id,(v_area_map->>v_component.area_id::text)::uuid,v_component.grupo_faixa_id,v_component.tipo,
+        v_component.descricao,v_component.recorrencia,greatest(v_component.periodo_inicio,v_effective),v_component.periodo_fim,
+        v_component.valor_fixo,v_component.valor_unitario,v_component.quantidade_incluida,v_component.percentual,v_component.base_calculo,
+        v_component.modo_cobranca_variavel,v_component.liberacao_manual_necessaria,v_component.condicao_liberacao,
+        v_component.tratamento_tributario,v_component.elegivel_rateio,v_component.elegivel_participacao,v_component.elegivel_comissao,
+        v_component.ordem,p_now,p_now);
+      insert into public.contrato_parcelas(componente_id,numero,competencia,vencimento,valor,created_at,updated_at)
+        select v_new_component_id,numero,competencia,vencimento,valor,p_now,p_now from public.contrato_parcelas where componente_id=v_component.id;
+    end loop;
+
+    insert into public.contrato_rateios_area(versao_id,componente_id,area_id,modo,percentual,valor,created_at,updated_at)
+      select v_new_id,(v_component_map->>componente_id::text)::uuid,(v_area_map->>area_id::text)::uuid,modo,percentual,valor,p_now,p_now
+      from public.contrato_rateios_area where versao_id=v_source.id;
+    insert into public.contrato_participacoes_socios(versao_id,componente_id,socio_app_user_id,socio_nome,percentual,regra_sugerida,override_motivo,created_at,updated_at)
+      select v_new_id,(v_component_map->>componente_id::text)::uuid,socio_app_user_id,socio_nome,percentual,regra_sugerida,override_motivo,p_now,p_now
+      from public.contrato_participacoes_socios where versao_id=v_source.id;
+    insert into public.contrato_comissoes(versao_id,componente_id,beneficiario_app_user_id,beneficiario_nome,percentual,valor,periodo_inicio,periodo_fim,base_calculo,motivo,created_at,updated_at)
+      select v_new_id,(v_component_map->>componente_id::text)::uuid,beneficiario_app_user_id,beneficiario_nome,percentual,valor,
+        periodo_inicio,periodo_fim,base_calculo,motivo,p_now,p_now from public.contrato_comissoes where versao_id=v_source.id;
+
+    if v_addendum_id is not null then
+      update public.aditivos set versao_origem_id=v_source.id,versao_resultante_id=v_new_id,updated_at=p_now where id=v_addendum_id;
+    end if;
+    insert into public.contrato_eventos(contrato_id,tipo,titulo,detalhe,ator_app_user_id,origem,metadados_snapshot,created_at,updated_at)
+      values(p_contract_id,'versao_clonada','Nova versão contratual em rascunho','Configuração normalizada clonada sem alterar fechamentos históricos.',
+        p_actor_id,'gerenciador_contratos',jsonb_build_object('source_version_id',v_source.id,'version_id',v_new_id,'addendum_id',v_addendum_id),p_now,p_now);
+    return jsonb_build_object('contractId',p_contract_id,'versionId',v_new_id,'status','rascunho');
+  end if;
+
+  v_reason := nullif(btrim(p_action->>'reason'),'');
+  if v_reason is null then raise exception using errcode='22023', message='CONTRACT_LIFECYCLE_REASON_REQUIRED'; end if;
+  if p_action->>'action' = 'suspend_contract' then v_status := 'suspenso';
+  elsif p_action->>'action' = 'resume_contract' then v_status := 'ativo';
+  elsif p_action->>'action' = 'end_contract' then
+    v_status := 'encerrado'; v_ended_at := nullif(p_action->>'endedAt','')::date;
+    if v_ended_at is null then raise exception using errcode='22023', message='CONTRACT_VERSION_PERIOD_INVALID'; end if;
+  else raise exception using errcode='22023', message='CONTRACT_VERSION_ACTION_INVALID'; end if;
+
+  update public.contratos set status=v_status,vigente_ate=coalesce(v_ended_at,vigente_ate),
+    suspenso_em=case when v_status='suspenso' then p_now else suspenso_em end,
+    suspenso_por=case when v_status='suspenso' then p_actor_id else suspenso_por end,
+    encerrado_em=case when v_status='encerrado' then p_now else encerrado_em end,
+    encerrado_por=case when v_status='encerrado' then p_actor_id else encerrado_por end,
+    atualizado_por=p_actor_id,updated_at=p_now where id=p_contract_id;
+  insert into public.contrato_eventos(contrato_id,tipo,titulo,detalhe,ator_app_user_id,origem,metadados_snapshot,created_at,updated_at)
+    values(p_contract_id,case v_status when 'suspenso' then 'contrato_suspenso' when 'ativo' then 'contrato_retomado' else 'contrato_encerrado' end,
+      case v_status when 'suspenso' then 'Contrato suspenso' when 'ativo' then 'Contrato retomado' else 'Contrato encerrado' end,
+      v_reason,p_actor_id,'gerenciador_contratos',jsonb_build_object('ended_at',v_ended_at),p_now,p_now);
+  return jsonb_build_object('contractId',p_contract_id,'status',v_status);
+end;
+$$;
+
+revoke all on function public.manage_contract_version_atomic(uuid,uuid,jsonb,timestamptz) from public,anon,authenticated;
+grant execute on function public.manage_contract_version_atomic(uuid,uuid,jsonb,timestamptz) to service_role;

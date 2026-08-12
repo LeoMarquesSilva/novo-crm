@@ -220,3 +220,42 @@ describe("assertContractActivationOpportunityPolicy", () => {
     })).toThrow(expect.objectContaining({ code: "OPPORTUNITY_STAGE_CONFLICT" }));
   });
 });
+
+describe("validateContractVersionAction", () => {
+  it("requires a reason for every lifecycle mutation", async () => {
+    const { validateContractVersionAction } = await import("./save-contract-configuration");
+
+    expect(() => validateContractVersionAction({ action: "suspend_contract", reason: "  " })).toThrow(
+      expect.objectContaining({ code: "CONTRACT_LIFECYCLE_REASON_REQUIRED" }),
+    );
+    expect(() => validateContractVersionAction({ action: "resume_contract", reason: "Revisão concluída" })).not.toThrow();
+  });
+
+  it("rejects an invalid version period before cloning normalized configuration", async () => {
+    const { validateContractVersionAction } = await import("./save-contract-configuration");
+
+    expect(() => validateContractVersionAction({
+      action: "clone_draft",
+      sourceVersionId: "44444444-4444-4444-8444-444444444444",
+      effectiveFrom: "12/08/2026",
+    })).toThrow(expect.objectContaining({ code: "CONTRACT_VERSION_PERIOD_INVALID" }));
+  });
+
+  it("normalizes lifecycle reasons and optional addendum linkage", async () => {
+    const { validateContractVersionAction } = await import("./save-contract-configuration");
+
+    expect(validateContractVersionAction({
+      action: "clone_draft",
+      sourceVersionId: "44444444-4444-4444-8444-444444444444",
+      effectiveFrom: "2027-01-01",
+      addendumId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    })).toEqual({
+      action: "clone_draft",
+      sourceVersionId: "44444444-4444-4444-8444-444444444444",
+      effectiveFrom: "2027-01-01",
+      addendumId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    });
+    expect(validateContractVersionAction({ action: "end_contract", endedAt: "2027-02-01", reason: "  Encerrado pelo cliente  " }))
+      .toEqual({ action: "end_contract", endedAt: "2027-02-01", reason: "Encerrado pelo cliente" });
+  });
+});
