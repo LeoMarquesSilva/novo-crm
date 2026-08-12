@@ -258,4 +258,18 @@ describe("validateContractVersionAction", () => {
     expect(validateContractVersionAction({ action: "end_contract", endedAt: "2027-02-01", reason: "  Encerrado pelo cliente  " }))
       .toEqual({ action: "end_contract", endedAt: "2027-02-01", reason: "Encerrado pelo cliente" });
   });
+
+  it("enforces the lifecycle state machine and never reopens an ended contract", async () => {
+    const { assertContractLifecycleTransition } = await import("./save-contract-configuration");
+
+    expect(() => assertContractLifecycleTransition("ativo", "suspend_contract")).not.toThrow();
+    expect(() => assertContractLifecycleTransition("suspenso", "resume_contract")).not.toThrow();
+    expect(() => assertContractLifecycleTransition("suspenso", "end_contract")).not.toThrow();
+    expect(() => assertContractLifecycleTransition("rascunho", "suspend_contract")).toThrow(
+      expect.objectContaining({ code: "CONTRACT_LIFECYCLE_TRANSITION_INVALID" }),
+    );
+    expect(() => assertContractLifecycleTransition("encerrado", "resume_contract")).toThrow(
+      expect.objectContaining({ code: "CONTRACT_LIFECYCLE_TRANSITION_INVALID" }),
+    );
+  });
 });

@@ -755,6 +755,20 @@ begin
     p_now
   );
 
+  if jsonb_array_length(coalesce(p_configuration -> 'substitutionEvidence', '[]'::jsonb)) > 0 then
+    insert into public.contrato_eventos (
+      contrato_id, tipo, titulo, detalhe, ator_app_user_id, origem,
+      metadados_snapshot, created_at, updated_at
+    ) values (
+      p_contract_id, 'override_registrado', 'Override de configuração registrado',
+      'Valores sugeridos foram substituídos com justificativa.', p_actor_id,
+      'gerenciador_contratos', jsonb_build_object(
+        'version_id', p_version_id,
+        'substitution_evidence', p_configuration -> 'substitutionEvidence'
+      ), p_now, p_now
+    );
+  end if;
+
   return p_now;
 exception
   when check_violation or foreign_key_violation or unique_violation
@@ -1026,6 +1040,10 @@ begin
   update public.contrato_fechamentos set revisao_atual_id = v_revision_id,
     status = 'em_revisao', preparado_em = now(), preparado_por = p_actor_id
   where id = v_closing.id;
+  insert into public.contrato_eventos(contrato_id,tipo,titulo,detalhe,ator_app_user_id,origem,metadados_snapshot)
+    values(p_contract_id,'fechamento_calculado','Fechamento mensal calculado',
+      'Uma nova revisão de cálculo foi preparada.',p_actor_id,'gerenciador_contratos',
+      jsonb_build_object('closing_id',v_closing.id,'revision_id',v_revision_id,'revision_number',v_next,'competency',p_competencia));
   return query select v_closing.id, v_revision_id, v_next;
 end;
 $$;
@@ -1049,6 +1067,9 @@ begin
   update public.contrato_fechamento_revisoes set status='aprovado', aprovada_em=now(), aprovada_por=p_actor_id
   where id=v_revision.id returning * into v_revision;
   update public.contrato_fechamentos set status='aprovado' where id=v_closing.id;
+  insert into public.contrato_eventos(contrato_id,tipo,titulo,detalhe,ator_app_user_id,origem,metadados_snapshot)
+    values(p_contract_id,'fechamento_aprovado','Fechamento mensal aprovado',null,p_actor_id,'gerenciador_contratos',
+      jsonb_build_object('closing_id',v_closing.id,'revision_id',v_revision.id,'revision_number',v_revision.numero));
   return v_revision;
 end;
 $$;
@@ -1083,6 +1104,9 @@ begin
     elegivel_rateio,elegivel_participacao,elegivel_comissao,bloqueante,bloqueio_tipo,bloqueio_descricao,metadados
   from public.contrato_fechamento_itens where revisao_id=v_previous.id;
   update public.contrato_fechamentos set revisao_atual_id=v_new.id,status='em_revisao' where id=p_closing_id;
+  insert into public.contrato_eventos(contrato_id,tipo,titulo,detalhe,ator_app_user_id,origem,metadados_snapshot)
+    values(p_contract_id,'fechamento_corrigido','Correção de fechamento criada',btrim(p_reason),p_actor_id,'gerenciador_contratos',
+      jsonb_build_object('closing_id',p_closing_id,'previous_revision_id',v_previous.id,'revision_id',v_new.id,'revision_number',v_new.numero));
   return v_new;
 end;
 $$;
@@ -1106,6 +1130,9 @@ begin
     vios_url=nullif(btrim(p_url),''),lancada_vios_em=now(),lancada_vios_por=p_actor_id
   where id=v_revision.id returning * into v_revision;
   update public.contrato_fechamentos set status='lancado_vios' where id=p_closing_id;
+  insert into public.contrato_eventos(contrato_id,tipo,titulo,detalhe,ator_app_user_id,origem,metadados_snapshot)
+    values(p_contract_id,'vios_registrado','Lançamento no VIOS registrado',btrim(p_reference),p_actor_id,'gerenciador_contratos',
+      jsonb_build_object('closing_id',p_closing_id,'revision_id',v_revision.id,'reference',btrim(p_reference),'url',nullif(btrim(p_url),'')));
   return v_revision;
 end;
 $$;
@@ -1132,6 +1159,9 @@ begin
   where id=p_item_id and revisao_id=v_revision.id and bloqueante and resolvido_em is null
   returning * into v_item;
   if not found then raise exception using errcode='P0002', message='BLOCKER_NOT_FOUND'; end if;
+  insert into public.contrato_eventos(contrato_id,tipo,titulo,detalhe,ator_app_user_id,origem,metadados_snapshot)
+    values(p_contract_id,'bloqueio_resolvido','Pendência de fechamento resolvida',btrim(p_reason),p_actor_id,'gerenciador_contratos',
+      jsonb_build_object('closing_id',p_closing_id,'revision_id',v_revision.id,'item_id',v_item.id,'resolution',p_resolution));
   return v_item;
 end;
 $$;
@@ -1304,9 +1334,14 @@ begin
 
   v_reason := nullif(btrim(p_action->>'reason'),'');
   if v_reason is null then raise exception using errcode='22023', message='CONTRACT_LIFECYCLE_REASON_REQUIRED'; end if;
-  if p_action->>'action' = 'suspend_contract' then v_status := 'suspenso';
-  elsif p_action->>'action' = 'resume_contract' then v_status := 'ativo';
+  if p_action->>'action' = 'suspend_contract' then
+    if v_contract.status <> 'ativo' then raise exception using errcode='22023', message='CONTRACT_LIFECYCLE_TRANSITION_INVALID'; end if;
+    v_status := 'suspenso';
+  elsif p_action->>'action' = 'resume_contract' then
+    if v_contract.status <> 'suspenso' then raise exception using errcode='22023', message='CONTRACT_LIFECYCLE_TRANSITION_INVALID'; end if;
+    v_status := 'ativo';
   elsif p_action->>'action' = 'end_contract' then
+    if v_contract.status not in ('ativo','suspenso') then raise exception using errcode='22023', message='CONTRACT_LIFECYCLE_TRANSITION_INVALID'; end if;
     v_status := 'encerrado'; v_ended_at := nullif(p_action->>'endedAt','')::date;
     if v_ended_at is null then raise exception using errcode='22023', message='CONTRACT_VERSION_PERIOD_INVALID'; end if;
   else raise exception using errcode='22023', message='CONTRACT_VERSION_ACTION_INVALID'; end if;

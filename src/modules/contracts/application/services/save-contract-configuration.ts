@@ -15,6 +15,7 @@ export type ContractConfigurationErrorCode =
   | "ACTIVE_CONTRACT_VERSION_IS_IMMUTABLE"
   | "OPPORTUNITY_STAGE_CONFLICT"
   | "CONTRACT_LIFECYCLE_REASON_REQUIRED"
+  | "CONTRACT_LIFECYCLE_TRANSITION_INVALID"
   | "CONTRACT_VERSION_PERIOD_INVALID";
 
 export class ContractConfigurationError extends Error {
@@ -64,6 +65,23 @@ export type VersionAction =
   | { action: "end_contract"; endedAt: string; reason: string };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function assertContractLifecycleTransition(
+  current: Database["public"]["Enums"]["contract_lifecycle_status"],
+  action: Exclude<VersionAction["action"], "clone_draft">,
+): void {
+  const allowed = (
+    (action === "suspend_contract" && current === "ativo")
+    || (action === "resume_contract" && current === "suspenso")
+    || (action === "end_contract" && (current === "ativo" || current === "suspenso"))
+  );
+  if (!allowed) {
+    throw new ContractConfigurationError(
+      "CONTRACT_LIFECYCLE_TRANSITION_INVALID",
+      `A ação ${action} não é permitida para contrato ${current}.`,
+    );
+  }
+}
 
 export function validateContractVersionAction(action: VersionAction): VersionAction {
   if (action.action === "clone_draft") {
