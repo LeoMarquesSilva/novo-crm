@@ -616,6 +616,51 @@ export async function POST(request: Request) {
 
     const originadoPor = actorFromAppUserRow(auth.profile);
 
+    if (nextStage === "inclusao_faturamento") {
+      const { data: contract } = await supabase
+        .from("contratos")
+        .select("id, titulo")
+        .eq("oportunidade_id", opportunityId)
+        .maybeSingle();
+      if (contract) {
+        const idempotencyKey = `contract-setup:${contract.id}`;
+        const { data: operational } = await supabase
+          .from("contrato_responsaveis")
+          .select("app_user_id")
+          .eq("contrato_id", contract.id)
+          .or("papel.ilike.%operacional%,papel.ilike.%faturamento%")
+          .not("app_user_id", "is", null)
+          .limit(1)
+          .maybeSingle();
+        const { data: fallbackUsers } = operational?.app_user_id
+          ? await supabase.from("app_users").select("id, auth_user_id").eq("id", operational.app_user_id).not("auth_user_id", "is", null)
+          : await supabase.from("app_users").select("id, auth_user_id").in("role", ["controladoria", "admin"]).not("auth_user_id", "is", null);
+        const assigneeId = operational?.app_user_id ?? fallbackUsers?.[0]?.id ?? null;
+        const { data: createdAlert } = await supabase.from("contrato_alertas").upsert({
+          contrato_id: contract.id,
+          tipo: "contrato_implantacao_pendente",
+          data_base: new Date().toISOString().slice(0, 10),
+          data_vencimento: new Date().toISOString().slice(0, 10),
+          responsavel_app_user_id: assigneeId,
+          idempotency_key: idempotencyKey,
+        }, { onConflict: "idempotency_key", ignoreDuplicates: true }).select("id");
+        if ((createdAlert ?? []).length && fallbackUsers?.length) {
+          await supabase.from("crm_in_app_notifications").insert(fallbackUsers.flatMap((user) => user.auth_user_id ? [{
+            user_id: user.auth_user_id,
+            tipo: "contrato_implantacao_pendente",
+            payload: {
+              title: contract.titulo,
+              preview: "Implantação financeira pendente.",
+              path: `/crm/contratos/${contract.id}`,
+              contrato_id: contract.id,
+              idempotency_key: idempotencyKey,
+              ...(originadoPor ? { originado_por: originadoPor } : {}),
+            },
+          }] : []));
+        }
+      }
+    }
+
     if (nextStage === "confeccao_proposta" && pipeline === "vendas") {
       const raw = mergedFormValues["cp_areas_objeto"];
       const areasStr = Array.isArray(raw)

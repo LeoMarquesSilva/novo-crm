@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/d4sign-sync",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/contracts-daily",
+      "schedule": "0 13 * * *"
     }
   ]
 }

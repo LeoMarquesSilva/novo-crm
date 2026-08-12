@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ContractPortfolioItem } from "@/modules/contracts/infrastructure/contract-queries";
 import { ContractPortfolioTab } from "./contract-portfolio-tab";
 import { ContractClosingsTab } from "./contract-closings-tab";
+import { ContractRenewalsTab } from "./contract-renewals-tab";
 
 type D4SignProps = Parameters<typeof D4SignDashboard>[0];
 
@@ -16,7 +17,6 @@ const initialFilters = { search: "", manager: "", area: "", tag: "", origin: "",
 export function ContractsHub({ portfolio, portfolioError, d4sign, d4signError }: { portfolio: ContractPortfolioItem[]; portfolioError: string | null; d4sign: D4SignProps; d4signError: string | null }) {
   const [filters, setFilters] = useState(initialFilters);
   const active = portfolio.filter((item) => item.lifecycle === "ativo").length;
-  const renewals = portfolio.filter((item) => item.renewalSoon).length;
   const annualCents = portfolio.reduce((sum, item) => sum + Number(item.annualReferenceCents ?? 0), 0);
 
   return <Tabs defaultValue="portfolio" className="gap-4">
@@ -29,7 +29,7 @@ export function ContractsHub({ portfolio, portfolioError, d4sign, d4signError }:
     </TabsList></div>
     <TabsContent value="portfolio"><ContractPortfolioTab items={portfolio} error={portfolioError} filters={filters} onFiltersChange={setFilters} /></TabsContent>
     <TabsContent value="closing-review"><ContractClosingsTab portfolio={portfolio} /></TabsContent>
-    <TabsContent value="renewals"><SummaryPlaceholder title="Renovações e reajustes" description="A rotina de alertas entra na próxima etapa. Por enquanto, acompanhe as datas já cadastradas." stats={[["Próximos 90 dias", renewals], ["Sem data-base", portfolio.filter((item) => !item.renewalDate).length], ["Contratos ativos", active]]} /></TabsContent>
+    <TabsContent value="renewals"><ContractRenewalsTab portfolio={portfolio} /></TabsContent>
     <TabsContent value="indicators"><SummaryPlaceholder title="Indicadores da carteira" description="Leitura consolidada dos dados disponíveis na carteira atual." stats={[["Valor anual de referência", new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(annualCents / 100)], ["Contratos ativos", active], ["Em implantação", portfolio.filter((item) => item.lifecycle === "rascunho" || item.lifecycle === "em_revisao").length]]} /></TabsContent>
     <TabsContent value="d4sign">{d4signError ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">Erro ao carregar assinaturas: {d4signError}</div> : <D4SignDashboard {...d4sign} />}</TabsContent>
   </Tabs>;
