@@ -176,3 +176,41 @@ describe("saveContractConfiguration", () => {
     }]);
   });
 });
+
+describe("assertContractActivationOpportunityPolicy", () => {
+  it("rejects the first linked activation when atomic opportunity advance is disabled", async () => {
+    const { assertContractActivationOpportunityPolicy } = await import("./save-contract-configuration");
+
+    expect(() => assertContractActivationOpportunityPolicy({
+      opportunityId: "99999999-9999-4999-8999-999999999999",
+      contractStatus: "rascunho",
+      activeVersionId: null,
+      advanceOpportunity: false,
+      opportunityStage: "inclusao_faturamento",
+    })).toThrow(expect.objectContaining({ code: "OPPORTUNITY_STAGE_CONFLICT" }));
+  });
+
+  it("allows a later linked version without moving the onboarding opportunity again", async () => {
+    const { assertContractActivationOpportunityPolicy } = await import("./save-contract-configuration");
+
+    expect(() => assertContractActivationOpportunityPolicy({
+      opportunityId: "99999999-9999-4999-8999-999999999999",
+      contractStatus: "ativo",
+      activeVersionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      advanceOpportunity: false,
+      opportunityStage: "boas_vindas",
+    })).not.toThrow();
+  });
+
+  it("requires inclusion billing stage whenever a linked activation requests advance", async () => {
+    const { assertContractActivationOpportunityPolicy } = await import("./save-contract-configuration");
+
+    expect(() => assertContractActivationOpportunityPolicy({
+      opportunityId: "99999999-9999-4999-8999-999999999999",
+      contractStatus: "ativo",
+      activeVersionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      advanceOpportunity: true,
+      opportunityStage: "boas_vindas",
+    })).toThrow(expect.objectContaining({ code: "OPPORTUNITY_STAGE_CONFLICT" }));
+  });
+});

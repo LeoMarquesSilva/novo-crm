@@ -671,6 +671,7 @@ declare
   v_version public.contrato_versoes;
   v_stage public.opportunity_stage;
   v_transition_id uuid;
+  v_has_prior_activation boolean;
 begin
   select * into v_version
   from public.contrato_versoes
@@ -702,14 +703,24 @@ begin
     raise exception using errcode = '22023', message = 'CONTRACT_CONFIGURATION_INVALID';
   end if;
 
-  if v_contract.oportunidade_id is not null then
+  v_has_prior_activation := (
+    v_contract.status = 'ativo'::public.contract_lifecycle_status
+    or v_contract.versao_ativa_id is not null
+  );
+
+  if v_contract.oportunidade_id is not null
+    and not v_has_prior_activation
+    and not p_advance_opportunity
+  then
+    raise exception using errcode = '40001', message = 'OPPORTUNITY_STAGE_CONFLICT';
+  end if;
+
+  if v_contract.oportunidade_id is not null and p_advance_opportunity then
     select etapa into v_stage
     from public.oportunidades
     where id = v_contract.oportunidade_id
     for update;
-    if not p_advance_opportunity
-      or v_stage is distinct from 'inclusao_faturamento'::public.opportunity_stage
-    then
+    if v_stage is distinct from 'inclusao_faturamento'::public.opportunity_stage then
       raise exception using errcode = '40001', message = 'OPPORTUNITY_STAGE_CONFLICT';
     end if;
   end if;
@@ -731,7 +742,7 @@ begin
       updated_at = p_now
   where id = p_contract_id;
 
-  if v_contract.oportunidade_id is not null then
+  if v_contract.oportunidade_id is not null and p_advance_opportunity then
     update public.oportunidades
     set etapa = 'boas_vindas'::public.opportunity_stage,
         updated_at = p_now

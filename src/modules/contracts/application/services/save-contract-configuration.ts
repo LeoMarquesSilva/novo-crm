@@ -55,6 +55,27 @@ export type SaveContractConfigurationInput = {
   configuration: ContractConfigurationInput;
 };
 
+export function assertContractActivationOpportunityPolicy(input: {
+  opportunityId: string | null;
+  contractStatus: Database["public"]["Enums"]["contract_lifecycle_status"];
+  activeVersionId: string | null;
+  advanceOpportunity: boolean;
+  opportunityStage: Database["public"]["Enums"]["opportunity_stage"] | null;
+}): void {
+  if (input.opportunityId === null) return;
+
+  const hasPriorActivation = input.contractStatus === "ativo" || input.activeVersionId !== null;
+  if (
+    (!hasPriorActivation && !input.advanceOpportunity) ||
+    (input.advanceOpportunity && input.opportunityStage !== "inclusao_faturamento")
+  ) {
+    throw new ContractConfigurationError(
+      "OPPORTUNITY_STAGE_CONFLICT",
+      "A ativação não pode avançar a oportunidade no estado atual.",
+    );
+  }
+}
+
 export async function saveContractConfiguration(
   repository: ContractConfigurationRepository,
   input: SaveContractConfigurationInput,
