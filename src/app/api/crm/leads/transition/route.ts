@@ -632,10 +632,14 @@ export async function POST(request: Request) {
           .not("app_user_id", "is", null)
           .limit(1)
           .maybeSingle();
-        const { data: fallbackUsers } = operational?.app_user_id
+        let { data: notificationUsers } = operational?.app_user_id
           ? await supabase.from("app_users").select("id, auth_user_id").eq("id", operational.app_user_id).not("auth_user_id", "is", null)
-          : await supabase.from("app_users").select("id, auth_user_id").in("role", ["controladoria", "admin"]).not("auth_user_id", "is", null);
-        const assigneeId = operational?.app_user_id ?? fallbackUsers?.[0]?.id ?? null;
+          : { data: null };
+        if (!notificationUsers?.length) {
+          const fallback = await supabase.from("app_users").select("id, auth_user_id").in("role", ["controladoria", "admin"]).not("auth_user_id", "is", null);
+          notificationUsers = fallback.data;
+        }
+        const assigneeId = notificationUsers?.[0]?.id ?? null;
         const { data: createdAlert } = await supabase.from("contrato_alertas").upsert({
           contrato_id: contract.id,
           tipo: "contrato_implantacao_pendente",
@@ -644,8 +648,8 @@ export async function POST(request: Request) {
           responsavel_app_user_id: assigneeId,
           idempotency_key: idempotencyKey,
         }, { onConflict: "idempotency_key", ignoreDuplicates: true }).select("id");
-        if ((createdAlert ?? []).length && fallbackUsers?.length) {
-          await supabase.from("crm_in_app_notifications").insert(fallbackUsers.flatMap((user) => user.auth_user_id ? [{
+        if ((createdAlert ?? []).length && notificationUsers?.length) {
+          await supabase.from("crm_in_app_notifications").insert(notificationUsers.flatMap((user) => user.auth_user_id ? [{
             user_id: user.auth_user_id,
             tipo: "contrato_implantacao_pendente",
             payload: {

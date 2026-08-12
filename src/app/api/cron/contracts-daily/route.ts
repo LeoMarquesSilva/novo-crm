@@ -39,19 +39,16 @@ async function run(request: Request) {
 
   const contractIds = (contracts ?? []).map((contract) => contract.id);
   const opportunityIds = (contracts ?? []).flatMap((contract) => contract.oportunidade_id ? [contract.oportunidade_id] : []);
-  const [{ data: responsibles, error: responsiblesError }, { data: existingAlerts, error: alertsError }, { data: controladoria, error: usersError }, { data: opportunities, error: opportunitiesError }] = await Promise.all([
+  const [{ data: responsibles, error: responsiblesError }, { data: controladoria, error: usersError }, { data: opportunities, error: opportunitiesError }] = await Promise.all([
     contractIds.length
       ? supabase.from("contrato_responsaveis").select("contrato_id, papel, app_user_id").in("contrato_id", contractIds)
-      : Promise.resolve({ data: [], error: null }),
-    contractIds.length
-      ? supabase.from("contrato_alertas").select("idempotency_key").in("contrato_id", contractIds)
       : Promise.resolve({ data: [], error: null }),
     supabase.from("app_users").select("id, auth_user_id").in("role", ["controladoria", "admin"]).not("auth_user_id", "is", null),
     opportunityIds.length
       ? supabase.from("oportunidades").select("id, etapa").in("id", opportunityIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  const lookupError = responsiblesError ?? alertsError ?? usersError ?? opportunitiesError;
+  const lookupError = responsiblesError ?? usersError ?? opportunitiesError;
   if (lookupError) throw lookupError;
 
   const allAssigneeIds = [...new Set([
@@ -83,11 +80,7 @@ async function run(request: Request) {
     renewalResponsibleId: responsibleFor(contract.id, /renova|gestor/i),
     opportunityStage: contract.oportunidade_id ? stageByOpportunity.get(contract.oportunidade_id) ?? null : null,
   }));
-  const planned = planContractDailyWork({
-    today,
-    contracts: planningRows,
-    existingIdempotencyKeys: (existingAlerts ?? []).map((item) => item.idempotency_key),
-  });
+  const planned = planContractDailyWork({ today, contracts: planningRows });
   const titleByContract = new Map((contracts ?? []).map((contract) => [contract.id, contract.titulo]));
   const errors: Array<{ contractId: string; error: string }> = [];
   let alertsCreated = 0;
@@ -99,73 +92,93 @@ async function run(request: Request) {
     const recipients = assignedAuth
       ? [assignedAuth]
       : fallbackUsers.flatMap((user) => user.auth_user_id ? [user.auth_user_id] : []);
-    if (!recipients.length) return;
-    const { error } = await supabase.from("crm_in_app_notifications").insert(recipients.map((userId) => ({
-      user_id: userId,
-      tipo: type,
-      payload: {
-        title: titleByContract.get(contractId) ?? "Contrato",
-        preview,
-        path: `/crm/contratos/${contractId}`,
-        contrato_id: contractId,
-        idempotency_key: idempotencyKey,
-      },
-    })));
-    if (error) throw error;
-    notificationsCreated += recipients.length;
+    for (const userId of recipients) {
+      const { count, error: lookupError } = await supabase
+        .from("crm_in_app_notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .contains("payload", { idempotency_key: idempotencyKey });
+      if (lookupError) throw lookupError;
+      if ((count ?? 0) > 0) continue;
+      const { error } = await supabase.from("crm_in_app_notifications").insert({
+        user_id: userId,
+        tipo: type,
+        payload: {
+          title: titleByContract.get(contractId) ?? "Contrato",
+          preview,
+          path: `/crm/contratos/${contractId}`,
+          contrato_id: contractId,
+          idempotency_key: idempotencyKey,
+        },
+      });
+      if (error) throw error;
+      notificationsCreated += 1;
+    }
   }
 
   for (const intent of planned.alerts) {
+    const assigneeId = intent.assigneeId ?? fallbackUsers[0]?.id ?? null;
     try {
-      const assigneeId = intent.assigneeId ?? fallbackUsers[0]?.id ?? null;
-      const { data, error } = await supabase.from("contrato_alertas").upsert({
+      const { error } = await supabase.from("contrato_alertas").upsert({
         contrato_id: intent.contractId,
         tipo: intent.type,
         data_base: intent.baseDate,
         data_vencimento: intent.dueDate,
         responsavel_app_user_id: assigneeId,
         idempotency_key: intent.idempotencyKey,
-      }, { onConflict: "idempotency_key", ignoreDuplicates: true }).select("id");
+      }, { onConflict: "idempotency_key" });
       if (error) throw error;
-      if ((data ?? []).length) {
-        alertsCreated += 1;
-        await notify(intent.contractId, intent.type, intent.idempotencyKey, intent.assigneeId, intent.type === "contrato_renovacao_pendente" ? `Renovação prevista para ${intent.dueDate}.` : "Implantação financeira pendente.");
-      }
+      alertsCreated += 1;
     } catch (error) {
       errors.push({ contractId: intent.contractId, error: error instanceof Error ? error.message : "Falha ao criar alerta." });
+    }
+    try {
+      await notify(intent.contractId, intent.type, intent.idempotencyKey, assigneeId, intent.type === "contrato_renovacao_pendente" ? `Renovação prevista para ${intent.dueDate}.` : "Implantação financeira pendente.");
+    } catch (error) {
+      errors.push({ contractId: intent.contractId, error: error instanceof Error ? error.message : "Falha ao reconciliar notificação." });
     }
   }
 
   for (const intent of planned.closings) {
+    const contract = (contracts ?? []).find((item) => item.id === intent.contractId);
+    let closing: { id: string } | null = null;
     try {
-      const contract = (contracts ?? []).find((item) => item.id === intent.contractId);
       if (!contract?.versao_ativa_id) throw new Error("Contrato ativo sem versão ativa.");
-      const { data: closingRows, error: closingError } = await supabase.from("contrato_fechamentos").upsert({
+      const { data, error: closingError } = await supabase.from("contrato_fechamentos").upsert({
         contrato_id: intent.contractId,
         competencia: intent.competency,
         versao_id: contract.versao_ativa_id,
-      }, { onConflict: "contrato_id,competencia", ignoreDuplicates: true }).select("id");
+      }, { onConflict: "contrato_id,competencia" }).select("id").single();
       if (closingError) throw closingError;
-      const closing = closingRows?.[0];
-      if (!closing) continue;
+      closing = data;
       closingsCreated += 1;
-      const assigneeId = intent.assigneeId ?? fallbackUsers[0]?.id ?? null;
-      const { data: alertRows, error: alertError } = await supabase.from("contrato_alertas").upsert({
-        contrato_id: intent.contractId,
-        fechamento_id: closing.id,
-        tipo: "contrato_fechamento_pendente",
-        data_base: `${intent.competency}-01`,
-        data_vencimento: intent.dueDate,
-        responsavel_app_user_id: assigneeId,
-        idempotency_key: intent.idempotencyKey,
-      }, { onConflict: "idempotency_key", ignoreDuplicates: true }).select("id");
-      if (alertError) throw alertError;
-      if ((alertRows ?? []).length) {
-        alertsCreated += 1;
-        await notify(intent.contractId, "contrato_fechamento_pendente", intent.idempotencyKey, intent.assigneeId, `Preparar fechamento de ${intent.competency}.`);
-      }
     } catch (error) {
       errors.push({ contractId: intent.contractId, error: error instanceof Error ? error.message : "Falha ao criar fechamento." });
+      const { data } = await supabase.from("contrato_fechamentos").select("id").eq("contrato_id", intent.contractId).eq("competencia", intent.competency).maybeSingle();
+      closing = data;
+    }
+    if (closing) {
+      const assigneeId = intent.assigneeId ?? fallbackUsers[0]?.id ?? null;
+      try {
+        const { error: alertError } = await supabase.from("contrato_alertas").upsert({
+          contrato_id: intent.contractId,
+          fechamento_id: closing.id,
+          tipo: "contrato_fechamento_pendente",
+          data_base: `${intent.competency}-01`,
+          data_vencimento: intent.dueDate,
+          responsavel_app_user_id: assigneeId,
+          idempotency_key: intent.idempotencyKey,
+        }, { onConflict: "idempotency_key" });
+        if (alertError) throw alertError;
+        alertsCreated += 1;
+      } catch (error) {
+        errors.push({ contractId: intent.contractId, error: error instanceof Error ? error.message : "Falha ao reconciliar alerta de fechamento." });
+      }
+      try {
+        await notify(intent.contractId, "contrato_fechamento_pendente", intent.idempotencyKey, assigneeId, `Preparar fechamento de ${intent.competency}.`);
+      } catch (error) {
+        errors.push({ contractId: intent.contractId, error: error instanceof Error ? error.message : "Falha ao reconciliar notificação de fechamento." });
+      }
     }
   }
 
@@ -193,9 +206,9 @@ async function run(request: Request) {
     if (!closing) continue;
     const metric = String(asRecord(item.metadados).metric ?? item.bloqueio_tipo ?? "excedente");
     const key = `contract-missing-rate:${closing.contrato_id}:${closing.id}:${item.area_id ?? "sem-area"}:${metric}`;
+    const assigneeId = responsibleFor(closing.contrato_id, /operacional|faturamento/i) ?? fallbackUsers[0]?.id ?? null;
     try {
-      const assigneeId = responsibleFor(closing.contrato_id, /operacional|faturamento/i) ?? fallbackUsers[0]?.id ?? null;
-      const { data, error } = await supabase.from("contrato_alertas").upsert({
+      const { error } = await supabase.from("contrato_alertas").upsert({
         contrato_id: closing.contrato_id,
         fechamento_id: closing.id,
         tipo: "contrato_excedente_sem_preco",
@@ -203,14 +216,16 @@ async function run(request: Request) {
         data_vencimento: today,
         responsavel_app_user_id: assigneeId,
         idempotency_key: key,
-      }, { onConflict: "idempotency_key", ignoreDuplicates: true }).select("id");
+      }, { onConflict: "idempotency_key" });
       if (error) throw error;
-      if ((data ?? []).length) {
-        alertsCreated += 1;
-        await notify(closing.contrato_id, "contrato_excedente_sem_preco", key, assigneeId, "Excedente sem preço contratual exige decisão.");
-      }
+      alertsCreated += 1;
     } catch (error) {
       errors.push({ contractId: closing.contrato_id, error: error instanceof Error ? error.message : "Falha ao criar alerta de excedente." });
+    }
+    try {
+      await notify(closing.contrato_id, "contrato_excedente_sem_preco", key, assigneeId, "Excedente sem preço contratual exige decisão.");
+    } catch (error) {
+      errors.push({ contractId: closing.contrato_id, error: error instanceof Error ? error.message : "Falha ao reconciliar notificação de excedente." });
     }
   }
 

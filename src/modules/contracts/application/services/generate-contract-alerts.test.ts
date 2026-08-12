@@ -51,6 +51,28 @@ describe("planContractDailyWork", () => {
       .toMatchObject({ baseDate: "2026-11-20", dueDate: "2026-11-20" });
   });
 
+  it.each([
+    ["2026-03-11", "2026-02-09"],
+    ["2027-03-11", "2027-02-09"],
+  ])("usa o fim do prazo determinado em vez do aniversario anual (%s)", (endsAt, alertDate) => {
+    const result = planContractDailyWork({
+      today: alertDate,
+      contracts: [{ ...activeContract, indefinite: false, endsAt }],
+    });
+
+    expect(result.alerts.find((alert) => alert.type === "contrato_renovacao_pendente"))
+      .toMatchObject({ baseDate: endsAt, dueDate: endsAt });
+  });
+
+  it("nao inventa renovacao para prazo determinado sem data final", () => {
+    const result = planContractDailyWork({
+      today: "2026-08-12",
+      contracts: [{ ...activeContract, indefinite: false, endsAt: null }],
+    });
+
+    expect(result.alerts.find((alert) => alert.type === "contrato_renovacao_pendente")).toBeUndefined();
+  });
+
   it("planeja fechamento na antecedencia configurada ao vencimento", () => {
     const result = planContractDailyWork({
       today: "2026-08-05",

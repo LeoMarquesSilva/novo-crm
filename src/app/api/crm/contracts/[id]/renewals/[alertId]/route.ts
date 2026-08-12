@@ -4,6 +4,7 @@ import { z } from "zod";
 import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/database.types";
 
 const uuid = z.string().uuid();
 const bodySchema = z.object({
@@ -23,13 +24,17 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const params = await context.params;
   if (!uuid.safeParse(params.id).success || params.alertId !== "open") return json({ ok: false, code: "INVALID_REQUEST" }, 400);
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase.from("contrato_alertas")
-    .select("id, contrato_id, data_base, data_vencimento, status, responsavel_app_user_id, cliente_notificado_em, decisao, resolucao, updated_at")
-    .eq("contrato_id", params.id)
-    .eq("tipo", "contrato_renovacao_pendente")
-    .order("data_base", { ascending: false });
+  const [alertsResult, usersResult] = await Promise.all([
+    supabase.from("contrato_alertas")
+      .select("id, contrato_id, data_base, data_vencimento, status, responsavel_app_user_id, cliente_notificado_em, cliente_notificado_por, decisao, resolucao, updated_at")
+      .eq("contrato_id", params.id)
+      .eq("tipo", "contrato_renovacao_pendente")
+      .order("data_base", { ascending: false }),
+    supabase.from("app_users").select("id, full_name").in("role", ["controladoria", "admin"]).order("full_name"),
+  ]);
+  const error = alertsResult.error ?? usersResult.error;
   if (error) return json({ ok: false, error: error.message }, 500);
-  return json({ ok: true, alerts: data ?? [] });
+  return json({ ok: true, alerts: alertsResult.data ?? [], users: usersResult.data ?? [] });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string; alertId: string }> }) {
@@ -43,32 +48,47 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const body = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsedParams.success || !body.success) return json({ ok: false, code: "INVALID_REQUEST", issues: body.success ? [] : body.error.issues }, 400);
 
+  const supabase = createSupabaseAdminClient();
+  const { data: current, error: currentError } = await supabase.from("contrato_alertas")
+    .select("id, resolucao, updated_at")
+    .eq("id", parsedParams.data.alertId)
+    .eq("contrato_id", parsedParams.data.id)
+    .eq("tipo", "contrato_renovacao_pendente")
+    .maybeSingle();
+  if (currentError) return json({ ok: false, error: currentError.message }, 500);
+  if (!current) return json({ ok: false, code: "RENEWAL_NOT_FOUND" }, 404);
+
   const now = new Date().toISOString();
-  const resolution = JSON.stringify({
-    appliedIndex: body.data.appliedIndex ?? null,
-    notes: body.data.notes ?? null,
-    conclusion: body.data.conclusion ?? null,
-  });
-  const update = {
+  let previousResolution: Record<string, unknown> = {};
+  try { previousResolution = current.resolucao ? JSON.parse(current.resolucao) as Record<string, unknown> : {}; }
+  catch { previousResolution = {}; }
+  const hasResolutionChange = body.data.appliedIndex !== undefined || body.data.notes !== undefined || body.data.conclusion !== undefined;
+  const mergedResolution = {
+    ...previousResolution,
+    ...(body.data.appliedIndex !== undefined ? { appliedIndex: body.data.appliedIndex } : {}),
+    ...(body.data.notes !== undefined ? { notes: body.data.notes } : {}),
+    ...(body.data.conclusion !== undefined ? { conclusion: body.data.conclusion } : {}),
+  };
+  const update: Database["public"]["Tables"]["contrato_alertas"]["Update"] = {
     ...(body.data.assigneeId !== undefined ? { responsavel_app_user_id: body.data.assigneeId } : {}),
     ...(body.data.customerNotifiedAt !== undefined ? {
       cliente_notificado_em: body.data.customerNotifiedAt,
       cliente_notificado_por: body.data.customerNotifiedAt ? auth.profile.id : null,
     } : {}),
     ...(body.data.decision !== undefined ? { decisao: body.data.decision } : {}),
-    resolucao: resolution,
+    ...(hasResolutionChange ? { resolucao: JSON.stringify(mergedResolution) } : {}),
     ...(body.data.concluded ? { status: "resolvido", resolvido_em: now, resolvido_por: auth.profile.id } : {}),
   };
-  const supabase = createSupabaseAdminClient();
   const { data: alert, error } = await supabase.from("contrato_alertas")
     .update(update)
     .eq("id", parsedParams.data.alertId)
     .eq("contrato_id", parsedParams.data.id)
     .eq("tipo", "contrato_renovacao_pendente")
+    .eq("updated_at", current.updated_at)
     .select("*")
     .maybeSingle();
   if (error) return json({ ok: false, error: error.message }, 500);
-  if (!alert) return json({ ok: false, code: "RENEWAL_NOT_FOUND" }, 404);
+  if (!alert) return json({ ok: false, code: "RENEWAL_CONFLICT" }, 409);
   await supabase.from("contrato_eventos").insert({
     contrato_id: parsedParams.data.id,
     tipo: body.data.concluded ? "renovacao_concluida" : "renovacao_atualizada",

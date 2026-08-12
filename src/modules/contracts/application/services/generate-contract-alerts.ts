@@ -67,10 +67,13 @@ function dueDateForCompetency(competency: string, dueDay: number): string {
 }
 
 function renewalWindow(contract: ContractDailyPlanningRow, today: string) {
-  if (!contract.startsAt && !contract.renewalDate) return null;
-  let baseDate = contract.renewalDate ?? addYears(contract.startsAt as string, 1);
+  const inferredBase = contract.indefinite
+    ? (contract.startsAt ? addYears(contract.startsAt, 1) : null)
+    : contract.endsAt;
+  if (!contract.renewalDate && !inferredBase) return null;
+  let baseDate = contract.renewalDate ?? inferredBase as string;
   let alertDate = contract.renewalAlertDate ?? addDays(baseDate, -30);
-  while (baseDate < today) {
+  while (contract.indefinite && baseDate < today) {
     baseDate = addYears(baseDate, 1);
     alertDate = addYears(alertDate, 1);
   }
