@@ -1,10 +1,54 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canAccessContractCapability,
   canPatchLeadDetail,
   canViewD4SignDocument,
   canViewD4SignDocumentRecord,
 } from "./crm-access-policy";
+
+describe("canAccessContractCapability", () => {
+  it.each([
+    ["admin", "view", true],
+    ["admin", "configure", true],
+    ["admin", "prepare_closing", true],
+    ["admin", "approve_closing", true],
+    ["admin", "register_vios", true],
+    ["admin", "manage_renewal", true],
+    ["controladoria", "view", true],
+    ["controladoria", "configure", true],
+    ["controladoria", "prepare_closing", true],
+    ["controladoria", "approve_closing", true],
+    ["controladoria", "register_vios", true],
+    ["controladoria", "manage_renewal", true],
+    ["financeiro", "view", true],
+    ["financeiro", "configure", false],
+    ["financeiro", "prepare_closing", true],
+    ["financeiro", "approve_closing", false],
+    ["financeiro", "register_vios", true],
+    ["financeiro", "manage_renewal", false],
+    ["comercial", "view", true],
+    ["comercial", "configure", false],
+    ["comercial", "prepare_closing", false],
+    ["comercial", "approve_closing", false],
+    ["comercial", "register_vios", false],
+    ["comercial", "manage_renewal", false],
+  ] as const)(
+    "%s %s: %s",
+    (role, capability, allowed) => {
+      expect(canAccessContractCapability({ role, capability })).toBe(allowed);
+    },
+  );
+
+  it("nega role inválida por padrão", () => {
+    expect(
+      canAccessContractCapability({
+        role: "desconhecido" as never,
+        capability: "view",
+      }),
+    ).toBe(false);
+  });
+});
 
 describe("canPatchLeadDetail", () => {
   it.each(["intake", "rd", "pipeline"] as const)(

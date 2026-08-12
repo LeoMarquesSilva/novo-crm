@@ -27,7 +27,7 @@ Pontos em evolução (Ondas 2–3):
 
 - Funil de pós-venda parcialmente modelado (etapas após `contrato_assinado`)
 - Autorização fina por área na UI (ocultar ações por perfil/área) — incompleta; prevista para Ondas 2–3
-- `/crm/clientes` e `/crm/contratos` permanecem mock (CRUD real na Onda 3)
+- `/crm/clientes` permanece mock; `/crm/contratos` é o dashboard operacional D4Sign atual e será ampliado pelo gerenciador de contratos
 - Integração RD CRM e VIOS conforme variáveis de ambiente
 
 Hardening 2026-07-27 (Onda 1):
@@ -68,7 +68,7 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - `/crm`: dashboard com KPIs e filas operacionais (dados Supabase).
 - `/crm/leads`: kanban interativo, ficha do lead (Visão geral, Histórico, DUE, proposta, contrato, D4Sign).
 - `/crm/clientes`: tabela de clientes (mock).
-- `/crm/contratos`: tabela de contratos (mock).
+- `/crm/contratos`: dashboard operacional do cofre D4Sign; a evolução aprovada adiciona carteira, fechamentos, renovações, assinaturas e indicadores sem remover o painel existente.
 - `/crm/admin/usuarios`: listagem real de `app_users` com seletor de role por usuário (usa `SUPABASE_SERVICE_ROLE_KEY`).
 - `/crm/admin/campos`: CRUD de `field_definitions` por funil/etapa com drawer de novo campo e ConditionBuilder.
 - `/crm/perfil`: edição do próprio `app_users` (nome, área, URL da foto).
@@ -108,7 +108,15 @@ No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e 
 
 ## 6) Contratos de API atuais
 
-### 6.0 Admin
+### 6.0 Contratos e faturamento (limite aprovado)
+
+- O módulo de contratos abrange identidade e versões contratuais, áreas, regras de cobrança, rateios, consumos, fechamentos mensais, renovações, aditivos, referências D4Sign/SharePoint/VIOS e eventos auditáveis.
+- A configuração financeira é concluída na etapa `inclusao_faturamento` do pós-venda. A transição dessa etapa para `boas_vindas` exige contrato vinculado com versão ativa e válida; entrar na etapa não exige a configuração completa.
+- Na primeira entrega, o VIOS continua sendo o sistema de emissão e contas a receber. O CRM somente registra a referência do lançamento; não cria títulos, faturas ou notas automaticamente.
+- Permissões por capability: todos os papéis (`admin`, `controladoria`, `financeiro`, `comercial`) consultam; `admin` e `controladoria` configuram, aprovam fechamentos e gerenciam renovação/aditivo; `admin`, `controladoria` e `financeiro` preparam fechamentos e registram referências VIOS. A decisão não depende de `app_users.area`.
+- Migrations podem ser criadas e validadas localmente, mas a aplicação no Supabase remoto requer autorização explícita.
+
+### 6.1 Admin
 
 - `PATCH /api/admin/users/[id]/role` — atualiza role de usuário (body: `{ role: string }`); usa service_role key.
 - `GET /api/admin/fields?pipeline=vendas|pos_venda` — lista field_definitions por pipeline.
@@ -116,12 +124,12 @@ No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e 
 - `PATCH /api/admin/fields/[id]` — edita label, is_required, is_active, sort_order, condition_json.
 - `DELETE /api/admin/fields/[id]` — remove campo.
 
-### 6.1 Workflow
+### 6.2 Workflow
 
 - **`POST /api/crm/leads/transition`** — transição autenticada de etapa (uso atual do kanban e da ficha).
 - **`POST /api/workflow/validate`** e **`POST /api/workflow/transition`** — **descontinuados (410)**; substituídos pelo endpoint CRM acima.
 
-### 6.2 Integrações
+### 6.3 Integrações
 - `POST /api/integrations/rd/import`
   - usa `RD_CRM_TOKEN` e `SUPABASE_SERVICE_ROLE_KEY`;
   - importa negociações e contatos do RD com paginação real da API v1, filtra por ano (default 2026) e persiste em `clientes`, `oportunidades`, `rd_deal_reconciliacao` e `import_batches`.
@@ -254,7 +262,7 @@ Resumo:
 
 - Autenticação Supabase Auth e proxy já protegem as rotas CRM; a autorização fina de ações e visibilidade na UI por perfil/área permanece incompleta e está prevista para a Onda 2.
 - Kanban, dashboard e ficha do lead consomem dados reais do Supabase; não há repositório em memória como fonte padrão dessas telas.
-- `/crm/clientes` e `/crm/contratos` continuam páginas mock até o CRUD real da Onda 3.
+- `/crm/clientes` continua página mock. `/crm/contratos` já é o dashboard D4Sign e será estendido como hub contratual, preservando esse painel.
 - O conector VIOS retorna cliente stub; o relatório de reconciliação também permanece stub. D4Sign possui envio, webhook e consulta reais.
 - Tipos TypeScript gerados em `src/lib/supabase/database.types.ts` atualizados com schema v2 (incluindo `opportunity_stage` pos-venda, `field_definitions` extendido, `app_users` com area/avatar).
 - Admin pages (`/crm/admin/*`) requerem `SUPABASE_SERVICE_ROLE_KEY` no `.env` para funcionar (usa `createSupabaseAdminClient` em `src/lib/supabase/admin.ts`).

@@ -1,5 +1,39 @@
 import type { Database } from "@/lib/supabase/database.types";
 
+export type ContractCapability =
+  | "view"
+  | "configure"
+  | "prepare_closing"
+  | "approve_closing"
+  | "register_vios"
+  | "manage_renewal";
+
+export function canAccessContractCapability(input: {
+  role: Database["public"]["Enums"]["user_role"];
+  capability: ContractCapability;
+}): boolean {
+  switch (input.capability) {
+    case "view":
+      return (
+        input.role === "admin" ||
+        input.role === "controladoria" ||
+        input.role === "financeiro" ||
+        input.role === "comercial"
+      );
+    case "configure":
+    case "approve_closing":
+    case "manage_renewal":
+      return input.role === "admin" || input.role === "controladoria";
+    case "prepare_closing":
+    case "register_vios":
+      return (
+        input.role === "admin" ||
+        input.role === "controladoria" ||
+        input.role === "financeiro"
+      );
+  }
+}
+
 type CanPatchLeadDetailInput = {
   role: Database["public"]["Enums"]["user_role"];
   appArea: string | null;
