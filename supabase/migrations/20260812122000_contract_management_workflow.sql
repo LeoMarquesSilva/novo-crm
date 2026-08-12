@@ -912,3 +912,180 @@ revoke all on function public.activate_contract_version_atomic(
 grant execute on function public.activate_contract_version_atomic(
   uuid, uuid, uuid, timestamptz, boolean, timestamptz
 ) to service_role;
+
+create or replace function public.create_contract_closing_revision(
+  p_contract_id uuid, p_version_id uuid, p_competencia date,
+  p_expected_revision integer, p_actor_id uuid, p_totals jsonb, p_items jsonb
+)
+returns table (closing_id uuid, revision_id uuid, revision_number integer)
+language plpgsql security invoker set search_path = ''
+as $$
+declare
+  v_contract public.contratos;
+  v_closing public.contrato_fechamentos;
+  v_current public.contrato_fechamento_revisoes;
+  v_revision_id uuid;
+  v_item jsonb;
+  v_next integer;
+begin
+  select * into v_contract from public.contratos where id = p_contract_id for update;
+  if not found then raise exception using errcode = 'P0002', message = 'CONTRACT_NOT_FOUND'; end if;
+  if v_contract.status <> 'ativo'::public.contract_lifecycle_status then
+    raise exception using errcode = '55000', message = 'CONTRACT_NOT_ACTIVE';
+  end if;
+  if not exists (
+    select 1 from public.contrato_versoes
+    where id = p_version_id and contrato_id = p_contract_id
+      and status = 'ativa'::public.contract_version_status
+      and vigente_de <= p_competencia and (vigente_ate is null or vigente_ate >= p_competencia)
+  ) then raise exception using errcode = 'P0002', message = 'CONTRACT_VERSION_NOT_FOUND'; end if;
+
+  insert into public.contrato_fechamentos
+    (contrato_id, versao_id, competencia, status, preparado_em, preparado_por)
+  values (p_contract_id, p_version_id, p_competencia, 'a_calcular', now(), p_actor_id)
+  on conflict (contrato_id, competencia) do nothing;
+
+  select * into v_closing from public.contrato_fechamentos
+  where contrato_id = p_contract_id and competencia = p_competencia for update;
+  if v_closing.versao_id <> p_version_id then
+    raise exception using errcode = '40001', message = 'CONTRACT_VERSION_CONFLICT';
+  end if;
+  if v_closing.revisao_atual_id is not null then
+    select * into v_current from public.contrato_fechamento_revisoes
+    where id = v_closing.revisao_atual_id for update;
+  end if;
+  if coalesce(v_current.numero, 0) <> p_expected_revision then
+    raise exception using errcode = '40001', message = 'CLOSING_REVISION_CONFLICT';
+  end if;
+  if v_current.status in ('aprovado', 'lancado_vios') then
+    raise exception using errcode = '55000', message = 'APPROVED_CLOSING_IMMUTABLE';
+  end if;
+
+  v_next := coalesce(v_current.numero, 0) + 1;
+  insert into public.contrato_fechamento_revisoes (
+    fechamento_id, numero, revisao_anterior_id, status,
+    total_honorarios, total_tributos, total_reembolsos, total_geral,
+    calculada_em, calculada_por
+  ) values (
+    v_closing.id, v_next, v_current.id, 'em_revisao',
+    coalesce((p_totals->>'honorariosCents')::numeric, 0) / 100,
+    coalesce((p_totals->>'tributosCents')::numeric, 0) / 100,
+    coalesce((p_totals->>'reembolsosCents')::numeric, 0) / 100,
+    coalesce((p_totals->>'totalCents')::numeric, 0) / 100,
+    now(), p_actor_id
+  ) returning id into v_revision_id;
+
+  for v_item in select value from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) loop
+    insert into public.contrato_fechamento_itens (
+      revisao_id, tipo, componente_id, area_id, descricao, quantidade, tarifa,
+      percentual, valor, bloqueante, bloqueio_tipo, bloqueio_descricao, metadados
+    ) values (
+      v_revision_id, coalesce(v_item->>'kind', 'memory'),
+      nullif(v_item->>'componentId', '')::uuid,
+      case when v_item->>'kind' = 'area_allocation' then nullif(v_item->>'beneficiaryId', '')::uuid else null end,
+      coalesce(v_item->>'description', v_item->>'kind', 'Item'),
+      nullif(v_item->>'quantity', '')::numeric,
+      nullif(v_item->>'unitAmountCents', '')::numeric / 100,
+      nullif(v_item->>'percentageBasisPoints', '')::numeric / 100,
+      coalesce(nullif(v_item->>'amountCents', '')::numeric, 0) / 100,
+      coalesce((v_item->>'blocking')::boolean, false),
+      v_item->>'blockerCode', case when coalesce((v_item->>'blocking')::boolean, false) then v_item->>'description' end,
+      v_item
+    );
+  end loop;
+
+  update public.contrato_fechamentos set revisao_atual_id = v_revision_id,
+    status = 'em_revisao', preparado_em = now(), preparado_por = p_actor_id
+  where id = v_closing.id;
+  return query select v_closing.id, v_revision_id, v_next;
+end;
+$$;
+
+create or replace function public.approve_contract_closing_revision(
+  p_closing_id uuid, p_expected_revision integer, p_actor_id uuid
+)
+returns public.contrato_fechamento_revisoes
+language plpgsql security invoker set search_path = ''
+as $$
+declare v_closing public.contrato_fechamentos; v_revision public.contrato_fechamento_revisoes;
+begin
+  select * into v_closing from public.contrato_fechamentos where id = p_closing_id for update;
+  if not found then raise exception using errcode = 'P0002', message = 'CLOSING_NOT_FOUND'; end if;
+  select * into v_revision from public.contrato_fechamento_revisoes where id = v_closing.revisao_atual_id for update;
+  if v_revision.numero <> p_expected_revision then raise exception using errcode = '40001', message = 'CLOSING_REVISION_CONFLICT'; end if;
+  if v_revision.status <> 'em_revisao' then raise exception using errcode = '55000', message = 'CLOSING_NOT_REVIEWABLE'; end if;
+  if exists (select 1 from public.contrato_fechamento_itens where revisao_id = v_revision.id and bloqueante and resolvido_em is null) then
+    raise exception using errcode = '22023', message = 'CLOSING_HAS_UNRESOLVED_BLOCKERS';
+  end if;
+  update public.contrato_fechamento_revisoes set status='aprovado', aprovada_em=now(), aprovada_por=p_actor_id
+  where id=v_revision.id returning * into v_revision;
+  update public.contrato_fechamentos set status='aprovado' where id=v_closing.id;
+  return v_revision;
+end;
+$$;
+
+create or replace function public.create_contract_closing_correction(
+  p_closing_id uuid, p_previous_revision_id uuid, p_expected_revision integer,
+  p_reason text, p_actor_id uuid
+)
+returns public.contrato_fechamento_revisoes
+language plpgsql security invoker set search_path = ''
+as $$
+declare v_closing public.contrato_fechamentos; v_previous public.contrato_fechamento_revisoes; v_new public.contrato_fechamento_revisoes;
+begin
+  if nullif(btrim(p_reason),'') is null then raise exception using errcode='22023', message='CORRECTION_REASON_REQUIRED'; end if;
+  select * into v_closing from public.contrato_fechamentos where id=p_closing_id for update;
+  if not found then raise exception using errcode='P0002', message='CLOSING_NOT_FOUND'; end if;
+  select * into v_previous from public.contrato_fechamento_revisoes where id=p_previous_revision_id and fechamento_id=p_closing_id for update;
+  if not found or v_closing.revisao_atual_id <> v_previous.id then raise exception using errcode='40001', message='CLOSING_REVISION_CONFLICT'; end if;
+  if v_previous.numero <> p_expected_revision then raise exception using errcode='40001', message='CLOSING_REVISION_CONFLICT'; end if;
+  if v_previous.status not in ('aprovado','lancado_vios') then raise exception using errcode='55000', message='CLOSING_CORRECTION_REQUIRES_APPROVED_REVISION'; end if;
+  insert into public.contrato_fechamento_revisoes (
+    fechamento_id, numero, revisao_anterior_id, status, total_honorarios,
+    total_tributos, total_reembolsos, total_geral, calculada_em, calculada_por, motivo_correcao
+  ) values (
+    p_closing_id, v_previous.numero+1, v_previous.id, 'em_revisao', v_previous.total_honorarios,
+    v_previous.total_tributos, v_previous.total_reembolsos, v_previous.total_geral, now(), p_actor_id, btrim(p_reason)
+  ) returning * into v_new;
+  insert into public.contrato_fechamento_itens (
+    revisao_id,tipo,componente_id,area_id,descricao,quantidade,tarifa,percentual,valor,
+    elegivel_rateio,elegivel_participacao,elegivel_comissao,bloqueante,bloqueio_tipo,bloqueio_descricao,metadados
+  ) select v_new.id,tipo,componente_id,area_id,descricao,quantidade,tarifa,percentual,valor,
+    elegivel_rateio,elegivel_participacao,elegivel_comissao,bloqueante,bloqueio_tipo,bloqueio_descricao,metadados
+  from public.contrato_fechamento_itens where revisao_id=v_previous.id;
+  update public.contrato_fechamentos set revisao_atual_id=v_new.id,status='em_revisao' where id=p_closing_id;
+  return v_new;
+end;
+$$;
+
+create or replace function public.register_contract_closing_vios(
+  p_closing_id uuid, p_expected_revision integer, p_reference text, p_url text, p_actor_id uuid
+)
+returns public.contrato_fechamento_revisoes
+language plpgsql security invoker set search_path = ''
+as $$
+declare v_closing public.contrato_fechamentos; v_revision public.contrato_fechamento_revisoes;
+begin
+  if nullif(btrim(p_reference),'') is null then raise exception using errcode='22023', message='VIOS_REFERENCE_REQUIRED'; end if;
+  select * into v_closing from public.contrato_fechamentos where id=p_closing_id for update;
+  if not found then raise exception using errcode='P0002', message='CLOSING_NOT_FOUND'; end if;
+  select * into v_revision from public.contrato_fechamento_revisoes where id=v_closing.revisao_atual_id for update;
+  if v_revision.numero <> p_expected_revision then raise exception using errcode='40001', message='CLOSING_REVISION_CONFLICT'; end if;
+  if v_revision.status <> 'aprovado' then raise exception using errcode='55000', message='CLOSING_NOT_APPROVED'; end if;
+  perform set_config('app.contract_closing_vios_rpc','on',true);
+  update public.contrato_fechamento_revisoes set status='lancado_vios',vios_referencia=btrim(p_reference),
+    vios_url=nullif(btrim(p_url),''),lancada_vios_em=now(),lancada_vios_por=p_actor_id
+  where id=v_revision.id returning * into v_revision;
+  update public.contrato_fechamentos set status='lancado_vios' where id=p_closing_id;
+  return v_revision;
+end;
+$$;
+
+revoke all on function public.create_contract_closing_revision(uuid,uuid,date,integer,uuid,jsonb,jsonb) from public, anon, authenticated;
+revoke all on function public.approve_contract_closing_revision(uuid,integer,uuid) from public, anon, authenticated;
+revoke all on function public.create_contract_closing_correction(uuid,uuid,integer,text,uuid) from public, anon, authenticated;
+revoke all on function public.register_contract_closing_vios(uuid,integer,text,text,uuid) from public, anon, authenticated;
+grant execute on function public.create_contract_closing_revision(uuid,uuid,date,integer,uuid,jsonb,jsonb) to service_role;
+grant execute on function public.approve_contract_closing_revision(uuid,integer,uuid) to service_role;
+grant execute on function public.create_contract_closing_correction(uuid,uuid,integer,text,uuid) to service_role;
+grant execute on function public.register_contract_closing_vios(uuid,integer,text,text,uuid) to service_role;

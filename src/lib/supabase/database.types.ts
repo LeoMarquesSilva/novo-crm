@@ -2889,6 +2889,42 @@ export type Database = {
         }
         Returns: string
       }
+      create_contract_closing_revision: {
+        Args: {
+          p_actor_id: string
+          p_competencia: string
+          p_contract_id: string
+          p_expected_revision: number
+          p_items: Json
+          p_totals: Json
+          p_version_id: string
+        }
+        Returns: { closing_id: string; revision_id: string; revision_number: number }[]
+      }
+      approve_contract_closing_revision: {
+        Args: { p_actor_id: string; p_closing_id: string; p_expected_revision: number }
+        Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
+      }
+      create_contract_closing_correction: {
+        Args: {
+          p_actor_id: string
+          p_closing_id: string
+          p_expected_revision: number
+          p_previous_revision_id: string
+          p_reason: string
+        }
+        Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
+      }
+      register_contract_closing_vios: {
+        Args: {
+          p_actor_id: string
+          p_closing_id: string
+          p_expected_revision: number
+          p_reference: string
+          p_url: string
+        }
+        Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
+      }
       registrar_lancamento_vios_fechamento: {
         Args: {
           p_lancado_em?: string
