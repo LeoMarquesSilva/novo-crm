@@ -25,17 +25,16 @@ function releasedResolution(
   competency: string,
   resolutions: ManualBillingResolution[],
 ): ManualBillingResolution | undefined {
-  return resolutions.find(
+  const resolution = resolutions.find(
     (resolution) =>
       resolution.componentId === componentId &&
-      resolution.released &&
       resolution.competency === competency,
   ) ?? resolutions.find(
     (resolution) =>
       resolution.componentId === componentId &&
-      resolution.released &&
       resolution.competency === undefined,
   );
+  return resolution?.released ? resolution : undefined;
 }
 
 function projectedAmount(

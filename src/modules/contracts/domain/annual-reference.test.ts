@@ -177,6 +177,34 @@ describe("calculateAnnualReference", () => {
     expect(result.competencies[0].amountCents).toBe(BigInt(25_000));
   });
 
+  it("does not fall back to a released global resolution when the competency-specific one is unreleased", () => {
+    const result = calculateAnnualReference({
+      projectionStart: "2026-01-01",
+      version: emptyVersion([
+        {
+          id: "reimbursement",
+          kind: "reembolso",
+          description: "Reembolso",
+          effectiveFrom: "2026-01-01",
+          effectiveTo: null,
+          requiresManualRelease: true,
+        },
+      ]),
+      manualResolutions: [
+        { componentId: "reimbursement", released: true, amountCents: decimalToCents("100") },
+        {
+          componentId: "reimbursement",
+          competency: "2026-01-01",
+          released: false,
+          amountCents: decimalToCents("250"),
+        },
+      ],
+    });
+
+    expect(result.competencies[0].amountCents).toBe(BigInt(0));
+    expect(result.calculatedCents).toBe(BigInt(110_000));
+  });
+
   it("rejects an annual override without a reason", () => {
     expect(() =>
       calculateAnnualReference({
