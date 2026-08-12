@@ -1146,7 +1146,7 @@ language plpgsql security invoker set search_path = ''
 as $$
 declare v_closing public.contrato_fechamentos; v_revision public.contrato_fechamento_revisoes; v_item public.contrato_fechamento_itens;
 begin
-  if p_resolution not in ('nao_cobrar','ajuste','aditivo') or nullif(btrim(p_reason),'') is null then
+  if p_resolution <> 'nao_cobrar' or nullif(btrim(p_reason),'') is null then
     raise exception using errcode='22023', message='BLOCKER_RESOLUTION_INVALID';
   end if;
   select * into v_closing from public.contrato_fechamentos where id=p_closing_id and contrato_id=p_contract_id for update;
@@ -1167,7 +1167,7 @@ end;
 $$;
 
 create or replace function public.upsert_contract_consumptions_atomic(
-  p_contract_id uuid, p_version_id uuid, p_competencia date, p_actor_id uuid, p_items jsonb
+  p_contract_id uuid, p_version_id uuid, p_competencia date, p_actor_id uuid, p_items jsonb, p_resolutions jsonb
 )
 returns setof public.contrato_consumos_mensais
 language plpgsql security invoker set search_path = ''
@@ -1200,22 +1200,42 @@ begin
       quantidade=excluded.quantidade,valor=excluded.valor,evidencia_url=excluded.evidencia_url,observacao=excluded.observacao,
       informado_por=excluded.informado_por,updated_at=now();
   end loop;
+  for v_item in select value from jsonb_array_elements(coalesce(p_resolutions,'[]'::jsonb)) loop
+    if not exists (
+      select 1 from public.contrato_componentes_cobranca
+      where id=(v_item->>'componentId')::uuid and versao_id=p_version_id and liberacao_manual_necessaria
+    ) then raise exception using errcode='22023', message='INVALID_MANUAL_RESOLUTION_COMPONENT'; end if;
+    insert into public.contrato_resolucoes_mensais(
+      contrato_id,versao_id,componente_id,competencia,liberado,valor,base_calculo,motivo,informado_por
+    ) values (
+      p_contract_id,p_version_id,(v_item->>'componentId')::uuid,p_competencia,
+      coalesce((v_item->>'released')::boolean,false),nullif(v_item->>'amount','')::numeric,
+      nullif(v_item->>'base','')::numeric,nullif(btrim(v_item->>'reason'),''),p_actor_id
+    ) on conflict(versao_id,componente_id,competencia) do update set
+      liberado=excluded.liberado,valor=excluded.valor,base_calculo=excluded.base_calculo,
+      motivo=excluded.motivo,informado_por=excluded.informado_por,updated_at=now();
+  end loop;
   return query select * from public.contrato_consumos_mensais where contrato_id=p_contract_id and versao_id=p_version_id and competencia=p_competencia order by created_at;
 end;
 $$;
+
+alter table public.contrato_resolucoes_mensais enable row level security;
+grant select on table public.contrato_resolucoes_mensais to authenticated, service_role;
+grant insert, update, delete on table public.contrato_resolucoes_mensais to service_role;
+create policy contrato_resolucoes_authenticated_select on public.contrato_resolucoes_mensais for select to authenticated using (true);
 
 revoke all on function public.create_contract_closing_revision(uuid,uuid,date,integer,uuid,jsonb,jsonb) from public, anon, authenticated;
 revoke all on function public.approve_contract_closing_revision(uuid,uuid,integer,uuid) from public, anon, authenticated;
 revoke all on function public.create_contract_closing_correction(uuid,uuid,uuid,integer,text,uuid) from public, anon, authenticated;
 revoke all on function public.register_contract_closing_vios(uuid,uuid,integer,text,text,uuid) from public, anon, authenticated;
 revoke all on function public.resolve_contract_closing_blocker(uuid,uuid,uuid,integer,text,text,uuid) from public, anon, authenticated;
-revoke all on function public.upsert_contract_consumptions_atomic(uuid,uuid,date,uuid,jsonb) from public, anon, authenticated;
+revoke all on function public.upsert_contract_consumptions_atomic(uuid,uuid,date,uuid,jsonb,jsonb) from public, anon, authenticated;
 grant execute on function public.create_contract_closing_revision(uuid,uuid,date,integer,uuid,jsonb,jsonb) to service_role;
 grant execute on function public.approve_contract_closing_revision(uuid,uuid,integer,uuid) to service_role;
 grant execute on function public.create_contract_closing_correction(uuid,uuid,uuid,integer,text,uuid) to service_role;
 grant execute on function public.register_contract_closing_vios(uuid,uuid,integer,text,text,uuid) to service_role;
 grant execute on function public.resolve_contract_closing_blocker(uuid,uuid,uuid,integer,text,text,uuid) to service_role;
-grant execute on function public.upsert_contract_consumptions_atomic(uuid,uuid,date,uuid,jsonb) to service_role;
+grant execute on function public.upsert_contract_consumptions_atomic(uuid,uuid,date,uuid,jsonb,jsonb) to service_role;
 
 -- Garante que retries concorrentes do cron/transição criem uma única notificação por usuário e intenção.
 alter table public.crm_in_app_notifications

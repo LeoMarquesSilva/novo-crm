@@ -7,17 +7,19 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import {
   ClosingPreparationError,
+  parseDatabaseMoneyCents,
+  parseDatabasePercentageBasisPoints,
+  parsePersistedTaxTreatment,
   prepareMonthlyClosing,
   type ClosingPreparationRepository,
   type PreparedRevisionWrite,
 } from "@/modules/contracts/application/services/prepare-monthly-closing";
 import type { BillingComponent, ContractVersionSnapshot } from "@/modules/contracts/domain/entities";
-import { moneyCents } from "@/modules/contracts/domain/money";
 
 const uuid = z.string().uuid();
 const competency = z.string().regex(/^\d{4}-\d{2}-01$/);
 const json = (body: object, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
-const cents = (value: number | null) => moneyCents(BigInt(Math.round(Number(value ?? 0) * 100)));
+const cents = (value: string | number | null) => parseDatabaseMoneyCents(value);
 const jsonSafe = (value: unknown): Json => typeof value === "bigint" ? value.toString() : Array.isArray(value) ? value.map(jsonSafe) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([key, child]) => [key, jsonSafe(child)])) : value as Json;
 
 class SupabaseClosingRepository implements ClosingPreparationRepository {
@@ -48,7 +50,8 @@ class SupabaseClosingRepository implements ClosingPreparationRepository {
       ...(row.area_id ? { areaId: row.area_id } : {}),
       amountCents: cents(row.valor_fixo), chargeMode: row.modo_cobranca_variavel,
       includedQuantity: row.quantidade_incluida ?? 0, unitAmountCents: row.valor_unitario === null ? null : cents(row.valor_unitario),
-      percentageBasisPoints: row.percentual === null ? undefined : Math.round(row.percentual * 100),
+      percentageBasisPoints: row.percentual === null ? undefined : parseDatabasePercentageBasisPoints(row.percentual),
+      tax: parsePersistedTaxTreatment(row.tratamento_tributario),
       requiresManualRelease: row.liberacao_manual_necessaria,
       areaAllocationEligible: row.elegivel_rateio, partnerShareEligible: row.elegivel_participacao, commissionEligible: row.elegivel_comissao,
       installments: installments.filter((entry) => entry.componente_id === row.id).map((entry) => ({ number: entry.numero, competency: entry.competencia, amountCents: cents(entry.valor) })),
@@ -56,9 +59,9 @@ class SupabaseClosingRepository implements ClosingPreparationRepository {
     })) as unknown as BillingComponent[];
     return {
       id: version.id, effectiveFrom: version.vigente_de, effectiveTo: version.vigente_ate, components,
-      areaAllocations: (allocationsResult.data ?? []).map((row): ContractVersionSnapshot["areaAllocations"][number] | null => row.modo === "percentual" ? { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), areaId: row.area_id, mode: "percentual", percentageBasisPoints: Math.round(Number(row.percentual) * 100) } : row.valor === null ? null : { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), areaId: row.area_id, mode: "valor", amountCents: cents(row.valor) }).filter((row): row is ContractVersionSnapshot["areaAllocations"][number] => row !== null),
-      partnerShares: (sharesResult.data ?? []).flatMap((row) => row.socio_app_user_id ? [{ id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), beneficiaryId: row.socio_app_user_id, percentageBasisPoints: Math.round(row.percentual * 100) }] : []),
-      commissions: (commissionsResult.data ?? []).map((row): ContractVersionSnapshot["commissions"][number] | null => !row.beneficiario_app_user_id ? null : row.percentual !== null ? { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), beneficiaryId: row.beneficiario_app_user_id, mode: "percentual", percentageBasisPoints: Math.round(row.percentual * 100) } : row.valor === null ? null : { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), beneficiaryId: row.beneficiario_app_user_id, mode: "valor", amountCents: cents(row.valor) }).filter((row): row is ContractVersionSnapshot["commissions"][number] => row !== null),
+      areaAllocations: (allocationsResult.data ?? []).map((row): ContractVersionSnapshot["areaAllocations"][number] | null => row.modo === "percentual" ? { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), areaId: row.area_id, mode: "percentual", percentageBasisPoints: parseDatabasePercentageBasisPoints(row.percentual) } : row.valor === null ? null : { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), areaId: row.area_id, mode: "valor", amountCents: cents(row.valor) }).filter((row): row is ContractVersionSnapshot["areaAllocations"][number] => row !== null),
+      partnerShares: (sharesResult.data ?? []).flatMap((row) => row.socio_app_user_id ? [{ id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), beneficiaryId: row.socio_app_user_id, percentageBasisPoints: parseDatabasePercentageBasisPoints(row.percentual) }] : []),
+      commissions: (commissionsResult.data ?? []).map((row): ContractVersionSnapshot["commissions"][number] | null => !row.beneficiario_app_user_id ? null : row.percentual !== null ? { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), beneficiaryId: row.beneficiario_app_user_id, mode: "percentual", percentageBasisPoints: parseDatabasePercentageBasisPoints(row.percentual) } : row.valor === null ? null : { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), beneficiaryId: row.beneficiario_app_user_id, mode: "valor", amountCents: cents(row.valor) }).filter((row): row is ContractVersionSnapshot["commissions"][number] => row !== null),
     };
   }
   async findClosing(contractId: string, target: string) {
@@ -73,9 +76,10 @@ class SupabaseClosingRepository implements ClosingPreparationRepository {
     if (error) throw new Error(error.message);
     return (data ?? []).flatMap((row) => row.componente_id ? [{ id: row.id, componentId: row.componente_id, ...(row.area_id ? { areaId: row.area_id } : {}), kind: row.tipo as "processo" | "hora" | "quilometro" | "valor_manual", ...(row.quantidade === null ? {} : { quantity: row.quantidade }), ...(row.valor === null ? {} : { amountCents: cents(row.valor) }) }] : []);
   }
-  async listManualResolutions(_contractId: string, versionId: string, target: string) {
-    const { data } = await this.supabase.from("contrato_componentes_cobranca").select("id,liberado_em,valor_fixo,base_calculo").eq("versao_id", versionId).not("liberado_em", "is", null);
-    return (data ?? []).map((row) => ({ componentId: row.id, competency: target, released: true, ...(row.valor_fixo === null ? {} : { amountCents: cents(row.valor_fixo) }), ...(row.base_calculo && /^\d+(\.\d+)?$/.test(row.base_calculo) ? { baseCents: cents(Number(row.base_calculo)) } : {}) }));
+  async listManualResolutions(contractId: string, versionId: string, target: string) {
+    const { data, error } = await this.supabase.from("contrato_resolucoes_mensais").select("componente_id,liberado,valor,base_calculo,motivo").eq("contrato_id", contractId).eq("versao_id", versionId).eq("competencia", target);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row) => ({ componentId: row.componente_id, competency: target, released: row.liberado, ...(row.valor === null ? {} : { amountCents: cents(row.valor) }), ...(row.base_calculo === null ? {} : { baseCents: cents(row.base_calculo) }), ...(row.motivo ? { reason: row.motivo } : {}) }));
   }
   async createCalculatedRevision(input: PreparedRevisionWrite) {
     const { data, error } = await this.supabase.rpc("create_contract_closing_revision", {

@@ -794,6 +794,17 @@ export type Database = {
           { foreignKeyName: "contrato_consumos_mensais_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
         ]
       }
+      contrato_resolucoes_mensais: {
+        Row: { id: string; contrato_id: string; versao_id: string; componente_id: string; competencia: string; liberado: boolean; valor: number | null; base_calculo: number | null; motivo: string | null; informado_por: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; contrato_id: string; versao_id: string; componente_id: string; competencia: string; liberado?: boolean; valor?: number | null; base_calculo?: number | null; motivo?: string | null; informado_por?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; contrato_id?: string; versao_id?: string; componente_id?: string; competencia?: string; liberado?: boolean; valor?: number | null; base_calculo?: number | null; motivo?: string | null; informado_por?: string | null; created_at?: string; updated_at?: string }
+        Relationships: [
+          { foreignKeyName: "contrato_resolucoes_mensais_contrato_id_fkey"; columns: ["contrato_id"]; isOneToOne: false; referencedRelation: "contratos"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_resolucoes_mensais_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_resolucoes_mensais_componente_id_fkey"; columns: ["componente_id"]; isOneToOne: false; referencedRelation: "contrato_componentes_cobranca"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_resolucoes_mensais_informado_por_fkey"; columns: ["informado_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+        ]
+      }
       contrato_eventos: {
         Row: {
           ator_app_user_id: string | null
@@ -2944,7 +2955,7 @@ export type Database = {
         Returns: Database["public"]["Tables"]["contrato_fechamento_itens"]["Row"]
       }
       upsert_contract_consumptions_atomic: {
-        Args: { p_actor_id: string; p_competencia: string; p_contract_id: string; p_items: Json; p_version_id: string }
+        Args: { p_actor_id: string; p_competencia: string; p_contract_id: string; p_items: Json; p_resolutions: Json; p_version_id: string }
         Returns: Database["public"]["Tables"]["contrato_consumos_mensais"]["Row"][]
       }
       registrar_lancamento_vios_fechamento: {

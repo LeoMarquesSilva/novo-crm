@@ -6,6 +6,9 @@ import {
   closingActionCapability,
   ClosingPreparationError,
   expectedRevisionForPreparation,
+  parseDatabaseMoneyCents,
+  parsePersistedTaxTreatment,
+  safeBlockerResolution,
   prepareMonthlyClosing,
   type ClosingPreparationRepository,
   type PreparedRevisionWrite,
@@ -55,6 +58,31 @@ function repository(overrides: Partial<ClosingPreparationRepository> = {}) {
 }
 
 describe("prepareMonthlyClosing", () => {
+  it("converte decimal monetario sem aritmetica de ponto flutuante", () => {
+    expect(parseDatabaseMoneyCents("14600.01")).toBe(BigInt(1460001));
+    expect(parseDatabaseMoneyCents("0.009")).toBe(BigInt(1));
+    expect(parseDatabaseMoneyCents("-2.345")).toBe(BigInt(-235));
+  });
+
+  it("reconstroi tratamento tributario persistido", () => {
+    expect(parsePersistedTaxTreatment('{"mode":"added","percentageBasisPoints":500}')).toEqual({ mode: "added", percentageBasisPoints: 500 });
+    expect(parsePersistedTaxTreatment('{"mode":"included","percentageBasisPoints":925}')).toEqual({ mode: "included", percentageBasisPoints: 925 });
+    expect(parsePersistedTaxTreatment("invalido")).toBeUndefined();
+  });
+
+  it("persiste tributo adicionado reconstruido no fechamento", async () => {
+    const taxedVersion: ContractVersionSnapshot = { ...activeVersion, components: [{ ...activeVersion.components[0], tax: parsePersistedTaxTreatment('{"mode":"added","percentageBasisPoints":500}') }] };
+    const { repo, writes } = repository({ findApplicableVersion: async () => taxedVersion, listConsumptions: async () => [] });
+    await prepareMonthlyClosing(repo, { contractId: "contract-1", competency: "2026-08-01", actorId: "actor-1", expectedRevision: 0 });
+    expect(writes[0].totals).toEqual({ honorariosCents: BigInt(1460000), tributosCents: BigInt(73000), reembolsosCents: BigInt(0), totalCents: BigInt(1533000) });
+  });
+
+  it("aceita somente nao cobrar como resolucao segura nesta entrega", () => {
+    expect(safeBlockerResolution("nao_cobrar")).toBe("nao_cobrar");
+    expect(() => safeBlockerResolution("ajuste")).toThrow("BLOCKER_RESOLUTION_REQUIRES_WORKFLOW");
+    expect(() => safeBlockerResolution("aditivo")).toThrow("BLOCKER_RESOLUTION_REQUIRES_WORKFLOW");
+  });
+
   it("usa a revisao atual real ao preparar novamente", () => {
     expect(expectedRevisionForPreparation({ currentRevision: 7 })).toBe(7);
     expect(expectedRevisionForPreparation(null)).toBe(0);

@@ -258,6 +258,23 @@ create table public.contrato_consumos_mensais (
   )
 );
 
+create table public.contrato_resolucoes_mensais (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references public.contratos(id) on delete cascade,
+  versao_id uuid not null references public.contrato_versoes(id) on delete restrict,
+  componente_id uuid not null references public.contrato_componentes_cobranca(id) on delete cascade,
+  competencia date not null,
+  liberado boolean not null default false,
+  valor numeric(15,2),
+  base_calculo numeric(15,2),
+  motivo text,
+  informado_por uuid references public.app_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint contrato_resolucoes_competencia_first_day_check check (date_trunc('month', competencia)::date = competencia),
+  constraint contrato_resolucoes_mensais_unique unique (versao_id, componente_id, competencia)
+);
+
 create table public.contrato_fechamentos (
   id uuid primary key default gen_random_uuid(),
   contrato_id uuid not null references public.contratos(id) on delete cascade,
@@ -433,6 +450,7 @@ create index contrato_consumos_versao_id_idx on public.contrato_consumos_mensais
 create index contrato_consumos_componente_id_idx on public.contrato_consumos_mensais (componente_id);
 create index contrato_consumos_area_id_idx on public.contrato_consumos_mensais (area_id);
 create index contrato_consumos_informado_por_idx on public.contrato_consumos_mensais (informado_por);
+create index contrato_resolucoes_contrato_competencia_idx on public.contrato_resolucoes_mensais (contrato_id, competencia);
 create index contrato_fechamentos_versao_id_idx on public.contrato_fechamentos (versao_id);
 create index contrato_fechamentos_revisao_atual_id_idx on public.contrato_fechamentos (revisao_atual_id);
 create index contrato_fechamentos_preparado_por_idx on public.contrato_fechamentos (preparado_por);
@@ -554,6 +572,8 @@ for each row execute function public.set_contract_updated_at();
 create trigger contrato_comissoes_set_updated_at before update on public.contrato_comissoes
 for each row execute function public.set_contract_updated_at();
 create trigger contrato_consumos_set_updated_at before update on public.contrato_consumos_mensais
+for each row execute function public.set_contract_updated_at();
+create trigger contrato_resolucoes_set_updated_at before update on public.contrato_resolucoes_mensais
 for each row execute function public.set_contract_updated_at();
 create trigger contrato_fechamentos_set_updated_at before update on public.contrato_fechamentos
 for each row execute function public.set_contract_updated_at();

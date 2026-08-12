@@ -6,8 +6,43 @@ import type {
   ContractConsumption,
   ContractVersionSnapshot,
   ManualBillingResolution,
+  TaxTreatment,
 } from "../../domain/entities";
 import type { MoneyCents } from "../../domain/money";
+import { moneyCents } from "../../domain/money";
+
+export function parseDatabaseMoneyCents(value: string | number | null): MoneyCents {
+  const raw = String(value ?? "0").trim();
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(raw);
+  if (!match) throw new Error("INVALID_DATABASE_MONEY");
+  const sign = match[1] === "-" ? BigInt(-1) : BigInt(1);
+  const fraction = (match[3] ?? "").padEnd(3, "0");
+  const rounded = BigInt(match[2]) * BigInt(100) + BigInt(fraction.slice(0, 2) || "0") + (Number(fraction[2] ?? "0") >= 5 ? BigInt(1) : BigInt(0));
+  return moneyCents(sign * rounded);
+}
+
+export function parseDatabasePercentageBasisPoints(value: string | number | null): number {
+  const basisPoints = parseDatabaseMoneyCents(value);
+  const result = Number(basisPoints);
+  if (!Number.isSafeInteger(result)) throw new Error("INVALID_DATABASE_PERCENTAGE");
+  return result;
+}
+
+export function parsePersistedTaxTreatment(value: string | null): TaxTreatment | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as { mode?: unknown; percentageBasisPoints?: unknown };
+    if ((parsed.mode === "added" || parsed.mode === "included") && Number.isInteger(parsed.percentageBasisPoints) && Number(parsed.percentageBasisPoints) >= 0) {
+      return { mode: parsed.mode, percentageBasisPoints: Number(parsed.percentageBasisPoints) };
+    }
+  } catch { return undefined; }
+  return undefined;
+}
+
+export function safeBlockerResolution(value: string): "nao_cobrar" {
+  if (value !== "nao_cobrar") throw new Error("BLOCKER_RESOLUTION_REQUIRES_WORKFLOW");
+  return value;
+}
 
 export type ClosingRevisionStatus = "a_calcular" | "em_revisao" | "aprovado" | "lancado_vios" | "cancelado";
 export type ClosingMutationAction = "approve" | "new_revision" | "register_vios" | "resolve_blocker";
