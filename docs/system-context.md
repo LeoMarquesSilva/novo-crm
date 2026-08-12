@@ -27,7 +27,7 @@ Pontos em evolução (Ondas 2–3):
 
 - Funil de pós-venda parcialmente modelado (etapas após `contrato_assinado`)
 - Autorização fina por área na UI (ocultar ações por perfil/área) — incompleta; prevista para Ondas 2–3
-- `/crm/clientes` permanece mock; `/crm/contratos` é o dashboard operacional D4Sign atual e será ampliado pelo gerenciador de contratos
+- `/crm/clientes` permanece mock; `/crm/contratos` é o hub contratual com carteira, fechamentos, renovações, indicadores e o painel D4Sign preservado
 - Integração RD CRM e VIOS conforme variáveis de ambiente
 
 Hardening 2026-07-27 (Onda 1):
@@ -52,6 +52,9 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - `src/modules/crm/domain`: tipos e regras puras
 - `src/modules/crm/application`: casos de uso e orquestração
 - `src/modules/crm/infrastructure`: repositórios e integrações externas
+- `src/modules/contracts/domain`: dinheiro em centavos, projeção, cálculo, validação e políticas puras
+- `src/modules/contracts/application`: rascunho, configuração, fechamento e planejamento diário
+- `src/modules/contracts/infrastructure`: repositório Supabase e consultas tipadas do hub/ficha
 - `src/app`: rotas web e endpoints API
 
 ### 3.3 Fluxo técnico
@@ -68,7 +71,8 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - `/crm`: dashboard com KPIs e filas operacionais (dados Supabase).
 - `/crm/leads`: kanban interativo, ficha do lead (Visão geral, Histórico, DUE, proposta, contrato, D4Sign).
 - `/crm/clientes`: tabela de clientes (mock).
-- `/crm/contratos`: dashboard operacional do cofre D4Sign; a evolução aprovada adiciona carteira, fechamentos, renovações, assinaturas e indicadores sem remover o painel existente.
+- `/crm/contratos`: hub dinâmico com abas **Carteira**, **Fechamentos**, **Renovações**, **Indicadores** e **Assinaturas D4Sign**. O painel D4Sign existente, quota, signatários e documentos órfãos foram preservados.
+- `/crm/contratos/[id]`: ficha dinâmica com visão geral, configuração em seis etapas, áreas/regras, rateios, fechamentos, versões/aditivos, documentos e eventos.
 - `/crm/admin/usuarios`: listagem real de `app_users` com seletor de role por usuário (usa `SUPABASE_SERVICE_ROLE_KEY`).
 - `/crm/admin/campos`: CRUD de `field_definitions` por funil/etapa com drawer de novo campo e ConditionBuilder.
 - `/crm/perfil`: edição do próprio `app_users` (nome, área, URL da foto).
@@ -108,13 +112,21 @@ No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e 
 
 ## 6) Contratos de API atuais
 
-### 6.0 Contratos e faturamento (limite aprovado)
+### 6.0 Contratos e faturamento (implementado localmente)
 
 - O módulo de contratos abrange identidade e versões contratuais, áreas, regras de cobrança, rateios, consumos, fechamentos mensais, renovações, aditivos, referências D4Sign/SharePoint/VIOS e eventos auditáveis.
 - A configuração financeira é concluída na etapa `inclusao_faturamento` do pós-venda. A transição dessa etapa para `boas_vindas` exige contrato vinculado com versão ativa e válida; entrar na etapa não exige a configuração completa.
 - Na primeira entrega, o VIOS continua sendo o sistema de emissão e contas a receber. O CRM somente registra a referência do lançamento; não cria títulos, faturas ou notas automaticamente.
 - Permissões por capability: todos os papéis (`admin`, `controladoria`, `financeiro`, `comercial`) consultam; `admin` e `controladoria` configuram, aprovam fechamentos e gerenciam renovação/aditivo; `admin`, `controladoria` e `financeiro` preparam fechamentos e registram referências VIOS. A decisão não depende de `app_users.area`.
-- Migrations podem ser criadas e validadas localmente, mas a aplicação no Supabase remoto requer autorização explícita.
+- `POST /api/crm/contracts/ensure` — cria/repara o rascunho idempotente de oportunidade assinada; `admin`, `controladoria` e `comercial`.
+- `PATCH /api/crm/contracts/[id]/configuration` — salva somente versão rascunho, com validação e concorrência otimista; `admin`/`controladoria`.
+- `POST /api/crm/contracts/[id]/activate` — ativa versão e, quando solicitado, avança `inclusao_faturamento -> boas_vindas` na mesma transação; `admin`/`controladoria`.
+- `GET|POST /api/crm/contracts/[id]/closings` e `GET|PATCH /api/crm/contracts/[id]/closings/[closingId]` — prepara, consulta, resolve, aprova, corrige e registra VIOS conforme capability.
+- `GET|PUT /api/crm/contracts/[id]/consumptions` — consulta e substitui consumos manuais da competência; `admin`, `controladoria` e `financeiro` para escrita.
+- `GET|PATCH /api/crm/contracts/[id]/renewals/[alertId]` — consulta e conclui tarefas de renovação; mutação por `admin`/`controladoria`.
+- `POST /api/crm/contracts/[id]/versions` — clona rascunho e suspende, retoma ou encerra contrato com auditoria; `admin`/`controladoria`.
+- `GET|POST /api/cron/contracts-daily` — job protegido por `CRON_SECRET`, agendado em `vercel.json` para `0 13 * * *`, com data de São Paulo e upserts idempotentes.
+- As migrations estão versionadas no repositório; aplicação, backfill e smoke no Supabase remoto continuam pendentes de autorização explícita. Ver `docs/contract-management-runbook.md`.
 
 ### 6.1 Admin
 
@@ -153,7 +165,7 @@ No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e 
 - `GET /api/integrations/reconciliation/report`
   - retorna resumo de reconciliação por dados stub.
 
-## 7) Modelo de dados canônico (Supabase v1)
+## 7) Modelo de dados canônico (Supabase v2)
 
 Migrações aplicadas:
 - `20260413170000_init_crm.sql` — schema inicial (enums, tabelas, triggers, seed vendas pipeline)
@@ -166,14 +178,22 @@ Migrações aplicadas:
 - `seed_field_definitions_vendas` — campos completos do funil de vendas com `condition_json`
 - `seed_field_definitions_pos_venda` — campos completos do funil de pós-venda com `condition_json`
 
+Migrações contratuais versionadas no repositório, ainda não aplicadas remotamente nesta entrega:
+
+- `20260812120000_contract_management_schema.sql` — enums, tabelas relacionais, constraints, índices e guardas de imutabilidade.
+- `20260812121000_contract_management_rls.sql` — leitura autenticada e bloqueio de escrita direta nas tabelas financeiras.
+- `20260812122000_contract_management_workflow.sql` — rascunho/assinatura, gate pós-venda, configuração/ativação, fechamentos, consumos, alertas, notificações e versões/ciclo de vida.
+
 ### 7.1 Entidades centrais
 - `app_users` — inclui `avatar_url` e `area` (área de atuação do advogado)
 - `clientes`
 - `contatos_cliente`
 - `oportunidades` — inclui `link_proposta` e `link_contrato` (usados pelas regras de workflow); colunas D4Sign `d4sign_*` quando migração aplicada
 - `d4sign_webhook_events` — eventos POSTBack da D4Sign (RLS ativo, sem policies: só service role em uso típico)
-- `contratos`
-- `aditivos`
+- `contratos` — preserva assinatura em `status_assinatura` e usa o ciclo independente `rascunho`, `em_revisao`, `ativo`, `suspenso` ou `encerrado`; vínculo único opcional à oportunidade e referência à versão ativa.
+- `aditivos` — pode apontar para a versão de origem e a versão resultante.
+- Configuração: `contrato_responsaveis`, `contrato_versoes`, `contrato_areas`, `contrato_componentes_cobranca`, `contrato_parcelas`, `contrato_rateios_area`, `contrato_participacoes_socios`, `contrato_comissoes`.
+- Operação: `contrato_consumos_mensais`, `contrato_fechamentos`, `contrato_fechamento_revisoes`, `contrato_fechamento_itens`, `contrato_alertas`, `contrato_eventos`.
 - `pipelines`
 - `stages`
 - `transicoes_etapa`
@@ -193,6 +213,10 @@ Migrações aplicadas:
 - `field_definitions` seeded: ~60 campos para vendas (7 etapas) + ~26 campos para pós-venda (2 etapas);
 - `condition_json` padronizado: `field_equals`, `field_contains`, `field_not_empty`;
 - rateio por área condicional: campos aparecem apenas se área correspondente está selecionada em `areas_objeto_contrato`.
+- um contrato por `oportunidade_id`, um fechamento por contrato/competência e uma revisão por número;
+- versões `ativa` não podem sobrepor vigência; versões ativas e revisões `aprovado`/`lancado_vios` possuem guardas de imutabilidade;
+- status de versão: `rascunho`, `ativa`, `substituida`, `cancelada`; status de revisão: `a_calcular`, `em_revisao`, `aprovado`, `lancado_vios`, `cancelado`;
+- configuração, ativação, fechamentos, consumos e versões usam RPCs transacionais exclusivas de `service_role`; eventos registram as mutações auditáveis.
 
 ### 7.3 Row Level Security (RLS)
 RLS ativo nas tabelas do schema público desde a migration `enable_rls_policies` (inclui novas tabelas como `d4sign_webhook_events` com RLS sem policies de utilizador).
@@ -216,11 +240,14 @@ Matriz de acesso por tabela:
 
 Policies usando `(select auth.uid())` para evitar re-avaliação por linha.
 
+Nas tabelas financeiras novas, qualquer usuário autenticado pode consultar. Não há policies de `INSERT`, `UPDATE` ou `DELETE` para o browser: Route Handlers autenticam, aplicam `canAccessContractCapability` e escrevem com `service_role` por RPC/consulta controlada. A capability não depende de `app_users.area`.
+
 ## 8) Integrações e status operacional
 
 - RD: importação real implementada para API v1 (`deals` + `contacts`) com filtro anual (default 2026), persistência no Supabase e webhook de atualização por movimentação.
-- VIOS: conector criado, retorno stub por documento.
-- D4Sign: cliente HTTP (`D4SignConnector`), `POST /api/integrations/d4sign/send`, webhook com HMAC; UI no detalhe do lead (`LeadD4SignPanel`).
+- Contratos: hub, ficha, configuração, cálculo/fechamento, renovação, alertas e versões implementados; consumo é manual e a aplicação remota das migrations permanece pendente.
+- VIOS: conector de cliente continua stub; fechamentos aprovados aceitam somente referência/URL manual, sem emissão ou contas a receber automáticas.
+- D4Sign: cliente HTTP (`D4SignConnector`), envio, webhook com HMAC, painel no lead e aba integral no hub de contratos; documentos órfãos continuam restritos a administrador.
 - Reconciliação: tabela `rd_deal_reconciliacao` já recebe dados reais da importação/webhook; endpoint de relatório ainda está stub.
 
 ## 9) Governança técnica vigente
@@ -237,10 +264,7 @@ Padrões obrigatórios:
 
 ## 10) Testes e qualidade
 
-Testes ativos:
-- `workflow.test.ts`
-- `transition-opportunity.test.ts`
-- `open-demand.test.ts`
+Testes ativos incluem workflow/autorizações do CRM e suítes de contratos para dinheiro, projeção anual, cálculo mensal (incluindo Ingevity), validação/prefill, rascunho idempotente, persistência, fechamentos, alertas e versões.
 
 Comandos padrão:
 - `npm run lint`
@@ -262,8 +286,8 @@ Resumo:
 
 - Autenticação Supabase Auth e proxy já protegem as rotas CRM; a autorização fina de ações e visibilidade na UI por perfil/área permanece incompleta e está prevista para a Onda 2.
 - Kanban, dashboard e ficha do lead consomem dados reais do Supabase; não há repositório em memória como fonte padrão dessas telas.
-- `/crm/clientes` continua página mock. `/crm/contratos` já é o dashboard D4Sign e será estendido como hub contratual, preservando esse painel.
-- O conector VIOS retorna cliente stub; o relatório de reconciliação também permanece stub. D4Sign possui envio, webhook e consulta reais.
+- `/crm/clientes` continua página mock. O hub e a ficha de contratos dependem das três migrations contratuais, ainda não autorizadas no Supabase remoto.
+- O conector VIOS retorna cliente stub; o relatório de reconciliação também permanece stub. D4Sign possui envio, webhook e consulta reais. Emissão VIOS, importação automática de consumo e comunicação externa de renovação estão fora desta entrega.
 - Tipos TypeScript gerados em `src/lib/supabase/database.types.ts` atualizados com schema v2 (incluindo `opportunity_stage` pos-venda, `field_definitions` extendido, `app_users` com area/avatar).
 - Admin pages (`/crm/admin/*`) requerem `SUPABASE_SERVICE_ROLE_KEY` no `.env` para funcionar (usa `createSupabaseAdminClient` em `src/lib/supabase/admin.ts`).
 - `DynamicForm` está criado mas ainda não integrado ao `NewDemandForm` — integração é próximo passo.
