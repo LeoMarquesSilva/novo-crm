@@ -1,7 +1,10 @@
-import { BookOpenText } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, BookOpenText, FileUp } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/server";
 import { loadProposalCatalogAdmin } from "@/lib/crm/proposal-catalog-db";
 import { CrmPageHeader } from "@/components/crm/crm-page-header";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ScopeCatalogShell } from "@/components/crm/scope-catalog/scope-catalog-shell";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +43,15 @@ export default async function PropostaEscopoAdminPage() {
             detail: "modelos de cobrança",
           },
         ]}
+        actions={
+          <Link
+            href="/crm/admin/proposta-escopo/importacao"
+            className={cn(buttonVariants({ variant: "teal", size: "sm" }), "gap-2")}
+          >
+            <FileUp className="size-4" aria-hidden />
+            Importar de documentos
+          </Link>
+        }
       />
 
       <ScopeCatalogShell initialData={catalog} />

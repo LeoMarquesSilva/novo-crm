@@ -1178,28 +1178,28 @@ export type Database = {
       }
       d4sign_api_usage: {
         Row: {
-          id: number
+          created_at: string
           endpoint: string
+          http_status: number | null
+          id: number
           method: string
           source: string | null
-          http_status: number | null
-          created_at: string
         }
         Insert: {
-          id?: never
+          created_at?: string
           endpoint: string
+          http_status?: number | null
+          id?: never
           method?: string
           source?: string | null
-          http_status?: number | null
-          created_at?: string
         }
         Update: {
-          id?: never
+          created_at?: string
           endpoint?: string
+          http_status?: number | null
+          id?: never
           method?: string
           source?: string | null
-          http_status?: number | null
-          created_at?: string
         }
         Relationships: []
       }
@@ -1294,6 +1294,13 @@ export type Database = {
             columns: ["oportunidade_id"]
             isOneToOne: false
             referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "d4sign_documents_sent_by_app_user_id_fkey"
+            columns: ["sent_by_app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
             referencedColumns: ["id"]
           },
         ]
@@ -1955,6 +1962,63 @@ export type Database = {
           },
         ]
       }
+      lead_activity_events: {
+        Row: {
+          actor_app_user_id: string | null
+          area_key: string | null
+          created_at: string
+          detail: string | null
+          etapa: Database["public"]["Enums"]["opportunity_stage"] | null
+          id: string
+          kind: string
+          metadata: Json
+          oportunidade_id: string
+          source_id: string | null
+          title: string
+        }
+        Insert: {
+          actor_app_user_id?: string | null
+          area_key?: string | null
+          created_at?: string
+          detail?: string | null
+          etapa?: Database["public"]["Enums"]["opportunity_stage"] | null
+          id?: string
+          kind: string
+          metadata?: Json
+          oportunidade_id: string
+          source_id?: string | null
+          title: string
+        }
+        Update: {
+          actor_app_user_id?: string | null
+          area_key?: string | null
+          created_at?: string
+          detail?: string | null
+          etapa?: Database["public"]["Enums"]["opportunity_stage"] | null
+          id?: string
+          kind?: string
+          metadata?: Json
+          oportunidade_id?: string
+          source_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_activity_events_actor_app_user_id_fkey"
+            columns: ["actor_app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_activity_events_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_email_microsoft_oauth: {
         Row: {
           id: string
@@ -2107,6 +2171,42 @@ export type Database = {
           },
         ]
       }
+      lead_note_mentions: {
+        Row: {
+          created_at: string
+          id: string
+          mentioned_app_user_id: string
+          note_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mentioned_app_user_id: string
+          note_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mentioned_app_user_id?: string
+          note_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_note_mentions_mentioned_app_user_id_fkey"
+            columns: ["mentioned_app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_note_mentions_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "lead_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_notes: {
         Row: {
           body: string
@@ -2151,99 +2251,6 @@ export type Database = {
           },
           {
             foreignKeyName: "lead_notes_oportunidade_id_fkey"
-            columns: ["oportunidade_id"]
-            isOneToOne: false
-            referencedRelation: "oportunidades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      lead_note_mentions: {
-        Row: {
-          created_at: string
-          id: string
-          mentioned_app_user_id: string
-          note_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          mentioned_app_user_id: string
-          note_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          mentioned_app_user_id?: string
-          note_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_note_mentions_mentioned_app_user_id_fkey"
-            columns: ["mentioned_app_user_id"]
-            isOneToOne: false
-            referencedRelation: "app_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_note_mentions_note_id_fkey"
-            columns: ["note_id"]
-            isOneToOne: false
-            referencedRelation: "lead_notes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      lead_activity_events: {
-        Row: {
-          actor_app_user_id: string | null
-          area_key: string | null
-          created_at: string
-          detail: string | null
-          etapa: Database["public"]["Enums"]["opportunity_stage"] | null
-          id: string
-          kind: string
-          metadata: Json
-          oportunidade_id: string
-          source_id: string | null
-          title: string
-        }
-        Insert: {
-          actor_app_user_id?: string | null
-          area_key?: string | null
-          created_at?: string
-          detail?: string | null
-          etapa?: Database["public"]["Enums"]["opportunity_stage"] | null
-          id?: string
-          kind: string
-          metadata?: Json
-          oportunidade_id: string
-          source_id?: string | null
-          title: string
-        }
-        Update: {
-          actor_app_user_id?: string | null
-          area_key?: string | null
-          created_at?: string
-          detail?: string | null
-          etapa?: Database["public"]["Enums"]["opportunity_stage"] | null
-          id?: string
-          kind?: string
-          metadata?: Json
-          oportunidade_id?: string
-          source_id?: string | null
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_activity_events_actor_app_user_id_fkey"
-            columns: ["actor_app_user_id"]
-            isOneToOne: false
-            referencedRelation: "app_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_activity_events_oportunidade_id_fkey"
             columns: ["oportunidade_id"]
             isOneToOne: false
             referencedRelation: "oportunidades"
@@ -2687,6 +2694,311 @@ export type Database = {
             columns: ["oportunidade_id"]
             isOneToOne: false
             referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scope_import_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          document_count: number
+          error_count: number
+          finished_at: string | null
+          id: string
+          processed_count: number
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          document_count?: number
+          error_count?: number
+          finished_at?: string | null
+          id?: string
+          processed_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          document_count?: number
+          error_count?: number
+          finished_at?: string | null
+          id?: string
+          processed_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scope_import_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scope_import_documents: {
+        Row: {
+          batch_id: string
+          byte_size: number | null
+          content_type: string | null
+          created_at: string
+          error_message: string | null
+          extracted_chars: number | null
+          id: string
+          original_filename: string
+          page_count: number | null
+          processed_at: string | null
+          status: string
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_app_user_id: string | null
+        }
+        Insert: {
+          batch_id: string
+          byte_size?: number | null
+          content_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          extracted_chars?: number | null
+          id?: string
+          original_filename: string
+          page_count?: number | null
+          processed_at?: string | null
+          status?: string
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_app_user_id?: string | null
+        }
+        Update: {
+          batch_id?: string
+          byte_size?: number | null
+          content_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          extracted_chars?: number | null
+          id?: string
+          original_filename?: string
+          page_count?: number | null
+          processed_at?: string | null
+          status?: string
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_app_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scope_import_documents_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "scope_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scope_import_documents_uploaded_by_app_user_id_fkey"
+            columns: ["uploaded_by_app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scope_import_extractions: {
+        Row: {
+          conceito: string | null
+          created_at: string
+          document_id: string
+          id: string
+          input_tokens: number | null
+          kind: string
+          model: string | null
+          normalized_template: string | null
+          output_tokens: number | null
+          raw_excerpt: string | null
+          replaced_values: Json
+          suggested_area_key: string | null
+          suggested_subtype_label: string | null
+          suggested_type_label: string | null
+        }
+        Insert: {
+          conceito?: string | null
+          created_at?: string
+          document_id: string
+          id?: string
+          input_tokens?: number | null
+          kind: string
+          model?: string | null
+          normalized_template?: string | null
+          output_tokens?: number | null
+          raw_excerpt?: string | null
+          replaced_values?: Json
+          suggested_area_key?: string | null
+          suggested_subtype_label?: string | null
+          suggested_type_label?: string | null
+        }
+        Update: {
+          conceito?: string | null
+          created_at?: string
+          document_id?: string
+          id?: string
+          input_tokens?: number | null
+          kind?: string
+          model?: string | null
+          normalized_template?: string | null
+          output_tokens?: number | null
+          raw_excerpt?: string | null
+          replaced_values?: Json
+          suggested_area_key?: string | null
+          suggested_subtype_label?: string | null
+          suggested_type_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scope_import_extractions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "scope_import_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scope_import_suggestion_sources: {
+        Row: {
+          created_at: string
+          extraction_id: string
+          id: string
+          suggestion_id: string
+        }
+        Insert: {
+          created_at?: string
+          extraction_id: string
+          id?: string
+          suggestion_id: string
+        }
+        Update: {
+          created_at?: string
+          extraction_id?: string
+          id?: string
+          suggestion_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scope_import_suggestion_sources_extraction_id_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: true
+            referencedRelation: "scope_import_extractions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scope_import_suggestion_sources_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "scope_import_suggestions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scope_import_suggestions: {
+        Row: {
+          area_key: string | null
+          batch_id: string
+          conceito: string | null
+          confidence: number | null
+          created_at: string
+          created_subtype_id: string | null
+          created_type_id: string | null
+          id: string
+          kind: string
+          merged_into_suggestion_id: string | null
+          original_template: string | null
+          placeholder_keys: string[]
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          similar_existing: Json
+          sort_order: number
+          status: string
+          subtype_key: string | null
+          subtype_label: string | null
+          template: string | null
+          type_key: string | null
+          type_label: string | null
+        }
+        Insert: {
+          area_key?: string | null
+          batch_id: string
+          conceito?: string | null
+          confidence?: number | null
+          created_at?: string
+          created_subtype_id?: string | null
+          created_type_id?: string | null
+          id?: string
+          kind: string
+          merged_into_suggestion_id?: string | null
+          original_template?: string | null
+          placeholder_keys?: string[]
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          similar_existing?: Json
+          sort_order?: number
+          status?: string
+          subtype_key?: string | null
+          subtype_label?: string | null
+          template?: string | null
+          type_key?: string | null
+          type_label?: string | null
+        }
+        Update: {
+          area_key?: string | null
+          batch_id?: string
+          conceito?: string | null
+          confidence?: number | null
+          created_at?: string
+          created_subtype_id?: string | null
+          created_type_id?: string | null
+          id?: string
+          kind?: string
+          merged_into_suggestion_id?: string | null
+          original_template?: string | null
+          placeholder_keys?: string[]
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          similar_existing?: Json
+          sort_order?: number
+          status?: string
+          subtype_key?: string | null
+          subtype_label?: string | null
+          template?: string | null
+          type_key?: string | null
+          type_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scope_import_suggestions_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "scope_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scope_import_suggestions_merged_into_suggestion_id_fkey"
+            columns: ["merged_into_suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "scope_import_suggestions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scope_import_suggestions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
             referencedColumns: ["id"]
           },
         ]

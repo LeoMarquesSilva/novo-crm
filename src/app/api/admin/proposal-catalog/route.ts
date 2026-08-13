@@ -6,7 +6,13 @@ import type { Database } from "@/lib/supabase/database.types";
 import { loadProposalCatalogAdmin } from "@/lib/crm/proposal-catalog-db";
 import { extractPlaceholderKeysFromText, PROPOSTA_TIPOS_CATALOG } from "@/data/proposta-tipos-catalog";
 import { PROPOSTA_INVESTIMENTO_TIPOS_CATALOG } from "@/data/proposta-investimento-catalog";
-import { slugifyFieldCodeFromLabel } from "@/lib/crm/field-code";
+import {
+  cleanPlaceholders,
+  insertInvestmentSubtype,
+  insertInvestmentType,
+  insertScopeSubtype,
+  insertScopeType,
+} from "@/lib/crm/proposal-catalog-write";
 
 const kindSchema = z.enum(["scope_type", "scope_subtype", "investment_type", "investment_subtype"]);
 
@@ -72,15 +78,6 @@ type InvestmentTypeUpdate = Database["public"]["Tables"]["proposal_investment_ty
 type InvestmentSubtypeUpdate =
   Database["public"]["Tables"]["proposal_investment_subtypes"]["Update"];
 
-function cleanKey(value: string | undefined, label: string) {
-  return (value?.trim() || slugifyFieldCodeFromLabel(label)).slice(0, 80);
-}
-
-function cleanPlaceholders(explicit: string[] | undefined, ...texts: string[]) {
-  const keys = explicit?.length ? explicit : extractPlaceholderKeysFromText(...texts);
-  return [...new Set(keys.map((key) => key.trim()).filter(Boolean))];
-}
-
 export async function GET() {
   try {
     const auth = await requireAdminApi();
@@ -110,42 +107,39 @@ export async function POST(request: NextRequest) {
     let insertError: { message: string } | null = null;
 
     if (body.kind === "scope_type") {
-      const { error } = await supabase.from("proposal_scope_types").insert({
-        area_key: body.areaKey.trim(),
-        type_key: cleanKey(body.typeKey, body.label),
-        label: body.label.trim(),
-        sort_order: body.sortOrder ?? 0,
+      const { error } = await insertScopeType(supabase, {
+        areaKey: body.areaKey,
+        label: body.label,
+        typeKey: body.typeKey,
+        sortOrder: body.sortOrder,
       });
       insertError = error;
     } else if (body.kind === "scope_subtype") {
-      const escopoTemplate = body.escopoTemplate ?? "";
-      const { error } = await supabase.from("proposal_scope_subtypes").insert({
-        scope_type_id: body.scopeTypeId,
-        subtype_key: cleanKey(body.subtypeKey, body.label),
-        label: body.label.trim(),
-        escopo_template: escopoTemplate,
-        investimento_template: "",
-        placeholder_keys: cleanPlaceholders(body.placeholderKeys, escopoTemplate),
-        sort_order: body.sortOrder ?? 0,
+      const { error } = await insertScopeSubtype(supabase, {
+        scopeTypeId: body.scopeTypeId,
+        label: body.label,
+        subtypeKey: body.subtypeKey,
+        escopoTemplate: body.escopoTemplate,
+        placeholderKeys: body.placeholderKeys,
+        sortOrder: body.sortOrder,
       });
       insertError = error;
     } else if (body.kind === "investment_type") {
-      const { error } = await supabase.from("proposal_investment_types").insert({
-        type_key: cleanKey(body.typeKey, body.label),
-        label: body.label.trim(),
-        sort_order: body.sortOrder ?? 0,
+      const { error } = await insertInvestmentType(supabase, {
+        label: body.label,
+        typeKey: body.typeKey,
+        sortOrder: body.sortOrder,
       });
       insertError = error;
     } else {
-      const template = body.template ?? "";
-      const { error } = await supabase.from("proposal_investment_subtypes").insert({
-        investment_type_id: body.investmentTypeId,
-        subtype_key: cleanKey(body.subtypeKey, body.label),
-        label: body.label.trim(),
-        conceito: body.conceito ?? "",
-        template,
-        placeholder_keys: cleanPlaceholders(body.placeholderKeys, template),
-        sort_order: body.sortOrder ?? 0,
+      const { error } = await insertInvestmentSubtype(supabase, {
+        investmentTypeId: body.investmentTypeId,
+        label: body.label,
+        subtypeKey: body.subtypeKey,
+        conceito: body.conceito,
+        template: body.template,
+        placeholderKeys: body.placeholderKeys,
+        sortOrder: body.sortOrder,
       });
       insertError = error;
     }

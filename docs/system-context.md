@@ -37,7 +37,7 @@ Hardening 2026-07-27 (Onda 1):
 - `fetchWithTimeout` nos conectores externos
 - CI: `.github/workflows/ci.yml` (lint, test, build)
 
-Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tokens RD/D4Sign conforme `.env.example`.
+Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tokens RD/D4Sign conforme `.env.example`. Para importação de escopos: `OPENAI_API_KEY`, opcionalmente `SCOPE_IMPORT_OPENAI_MODEL_EXTRACTION` (default `gpt-4.1-mini`) e `SCOPE_IMPORT_OPENAI_MODEL_CONSOLIDATION` (default `gpt-4.1`).
 
 ## 3) Arquitetura em camadas
 
@@ -75,6 +75,8 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - `/crm/contratos/[id]`: ficha dinâmica com visão geral, configuração em seis etapas, áreas/regras, rateios, fechamentos, versões/aditivos, documentos e eventos.
 - `/crm/admin/usuarios`: listagem real de `app_users` com seletor de role por usuário (usa `SUPABASE_SERVICE_ROLE_KEY`).
 - `/crm/admin/campos`: CRUD de `field_definitions` por funil/etapa com drawer de novo campo e ConditionBuilder.
+- `/crm/admin/proposta-escopo`: catálogo de escopos e investimentos (CRUD admin).
+- `/crm/admin/proposta-escopo/importacao`: wizard de importação em massa de PDF/DOCX → extração IA → consolidação → revisão/aprovação para o catálogo.
 - `/crm/perfil`: edição do próprio `app_users` (nome, área, URL da foto).
 
 Observação: a navegação principal está no `AppShell` — inclui seção "Administração" com links para Usuários e Campos, e rodapé com conta (avatar, link para perfil, sair).
@@ -135,6 +137,15 @@ No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e 
 - `POST /api/admin/fields` — cria novo campo (body: CreateField schema).
 - `PATCH /api/admin/fields/[id]` — edita label, is_required, is_active, sort_order, condition_json.
 - `DELETE /api/admin/fields/[id]` — remove campo.
+- `GET /api/admin/proposal-catalog` — catálogo de escopos/investimentos (admin).
+- `POST/PATCH/DELETE /api/admin/proposal-catalog` — CRUD e seed do catálogo.
+- `GET /api/admin/scope-import` — lista lotes de importação de escopos.
+- `POST /api/admin/scope-import` — cria lote + signed upload URLs (`files: [{name,size,contentType}]`, máx. 40 arquivos / 25 MB).
+- `GET/DELETE /api/admin/scope-import/[batchId]` — estado do lote (polling UI) / abandonar lote.
+- `POST /api/admin/scope-import/[batchId]/confirm` — confirma uploads no storage, batch → `extraindo`.
+- `POST /api/admin/scope-import/[batchId]/process` — processa 1 documento por chamada (texto + OpenAI extração); `maxDuration=120`.
+- `POST /api/admin/scope-import/[batchId]/consolidate` — consolida extrações em sugestões; `maxDuration=300`.
+- `PATCH/POST /api/admin/scope-import/suggestions/[id]` — editar sugestão pendente / aprovar (insere no catálogo) ou rejeitar (409 se já revisada).
 
 ### 6.2 Workflow
 
@@ -176,7 +187,8 @@ Migrações aplicadas:
 - `20260415120000_d4sign_oportunidades_webhook.sql` — colunas `d4sign_document_uuid`, `d4sign_status`, `d4sign_updated_at` em `oportunidades`; tabela `d4sign_webhook_events` + índice único parcial (finalização idempotente)
 - `seed_pos_venda_stages` — 5 etapas do funil pós-venda
 - `seed_field_definitions_vendas` — campos completos do funil de vendas com `condition_json`
-- `seed_field_definitions_pos_venda` — campos completos do funil de pós-venda com `condition_json`
+- `20260520140000_lead_activity_events.sql` — timeline unificada do lead
+- `20260807120000_scope_import.sql` — importação IA de escopos: bucket `scope-import-documents`, tabelas `scope_import_*`, RLS sem policies (service role)
 
 Migrações contratuais versionadas no repositório, ainda não aplicadas remotamente nesta entrega:
 
@@ -202,6 +214,8 @@ Migrações contratuais versionadas no repositório, ainda não aplicadas remota
 - `rd_deal_reconciliacao`
 - `field_definitions`
 - `field_values`
+- `scope_import_batches`, `scope_import_documents`, `scope_import_extractions`, `scope_import_suggestions`, `scope_import_suggestion_sources` — pipeline de importação IA de escopos (RLS ativo, sem policies de utilizador)
+- Storage bucket privado `scope-import-documents` (PDF/DOCX, upload via signed URL)
 
 ### 7.2 Regras de integridade e auditoria
 - deduplicação de cliente por documento normalizado (índice único);
@@ -264,7 +278,7 @@ Padrões obrigatórios:
 
 ## 10) Testes e qualidade
 
-Testes ativos incluem workflow/autorizações do CRM e suítes de contratos para dinheiro, projeção anual, cálculo mensal (incluindo Ingevity), validação/prefill, rascunho idempotente, persistência, fechamentos, alertas e versões.
+Testes ativos incluem workflow/autorizações do CRM, suítes de contratos (dinheiro, projeção anual, cálculo mensal incluindo Ingevity, validação/prefill, rascunho idempotente, persistência, fechamentos, alertas e versões) e `src/lib/scope-import/*.test.ts` (extração DOCX, schemas Zod, similaridade, validação de arquivos).
 
 Comandos padrão:
 - `npm run lint`
