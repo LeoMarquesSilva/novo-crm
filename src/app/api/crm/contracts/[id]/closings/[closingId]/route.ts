@@ -26,16 +26,31 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { data: closing, error } = await supabase.from("contrato_fechamentos").select("*").eq("id", params.data.closingId).eq("contrato_id", params.data.id).maybeSingle();
   if (error) return json({ ok: false, code: "INTERNAL_ERROR", error: error.message }, 500);
   if (!closing) return json({ ok: false, code: "CLOSING_NOT_FOUND" }, 404);
-  const [revisions, consumptions, resolutions, components, areas] = await Promise.all([
+  const [revisions, consumptions, resolutions, components, areas, users] = await Promise.all([
     supabase.from("contrato_fechamento_revisoes").select("*").eq("fechamento_id", closing.id).order("numero", { ascending: false }),
     supabase.from("contrato_consumos_mensais").select("*").eq("contrato_id", params.data.id).eq("competencia", closing.competencia).order("created_at"),
     supabase.from("contrato_resolucoes_mensais").select("componente_id,liberado,valor,base_calculo,motivo").eq("contrato_id", params.data.id).eq("versao_id", closing.versao_id).eq("competencia", closing.competencia),
     supabase.from("contrato_componentes_cobranca").select("id,descricao,tipo,area_id,liberacao_manual_necessaria").eq("versao_id", closing.versao_id).order("ordem"),
     supabase.from("contrato_areas").select("id,area_key").eq("versao_id", closing.versao_id).order("area_key"),
+    supabase.from("app_users").select("id, full_name, avatar_url").order("full_name"),
   ]);
   const revisionIds = (revisions.data ?? []).map((entry) => entry.id);
   const items = revisionIds.length ? await supabase.from("contrato_fechamento_itens").select("*").in("revisao_id", revisionIds).order("created_at") : { data: [], error: null };
-  return json({ ok: true, closing, revisions: revisions.data ?? [], items: items.data ?? [], consumptions: consumptions.data ?? [], resolutions: resolutions.data ?? [], components: components.data ?? [], areas: areas.data ?? [] });
+  return json({
+    ok: true,
+    closing,
+    revisions: revisions.data ?? [],
+    items: items.data ?? [],
+    consumptions: consumptions.data ?? [],
+    resolutions: resolutions.data ?? [],
+    components: components.data ?? [],
+    areas: areas.data ?? [],
+    users: (users.data ?? []).map((user) => ({
+      id: user.id,
+      name: user.full_name,
+      avatarUrl: user.avatar_url,
+    })),
+  });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string; closingId: string }> }) {

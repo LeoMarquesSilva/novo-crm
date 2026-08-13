@@ -1,4 +1,4 @@
-import { FileSignature } from "lucide-react";
+import { FolderKanban } from "lucide-react";
 import { CrmPageHeader } from "@/components/crm/crm-page-header";
 import { D4SignDashboard } from "@/components/crm/d4sign-dashboard";
 import { ContractsHub } from "@/components/crm/contracts/contracts-hub";
@@ -10,6 +10,7 @@ import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { EnsureContractDraftBanner } from "@/components/crm/contracts/ensure-contract-draft-banner";
 import { canEnsureContractDraft } from "@/lib/auth/crm-access-policy";
 import { getContractsPortfolio } from "@/modules/contracts/infrastructure/contract-queries";
+import { centsToMaskedBrl } from "@/components/crm/contracts/contract-setup-form-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -136,33 +137,47 @@ export default async function ContratosPage({
   }));
 
   const all = [...linked, ...unlinked];
-  const total = all.length;
-  const pendentes = all.filter(
-    (r) => r.d4sign_status && !["1", "4"].includes(String(r.d4sign_status)),
+  const portfolio = portfolioResult.items;
+  const ativos = portfolio.filter((item) => item.lifecycle === "ativo").length;
+  const implantacao = portfolio.filter(
+    (item) => item.lifecycle === "rascunho" || item.lifecycle === "em_revisao",
   ).length;
-  const assinados = all.filter((r) => r.d4sign_status === "1").length;
-  const cancelados = all.filter((r) => r.d4sign_status === "4").length;
-  const semSigners = all.filter(
-    (r) => !r.signers || (Array.isArray(r.signers) && r.signers.length === 0),
+  const renovacaoProxima = portfolio.filter((item) => item.renewalSoon).length;
+  const referenciaAnualCents = portfolio.reduce(
+    (sum, item) => sum + Number(item.annualReferenceCents ?? 0),
+    0,
+  );
+  const assinaturasPendentes = all.filter(
+    (r) => r.d4sign_status && !["1", "4"].includes(String(r.d4sign_status)),
   ).length;
 
   return (
     <div className="space-y-6">
       <CrmPageHeader
-        eyebrow="D4Sign — cofre histórico"
-        title="Contratos — Assinatura Digital"
-        description="Espelho do cofre D4Sign no CRM. Na pré-lançamento, estes documentos ainda não correspondem a leads — use Atualizar cofre para sincronizar status, pastas e signatários."
-        icon={FileSignature}
+        eyebrow="Gestão contratual"
+        title="Contratos"
+        description="Carteira, configuração de faturamento, fechamentos e renovações. Assinaturas D4Sign ficam na aba dedicada."
+        icon={FolderKanban}
         stats={[
-          { label: "No cofre", value: total, detail: "documentos sincronizados" },
-          { label: "Pendentes", value: pendentes, detail: "aguardando assinatura" },
-          { label: "Assinados", value: assinados, detail: "finalizados" },
-          { label: "Sem signatários", value: semSigners, detail: "precisam enrich" },
-          ...(cancelados > 0
-            ? [{ label: "Cancelados", value: cancelados, detail: "documentos" }]
+          { label: "Na carteira", value: portfolio.length, detail: "contratos cadastrados" },
+          { label: "Ativos", value: ativos, detail: "em vigência" },
+          { label: "Em implantação", value: implantacao, detail: "rascunho ou revisão" },
+          {
+            label: "Referência anual",
+            value: centsToMaskedBrl(referenciaAnualCents) || "R$ 0,00",
+            detail: "soma da carteira",
+          },
+          ...(renovacaoProxima > 0
+            ? [{ label: "Reajuste próximo", value: renovacaoProxima, detail: "atenção operacional" }]
             : []),
-          ...(linked.length > 0
-            ? [{ label: "Vinculados CRM", value: linked.length, detail: "com lead" }]
+          ...(assinaturasPendentes > 0
+            ? [
+                {
+                  label: "Assinaturas pendentes",
+                  value: assinaturasPendentes,
+                  detail: "cofre D4Sign",
+                },
+              ]
             : []),
         ]}
       />
@@ -175,7 +190,7 @@ export default async function ContratosPage({
       ) : null}
 
       <ContractsHub
-        portfolio={portfolioResult.items}
+        portfolio={portfolio}
         portfolioError={portfolioResult.error}
         d4signError={error}
         d4sign={{

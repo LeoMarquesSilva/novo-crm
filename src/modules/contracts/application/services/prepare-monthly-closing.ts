@@ -75,7 +75,11 @@ export type PreparedClosingItem =
       amountCents: MoneyCents;
       excessQuantity?: number;
     })
-  | ({ kind: "area_allocation" | "partner_share" | "commission"; blocking: false } & AllocationResult);
+  | ({
+      kind: "area_allocation" | "partner_share" | "commission";
+      blocking: false;
+      description: string;
+    } & AllocationResult);
 
 export type PreparedRevisionWrite = {
   actorId: string;
@@ -95,12 +99,18 @@ export type PreparedRevisionWrite = {
   items: PreparedClosingItem[];
 };
 
+export type AllocationDisplayLabels = {
+  areaNames: Record<string, string>;
+  userNames: Record<string, string>;
+};
+
 export interface ClosingPreparationRepository {
   findContract(contractId: string): Promise<{ lifecycle: string } | null>;
   findApplicableVersion(contractId: string, competency: string): Promise<ContractVersionSnapshot | null>;
   findClosing(contractId: string, competency: string): Promise<ExistingClosing | null>;
   listConsumptions(contractId: string, versionId: string, competency: string): Promise<ContractConsumption[]>;
   listManualResolutions(contractId: string, versionId: string, competency: string): Promise<ManualBillingResolution[]>;
+  resolveAllocationLabels(versionId: string): Promise<AllocationDisplayLabels>;
   createCalculatedRevision(input: PreparedRevisionWrite): Promise<{ closingId: string; revisionId: string; revision: number }>;
 }
 
@@ -141,9 +151,10 @@ export async function prepareMonthlyClosing(
     throw new ClosingPreparationError("APPROVED_CLOSING_IMMUTABLE", "Crie uma correção para alterar um fechamento aprovado.");
   }
 
-  const [consumptions, manualResolutions] = await Promise.all([
+  const [consumptions, manualResolutions, labels] = await Promise.all([
     repository.listConsumptions(input.contractId, version.id, input.competency),
     repository.listManualResolutions(input.contractId, version.id, input.competency),
+    repository.resolveAllocationLabels(version.id),
   ]);
   const calculated = calculateMonthlyBilling({
     contractId: input.contractId,
@@ -153,7 +164,9 @@ export async function prepareMonthlyClosing(
     manualResolutions,
   });
   const items: PreparedClosingItem[] = [
-    ...calculated.items.map((item): PreparedClosingItem => ({ ...item, kind: "memory", blocking: false })),
+    ...calculated.items
+      .filter((item) => item.category !== "partner_share" && item.category !== "commission")
+      .map((item): PreparedClosingItem => ({ ...item, kind: "memory", blocking: false })),
     ...calculated.blockers.map((blocker): PreparedClosingItem => ({
       kind: "blocker",
       blocking: true,
@@ -163,9 +176,24 @@ export async function prepareMonthlyClosing(
       amountCents: BigInt(0) as MoneyCents,
       excessQuantity: blocker.excessQuantity,
     })),
-    ...calculated.areaAllocations.map((item): PreparedClosingItem => ({ ...item, kind: "area_allocation", blocking: false })),
-    ...calculated.partnerShares.map((item): PreparedClosingItem => ({ ...item, kind: "partner_share", blocking: false })),
-    ...calculated.commissions.map((item): PreparedClosingItem => ({ ...item, kind: "commission", blocking: false })),
+    ...calculated.areaAllocations.map((item): PreparedClosingItem => ({
+      ...item,
+      kind: "area_allocation",
+      blocking: false,
+      description: `Rateio · ${labels.areaNames[item.beneficiaryId] ?? "Área"}`,
+    })),
+    ...calculated.partnerShares.map((item): PreparedClosingItem => ({
+      ...item,
+      kind: "partner_share",
+      blocking: false,
+      description: `Participação · ${labels.userNames[item.beneficiaryId] ?? "Sócio"}`,
+    })),
+    ...calculated.commissions.map((item): PreparedClosingItem => ({
+      ...item,
+      kind: "commission",
+      blocking: false,
+      description: `Comissão · ${labels.userNames[item.beneficiaryId] ?? "Beneficiário"}`,
+    })),
   ];
 
   return repository.createCalculatedRevision({

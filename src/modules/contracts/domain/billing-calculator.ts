@@ -370,7 +370,7 @@ export function calculateMonthlyBilling(input: BillingCalculationInput): Billing
         id: `tax:${charge.component.id}`,
         category: "tax",
         componentId: charge.component.id,
-        description: `Tax included in ${charge.component.description}`,
+        description: `Tributo incluído em ${charge.component.description}`,
         amountCents: moneyCents(taxAmount),
         percentageBasisPoints: tax.percentageBasisPoints,
       });
@@ -383,7 +383,7 @@ export function calculateMonthlyBilling(input: BillingCalculationInput): Billing
           id: `tax:${charge.component.id}`,
           category: "tax",
           componentId: charge.component.id,
-          description: `Tax added to ${charge.component.description}`,
+          description: `Tributo adicional em ${charge.component.description}`,
           amountCents: taxAmount,
           percentageBasisPoints: tax.percentageBasisPoints,
         });
@@ -398,14 +398,14 @@ export function calculateMonthlyBilling(input: BillingCalculationInput): Billing
     id: `partner:${index}:${allocation.ruleId}`,
     category: "partner_share",
     componentId: allocation.componentId,
-    description: `Partner share: ${allocation.beneficiaryId}`,
+    description: "Participação de sócio",
     amountCents: allocation.amountCents,
   }));
   commissions.forEach((allocation, index) => items.push({
     id: `commission:${index}:${allocation.ruleId}`,
     category: "commission",
     componentId: allocation.componentId,
-    description: `Commission: ${allocation.beneficiaryId}`,
+    description: "Comissão",
     amountCents: allocation.amountCents,
   }));
 

@@ -81,6 +81,27 @@ class SupabaseClosingRepository implements ClosingPreparationRepository {
     if (error) throw new Error(error.message);
     return (data ?? []).map((row) => ({ componentId: row.componente_id, competency: target, released: row.liberado, ...(row.valor === null ? {} : { amountCents: cents(row.valor) }), ...(row.base_calculo === null ? {} : { baseCents: cents(row.base_calculo) }), ...(row.motivo ? { reason: row.motivo } : {}) }));
   }
+  async resolveAllocationLabels(versionId: string) {
+    const [areasResult, sharesResult, commissionsResult] = await Promise.all([
+      this.supabase.from("contrato_areas").select("id, area_key").eq("versao_id", versionId),
+      this.supabase.from("contrato_participacoes_socios").select("socio_app_user_id, socio_nome").eq("versao_id", versionId),
+      this.supabase.from("contrato_comissoes").select("beneficiario_app_user_id, beneficiario_nome").eq("versao_id", versionId),
+    ]);
+    if (areasResult.error) throw new Error(areasResult.error.message);
+    if (sharesResult.error) throw new Error(sharesResult.error.message);
+    if (commissionsResult.error) throw new Error(commissionsResult.error.message);
+    const areaNames = Object.fromEntries((areasResult.data ?? []).map((row) => [row.id, row.area_key]));
+    const userNames: Record<string, string> = {};
+    for (const row of sharesResult.data ?? []) {
+      if (row.socio_app_user_id && row.socio_nome) userNames[row.socio_app_user_id] = row.socio_nome;
+    }
+    for (const row of commissionsResult.data ?? []) {
+      if (row.beneficiario_app_user_id && row.beneficiario_nome) {
+        userNames[row.beneficiario_app_user_id] = row.beneficiario_nome;
+      }
+    }
+    return { areaNames, userNames };
+  }
   async createCalculatedRevision(input: PreparedRevisionWrite) {
     const { data, error } = await this.supabase.rpc("create_contract_closing_revision", {
       p_actor_id: input.actorId, p_competencia: input.competency, p_contract_id: input.contractId,

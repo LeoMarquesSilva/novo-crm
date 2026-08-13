@@ -53,11 +53,22 @@ export function getPracticeAreaColors(area: string): PracticeAreaColorTokens {
   return { bg: "bg-slate-100", text: "text-slate-600", ring: "ring-slate-200/80" };
 }
 
+/** `xs` cabe em SelectTrigger h-8/h-10; nunca use `sm+` dentro de select. */
 const BADGE_SIZE = {
+  xs: { box: "size-5 rounded-md", icon: "size-3" },
   sm: { box: "size-8 rounded-lg", icon: "size-3.5" },
   md: { box: "size-10 rounded-xl", icon: "size-4" },
   lg: { box: "size-11 rounded-xl", icon: "size-[1.125rem]" },
 } as const;
+
+const LABEL_LAYOUT = {
+  xs: { gap: "gap-1.5", name: "text-sm font-medium" },
+  sm: { gap: "gap-2", name: "text-sm font-semibold" },
+  md: { gap: "gap-2.5", name: "text-sm font-semibold" },
+  lg: { gap: "gap-3", name: "text-base font-semibold" },
+} as const;
+
+export type PracticeAreaIconSize = keyof typeof BADGE_SIZE;
 
 /** Ícone da área em badge colorido (usar sempre que citar uma área de prática). */
 export function PracticeAreaIconBadge({
@@ -66,7 +77,7 @@ export function PracticeAreaIconBadge({
   className,
 }: {
   area: string;
-  size?: keyof typeof BADGE_SIZE;
+  size?: PracticeAreaIconSize;
   className?: string;
 }) {
   const colors = getPracticeAreaColors(area);
@@ -98,12 +109,13 @@ export function AreaIconLabel({
   area: string;
   className?: string;
   nameClassName?: string;
-  size?: keyof typeof BADGE_SIZE;
+  size?: PracticeAreaIconSize;
 }) {
+  const layout = LABEL_LAYOUT[size];
   return (
-    <span className={cn("inline-flex min-w-0 items-center gap-2.5", className)}>
+    <span className={cn("inline-flex min-w-0 items-center", layout.gap, className)}>
       <PracticeAreaIconBadge area={area} size={size} />
-      <span className={cn("truncate font-semibold text-[#111827]", nameClassName)}>{area}</span>
+      <span className={cn("truncate text-[#111827]", layout.name, nameClassName)}>{area}</span>
     </span>
   );
 }

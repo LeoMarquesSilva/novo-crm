@@ -58,7 +58,7 @@ export function EnsureContractDraftBanner({
             </h2>
             <p className="mt-1 text-sm text-slate-600">
               {contractId
-                ? `Rascunho contratual ${contractId} pronto para configuração.`
+                ? "Rascunho contratual pronto para configuração."
                 : "Crie o rascunho contratual vinculado à oportunidade antes de configurar o faturamento."}
             </p>
           </div>
