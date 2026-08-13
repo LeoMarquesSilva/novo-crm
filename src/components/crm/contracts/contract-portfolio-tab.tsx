@@ -3,10 +3,16 @@
 import Link from "next/link";
 import { AlertCircle, ArrowUpRight, CalendarClock, Search } from "lucide-react";
 
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectTrigger } from "@/components/ui/select";
+import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
+import { formatDateYmdBr } from "@/lib/format-datetime";
 import type { ContractPortfolioItem } from "@/modules/contracts/infrastructure/contract-queries";
+import { BILLING_KIND_LABELS, centsToMaskedBrl } from "./contract-setup-form-helpers";
 
 const lifecycleLabels: Record<ContractPortfolioItem["lifecycle"], string> = {
   rascunho: "Rascunho",
@@ -17,12 +23,11 @@ const lifecycleLabels: Record<ContractPortfolioItem["lifecycle"], string> = {
 };
 
 function money(cents: string | null): string {
-  if (cents === null) return "—";
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(cents) / 100);
+  return centsToMaskedBrl(cents) || "—";
 }
 
 function date(value: string | null): string {
-  return value ? new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`)) : "—";
+  return formatDateYmdBr(value) || "—";
 }
 
 type Filters = {
@@ -57,7 +62,7 @@ export function filterPortfolio(items: ContractPortfolioItem[], filters: Filters
   });
 }
 
-const selectClass = "h-9 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15";
+const selectTriggerClass = "!h-9 w-full border-[#dfe5ee] bg-white shadow-sm";
 
 export function ContractPortfolioTab({
   items,
@@ -92,7 +97,7 @@ export function ContractPortfolioTab({
           <FilterSelect label="Etiqueta" value={filters.tag} options={tags.map((tag) => [tag, tag])} onChange={(tag) => patch({ tag })} />
           <FilterSelect label="Origem" value={filters.origin} options={origins.map((origin) => [origin, origin])} onChange={(origin) => patch({ origin })} />
           <FilterSelect label="Status" value={filters.lifecycle} options={Object.entries(lifecycleLabels)} onChange={(lifecycle) => patch({ lifecycle })} />
-          <FilterSelect label="Cobrança" value={filters.billingKind} options={kinds.map((kind) => [kind, kind.replaceAll("_", " ")])} onChange={(billingKind) => patch({ billingKind })} />
+          <FilterSelect label="Cobrança" value={filters.billingKind} options={kinds.map((kind) => [kind, BILLING_KIND_LABELS[kind] ?? kind.replaceAll("_", " ")])} onChange={(billingKind) => patch({ billingKind })} />
           <FilterSelect label="Renovação" value={filters.renewal} options={[["90", "Próximos 90 dias"], ["overdue", "Vencida"], ["none", "Sem data"]]} onChange={(renewal) => patch({ renewal })} />
         </div>
       </div>
@@ -130,19 +135,92 @@ export function ContractPortfolioTab({
   );
 }
 
-function FilterSelect({ label, value, options, onChange }: { label: string; value: string; options: string[][]; onChange: (value: string) => void }) {
-  return <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500"><span>{label}</span><select className={selectClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">Todos</option>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>;
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[][];
+  onChange: (value: string) => void;
+}) {
+  const labels = { __all__: "Todos", ...Object.fromEntries(options) };
+  return (
+    <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
+      <span>{label}</span>
+      <Select
+        items={labels}
+        value={value || "__all__"}
+        onValueChange={(next) => onChange(!next || next === "__all__" ? "" : next)}
+      >
+        <SelectTrigger className={selectTriggerClass}>
+          <CrmSelectValue value={value || "__all__"} labels={labels} placeholder="Todos" />
+        </SelectTrigger>
+        <CrmSelectContent>
+          <CrmSelectItem value="__all__">Todos</CrmSelectItem>
+          {options.map(([optionValue, optionLabel]) => (
+            <CrmSelectItem key={optionValue} value={optionValue}>
+              {optionLabel}
+            </CrmSelectItem>
+          ))}
+        </CrmSelectContent>
+      </Select>
+    </label>
+  );
 }
 
 function PortfolioRow({ item }: { item: ContractPortfolioItem }) {
-  return <tr className="align-top hover:bg-zinc-50/70">
-    <td className="px-4 py-4"><p className="font-semibold text-zinc-900">{item.title}</p><p className="mt-1 text-xs text-zinc-500">{item.clientName}</p><div className="mt-2 flex flex-wrap gap-1"><Badge variant="outline">{lifecycleLabels[item.lifecycle]}</Badge>{item.renewalSoon ? <Badge className="bg-amber-100 text-amber-800">Reajuste próximo</Badge> : null}</div></td>
-    <td className="px-4 py-4"><p>{item.managerName}</p><p className="mt-1 max-w-48 text-xs text-zinc-500">{item.areas.join(" · ") || "Áreas pendentes"}</p></td>
-    <td className="px-4 py-4 tabular-nums"><p className="font-medium">{money(item.monthlyProjectionCents)}/mês</p><p className="mt-1 text-xs text-zinc-500">{money(item.annualReferenceCents)} anual</p></td>
-    <td className="px-4 py-4"><span className="inline-flex items-center gap-1.5"><CalendarClock className="size-4 text-zinc-400" />{date(item.renewalDate)}</span></td>
-    <td className="px-4 py-4"><div className="flex items-center gap-2"><Progress value={item.setupProgress.percent} className="w-24" /><span className="text-xs tabular-nums text-zinc-500">{item.setupProgress.percent}%</span></div></td>
-    <td className="px-4 py-4 text-right"><Link href={`/crm/contratos/${item.id}`} aria-label={`Abrir ${item.title}`} className="inline-flex size-8 items-center justify-center rounded-full border border-zinc-200 text-zinc-600 hover:border-teal-300 hover:text-teal-700"><ArrowUpRight className="size-4" /></Link></td>
-  </tr>;
+  return (
+    <tr className="align-top hover:bg-zinc-50/70">
+      <td className="px-4 py-4">
+        <p className="font-semibold text-zinc-900">{item.title}</p>
+        <p className="mt-1 text-xs text-zinc-500">{item.clientName}</p>
+        <div className="mt-2 flex flex-wrap gap-1">
+          <Badge variant="outline">{lifecycleLabels[item.lifecycle]}</Badge>
+          {item.renewalSoon ? (
+            <Badge className="bg-amber-100 text-amber-800">Reajuste próximo</Badge>
+          ) : null}
+        </div>
+      </td>
+      <td className="px-4 py-4">
+        <CrmUserLabel name={item.managerName} size="xs" variant="inline" />
+        <div className="mt-2 flex max-w-56 flex-wrap gap-1.5">
+          {item.areas.length ? (
+            item.areas.map((area) => <AreaIconLabel key={area} area={area} size="xs" />)
+          ) : (
+            <span className="text-xs text-zinc-500">Áreas pendentes</span>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-4 tabular-nums">
+        <p className="font-medium">{money(item.monthlyProjectionCents)}/mês</p>
+        <p className="mt-1 text-xs text-zinc-500">{money(item.annualReferenceCents)} anual</p>
+      </td>
+      <td className="px-4 py-4">
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarClock className="size-4 text-zinc-400" />
+          {date(item.renewalDate)}
+        </span>
+      </td>
+      <td className="px-4 py-4">
+        <div className="flex items-center gap-2">
+          <Progress value={item.setupProgress.percent} className="w-24" />
+          <span className="text-xs tabular-nums text-zinc-500">{item.setupProgress.percent}%</span>
+        </div>
+      </td>
+      <td className="px-4 py-4 text-right">
+        <Link
+          href={`/crm/contratos/${item.id}`}
+          aria-label={`Abrir ${item.title}`}
+          className="inline-flex size-8 items-center justify-center rounded-full border border-zinc-200 text-zinc-600 hover:border-teal-300 hover:text-teal-700"
+        >
+          <ArrowUpRight className="size-4" />
+        </Link>
+      </td>
+    </tr>
+  );
 }
 
 function PortfolioCard({ item }: { item: ContractPortfolioItem }) {

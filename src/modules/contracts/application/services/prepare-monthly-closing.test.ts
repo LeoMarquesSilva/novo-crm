@@ -48,6 +48,7 @@ function repository(overrides: Partial<ClosingPreparationRepository> = {}) {
     findClosing: async () => null,
     listConsumptions: async () => [{ id: "consumption", componentId: "hours", kind: "hora", quantity: 14 }],
     listManualResolutions: async () => [],
+    resolveAllocationLabels: async () => ({ areaNames: {}, userNames: {} }),
     createCalculatedRevision: async (write) => {
       writes.push(write);
       return { closingId: "closing-1", revisionId: "revision-1", revision: write.nextRevision };

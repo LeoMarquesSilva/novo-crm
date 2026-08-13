@@ -3,8 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 
+import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
+import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Button } from "@/components/ui/button";
+import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger } from "@/components/ui/select";
+import { TimeInputBr } from "@/components/ui/time-input-br";
+import { formatDateYmdBr } from "@/lib/format-datetime";
 import type { ContractPortfolioItem } from "@/modules/contracts/infrastructure/contract-queries";
 
 type RenewalAlert = {
@@ -99,10 +105,85 @@ export function ContractRenewalsTab({ portfolio }: { portfolio: ContractPortfoli
       const resolved = alert.status === "resolvido";
       const notifiedBy = users.find((user) => user.id === alert.cliente_notificado_por)?.full_name;
       return <article key={alert.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-zinc-900">{contract?.clientName ?? contract?.title ?? "Contrato"}</h3><p className="text-sm text-zinc-500">Data-base: {alert.data_base ? new Date(`${alert.data_base}T12:00:00`).toLocaleDateString("pt-BR") : "não definida"}{notifiedBy ? ` · Cliente notificado por ${notifiedBy}` : ""}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${resolved ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{resolved ? "Concluída" : "Pendente"}</span></div>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-zinc-900">{contract?.clientName ?? contract?.title ?? "Contrato"}</h3><p className="text-sm text-zinc-500">Data-base: {alert.data_base ? formatDateYmdBr(alert.data_base) || "não definida" : "não definida"}{notifiedBy ? ` · Cliente notificado por ${notifiedBy}` : ""}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${resolved ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{resolved ? "Concluída" : "Pendente"}</span></div>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <select aria-label="Responsável pela renovação" className="h-9 rounded-md border border-input bg-transparent px-3 text-sm" value={draft.assigneeId} disabled={resolved} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, assigneeId: event.target.value } }))}><option value="">Sem responsável</option>{users.map((user) => <option key={user.id} value={user.id}>{user.full_name}</option>)}</select>
-          <Input aria-label="Cliente notificado em" type="datetime-local" value={draft.customerNotifiedAt} disabled={resolved} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, customerNotifiedAt: event.target.value } }))} />
+          <Select
+            items={Object.fromEntries(users.map((user) => [user.id, user.full_name]))}
+            value={draft.assigneeId || "__none__"}
+            disabled={resolved}
+            onValueChange={(next) =>
+              setDrafts((all) => ({
+                ...all,
+                [alert.id]: {
+                  ...draft,
+                  assigneeId: !next || next === "__none__" ? "" : next,
+                },
+              }))
+            }
+          >
+            <SelectTrigger
+              aria-label="Responsável pela renovação"
+              className="!h-10 w-full border-[#dfe5ee] bg-white shadow-sm"
+            >
+              {draft.assigneeId ? (
+                <CrmUserLabel
+                  name={users.find((user) => user.id === draft.assigneeId)?.full_name ?? "Responsável"}
+                  size="xs"
+                  variant="inline"
+                />
+              ) : (
+                <span className="text-slate-400">Sem responsável</span>
+              )}
+            </SelectTrigger>
+            <CrmSelectContent>
+              <CrmSelectItem value="__none__">Sem responsável</CrmSelectItem>
+              {users.map((user) => (
+                <CrmSelectItem key={user.id} value={user.id}>
+                  <CrmUserLabel name={user.full_name} size="xs" variant="inline" />
+                </CrmSelectItem>
+              ))}
+            </CrmSelectContent>
+          </Select>
+          <div className="grid grid-cols-2 gap-2">
+            <DateInputBr
+              aria-describedby={undefined}
+              value={draft.customerNotifiedAt.slice(0, 10)}
+              disabled={resolved}
+              className="!h-10 border-[#dfe5ee] bg-white shadow-sm"
+              onChange={(ymd) => {
+                const time = draft.customerNotifiedAt.includes("T")
+                  ? draft.customerNotifiedAt.slice(11, 16) || "09:00"
+                  : "09:00";
+                setDrafts((all) => ({
+                  ...all,
+                  [alert.id]: {
+                    ...draft,
+                    customerNotifiedAt: ymd ? `${ymd}T${time}` : "",
+                  },
+                }));
+              }}
+            />
+            <TimeInputBr
+              value={
+                draft.customerNotifiedAt.includes("T")
+                  ? draft.customerNotifiedAt.slice(11, 16)
+                  : ""
+              }
+              disabled={resolved || !draft.customerNotifiedAt.slice(0, 10)}
+              className="!h-10 border-[#dfe5ee] bg-white shadow-sm"
+              onChange={(hm) => {
+                const day = draft.customerNotifiedAt.slice(0, 10);
+                if (!day) return;
+                setDrafts((all) => ({
+                  ...all,
+                  [alert.id]: {
+                    ...draft,
+                    customerNotifiedAt: `${day}T${hm || "09:00"}`,
+                  },
+                }));
+              }}
+            />
+          </div>
           <Input aria-label="Decisão da renovação" placeholder="Decisão" value={draft.decision} disabled={resolved} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, decision: event.target.value } }))} />
           <Input aria-label="Índice aplicado" placeholder="Índice aplicado (ex.: IPCA 4,2%)" value={draft.appliedIndex} disabled={resolved} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, appliedIndex: event.target.value } }))} />
           <Input aria-label="Notas da renovação" placeholder="Notas internas" value={draft.notes} disabled={resolved} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, notes: event.target.value } }))} />

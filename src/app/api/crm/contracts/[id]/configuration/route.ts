@@ -93,7 +93,9 @@ const configuration = z.object({
   dueDay: z.number().int().min(1).max(31).nullable(),
   renewalDate: date.nullable(),
   renewalAlertDate: date.nullable(),
-  adjustmentIndex: z.string().trim().max(80).nullable(),
+  adjustmentIndex: z
+    .enum(["IPCA", "IGP-M", "INPC", "IPCA-E", "Sem reajuste"])
+    .nullable(),
   firstInvoiceAt: date.nullable(),
   firstInvoiceConditioned: z.boolean(),
   substitutionEvidence: z.array(z.object({

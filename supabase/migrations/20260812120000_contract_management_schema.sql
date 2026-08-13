@@ -418,7 +418,7 @@ alter table public.contrato_versoes
   )
   where (status = 'ativa'::public.contract_version_status);
 
-create index contratos_cliente_id_idx on public.contratos (cliente_id);
+create index if not exists contratos_cliente_id_idx on public.contratos (cliente_id);
 create index contratos_oportunidade_id_idx on public.contratos (oportunidade_id);
 create index contratos_versao_ativa_id_idx on public.contratos (versao_ativa_id);
 create index contratos_d4sign_document_id_idx on public.contratos (d4sign_document_id);
