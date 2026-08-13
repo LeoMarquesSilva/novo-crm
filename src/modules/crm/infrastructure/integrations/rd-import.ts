@@ -3,6 +3,7 @@ import { RD_PIPELINE_STAGE_MAP as STAGE_MAP } from "@/lib/crm/rd-pipeline-stage-
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/supabase/database.types";
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 
 type OpportunityStage = Database["public"]["Enums"]["opportunity_stage"];
 type DemandType = Database["public"]["Enums"]["demand_type"];
@@ -186,7 +187,7 @@ export class RdImportConnector {
       url.searchParams.set(key, value);
     }
 
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetchWithTimeout(url, { cache: "no-store" });
     if (!response.ok) {
       const body = await response.text();
       throw new Error(
@@ -296,6 +297,19 @@ export class RdImportConnector {
       demandType: this.inferDemandType(dealTitle),
       encerramentoRd,
     });
+
+    if (stage === "contrato_assinado") {
+      const { error: draftError } = await supabase.rpc(
+        "ensure_contract_draft_for_opportunity",
+        {
+          p_opportunity_id: opportunityId,
+          p_now: new Date().toISOString(),
+        },
+      );
+      if (draftError) {
+        throw draftError;
+      }
+    }
 
     const status = context.source === "webhook" ? "deal_atualizado" : "deal_importado";
     await this.upsertReconciliation(supabase, {

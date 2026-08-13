@@ -36,12 +36,18 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfile> {
 
 export async function requireAuth(nextPath = "/crm"): Promise<{
   user: User;
-  profile: AppUserProfile | null;
+  profile: AppUserProfile;
 }> {
   const { user, profile } = await getCurrentUserProfile();
 
   if (!user) {
     redirect(`/login?next=${encodeURIComponent(nextPath)}`);
+  }
+
+  if (!profile) {
+    redirect(
+      `/login?reason=profile_missing&next=${encodeURIComponent(nextPath)}`,
+    );
   }
 
   return { user, profile };
@@ -90,7 +96,7 @@ export async function requireAdminApi(): Promise<
 }
 
 export async function requireAuthApi(): Promise<
-  | { ok: true; user: User; profile: AppUserProfile | null }
+  | { ok: true; user: User; profile: AppUserProfile }
   | { ok: false; response: NextResponse }
 > {
   const { user, profile } = await getCurrentUserProfile();
@@ -101,6 +107,20 @@ export async function requireAuthApi(): Promise<
       response: NextResponse.json(
         { ok: false, error: "Não autenticado." },
         { status: 401 },
+      ),
+    };
+  }
+
+  if (!profile) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Usuário autenticado sem perfil ativo no CRM. Solicite acesso a um administrador.",
+        },
+        { status: 403 },
       ),
     };
   }

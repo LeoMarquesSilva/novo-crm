@@ -15,6 +15,30 @@ export type AppUserActorRow = {
   avatar_url: string | null;
 };
 
+export function buildContractInAppNotification(input: {
+  userId: string;
+  tipo: string;
+  idempotencyKey: string;
+  contractId: string;
+  title: string;
+  preview: string;
+  originadoPor?: InAppNotificationActor | null;
+}) {
+  return {
+    user_id: input.userId,
+    tipo: input.tipo,
+    idempotency_key: input.idempotencyKey,
+    payload: {
+      title: input.title,
+      preview: input.preview,
+      path: `/crm/contratos/${input.contractId}`,
+      contrato_id: input.contractId,
+      idempotency_key: input.idempotencyKey,
+      ...(input.originadoPor ? { originado_por: input.originadoPor } : {}),
+    },
+  };
+}
+
 export const CRM_IN_APP_NOTIFICATION_TIPO_LABELS: Record<string, string> = {
   indicator_pending_approval:     "Indicadores",
   due_area_task:                  "DUE — levantamento",
@@ -27,6 +51,10 @@ export const CRM_IN_APP_NOTIFICATION_TIPO_LABELS: Record<string, string> = {
   contrato_parcialmente_assinado: "Contrato — assinatura parcial",
   contrato_cancelado:             "Contrato cancelado",
   contract_review_requested:      "Revisão de contrato solicitada",
+  contrato_implantacao_pendente:  "Contrato — implantação pendente",
+  contrato_fechamento_pendente:   "Contrato — fechamento pendente",
+  contrato_renovacao_pendente:    "Contrato — renovação pendente",
+  contrato_excedente_sem_preco:   "Contrato — excedente sem preço",
 };
 
 /** Tipos `crm_in_app_notifications.tipo` que disparam a tab "SLA de etapa" (vazio até existir job/API). */
@@ -76,7 +104,11 @@ export function notificationTabGroupForTipo(tipo: string): Exclude<NotificationT
     tipo === "contrato_assinado" ||
     tipo === "contrato_parcialmente_assinado" ||
     tipo === "contrato_cancelado" ||
-    tipo === "contract_review_requested"
+    tipo === "contract_review_requested" ||
+    tipo === "contrato_implantacao_pendente" ||
+    tipo === "contrato_fechamento_pendente" ||
+    tipo === "contrato_renovacao_pendente" ||
+    tipo === "contrato_excedente_sem_preco"
   ) return "contratos";
   return "outras";
 }

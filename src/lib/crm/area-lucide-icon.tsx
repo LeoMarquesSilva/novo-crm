@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Briefcase,
@@ -68,7 +69,6 @@ export function PracticeAreaIconBadge({
   size?: keyof typeof BADGE_SIZE;
   className?: string;
 }) {
-  const Icon = getAreaLucideIcon(area);
   const colors = getPracticeAreaColors(area);
   const s = BADGE_SIZE[size];
   return (
@@ -82,7 +82,9 @@ export function PracticeAreaIconBadge({
       )}
       aria-hidden
     >
-      <Icon className={cn(s.icon, colors.text)} />
+      {createElement(getAreaLucideIcon(area), {
+        className: cn(s.icon, colors.text),
+      })}
     </span>
   );
 }

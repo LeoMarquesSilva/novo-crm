@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
   CheckCircle2,
   Loader2,
+  Plus,
   Save,
   Sparkles,
 } from "lucide-react";
@@ -30,8 +30,10 @@ export type TypeEditorMode =
 type Props = {
   mode: TypeEditorMode;
   subtypeCount: number;
+  onAddSubtype?: () => void;
   onSaved: (catalog: ProposalCatalogAdminData) => void;
   onDeleted: (catalog: ProposalCatalogAdminData) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type Draft = {
@@ -41,9 +43,14 @@ type Draft = {
   isActive: boolean;
 };
 
-export function CatalogTypeEditor({ mode, subtypeCount, onSaved, onDeleted }: Props) {
-  const router = useRouter();
-
+export function CatalogTypeEditor({
+  mode,
+  subtypeCount,
+  onAddSubtype,
+  onSaved,
+  onDeleted,
+  onDirtyChange,
+}: Props) {
   const initialDraft = useMemo<Draft>(
     () => ({
       label: mode.row.label,
@@ -68,6 +75,11 @@ export function CatalogTypeEditor({ mode, subtypeCount, onSaved, onDeleted }: Pr
   }, [initialDraft]);
 
   const isDirty = useMemo(() => !draftsEqual(draft, saved), [draft, saved]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+    return () => onDirtyChange?.(false);
+  }, [isDirty, onDirtyChange]);
 
   const areaName = mode.kind === "scope" ? draft.areaKey : mode.breadcrumb[0] ?? "";
   const AreaIcon = getAreaLucideIcon(areaName);
@@ -110,7 +122,6 @@ export function CatalogTypeEditor({ mode, subtypeCount, onSaved, onDeleted }: Pr
       setSaved(draft);
       setFeedback(`"${draft.label}" salvo com sucesso.`);
       onSaved(json.data);
-      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao salvar.");
     } finally {
@@ -120,7 +131,7 @@ export function CatalogTypeEditor({ mode, subtypeCount, onSaved, onDeleted }: Pr
 
   return (
     <div className="flex h-full min-h-[400px] flex-col gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-dark/10 bg-white/85 px-4 py-3 shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-dark/10 bg-white px-4 py-3 shadow-sm">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary-dark/8 text-primary-dark">
             <AreaIcon className="size-4" aria-hidden />
@@ -201,13 +212,27 @@ export function CatalogTypeEditor({ mode, subtypeCount, onSaved, onDeleted }: Pr
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-primary-dark/10 bg-white/85 p-5 shadow-sm">
-        <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
-          O <strong className="text-primary-dark">tipo</strong> agrupa os subtipos na árvore. Os
-          textos de <strong className="text-primary-dark">escopo</strong> ficam em cada subtipo desta aba;{" "}
-          <strong className="text-primary-dark">honorários</strong> na aba Investimentos. Selecione um subtipo na
-          lista à esquerda ou use o botão + ao lado do tipo.
-        </p>
+      <div className="rounded-2xl border border-primary-dark/10 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+            O <strong className="text-primary-dark">tipo</strong> agrupa os subtipos na árvore. Os
+            textos de <strong className="text-primary-dark">escopo</strong> ficam em cada subtipo desta aba;{" "}
+            <strong className="text-primary-dark">honorários</strong> na aba Investimentos. Selecione um subtipo na
+            lista à esquerda ou use o botão + ao lado do tipo.
+          </p>
+          {onAddSubtype ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 shrink-0 gap-1.5 border-primary-dark/15 text-primary-dark hover:bg-primary-dark/5"
+              onClick={onAddSubtype}
+            >
+              <Plus className="size-3.5" aria-hidden />
+              Adicionar subtipo
+            </Button>
+          ) : null}
+        </div>
 
         <div className="space-y-4">
           <div className="space-y-1.5">

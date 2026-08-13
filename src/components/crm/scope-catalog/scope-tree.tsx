@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { getAreaLucideIcon, getPracticeAreaColors } from "@/lib/crm/area-lucide-icon";
 import { cn } from "@/lib/utils";
-import type {
-  ScopeTreeGroup,
-  ScopeTreeItem,
-  ScopeTreeSubtype,
-} from "./scope-catalog-shell";
+import {
+  filterScopeTree,
+  type ScopeTreeGroup,
+  type ScopeTreeItem,
+  type ScopeTreeSubtype,
+} from "./scope-catalog-tree";
 
 export type ScopeTreeSelection =
   | {
@@ -32,6 +33,13 @@ type Props = {
   /** Callback ao clicar no "+" de um Tipo (L2) — gera subtipo dentro dele. */
   onCreateSubtype?: (typeId: string, typeLabel: string) => void;
   emptyHint: string;
+  /** Quando definido (aba Escopos), restringe L1 às chaves listadas; vazio = todas. */
+  areaFilterKeys?: string[] | null;
+  /** Opções de área para chips de filtro (Escopos). */
+  areaOptions?: string[];
+  onAreaFilterChange?: (keys: string[]) => void;
+  /** Recolhe L1 por defeito quando há mais grupos que este limite (default 3). */
+  collapseL1Above?: number;
 };
 
 function isTypeSelected(selection: ScopeTreeSelection | null, typeId: string): boolean {
@@ -42,60 +50,51 @@ function isSubtypeSelected(selection: ScopeTreeSelection | null, subtypeId: stri
   return selection?.level === "subtype" && selection.subtypeId === subtypeId;
 }
 
-export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyHint }: Props) {
+export function ScopeTree({
+  groups,
+  selection,
+  onSelect,
+  onCreateSubtype,
+  emptyHint,
+  areaFilterKeys,
+  areaOptions,
+  onAreaFilterChange,
+  collapseL1Above = 3,
+}: Props) {
   const [query, setQuery] = useState("");
-  // Controle de quais L1/L2 estão expandidos. Por padrão, tudo aberto.
-  const [openL1, setOpenL1] = useState<Set<string>>(() => new Set(groups.map((g) => g.key)));
-  const [openL2, setOpenL2] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    for (const g of groups) for (const i of g.items) initial.add(`${g.key}/${i.key}`);
-    return initial;
-  });
+  const [closedL1, setClosedL1] = useState<Set<string>>(() => new Set());
+  const [closedL2, setClosedL2] = useState<Set<string>>(() => new Set());
 
   const q = query.trim().toLowerCase();
+  const collapseThreshold = collapseL1Above;
 
-  // Ao trocar Escopos ↔ Investimentos (ou recarregar dados), inclui chaves da árvore atual no estado aberto.
-  useEffect(() => {
-    setOpenL1((prev) => {
-      const next = new Set(prev);
-      for (const g of groups) next.add(g.key);
-      return next;
-    });
-    setOpenL2((prev) => {
-      const next = new Set(prev);
-      for (const g of groups) {
-        for (const i of g.items) next.add(`${g.key}/${i.key}`);
-      }
-      return next;
-    });
-  }, [groups]);
+  const l1Keys = useMemo(
+    () => groups.filter((g) => !g.hideLabel).map((g) => g.key),
+    [groups],
+  );
 
-  // Filtragem: mantém o nó se ele OU algum descendente match. Auto-expande os ancestrais.
-  const filtered = useMemo(() => {
-    if (!q) return groups;
-    const out: ScopeTreeGroup[] = [];
-    for (const g of groups) {
-      const items: ScopeTreeItem[] = [];
-      for (const it of g.items) {
-        const subMatches = it.subtypes.filter((s) => s.label.toLowerCase().includes(q));
-        const itMatches = it.label.toLowerCase().includes(q);
-        const groupMatches = g.label.toLowerCase().includes(q);
-        if (itMatches || subMatches.length > 0 || groupMatches) {
-          items.push({
-            ...it,
-            subtypes: itMatches || groupMatches ? it.subtypes : subMatches,
-          });
-        }
-      }
-      if (items.length > 0 || g.label.toLowerCase().includes(q)) {
-        out.push({ ...g, items });
-      }
+  const collapseSignature = `${l1Keys.join("\0")}|${collapseThreshold}`;
+  const [prevCollapseSignature, setPrevCollapseSignature] = useState<string | null>(null);
+  if (prevCollapseSignature !== collapseSignature) {
+    setPrevCollapseSignature(collapseSignature);
+    if (l1Keys.length > collapseThreshold) {
+      setClosedL1(new Set(l1Keys));
+    } else {
+      setClosedL1(new Set());
     }
-    return out;
-  }, [groups, q]);
+    setClosedL2(new Set());
+  }
+
+  const areaFiltered = useMemo(() => {
+    if (!areaFilterKeys || areaFilterKeys.length === 0) return groups;
+    const keySet = new Set(areaFilterKeys);
+    return groups.filter((g) => g.hideLabel || keySet.has(g.key));
+  }, [groups, areaFilterKeys]);
+
+  const filtered = useMemo(() => filterScopeTree(areaFiltered, query), [areaFiltered, query]);
 
   function toggleL1(key: string) {
-    setOpenL1((prev) => {
+    setClosedL1((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -103,7 +102,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
     });
   }
   function toggleL2(key: string) {
-    setOpenL2((prev) => {
+    setClosedL2((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -111,10 +110,13 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
     });
   }
 
-  /** Investimentos usam um único grupo (`__all__`); sem isso a lista ficava invisível após vir da aba Escopos. */
-  const isL1Open = (key: string) =>
-    Boolean(q) || openL1.has(key) || filtered.length <= 1;
-  const isL2Open = (key: string) => Boolean(q) || openL2.has(key);
+  const isL1Open = (key: string) => Boolean(q) || !closedL1.has(key);
+  const isL2Open = (key: string) => Boolean(q) || !closedL2.has(key);
+
+  const showAreaFilter =
+    areaOptions != null && areaOptions.length > 1 && onAreaFilterChange != null;
+  const activeAreaFilter = areaFilterKeys ?? [];
+  const allAreasSelected = activeAreaFilter.length === 0;
 
   function handleSelectSubtype(s: ScopeTreeSubtype) {
     onSelect({
@@ -126,8 +128,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
   }
 
   function handleSelectType(it: ScopeTreeItem, group: ScopeTreeGroup) {
-    const breadcrumb =
-      group.key === "__all__" ? [it.label] : [group.label, it.label];
+    const breadcrumb = group.hideLabel ? [it.label] : [group.label, it.label];
     onSelect({
       level: "type",
       typeId: it.key,
@@ -139,7 +140,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
   return (
     <div className="flex h-full flex-col">
       {/* Busca */}
-      <div className="shrink-0 border-b border-primary-dark/10 bg-white/60 p-3">
+      <div className="shrink-0 space-y-1.5 border-b border-primary-dark/10 bg-white p-2.5">
         <div className="relative">
           <Search
             className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
@@ -152,31 +153,76 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
             className="h-9 border-primary-dark/15 bg-white pl-8 text-sm"
           />
         </div>
+
+        {showAreaFilter ? (
+          <div className="crm-scrollbar flex gap-1 overflow-x-auto pb-0.5">
+            <button
+              type="button"
+              onClick={() => onAreaFilterChange!([])}
+              className={cn(
+                "shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors",
+                allAreasSelected
+                  ? "bg-primary-dark text-white"
+                  : "bg-primary-dark/8 text-primary-dark/70 hover:bg-primary-dark/12",
+              )}
+            >
+              Todas
+            </button>
+            {areaOptions!.map((area) => {
+              const selected = allAreasSelected || activeAreaFilter.includes(area);
+              const colors = getPracticeAreaColors(area);
+              return (
+                <button
+                  key={area}
+                  type="button"
+                  onClick={() => {
+                    if (allAreasSelected) {
+                      onAreaFilterChange!([area]);
+                      return;
+                    }
+                    const next = activeAreaFilter.includes(area)
+                      ? activeAreaFilter.filter((k) => k !== area)
+                      : [...activeAreaFilter, area];
+                    onAreaFilterChange!(next.length === areaOptions!.length ? [] : next);
+                  }}
+                  className={cn(
+                    "shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold transition-colors",
+                    selected
+                      ? cn(colors.bg, colors.text, "ring-1", colors.ring)
+                      : "bg-primary-dark/5 text-primary-dark/55 hover:bg-primary-dark/10",
+                  )}
+                >
+                  {area}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       {/* Lista */}
-      <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto py-2">
+      <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto py-1.5">
         {filtered.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-muted-foreground">
             {q ? "Nenhum resultado." : emptyHint}
           </p>
         ) : (
           filtered.map((g) => {
+            const showL1 = !g.hideLabel;
             const AreaIcon = getAreaLucideIcon(g.label);
             const areaColors = getPracticeAreaColors(g.label);
             const totalSubtypes = g.items.reduce((acc, it) => acc + it.subtypes.length, 0);
-            const isOpen = isL1Open(g.key);
+            const isOpen = showL1 ? isL1Open(g.key) : true;
 
             return (
-              <div key={g.key} className="px-2 pb-1">
-                {/* L1 — Área */}
-                {filtered.length > 1 ? (
+              <div key={g.key} className="px-1.5 pb-0.5">
+                {/* L1 — Área (omitido quando hideLabel, ex.: investimentos) */}
+                {showL1 ? (
                   <button
                     type="button"
                     onClick={() => toggleL1(g.key)}
-                    className="group flex w-full min-w-0 items-center gap-2 rounded-xl px-2 py-2 text-left transition-colors hover:bg-primary-dark/5"
+                    className="group flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-primary-dark/5"
                   >
-                    {/* Ícone colorido da área */}
                     <span
                       className={cn(
                         "flex size-6 shrink-0 items-center justify-center rounded-lg ring-1",
@@ -210,23 +256,23 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
                 ) : null}
 
                 {isOpen ? (
-                  <div className={cn(filtered.length > 1 && "ml-2 mt-0.5")}>
+                  <div className={cn(showL1 && "ml-1.5 mt-px")}>
                     {g.items.map((it) => (
-                      <div key={it.key} className="mb-0.5">
+                      <div key={it.key} className="mb-px">
                         {/* L2 — Tipo */}
                         <div
                           className={cn(
-                            "flex min-w-0 items-center gap-0.5 rounded-lg px-1 py-1 transition-colors",
+                            "flex min-w-0 items-center gap-0.5 rounded-md px-0.5 py-0.5 transition-colors",
                             it.isActive ? "" : "opacity-60",
                             isTypeSelected(selection, it.key)
-                              ? "bg-primary-dark/8 ring-1 ring-primary-dark/15"
+                              ? "border-l-2 border-primary-dark bg-primary-dark/10 pl-0.5"
                               : "hover:bg-primary-dark/5",
                           )}
                         >
                           <button
                             type="button"
                             onClick={() => toggleL2(`${g.key}/${it.key}`)}
-                            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-primary-dark/50 hover:bg-primary-dark/8 hover:text-primary-dark"
+                            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-primary-dark/50 hover:bg-primary-dark/8 hover:text-primary-dark"
                             aria-label={isL2Open(`${g.key}/${it.key}`) ? "Recolher" : "Expandir"}
                           >
                             {isL2Open(`${g.key}/${it.key}`) ? (
@@ -241,7 +287,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
                             onClick={() => handleSelectType(it, g)}
                             title={it.label}
                             className={cn(
-                              "min-w-0 flex-1 truncate rounded-md px-1 py-1 text-left text-xs font-semibold",
+                              "min-w-0 flex-1 truncate rounded-md px-1 py-0.5 text-left text-xs font-semibold",
                               it.isActive ? "text-primary-dark" : "text-muted-foreground",
                               isTypeSelected(selection, it.key) && "text-primary-dark",
                             )}
@@ -262,7 +308,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
                                   onCreateSubtype(it.key, it.label);
                                 }}
                                 title={`Novo subtipo em ${it.label}`}
-                                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:border-accent-teal/30 hover:bg-accent-teal hover:text-white"
+                                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:border-accent-teal/30 hover:bg-accent-teal hover:text-white"
                                 aria-label={`Novo subtipo em ${it.label}`}
                               >
                                 <Plus className="size-3.5" aria-hidden />
@@ -273,7 +319,7 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
 
                         {/* L3 — Subtipos */}
                         {isL2Open(`${g.key}/${it.key}`) && it.subtypes.length > 0 ? (
-                          <ul className="mb-1 ml-4 space-y-px border-l-2 border-primary-dark/8 pl-2">
+                          <ul className="mb-0.5 ml-3 space-y-px border-l-2 border-primary-dark/10 pl-1.5">
                             {it.subtypes.map((s) => {
                               const isSelected = isSubtypeSelected(selection, s.key);
                               return (
@@ -283,9 +329,9 @@ export function ScopeTree({ groups, selection, onSelect, onCreateSubtype, emptyH
                                     onClick={() => handleSelectSubtype(s)}
                                     title={s.label}
                                     className={cn(
-                                      "flex w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11.5px] transition-all",
+                                      "flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11.5px] transition-colors",
                                       isSelected
-                                        ? "bg-accent-teal font-semibold text-white shadow-sm shadow-accent-teal/20"
+                                        ? "border-l-2 border-accent-teal bg-accent-teal font-semibold text-white shadow-sm"
                                         : s.isActive
                                           ? "text-slate-700 hover:bg-primary-dark/5"
                                           : "text-slate-400 hover:bg-slate-100/60",

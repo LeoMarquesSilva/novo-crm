@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+
 interface SendTextInput {
   destination: string;
   text: string;
@@ -54,7 +56,7 @@ export class EvolutionWhatsappConnector {
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
     this.assertConfig();
-    const response = await fetch(`${this.instanceBaseUrl}${path}`, {
+    const response = await fetchWithTimeout(`${this.instanceBaseUrl}${path}`, {
       ...init,
       headers: {
         apikey: this.apiKey,
@@ -70,7 +72,7 @@ export class EvolutionWhatsappConnector {
 
   async sendText({ destination, text }: SendTextInput) {
     this.assertConfig();
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${this.instanceBaseUrl}/message/sendText/${this.instance}`,
       {
         method: "POST",

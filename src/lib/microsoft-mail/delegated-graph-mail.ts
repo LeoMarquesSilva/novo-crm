@@ -2,6 +2,7 @@
  * OAuth2 delegado Microsoft (authorization code + refresh_token) — mesmo modelo que n8n com conta de utilizador.
  * Requer no registo Azure AD: permissões delegadas Mail.Send, offline_access, openid + redirect URI Web.
  */
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 
 const GRAPH_SCOPE = "https://graph.microsoft.com/Mail.Send offline_access openid";
 
@@ -55,7 +56,7 @@ export async function exchangeMicrosoftMailAuthCode(params: {
     redirect_uri: params.redirectUri,
   });
 
-  const res = await fetch(tokenUrl, {
+  const res = await fetchWithTimeout(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -87,7 +88,7 @@ export async function refreshMicrosoftMailAccessToken(refreshToken: string): Pro
     scope: GRAPH_SCOPE,
   });
 
-  const res = await fetch(tokenUrl, {
+  const res = await fetchWithTimeout(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -105,7 +106,7 @@ export async function refreshMicrosoftMailAccessToken(refreshToken: string): Pro
 }
 
 export async function fetchGraphMeEmail(accessToken: string): Promise<string | null> {
-  const res = await fetch("https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName", {
+  const res = await fetchWithTimeout("https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) return null;
@@ -119,7 +120,7 @@ export async function sendMailAsMe(params: {
   subject: string;
   html: string;
 }): Promise<{ ok: true } | { ok: false; status: number; body: string }> {
-  const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+  const res = await fetchWithTimeout("https://graph.microsoft.com/v1.0/me/sendMail", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${params.accessToken}`,

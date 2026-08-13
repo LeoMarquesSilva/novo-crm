@@ -61,7 +61,8 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (pathname === "/login" && user) {
+  const loginReason = request.nextUrl.searchParams.get("reason");
+  if (pathname === "/login" && user && loginReason !== "profile_missing") {
     const safeNext = safeNextPath(request.nextUrl.searchParams.get("next"));
     return NextResponse.redirect(new URL(safeNext, request.url));
   }

@@ -24,6 +24,8 @@ export type Database = {
           status: Database["public"]["Enums"]["contract_status"]
           titulo: string
           updated_at: string
+          versao_origem_id: string | null
+          versao_resultante_id: string | null
         }
         Insert: {
           cliente_id: string
@@ -34,6 +36,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["contract_status"]
           titulo: string
           updated_at?: string
+          versao_origem_id?: string | null
+          versao_resultante_id?: string | null
         }
         Update: {
           cliente_id?: string
@@ -44,6 +48,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["contract_status"]
           titulo?: string
           updated_at?: string
+          versao_origem_id?: string | null
+          versao_resultante_id?: string | null
         }
         Relationships: [
           {
@@ -58,6 +64,20 @@ export type Database = {
             columns: ["contrato_base_id"]
             isOneToOne: false
             referencedRelation: "contratos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aditivos_versao_origem_id_fkey"
+            columns: ["versao_origem_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_versoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aditivos_versao_resultante_id_fkey"
+            columns: ["versao_resultante_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_versoes"
             referencedColumns: ["id"]
           },
         ]
@@ -270,34 +290,127 @@ export type Database = {
       }
       contratos: {
         Row: {
-          cliente_id: string
+          antecedencia_faturamento_dias: number
+          ativado_em: string | null
+          ativado_por: string | null
+          atualizado_por: string | null
+          cliente_id: string | null
           created_at: string
+          criado_por: string | null
           data_assinatura: string | null
+          data_alerta_renovacao: string | null
+          data_base_renovacao: string | null
+          d4sign_document_id: string | null
+          dia_vencimento: number | null
+          encerrado_em: string | null
+          encerrado_por: string | null
+          etiquetas: string[]
           id: string
+          ignorar_painel_horas: boolean
+          indice_reajuste: string | null
           link_documento: string | null
-          status: Database["public"]["Enums"]["contract_status"]
+          oportunidade_id: string | null
+          prazo_indeterminado: boolean
+          primeiro_faturamento_condicionado: boolean
+          primeiro_vencimento: string | null
+          sharepoint_referencia: string | null
+          sharepoint_url: string | null
+          status: Database["public"]["Enums"]["contract_lifecycle_status"]
+          status_assinatura: Database["public"]["Enums"]["contract_status"]
+          suspenso_em: string | null
+          suspenso_por: string | null
           titulo: string
           updated_at: string
+          valor_anual_override: number | null
+          valor_anual_override_motivo: string | null
+          valor_anual_referencia: number | null
+          versao_ativa_id: string | null
+          vigente_ate: string | null
+          vigente_de: string | null
+          vios_referencia: string | null
+          vios_url: string | null
         }
         Insert: {
-          cliente_id: string
+          antecedencia_faturamento_dias?: number
+          ativado_em?: string | null
+          ativado_por?: string | null
+          atualizado_por?: string | null
+          cliente_id?: string | null
           created_at?: string
+          criado_por?: string | null
           data_assinatura?: string | null
+          data_alerta_renovacao?: string | null
+          data_base_renovacao?: string | null
+          d4sign_document_id?: string | null
+          dia_vencimento?: number | null
+          encerrado_em?: string | null
+          encerrado_por?: string | null
+          etiquetas?: string[]
           id?: string
+          ignorar_painel_horas?: boolean
+          indice_reajuste?: string | null
           link_documento?: string | null
-          status?: Database["public"]["Enums"]["contract_status"]
+          oportunidade_id?: string | null
+          prazo_indeterminado?: boolean
+          primeiro_faturamento_condicionado?: boolean
+          primeiro_vencimento?: string | null
+          sharepoint_referencia?: string | null
+          sharepoint_url?: string | null
+          status?: Database["public"]["Enums"]["contract_lifecycle_status"]
+          status_assinatura?: Database["public"]["Enums"]["contract_status"]
+          suspenso_em?: string | null
+          suspenso_por?: string | null
           titulo: string
           updated_at?: string
+          valor_anual_override?: number | null
+          valor_anual_override_motivo?: string | null
+          valor_anual_referencia?: number | null
+          versao_ativa_id?: string | null
+          vigente_ate?: string | null
+          vigente_de?: string | null
+          vios_referencia?: string | null
+          vios_url?: string | null
         }
         Update: {
-          cliente_id?: string
+          antecedencia_faturamento_dias?: number
+          ativado_em?: string | null
+          ativado_por?: string | null
+          atualizado_por?: string | null
+          cliente_id?: string | null
           created_at?: string
+          criado_por?: string | null
           data_assinatura?: string | null
+          data_alerta_renovacao?: string | null
+          data_base_renovacao?: string | null
+          d4sign_document_id?: string | null
+          dia_vencimento?: number | null
+          encerrado_em?: string | null
+          encerrado_por?: string | null
+          etiquetas?: string[]
           id?: string
+          ignorar_painel_horas?: boolean
+          indice_reajuste?: string | null
           link_documento?: string | null
-          status?: Database["public"]["Enums"]["contract_status"]
+          oportunidade_id?: string | null
+          prazo_indeterminado?: boolean
+          primeiro_faturamento_condicionado?: boolean
+          primeiro_vencimento?: string | null
+          sharepoint_referencia?: string | null
+          sharepoint_url?: string | null
+          status?: Database["public"]["Enums"]["contract_lifecycle_status"]
+          status_assinatura?: Database["public"]["Enums"]["contract_status"]
+          suspenso_em?: string | null
+          suspenso_por?: string | null
           titulo?: string
           updated_at?: string
+          valor_anual_override?: number | null
+          valor_anual_override_motivo?: string | null
+          valor_anual_referencia?: number | null
+          versao_ativa_id?: string | null
+          vigente_ate?: string | null
+          vigente_de?: string | null
+          vios_referencia?: string | null
+          vios_url?: string | null
         }
         Relationships: [
           {
@@ -307,12 +420,737 @@ export type Database = {
             referencedRelation: "clientes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "contratos_ativado_por_fkey"
+            columns: ["ativado_por"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_atualizado_por_fkey"
+            columns: ["atualizado_por"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_d4sign_document_id_fkey"
+            columns: ["d4sign_document_id"]
+            isOneToOne: false
+            referencedRelation: "d4sign_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_encerrado_por_fkey"
+            columns: ["encerrado_por"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: true
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_suspenso_por_fkey"
+            columns: ["suspenso_por"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_versao_ativa_id_fkey"
+            columns: ["versao_ativa_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_versoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contrato_alertas: {
+        Row: {
+          cliente_notificado_em: string | null
+          cliente_notificado_por: string | null
+          contrato_id: string
+          created_at: string
+          data_base: string | null
+          data_vencimento: string | null
+          decisao: string | null
+          fechamento_id: string | null
+          id: string
+          idempotency_key: string
+          responsavel_app_user_id: string | null
+          resolucao: string | null
+          resolvido_em: string | null
+          resolvido_por: string | null
+          status: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          cliente_notificado_em?: string | null
+          cliente_notificado_por?: string | null
+          contrato_id: string
+          created_at?: string
+          data_base?: string | null
+          data_vencimento?: string | null
+          decisao?: string | null
+          fechamento_id?: string | null
+          id?: string
+          idempotency_key: string
+          responsavel_app_user_id?: string | null
+          resolucao?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          status?: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          cliente_notificado_em?: string | null
+          cliente_notificado_por?: string | null
+          contrato_id?: string
+          created_at?: string
+          data_base?: string | null
+          data_vencimento?: string | null
+          decisao?: string | null
+          fechamento_id?: string | null
+          id?: string
+          idempotency_key?: string
+          responsavel_app_user_id?: string | null
+          resolucao?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_alertas_cliente_notificado_por_fkey"; columns: ["cliente_notificado_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_alertas_contrato_id_fkey"; columns: ["contrato_id"]; isOneToOne: false; referencedRelation: "contratos"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_alertas_fechamento_id_fkey"; columns: ["fechamento_id"]; isOneToOne: false; referencedRelation: "contrato_fechamentos"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_alertas_resolvido_por_fkey"; columns: ["resolvido_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_alertas_responsavel_app_user_id_fkey"; columns: ["responsavel_app_user_id"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_areas: {
+        Row: {
+          acompanha_horas: boolean
+          acompanha_processos: boolean
+          area_key: string
+          created_at: string
+          horas_incluidas: number | null
+          id: string
+          observacoes: string | null
+          processos_incluidos: number | null
+          updated_at: string
+          valor_excedente_hora: number | null
+          valor_excedente_processo: number | null
+          valor_km: number | null
+          versao_id: string
+        }
+        Insert: {
+          acompanha_horas?: boolean
+          acompanha_processos?: boolean
+          area_key: string
+          created_at?: string
+          horas_incluidas?: number | null
+          id?: string
+          observacoes?: string | null
+          processos_incluidos?: number | null
+          updated_at?: string
+          valor_excedente_hora?: number | null
+          valor_excedente_processo?: number | null
+          valor_km?: number | null
+          versao_id: string
+        }
+        Update: {
+          acompanha_horas?: boolean
+          acompanha_processos?: boolean
+          area_key?: string
+          created_at?: string
+          horas_incluidas?: number | null
+          id?: string
+          observacoes?: string | null
+          processos_incluidos?: number | null
+          updated_at?: string
+          valor_excedente_hora?: number | null
+          valor_excedente_processo?: number | null
+          valor_km?: number | null
+          versao_id?: string
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_areas_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_comissoes: {
+        Row: {
+          base_calculo: string
+          beneficiario_app_user_id: string | null
+          beneficiario_nome: string
+          componente_id: string | null
+          created_at: string
+          id: string
+          motivo: string | null
+          percentual: number | null
+          periodo_fim: string | null
+          periodo_inicio: string | null
+          updated_at: string
+          valor: number | null
+          versao_id: string
+        }
+        Insert: {
+          base_calculo: string
+          beneficiario_app_user_id?: string | null
+          beneficiario_nome: string
+          componente_id?: string | null
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          percentual?: number | null
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          updated_at?: string
+          valor?: number | null
+          versao_id: string
+        }
+        Update: {
+          base_calculo?: string
+          beneficiario_app_user_id?: string | null
+          beneficiario_nome?: string
+          componente_id?: string | null
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          percentual?: number | null
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          updated_at?: string
+          valor?: number | null
+          versao_id?: string
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_comissoes_beneficiario_app_user_id_fkey"; columns: ["beneficiario_app_user_id"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_comissoes_componente_id_fkey"; columns: ["componente_id"]; isOneToOne: false; referencedRelation: "contrato_componentes_cobranca"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_comissoes_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_componentes_cobranca: {
+        Row: {
+          area_id: string | null
+          base_calculo: string | null
+          condicao_liberacao: string | null
+          created_at: string
+          descricao: string
+          elegivel_comissao: boolean
+          elegivel_participacao: boolean
+          elegivel_rateio: boolean
+          grupo_faixa_id: string | null
+          id: string
+          liberacao_manual_necessaria: boolean
+          liberado_em: string | null
+          liberado_por: string | null
+          modo_cobranca_variavel: string | null
+          ordem: number
+          percentual: number | null
+          periodo_fim: string | null
+          periodo_inicio: string | null
+          quantidade_incluida: number | null
+          recorrencia: string | null
+          tipo: string
+          tratamento_tributario: string | null
+          updated_at: string
+          valor_fixo: number | null
+          valor_unitario: number | null
+          versao_id: string
+        }
+        Insert: {
+          area_id?: string | null
+          base_calculo?: string | null
+          condicao_liberacao?: string | null
+          created_at?: string
+          descricao: string
+          elegivel_comissao?: boolean
+          elegivel_participacao?: boolean
+          elegivel_rateio?: boolean
+          grupo_faixa_id?: string | null
+          id?: string
+          liberacao_manual_necessaria?: boolean
+          liberado_em?: string | null
+          liberado_por?: string | null
+          modo_cobranca_variavel?: string | null
+          ordem?: number
+          percentual?: number | null
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          quantidade_incluida?: number | null
+          recorrencia?: string | null
+          tipo: string
+          tratamento_tributario?: string | null
+          updated_at?: string
+          valor_fixo?: number | null
+          valor_unitario?: number | null
+          versao_id: string
+        }
+        Update: {
+          area_id?: string | null
+          base_calculo?: string | null
+          condicao_liberacao?: string | null
+          created_at?: string
+          descricao?: string
+          elegivel_comissao?: boolean
+          elegivel_participacao?: boolean
+          elegivel_rateio?: boolean
+          grupo_faixa_id?: string | null
+          id?: string
+          liberacao_manual_necessaria?: boolean
+          liberado_em?: string | null
+          liberado_por?: string | null
+          modo_cobranca_variavel?: string | null
+          ordem?: number
+          percentual?: number | null
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          quantidade_incluida?: number | null
+          recorrencia?: string | null
+          tipo?: string
+          tratamento_tributario?: string | null
+          updated_at?: string
+          valor_fixo?: number | null
+          valor_unitario?: number | null
+          versao_id?: string
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_componentes_cobranca_area_id_fkey"; columns: ["area_id"]; isOneToOne: false; referencedRelation: "contrato_areas"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_componentes_cobranca_liberado_por_fkey"; columns: ["liberado_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_componentes_cobranca_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_consumos_mensais: {
+        Row: {
+          area_id: string | null
+          competencia: string
+          componente_id: string | null
+          contrato_id: string
+          created_at: string
+          evidencia_url: string | null
+          id: string
+          informado_por: string | null
+          observacao: string | null
+          quantidade: number | null
+          tipo: string
+          updated_at: string
+          valor: number | null
+          versao_id: string
+        }
+        Insert: {
+          area_id?: string | null
+          competencia: string
+          componente_id?: string | null
+          contrato_id: string
+          created_at?: string
+          evidencia_url?: string | null
+          id?: string
+          informado_por?: string | null
+          observacao?: string | null
+          quantidade?: number | null
+          tipo: string
+          updated_at?: string
+          valor?: number | null
+          versao_id: string
+        }
+        Update: {
+          area_id?: string | null
+          competencia?: string
+          componente_id?: string | null
+          contrato_id?: string
+          created_at?: string
+          evidencia_url?: string | null
+          id?: string
+          informado_por?: string | null
+          observacao?: string | null
+          quantidade?: number | null
+          tipo?: string
+          updated_at?: string
+          valor?: number | null
+          versao_id?: string
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_consumos_mensais_area_id_fkey"; columns: ["area_id"]; isOneToOne: false; referencedRelation: "contrato_areas"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_consumos_mensais_componente_id_fkey"; columns: ["componente_id"]; isOneToOne: false; referencedRelation: "contrato_componentes_cobranca"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_consumos_mensais_contrato_id_fkey"; columns: ["contrato_id"]; isOneToOne: false; referencedRelation: "contratos"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_consumos_mensais_informado_por_fkey"; columns: ["informado_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_consumos_mensais_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_resolucoes_mensais: {
+        Row: { id: string; contrato_id: string; versao_id: string; componente_id: string; competencia: string; liberado: boolean; valor: number | null; base_calculo: number | null; motivo: string | null; informado_por: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; contrato_id: string; versao_id: string; componente_id: string; competencia: string; liberado?: boolean; valor?: number | null; base_calculo?: number | null; motivo?: string | null; informado_por?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; contrato_id?: string; versao_id?: string; componente_id?: string; competencia?: string; liberado?: boolean; valor?: number | null; base_calculo?: number | null; motivo?: string | null; informado_por?: string | null; created_at?: string; updated_at?: string }
+        Relationships: [
+          { foreignKeyName: "contrato_resolucoes_mensais_contrato_id_fkey"; columns: ["contrato_id"]; isOneToOne: false; referencedRelation: "contratos"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_resolucoes_mensais_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_resolucoes_mensais_componente_id_fkey"; columns: ["componente_id"]; isOneToOne: false; referencedRelation: "contrato_componentes_cobranca"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_resolucoes_mensais_informado_por_fkey"; columns: ["informado_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_eventos: {
+        Row: {
+          ator_app_user_id: string | null
+          contrato_id: string
+          created_at: string
+          detalhe: string | null
+          id: string
+          idempotency_key: string | null
+          metadados_snapshot: Json
+          origem: string | null
+          tipo: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          ator_app_user_id?: string | null
+          contrato_id: string
+          created_at?: string
+          detalhe?: string | null
+          id?: string
+          idempotency_key?: string | null
+          metadados_snapshot?: Json
+          origem?: string | null
+          tipo: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          ator_app_user_id?: string | null
+          contrato_id?: string
+          created_at?: string
+          detalhe?: string | null
+          id?: string
+          idempotency_key?: string | null
+          metadados_snapshot?: Json
+          origem?: string | null
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_eventos_ator_app_user_id_fkey"; columns: ["ator_app_user_id"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_eventos_contrato_id_fkey"; columns: ["contrato_id"]; isOneToOne: false; referencedRelation: "contratos"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_fechamento_itens: {
+        Row: {
+          area_id: string | null
+          bloqueante: boolean
+          bloqueio_descricao: string | null
+          bloqueio_tipo: string | null
+          componente_id: string | null
+          created_at: string
+          descricao: string
+          elegivel_comissao: boolean
+          elegivel_participacao: boolean
+          elegivel_rateio: boolean
+          id: string
+          metadados: Json
+          percentual: number | null
+          quantidade: number | null
+          resolucao: string | null
+          resolvido_em: string | null
+          resolvido_por: string | null
+          revisao_id: string
+          tarifa: number | null
+          tipo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          area_id?: string | null
+          bloqueante?: boolean
+          bloqueio_descricao?: string | null
+          bloqueio_tipo?: string | null
+          componente_id?: string | null
+          created_at?: string
+          descricao: string
+          elegivel_comissao?: boolean
+          elegivel_participacao?: boolean
+          elegivel_rateio?: boolean
+          id?: string
+          metadados?: Json
+          percentual?: number | null
+          quantidade?: number | null
+          resolucao?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          revisao_id: string
+          tarifa?: number | null
+          tipo: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          area_id?: string | null
+          bloqueante?: boolean
+          bloqueio_descricao?: string | null
+          bloqueio_tipo?: string | null
+          componente_id?: string | null
+          created_at?: string
+          descricao?: string
+          elegivel_comissao?: boolean
+          elegivel_participacao?: boolean
+          elegivel_rateio?: boolean
+          id?: string
+          metadados?: Json
+          percentual?: number | null
+          quantidade?: number | null
+          resolucao?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          revisao_id?: string
+          tarifa?: number | null
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_fechamento_itens_area_id_fkey"; columns: ["area_id"]; isOneToOne: false; referencedRelation: "contrato_areas"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamento_itens_componente_id_fkey"; columns: ["componente_id"]; isOneToOne: false; referencedRelation: "contrato_componentes_cobranca"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamento_itens_resolvido_por_fkey"; columns: ["resolvido_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamento_itens_revisao_id_fkey"; columns: ["revisao_id"]; isOneToOne: false; referencedRelation: "contrato_fechamento_revisoes"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_fechamento_revisoes: {
+        Row: {
+          aprovada_em: string | null
+          aprovada_por: string | null
+          calculada_em: string | null
+          calculada_por: string | null
+          created_at: string
+          fechamento_id: string
+          id: string
+          lancada_vios_em: string | null
+          lancada_vios_por: string | null
+          motivo_correcao: string | null
+          numero: number
+          revisao_anterior_id: string | null
+          status: Database["public"]["Enums"]["contract_closing_status"]
+          total_geral: number
+          total_honorarios: number
+          total_reembolsos: number
+          total_tributos: number
+          updated_at: string
+          vios_referencia: string | null
+          vios_url: string | null
+        }
+        Insert: {
+          aprovada_em?: string | null
+          aprovada_por?: string | null
+          calculada_em?: string | null
+          calculada_por?: string | null
+          created_at?: string
+          fechamento_id: string
+          id?: string
+          lancada_vios_em?: string | null
+          lancada_vios_por?: string | null
+          motivo_correcao?: string | null
+          numero: number
+          revisao_anterior_id?: string | null
+          status?: Database["public"]["Enums"]["contract_closing_status"]
+          total_geral?: number
+          total_honorarios?: number
+          total_reembolsos?: number
+          total_tributos?: number
+          updated_at?: string
+          vios_referencia?: string | null
+          vios_url?: string | null
+        }
+        Update: {
+          aprovada_em?: string | null
+          aprovada_por?: string | null
+          calculada_em?: string | null
+          calculada_por?: string | null
+          created_at?: string
+          fechamento_id?: string
+          id?: string
+          lancada_vios_em?: string | null
+          lancada_vios_por?: string | null
+          motivo_correcao?: string | null
+          numero?: number
+          revisao_anterior_id?: string | null
+          status?: Database["public"]["Enums"]["contract_closing_status"]
+          total_geral?: number
+          total_honorarios?: number
+          total_reembolsos?: number
+          total_tributos?: number
+          updated_at?: string
+          vios_referencia?: string | null
+          vios_url?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_fechamento_revisoes_aprovada_por_fkey"; columns: ["aprovada_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamento_revisoes_calculada_por_fkey"; columns: ["calculada_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamento_revisoes_fechamento_id_fkey"; columns: ["fechamento_id"]; isOneToOne: false; referencedRelation: "contrato_fechamentos"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamento_revisoes_lancada_vios_por_fkey"; columns: ["lancada_vios_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamento_revisoes_revisao_anterior_id_fkey"; columns: ["revisao_anterior_id"]; isOneToOne: false; referencedRelation: "contrato_fechamento_revisoes"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_fechamentos: {
+        Row: {
+          competencia: string
+          contrato_id: string
+          created_at: string
+          id: string
+          preparado_em: string | null
+          preparado_por: string | null
+          revisao_atual_id: string | null
+          status: Database["public"]["Enums"]["contract_closing_status"]
+          updated_at: string
+          versao_id: string
+        }
+        Insert: {
+          competencia: string
+          contrato_id: string
+          created_at?: string
+          id?: string
+          preparado_em?: string | null
+          preparado_por?: string | null
+          revisao_atual_id?: string | null
+          status?: Database["public"]["Enums"]["contract_closing_status"]
+          updated_at?: string
+          versao_id: string
+        }
+        Update: {
+          competencia?: string
+          contrato_id?: string
+          created_at?: string
+          id?: string
+          preparado_em?: string | null
+          preparado_por?: string | null
+          revisao_atual_id?: string | null
+          status?: Database["public"]["Enums"]["contract_closing_status"]
+          updated_at?: string
+          versao_id?: string
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_fechamentos_contrato_id_fkey"; columns: ["contrato_id"]; isOneToOne: false; referencedRelation: "contratos"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamentos_preparado_por_fkey"; columns: ["preparado_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamentos_revisao_atual_id_fkey"; columns: ["revisao_atual_id"]; isOneToOne: false; referencedRelation: "contrato_fechamento_revisoes"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_fechamentos_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_parcelas: {
+        Row: { competencia: string; componente_id: string; created_at: string; id: string; numero: number; updated_at: string; valor: number; vencimento: string }
+        Insert: { competencia: string; componente_id: string; created_at?: string; id?: string; numero: number; updated_at?: string; valor: number; vencimento: string }
+        Update: { competencia?: string; componente_id?: string; created_at?: string; id?: string; numero?: number; updated_at?: string; valor?: number; vencimento?: string }
+        Relationships: [
+          { foreignKeyName: "contrato_parcelas_componente_id_fkey"; columns: ["componente_id"]; isOneToOne: false; referencedRelation: "contrato_componentes_cobranca"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_participacoes_socios: {
+        Row: { componente_id: string | null; created_at: string; id: string; override_motivo: string | null; percentual: number; regra_sugerida: string | null; socio_app_user_id: string | null; socio_nome: string; updated_at: string; versao_id: string }
+        Insert: { componente_id?: string | null; created_at?: string; id?: string; override_motivo?: string | null; percentual: number; regra_sugerida?: string | null; socio_app_user_id?: string | null; socio_nome: string; updated_at?: string; versao_id: string }
+        Update: { componente_id?: string | null; created_at?: string; id?: string; override_motivo?: string | null; percentual?: number; regra_sugerida?: string | null; socio_app_user_id?: string | null; socio_nome?: string; updated_at?: string; versao_id?: string }
+        Relationships: [
+          { foreignKeyName: "contrato_participacoes_socios_componente_id_fkey"; columns: ["componente_id"]; isOneToOne: false; referencedRelation: "contrato_componentes_cobranca"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_participacoes_socios_socio_app_user_id_fkey"; columns: ["socio_app_user_id"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_participacoes_socios_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_rateios_area: {
+        Row: { area_id: string; componente_id: string | null; created_at: string; id: string; modo: string; percentual: number | null; updated_at: string; valor: number | null; versao_id: string }
+        Insert: { area_id: string; componente_id?: string | null; created_at?: string; id?: string; modo: string; percentual?: number | null; updated_at?: string; valor?: number | null; versao_id: string }
+        Update: { area_id?: string; componente_id?: string | null; created_at?: string; id?: string; modo?: string; percentual?: number | null; updated_at?: string; valor?: number | null; versao_id?: string }
+        Relationships: [
+          { foreignKeyName: "contrato_rateios_area_area_id_fkey"; columns: ["area_id"]; isOneToOne: false; referencedRelation: "contrato_areas"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_rateios_area_componente_id_fkey"; columns: ["componente_id"]; isOneToOne: false; referencedRelation: "contrato_componentes_cobranca"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_rateios_area_versao_id_fkey"; columns: ["versao_id"]; isOneToOne: false; referencedRelation: "contrato_versoes"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_responsaveis: {
+        Row: { app_user_id: string | null; cargo: string | null; contrato_id: string; created_at: string; email: string | null; id: string; nome: string; papel: string; telefone: string | null; updated_at: string }
+        Insert: { app_user_id?: string | null; cargo?: string | null; contrato_id: string; created_at?: string; email?: string | null; id?: string; nome: string; papel: string; telefone?: string | null; updated_at?: string }
+        Update: { app_user_id?: string | null; cargo?: string | null; contrato_id?: string; created_at?: string; email?: string | null; id?: string; nome?: string; papel?: string; telefone?: string | null; updated_at?: string }
+        Relationships: [
+          { foreignKeyName: "contrato_responsaveis_app_user_id_fkey"; columns: ["app_user_id"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_responsaveis_contrato_id_fkey"; columns: ["contrato_id"]; isOneToOne: false; referencedRelation: "contratos"; referencedColumns: ["id"] },
+        ]
+      }
+      contrato_versoes: {
+        Row: {
+          ativada_em: string | null
+          ativada_por: string | null
+          atualizado_por: string | null
+          contrato_id: string
+          created_at: string
+          criado_por: string | null
+          id: string
+          numero: number
+          origem_snapshot: Json
+          status: Database["public"]["Enums"]["contract_version_status"]
+          substituida_em: string | null
+          substituida_por: string | null
+          updated_at: string
+          vigente_ate: string | null
+          vigente_de: string | null
+        }
+        Insert: {
+          ativada_em?: string | null
+          ativada_por?: string | null
+          atualizado_por?: string | null
+          contrato_id: string
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          numero: number
+          origem_snapshot?: Json
+          status?: Database["public"]["Enums"]["contract_version_status"]
+          substituida_em?: string | null
+          substituida_por?: string | null
+          updated_at?: string
+          vigente_ate?: string | null
+          vigente_de?: string | null
+        }
+        Update: {
+          ativada_em?: string | null
+          ativada_por?: string | null
+          atualizado_por?: string | null
+          contrato_id?: string
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          numero?: number
+          origem_snapshot?: Json
+          status?: Database["public"]["Enums"]["contract_version_status"]
+          substituida_em?: string | null
+          substituida_por?: string | null
+          updated_at?: string
+          vigente_ate?: string | null
+          vigente_de?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "contrato_versoes_ativada_por_fkey"; columns: ["ativada_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_versoes_atualizado_por_fkey"; columns: ["atualizado_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_versoes_contrato_id_fkey"; columns: ["contrato_id"]; isOneToOne: false; referencedRelation: "contratos"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_versoes_criado_por_fkey"; columns: ["criado_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
+          { foreignKeyName: "contrato_versoes_substituida_por_fkey"; columns: ["substituida_por"]; isOneToOne: false; referencedRelation: "app_users"; referencedColumns: ["id"] },
         ]
       }
       crm_in_app_notifications: {
         Row: {
           created_at: string
           id: string
+          idempotency_key: string | null
           lida_em: string | null
           payload: Json
           tipo: string
@@ -321,6 +1159,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           lida_em?: string | null
           payload?: Json
           tipo: string
@@ -329,6 +1168,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           lida_em?: string | null
           payload?: Json
           tipo?: string
@@ -460,25 +1300,37 @@ export type Database = {
       }
       d4sign_webhook_events: {
         Row: {
+          attempt_count: number
           created_at: string
           document_uuid: string
           id: string
+          last_error: string | null
+          processed_at: string | null
+          processing_status: string
           raw_payload: Json
           signer_email: string | null
           type_post: string
         }
         Insert: {
+          attempt_count?: number
           created_at?: string
           document_uuid: string
           id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          processing_status?: string
           raw_payload?: Json
           signer_email?: string | null
           type_post: string
         }
         Update: {
+          attempt_count?: number
           created_at?: string
           document_uuid?: string
           id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          processing_status?: string
           raw_payload?: Json
           signer_email?: string | null
           type_post?: string
@@ -1973,13 +2825,188 @@ export type Database = {
       }
     }
     Functions: {
+      activate_contract_version_atomic: {
+        Args: {
+          p_actor_id: string
+          p_advance_opportunity: boolean
+          p_contract_id: string
+          p_expected_version_updated_at: string
+          p_now: string
+          p_version_id: string
+        }
+        Returns: {
+          contract_id: string
+          opportunity_id: string | null
+          opportunity_transition_id: string | null
+          version_id: string
+        }[]
+      }
+      admin_change_user_role: {
+        Args: {
+          p_actor: string
+          p_next_role: string
+          p_target: string
+        }
+        Returns: boolean
+      }
+      admin_delete_user: {
+        Args: {
+          p_actor: string
+          p_target: string
+        }
+        Returns: string
+      }
       auth_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      delete_crm_lead_atomic: {
+        Args: { p_opportunity_id: string }
+        Returns: boolean
+      }
+      finalize_d4sign_opportunity: {
+        Args: {
+          p_now: string
+          p_opportunity_id: string
+          p_signers: Json
+        }
+        Returns: string | null
+      }
+      get_contract_billing_transition_state: {
+        Args: {
+          p_on_date: string
+          p_opportunity_id: string
+        }
+        Returns: {
+          code: string | null
+          contract_id: string | null
+          is_valid: boolean
+          reason: string | null
+        }[]
+      }
+      ensure_contract_draft_for_opportunity: {
+        Args: {
+          p_now: string
+          p_opportunity_id: string
+        }
+        Returns: string
+      }
+      save_contract_configuration_atomic: {
+        Args: {
+          p_actor_id: string
+          p_configuration: Json
+          p_contract: Json
+          p_contract_id: string
+          p_expected_version_updated_at: string
+          p_now: string
+          p_version_id: string
+        }
+        Returns: string
+      }
+      manage_contract_version_atomic: {
+        Args: {
+          p_action: Json
+          p_actor_id: string
+          p_contract_id: string
+          p_now: string
+        }
+        Returns: Json
+      }
+      create_contract_closing_revision: {
+        Args: {
+          p_actor_id: string
+          p_competencia: string
+          p_contract_id: string
+          p_expected_revision: number
+          p_items: Json
+          p_totals: Json
+          p_version_id: string
+        }
+        Returns: { closing_id: string; revision_id: string; revision_number: number }[]
+      }
+      approve_contract_closing_revision: {
+        Args: { p_actor_id: string; p_closing_id: string; p_contract_id: string; p_expected_revision: number }
+        Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
+      }
+      create_contract_closing_correction: {
+        Args: {
+          p_actor_id: string
+          p_closing_id: string
+          p_contract_id: string
+          p_expected_revision: number
+          p_previous_revision_id: string
+          p_reason: string
+        }
+        Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
+      }
+      register_contract_closing_vios: {
+        Args: {
+          p_actor_id: string
+          p_closing_id: string
+          p_contract_id: string
+          p_expected_revision: number
+          p_reference: string
+          p_url: string
+        }
+        Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
+      }
+      resolve_contract_closing_blocker: {
+        Args: { p_actor_id: string; p_closing_id: string; p_contract_id: string; p_expected_revision: number; p_item_id: string; p_reason: string; p_resolution: string }
+        Returns: Database["public"]["Tables"]["contrato_fechamento_itens"]["Row"]
+      }
+      upsert_contract_consumptions_atomic: {
+        Args: { p_actor_id: string; p_competencia: string; p_contract_id: string; p_items: Json; p_resolutions: Json; p_version_id: string }
+        Returns: Database["public"]["Tables"]["contrato_consumos_mensais"]["Row"][]
+      }
+      registrar_lancamento_vios_fechamento: {
+        Args: {
+          p_lancado_em?: string
+          p_lancado_por: string
+          p_revisao_id: string
+          p_vios_referencia: string
+          p_vios_url: string
+        }
+        Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
+      }
+      transition_opportunity_atomic: {
+        Args: {
+          p_changed_by: string
+          p_due_compilacao_entrada_em: string | null
+          p_due_revisao_entrada_em: string | null
+          p_due_revision_cycle: number | null
+          p_expected_stage: Database["public"]["Enums"]["opportunity_stage"]
+          p_field_values: Json
+          p_lead_intake: Json
+          p_link_contrato: string | null
+          p_link_proposta: string | null
+          p_next_stage: Database["public"]["Enums"]["opportunity_stage"]
+          p_opportunity_id: string
+          p_set_link_contrato: boolean
+          p_set_link_proposta: boolean
+          p_updated_at: string
+        }
+        Returns: {
+          link_contrato: string | null
+          link_proposta: string | null
+          transition_id: string
+        }[]
+      }
     }
     Enums: {
+      contract_closing_status:
+        | "a_calcular"
+        | "em_revisao"
+        | "aprovado"
+        | "lancado_vios"
+        | "cancelado"
+      contract_lifecycle_status:
+        | "rascunho"
+        | "em_revisao"
+        | "ativo"
+        | "suspenso"
+        | "encerrado"
       contract_status: "rascunho" | "enviado" | "assinado"
+      contract_version_status: "rascunho" | "ativa" | "substituida" | "cancelada"
       demand_type: "novo_lead" | "novo_contrato" | "aditivo"
       indicator_status: "pendente_aprovacao" | "aprovado" | "mesclado"
       opportunity_stage:
@@ -2128,7 +3155,22 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      contract_closing_status: [
+        "a_calcular",
+        "em_revisao",
+        "aprovado",
+        "lancado_vios",
+        "cancelado",
+      ],
+      contract_lifecycle_status: [
+        "rascunho",
+        "em_revisao",
+        "ativo",
+        "suspenso",
+        "encerrado",
+      ],
       contract_status: ["rascunho", "enviado", "assinado"],
+      contract_version_status: ["rascunho", "ativa", "substituida", "cancelada"],
       demand_type: ["novo_lead", "novo_contrato", "aditivo"],
       indicator_status: ["pendente_aprovacao", "aprovado", "mesclado"],
       opportunity_stage: [

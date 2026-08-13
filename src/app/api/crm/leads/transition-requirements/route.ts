@@ -18,6 +18,11 @@ import {
 import { allDueReviewTasksApprovedForCycle } from "@/lib/crm/due-area-tasks";
 import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
+import {
+  buildContractTransitionBlocker,
+  type ContractBillingTransitionState,
+  type ContractTransitionBlocker,
+} from "@/modules/crm/domain/workflow-rules";
 
 export type EmpresaIntakeForModal = {
   index: number;
@@ -111,7 +116,7 @@ export async function GET(request: NextRequest) {
     const [{ data: row, error: fetchError }, { data: reconRow }] = await Promise.all([
       supabase
         .from("oportunidades")
-        .select("id, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle")
+        .select("id, etapa, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle")
         .eq("id", opportunityId)
         .maybeSingle(),
       supabase
@@ -133,6 +138,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { ok: false, error: RD_KANBAN_VIEW_ONLY_MESSAGE },
         { status: 403 },
+      );
+    }
+
+    let transitionBlocker: ContractTransitionBlocker | null = null;
+    if (row.etapa === "inclusao_faturamento" && nextStage === "boas_vindas") {
+      const dateParts = Object.fromEntries(
+        new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Sao_Paulo",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        })
+          .formatToParts(new Date())
+          .map((part) => [part.type, part.value]),
+      );
+      const { data: stateRow, error: stateError } = await supabase
+        .rpc("get_contract_billing_transition_state", {
+          p_opportunity_id: opportunityId,
+          p_on_date: `${dateParts.year}-${dateParts.month}-${dateParts.day}`,
+        })
+        .single();
+      if (stateError) {
+        return NextResponse.json({ ok: false, error: stateError.message }, { status: 500 });
+      }
+      transitionBlocker = buildContractTransitionBlocker(
+        {
+          contractId: stateRow.contract_id,
+          isValid: stateRow.is_valid,
+          code: stateRow.code,
+          reason: stateRow.reason,
+        } satisfies ContractBillingTransitionState,
+        opportunityId,
       );
     }
 
@@ -287,6 +324,7 @@ export async function GET(request: NextRequest) {
       fieldValues,
       blockingCustomFieldCodes: blockingCustom.map((f) => f.field_code),
       warnings,
+      transitionBlocker,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao calcular requisitos.";

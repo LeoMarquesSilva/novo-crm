@@ -11,10 +11,10 @@ export default async function CrmLayout({
 
   const sessionUser: CrmSessionUser = {
     email: user.email ?? null,
-    fullName: profile?.full_name ?? null,
-    avatarUrl: profile?.avatar_url ?? null,
-    area: profile?.area ?? null,
-    role: profile?.role ?? null,
+    fullName: profile.full_name,
+    avatarUrl: profile.avatar_url,
+    area: profile.area,
+    role: profile.role,
   };
 
   return <AppShell sessionUser={sessionUser}>{children}</AppShell>;

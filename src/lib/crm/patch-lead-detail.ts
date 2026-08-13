@@ -13,10 +13,9 @@ import {
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { labelForRdFieldKey } from "@/lib/crm/lead-rd-field-labels";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
+import { canPatchLeadDetail } from "@/lib/auth/crm-access-policy";
 
 const EMPRESA_FIELD_RE = /^empresa_(\d+)_(razao|doc|tipo)$/;
-/** Atualização atómica: `empresa_1` + JSON `{ razao_social, tipo_documento, documento }`. */
-const EMPRESA_BUNDLE_RE = /^empresa_(\d+)$/;
 
 export type PatchViewerContext = {
   authUserId: string;
@@ -51,15 +50,44 @@ export async function patchLeadDetail(
     };
   }
 
+  const viewer = options?.viewer;
+  if (!viewer) {
+    return { ok: false, error: "Utilizador sem perfil no CRM.", status: 403 };
+  }
+
+  if (
+    body.intakeField &&
+    !canPatchLeadDetail({
+      role: viewer.role,
+      appArea: viewer.appArea,
+      mutationKind: "intake",
+      pipelineFieldCode: null,
+    })
+  ) {
+    return { ok: false, error: "Sem permissão para editar o cadastro do lead.", status: 403 };
+  }
+
+  if (
+    body.rdField &&
+    !canPatchLeadDetail({
+      role: viewer.role,
+      appArea: viewer.appArea,
+      mutationKind: "rd",
+      pipelineFieldCode: null,
+    })
+  ) {
+    return { ok: false, error: "Sem permissão para editar dados do RD.", status: 403 };
+  }
+
   if (body.pipelineField) {
-    return patchPipelineFieldValue(supabase, oportunidadeId, body.pipelineField, options?.viewer);
+    return patchPipelineFieldValue(supabase, oportunidadeId, body.pipelineField, viewer);
   }
 
   if (body.rdField) {
-    return patchRdFieldOverride(supabase, oportunidadeId, body.rdField.key, body.rdField.value, options?.viewer);
+    return patchRdFieldOverride(supabase, oportunidadeId, body.rdField.key, body.rdField.value, viewer);
   }
 
-  return patchIntakeField(supabase, oportunidadeId, body.intakeField!.key, body.intakeField!.value, options?.viewer);
+  return patchIntakeField(supabase, oportunidadeId, body.intakeField!.key, body.intakeField!.value, viewer);
 }
 
 async function patchPipelineFieldValue(
@@ -81,16 +109,20 @@ async function patchPipelineFieldValue(
   }
 
   const fieldCode = String((def as { field_code?: string }).field_code ?? "");
+  if (
+    !viewer ||
+    !canPatchLeadDetail({
+      role: viewer.role,
+      appArea: viewer.appArea,
+      mutationKind: "pipeline",
+      pipelineFieldCode: fieldCode,
+    })
+  ) {
+    return { ok: false, error: "Sem permissão para editar este campo.", status: 403 };
+  }
 
   let valueStr = payload.value;
   if (fieldCode === "cp_escopo_detalhe_json" && viewer) {
-    if (viewer.role !== "admin" && viewer.role !== "comercial") {
-      return {
-        ok: false,
-        error: "Sem permissão para editar o escopo detalhado.",
-        status: 403,
-      };
-    }
     const areaRestrita = (viewer.appArea ?? "").trim();
     /** Chave no JSON = valor canónico em `crm-areas.ts` (aliases legados via `area-keys-alignment`). */
     const escopoJsonKey = areaRestrita ? appUserAreaToEscopoJsonKey(areaRestrita) : "";

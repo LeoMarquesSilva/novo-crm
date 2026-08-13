@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+import {
+  isPayloadLengthAllowed,
+  verifySharedSecret,
+} from "@/lib/webhooks/security";
 import { RdImportConnector } from "@/modules/crm/infrastructure/integrations/rd-import";
 
 const webhookSchema = z.object({
@@ -14,23 +19,31 @@ export async function POST(request: Request) {
   const expectedSecret = process.env.RD_WEBHOOK_SECRET;
   if (!expectedSecret) {
     return NextResponse.json(
-      { ok: false, error: "RD_WEBHOOK_SECRET não configurado." },
-      { status: 500 },
+      { ok: false, error: "Webhook temporariamente indisponível." },
+      { status: 503 },
     );
   }
 
-  const sentSecret =
-    request.headers.get("x-rd-webhook-secret") ??
-    new URL(request.url).searchParams.get("secret");
-  if (!sentSecret || sentSecret !== expectedSecret) {
-    return NextResponse.json({ ok: false, error: "Webhook não autorizado." }, { status: 401 });
+  if (!isPayloadLengthAllowed(request.headers.get("content-length"), 256_000)) {
+    return NextResponse.json(
+      { ok: false, error: "Payload excede o limite permitido." },
+      { status: 413 },
+    );
+  }
+
+  const sentSecret = request.headers.get("x-rd-webhook-secret");
+  if (!verifySharedSecret(expectedSecret, sentSecret)) {
+    return NextResponse.json(
+      { ok: false, error: "Webhook não autorizado." },
+      { status: 401 },
+    );
   }
 
   const payload = (await request.json().catch(() => null)) as unknown;
   const parsed = webhookSchema.safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "Payload de webhook inválido.", details: parsed.error.flatten() },
+      { ok: false, error: "Payload de webhook inválido." },
       { status: 400 },
     );
   }
@@ -49,8 +62,10 @@ export async function POST(request: Request) {
       records: result.records,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Falha inesperada no webhook do RD.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    console.error("Falha no processamento do webhook RD", error);
+    return NextResponse.json(
+      { ok: false, error: "Falha temporária ao processar o webhook." },
+      { status: 503, headers: { "Retry-After": "10" } },
+    );
   }
 }

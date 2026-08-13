@@ -7,7 +7,7 @@ import {
   loadDefaultContratoTemplate,
   loadDocumentTemplateById,
 } from "@/lib/crm/proposta-document-data";
-import { listContratoPendingFields, buildContratoDocxTemplateData } from "@/lib/crm/contrato-docx-data";
+import { listContratoPendingFields } from "@/lib/crm/contrato-docx-data";
 import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-principal";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";

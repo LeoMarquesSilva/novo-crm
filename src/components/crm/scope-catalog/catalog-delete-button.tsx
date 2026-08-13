@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import {
   AlertDialog,
@@ -54,7 +53,6 @@ export function CatalogDeleteButton({
   onDeleted,
   disabled,
 }: Props) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +79,6 @@ export function CatalogDeleteButton({
       }
       onDeleted(json.data);
       setOpen(false);
-      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao excluir.");
     } finally {

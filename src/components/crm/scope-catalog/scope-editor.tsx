@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowDown,
@@ -45,6 +44,7 @@ type Props = {
   /** Notifica quando salvar com sucesso (com payload novo para o shell sincronizar). */
   onSaved: (catalog: ProposalCatalogAdminData) => void;
   onDeleted: (catalog: ProposalCatalogAdminData) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 const EXAMPLE_NOME_EMPRESA = "ACME Logística Ltda.";
@@ -90,9 +90,7 @@ function buildExamplePlaceholders(keys: string[]): Record<string, string> {
   return out;
 }
 
-export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
-  const router = useRouter();
-
+export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) {
   // ── Estado: draft vs saved ───────────────────────────────────────────────────
   type Draft =
     | {
@@ -132,6 +130,11 @@ export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
   }, [initialDraft]);
 
   const isDirty = useMemo(() => !draftsEqual(draft, saved), [draft, saved]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+    return () => onDirtyChange?.(false);
+  }, [isDirty, onDirtyChange]);
 
   // ── Placeholders: detectados vs declarados ──────────────────────────────────
   const detected = useMemo(() => {
@@ -218,7 +221,6 @@ export function ScopeEditor({ mode, onSaved, onDeleted }: Props) {
       setSaved(draft);
       setFeedback(`"${draft.label}" salvo com sucesso.`);
       onSaved(json.data);
-      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao salvar.");
     } finally {

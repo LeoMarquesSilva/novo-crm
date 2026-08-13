@@ -23,11 +23,33 @@ export async function PATCH(
     const parsed = updateSchema.parse(body);
 
     const supabase = createSupabaseAdminClient();
+    if (parsed.role) {
+      const { error: roleError } = await supabase.rpc("admin_change_user_role", {
+        p_actor: auth.profile.id,
+        p_target: id,
+        p_next_role: parsed.role,
+      });
+      if (roleError) {
+        return adminMutationRpcError(roleError.message);
+      }
+    }
+
+    const { role: _role, ...profileFields } = parsed;
+    if (Object.keys(profileFields).length > 0) {
+      const { error: updateError } = await supabase
+        .from("app_users")
+        .update(profileFields)
+        .eq("id", id);
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+    }
+
     const { data, error } = await supabase
       .from("app_users")
-      .update(parsed)
-      .eq("id", id)
       .select()
+      .eq("id", id)
       .single();
 
     if (error) {
@@ -52,30 +74,33 @@ export async function DELETE(
     const { id } = await params;
     const supabase = createSupabaseAdminClient();
 
-    // Busca auth_user_id antes de deletar
-    const { data: appUser, error: fetchError } = await supabase
-      .from("app_users")
-      .select("auth_user_id")
-      .eq("id", id)
-      .single();
-
-    if (fetchError) {
-      return NextResponse.json({ error: fetchError.message }, { status: 404 });
+    const { data: authUserId, error: deleteError } = await supabase.rpc(
+      "admin_delete_user",
+      {
+        p_actor: auth.profile.id,
+        p_target: id,
+      },
+    );
+    if (deleteError) {
+      return adminMutationRpcError(deleteError.message);
+    }
+    if (!authUserId) {
+      return NextResponse.json(
+        { error: "Não foi possível localizar a conta de autenticação do usuário." },
+        { status: 500 },
+      );
     }
 
-    // Remove perfil (FK cascade não é garantido)
-    const { error: deleteProfileError } = await supabase
-      .from("app_users")
-      .delete()
-      .eq("id", id);
-
-    if (deleteProfileError) {
-      return NextResponse.json({ error: deleteProfileError.message }, { status: 500 });
-    }
-
-    // Remove do Auth
-    if (appUser.auth_user_id) {
-      await supabase.auth.admin.deleteUser(appUser.auth_user_id);
+    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(authUserId);
+    if (authDeleteError) {
+      console.error("Perfil removido, mas a conta Auth não foi excluída", {
+        appUserId: id,
+        error: authDeleteError,
+      });
+      return NextResponse.json(
+        { error: "O perfil foi removido, mas a conta de autenticação precisa de limpeza administrativa." },
+        { status: 502 },
+      );
     }
 
     return NextResponse.json({ ok: true });
@@ -83,4 +108,22 @@ export async function DELETE(
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function adminMutationRpcError(message: string): NextResponse {
+  if (message === "USER_NOT_FOUND") {
+    return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+  }
+  if (
+    message === "Não é possível excluir a própria conta administrativa." ||
+    message === "Não é possível excluir o último administrador." ||
+    message === "Não é possível remover o papel do último administrador."
+  ) {
+    return NextResponse.json({ error: message }, { status: 409 });
+  }
+  if (message === "ADMIN_MUTATION_FORBIDDEN") {
+    return NextResponse.json({ error: "Sem permissão para alterar usuários." }, { status: 403 });
+  }
+
+  return NextResponse.json({ error: message }, { status: 500 });
 }

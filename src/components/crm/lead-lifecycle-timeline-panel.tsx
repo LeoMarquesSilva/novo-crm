@@ -1,5 +1,6 @@
 "use client";
 
+import { createElement } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle2,
@@ -117,13 +118,12 @@ export function LeadLifecycleTimelinePanel({ timeline }: LeadLifecycleTimelinePa
               </thead>
               <tbody className="divide-y divide-[#eef1f5]">
                 {periods.map((row) => {
-                  const StageIcon = getStageIcon(row.etapa);
                   return (
                     <tr key={row.id} className={cn(row.isCurrent && "bg-emerald-50/40")}>
                       <td className="px-5 py-3 font-semibold text-[#102033]">
                         <span className="inline-flex items-center gap-2">
                           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#f1f5f9] text-[#475569]">
-                            <StageIcon className="h-3.5 w-3.5" aria-hidden />
+                            <StageGlyph stage={row.etapa} className="h-3.5 w-3.5" />
                           </span>
                           {row.etapaLabel}
                           {row.isCurrent ? (
@@ -153,11 +153,8 @@ export function LeadLifecycleTimelinePanel({ timeline }: LeadLifecycleTimelinePa
 function ActivityRow({ event }: { event: LeadActivityEvent }) {
   const meta = ACTIVITY_KIND_META[event.kind] ?? ACTIVITY_KIND_META.campo_pipeline_alterado;
   const KindIcon = meta.icon;
-  const StageIcon = event.etapa ? getStageIcon(event.etapa) : null;
   const fromStage = event.metadata.from as OpportunityStage | undefined;
   const toStage = event.metadata.to as OpportunityStage | undefined;
-  const FromIcon = fromStage ? getStageIcon(fromStage) : null;
-  const ToIcon = toStage ? getStageIcon(toStage) : StageIcon;
 
   return (
     <li className="px-5 py-4">
@@ -185,15 +182,17 @@ function ActivityRow({ event }: { event: LeadActivityEvent }) {
                 ) : null}
                 {event.kind === "etapa_alterada" && fromStage && toStage ? (
                   <span className="inline-flex items-center gap-1.5 text-xs text-[#64748b]">
-                    {FromIcon ? <FromIcon className="h-3.5 w-3.5" aria-hidden /> : null}
+                    <StageGlyph stage={fromStage} className="h-3.5 w-3.5" />
                     {OPPORTUNITY_STAGE_LABELS[fromStage] ?? fromStage}
                     <span aria-hidden>→</span>
-                    {ToIcon ? <ToIcon className="h-3.5 w-3.5" aria-hidden /> : null}
+                    <StageGlyph stage={toStage} className="h-3.5 w-3.5" />
                     {OPPORTUNITY_STAGE_LABELS[toStage] ?? toStage}
                   </span>
                 ) : event.etapaLabel && event.kind !== "etapa_alterada" ? (
                   <span className="inline-flex items-center gap-1 text-xs text-[#64748b]">
-                    {StageIcon ? <StageIcon className="h-3.5 w-3.5" aria-hidden /> : null}
+                    {event.etapa ? (
+                      <StageGlyph stage={event.etapa} className="h-3.5 w-3.5" />
+                    ) : null}
                     {event.etapaLabel}
                   </span>
                 ) : null}
@@ -215,6 +214,16 @@ function ActivityRow({ event }: { event: LeadActivityEvent }) {
       </div>
     </li>
   );
+}
+
+function StageGlyph({
+  stage,
+  className,
+}: {
+  stage: OpportunityStage;
+  className: string;
+}) {
+  return createElement(getStageIcon(stage), { className, "aria-hidden": true });
 }
 
 function ActivityActor({ actor }: { actor: LeadActivityEvent["actor"] }) {

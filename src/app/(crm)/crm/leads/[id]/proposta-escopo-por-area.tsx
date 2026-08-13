@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Loader2, Pencil, Plus, Save, Send, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Loader2, Pencil, Plus, Save, Send } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,13 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { cn } from "@/lib/utils";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
@@ -44,7 +37,6 @@ import {
   canEditEscopoArea,
   canRequestGestorFillForArea,
 } from "@/lib/crm/proposta-escopo-permissions";
-import { getPropostaPlaceholderLabel } from "@/lib/crm/proposta-placeholder-labels";
 import {
   createEmptyEscopoEntry,
   escopoJsonEqual,
@@ -53,22 +45,13 @@ import {
   parseEscopoJson,
   syncEscopoToAreas,
 } from "@/lib/crm/proposta-escopo-json";
-import { Input } from "@/components/ui/input";
 import { PropostaEscopoEntryForm } from "@/components/crm/proposta-escopo-entry-form";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import {
-  ESCOPO_PLACEHOLDER_NOME_EMPRESA,
-  ESCOPO_PLACEHOLDER_UPPERCASE,
-  PROPOSTA_INVESTIMENTO_PLACEHOLDER_CURRENCY,
-  isNumeroProcessoPlaceholderKey,
-  maskNumeroProcessoCNJ,
   mergeEscopoTemplate,
   mergeInvestimentoTemplate,
 } from "@/lib/crm/proposta-escopo-preview";
 
-/** Valor interno do Select (nunca confunde com `tipoId`/`subtipoId` reais); mantém o controle sempre definido. */
-const SELECT_EMPTY = "__crm_escopo_none__";
-const EMPTY_PLACEHOLDER_KEYS: string[] = [];
 const EMPTY_RESPONSAVEIS: Array<ResolvedAppUser & { id: string }> = [];
 
 function mergeEscopoEntryPatch(
@@ -1242,53 +1225,5 @@ function PreviewGrid({ escopo, investimento }: { escopo: string; investimento: s
         </div>
       </div>
     </aside>
-  );
-}
-
-function PlaceholderField({
-  phKey,
-  value,
-  onChange,
-  isCurrency = false,
-}: {
-  phKey: string;
-  value: string;
-  onChange: (next: string) => void;
-  /** Campo monetário: aceita dígitos; na prévia aplica-se formatação pt-BR e valor por extenso. */
-  isCurrency?: boolean;
-}) {
-  const k = phKey.trim();
-  const isNome = k === ESCOPO_PLACEHOLDER_NOME_EMPRESA;
-  const isProc = isNumeroProcessoPlaceholderKey(k);
-  const forceUpper = ESCOPO_PLACEHOLDER_UPPERCASE.has(k);
-
-  const fieldLabel = getPropostaPlaceholderLabel(k);
-
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-bold leading-snug text-slate-500">{fieldLabel}</Label>
-      <Input
-        className="h-10 border-[#dfe5ee] bg-[#fbfcfd] shadow-sm focus-visible:border-[#24615b]/45 focus-visible:ring-[#24615b]/15"
-        value={value}
-        onChange={(e) => {
-          let next = e.target.value;
-          if (isProc) {
-            next = maskNumeroProcessoCNJ(next);
-          } else if (forceUpper) {
-            next = next.toLocaleUpperCase("pt-BR");
-          }
-          onChange(next);
-        }}
-        placeholder={
-          isNome
-            ? "Preenchido pela empresa principal na proposta (pode editar)"
-            : isCurrency
-              ? "Valor (ex.: 5000 ou 5.000,50)"
-              : `Texto para «${fieldLabel}»`
-        }
-        inputMode={isProc ? "numeric" : isCurrency ? "decimal" : "text"}
-        autoComplete="off"
-      />
-    </div>
   );
 }

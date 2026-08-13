@@ -5,6 +5,7 @@ import {
   refreshMicrosoftMailAccessToken,
   sendMailAsMe,
 } from "@/lib/microsoft-mail/delegated-graph-mail";
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 
 const OAUTH_ROW_ID = "default";
 
@@ -33,7 +34,7 @@ async function getGraphAppOnlyToken(): Promise<string> {
     grant_type: "client_credentials",
   });
 
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -65,7 +66,7 @@ async function sendOutlookEmailApplication(
 
   const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail.trim())}/sendMail`;
 
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

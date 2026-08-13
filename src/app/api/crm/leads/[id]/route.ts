@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { patchLeadDetail } from "@/lib/crm/patch-lead-detail";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthApi } from "@/lib/auth/server";
 
 const patchBodySchema = z
@@ -34,37 +33,17 @@ export async function PATCH(
       );
     }
 
-    const authClient = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await authClient.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Não autenticado." }, { status: 401 });
-    }
-
-    const { data: profile } = await authClient
-      .from("app_users")
-      .select("id, role, area")
-      .eq("auth_user_id", user.id)
-      .maybeSingle();
-
-    if (parsed.data.pipelineField && !profile) {
-      return NextResponse.json(
-        { ok: false, error: "Utilizador sem perfil no CRM." },
-        { status: 403 },
-      );
-    }
+    const auth = await requireAuthApi();
+    if (!auth.ok) return auth.response;
 
     const supabase = createSupabaseAdminClient();
     const result = await patchLeadDetail(supabase, id, parsed.data, {
-      viewer: profile
-        ? {
-            authUserId: user.id,
-            appUserId: profile.id,
-            role: profile.role,
-            appArea: profile.area,
-          }
-        : undefined,
+      viewer: {
+        authUserId: auth.user.id,
+        appUserId: auth.profile.id,
+        role: auth.profile.role,
+        appArea: auth.profile.area,
+      },
     });
 
     if (!result.ok) {
@@ -89,7 +68,7 @@ export async function DELETE(
   try {
     const auth = await requireAuthApi();
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(auth.profile.role)) {
+    if (!["admin", "comercial"].includes(auth.profile.role)) {
       return NextResponse.json(
         { ok: false, error: "Apenas comercial ou admin pode excluir leads." },
         { status: 403 },
@@ -99,65 +78,25 @@ export async function DELETE(
     const { id } = await params;
     const supabase = createSupabaseAdminClient();
 
-    const { data: intake, error: intakeFetchError } = await supabase
-      .from("lead_intakes")
-      .select("oportunidade_id")
-      .eq("oportunidade_id", id)
-      .maybeSingle();
-
-    if (intakeFetchError) {
-      return NextResponse.json({ ok: false, error: intakeFetchError.message }, { status: 500 });
-    }
-
-    if (!intake) {
+    const { error: deleteError } = await supabase.rpc(
+      "delete_crm_lead_atomic",
+      { p_opportunity_id: id },
+    );
+    if (deleteError) {
+      const forbidden = deleteError.message.includes("LEAD_NOT_CREATED_IN_CRM");
+      const notFound = deleteError.message.includes("OPPORTUNITY_NOT_FOUND");
+      console.error("Falha na exclusão atômica do lead", deleteError);
       return NextResponse.json(
         {
           ok: false,
-          error: "A exclusão é permitida apenas para leads criados no sistema.",
+          error: forbidden
+            ? "A exclusão é permitida apenas para leads criados no sistema."
+            : notFound
+              ? "Lead não encontrado."
+              : "Não foi possível excluir o lead.",
         },
-        { status: 403 },
+        { status: forbidden ? 403 : notFound ? 404 : 500 },
       );
-    }
-
-    const { error: deleteTransitionsError } = await supabase
-      .from("transicoes_etapa")
-      .delete()
-      .eq("oportunidade_id", id);
-    if (deleteTransitionsError) {
-      return NextResponse.json({ ok: false, error: deleteTransitionsError.message }, { status: 500 });
-    }
-
-    const { error: deleteFieldValuesError } = await supabase
-      .from("field_values")
-      .delete()
-      .eq("entity_name", "oportunidade")
-      .eq("entity_record_id", id);
-    if (deleteFieldValuesError) {
-      return NextResponse.json({ ok: false, error: deleteFieldValuesError.message }, { status: 500 });
-    }
-
-    const { error: deleteReconciliationError } = await supabase
-      .from("rd_deal_reconciliacao")
-      .delete()
-      .eq("oportunidade_id", id);
-    if (deleteReconciliationError) {
-      return NextResponse.json(
-        { ok: false, error: deleteReconciliationError.message },
-        { status: 500 },
-      );
-    }
-
-    const { error: deleteIntakeError } = await supabase
-      .from("lead_intakes")
-      .delete()
-      .eq("oportunidade_id", id);
-    if (deleteIntakeError) {
-      return NextResponse.json({ ok: false, error: deleteIntakeError.message }, { status: 500 });
-    }
-
-    const { error: deleteOpportunityError } = await supabase.from("oportunidades").delete().eq("id", id);
-    if (deleteOpportunityError) {
-      return NextResponse.json({ ok: false, error: deleteOpportunityError.message }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });

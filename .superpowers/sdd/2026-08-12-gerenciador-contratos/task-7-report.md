@@ -1,0 +1,59 @@
+# Task 7 — Implantação do contrato no pós-venda
+
+## Documentação lida
+
+- `AGENTS.md`
+- `docs/system-context.md`
+- `docs/superpowers/specs/2026-08-12-gerenciador-contratos-design.md`
+- `node_modules/next/dist/docs/01-app/01-getting-started/15-route-handlers.md`
+- `node_modules/next/dist/docs/01-app/01-getting-started/08-caching.md`
+- `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route.md`
+- Skill TDD e `writing-good-tests.md`
+
+## RED / GREEN
+
+- RED: o teste `blocks leaving billing inclusion while the financial setup is incomplete` falhou porque a transição ainda retornava `ok: true`.
+- GREEN: a precondição pura passou a considerar a etapa atual. Entrar em `inclusao_faturamento` continua permitido; somente `inclusao_faturamento -> boas_vindas` exige `financeiroConcluido=true`.
+- Resultado focado final: 7 testes aprovados.
+
+## Blocker, ficha do lead e SQL
+
+- `transition-requirements` consulta a etapa real da oportunidade e só monta `transitionBlocker` para `inclusao_faturamento -> boas_vindas` quando o contrato vinculado não possui versão ativa válida.
+- O blocker preserva o contrato `{ code, message, contractId, actionHref }` e direciona para `/crm/contratos/{id}?setup=1&returnTo=/crm/leads/{opportunityId}`.
+- O POST de transição repete a validação no servidor e traduz o erro SQL estável para o mesmo fluxo acionável.
+- O kanban usa `{ message, actionHref? }`, preserva os erros genéricos existentes e mostra o CTA apenas quando existe ação.
+- A ficha do lead carrega resumo do contrato, versão ativa/rascunho, progresso, origem das sugestões, bloqueios e setup href. A aba `Faturamento` aparece de `inclusao_faturamento` em diante e não embute o wizard.
+- `transition_opportunity_atomic` bloqueia em profundidade a transição com `CONTRACT_BILLING_SETUP_REQUIRED` sem contrato ativo, versão ativa e requisitos financeiros mínimos.
+
+## Checks finais
+
+- `npm.cmd test -- src/modules/crm/application/services/transition-opportunity.test.ts` — exit 0, 7/7.
+- `npx.cmd tsc --noEmit` — exit 0.
+- `git diff --check` — exit 0; apenas avisos de normalização LF/CRLF.
+- Untracked preexistentes foram preservados e não entram no stage.
+
+## Fix round 1/5
+
+- RED: 3 testes do mapper falharam recebendo `undefined` para contrato ausente, contrato inválido e estado válido.
+- GREEN: `buildContractTransitionBlocker` passou a retornar CTA de bootstrap com `contractId: null`, CTA de setup para contrato existente e `null` para estado válido.
+- O GET agora usa uma única RPC `get_contract_billing_transition_state(p_opportunity_id, p_on_date)`, `STABLE`, read-only e executável apenas por `service_role`.
+- Contrato ausente retorna blocker acionável para `/crm/contratos?setupOpportunityId={opportunityId}` no GET e no POST.
+- Área deixou de contar como requisito universal no progresso visual; a validação SQL de transição continua sem exigir área.
+- Checks: 2 arquivos/10 testes aprovados; `npx.cmd tsc --noEmit` e `git diff --check` com exit 0.
+
+## Fix round 2/5
+
+- RED: a capability `ensure_draft` retornava `undefined` para todos os papéis; 4 casos falharam.
+- GREEN: admin, comercial e controladoria podem reparar o cadastro-base; financeiro e papéis desconhecidos continuam negados.
+- `POST /api/crm/contracts/ensure` valida UUID, revalida autenticação/autorização e chama a RPC idempotente `ensure_contract_draft_for_opportunity`; respostas usam `Cache-Control: no-store`.
+- `/crm/contratos` aguarda `searchParams` e, com `setupOpportunityId`, preserva o dashboard D4Sign e exibe um banner cliente sem mutação automática.
+- O clique cria o rascunho, mostra o `contractId` e oferece links para `/crm/contratos/{id}?setup=1` e de volta ao lead.
+- Checks: 3 arquivos/53 testes aprovados; `npx.cmd tsc --noEmit` e `git diff --check` com exit 0.
+
+## Fix round 3/5
+
+- RED: o mapper nominal de permissão do banner ainda não existia; 4 casos falharam.
+- GREEN: `canEnsureContractDraft` permite admin/comercial/controladoria e nega financeiro, compartilhando a mesma decisão da capability do endpoint.
+- A página usa o profile já autenticado e passa `canEnsureDraft` ao banner.
+- Para financeiro, o botão de criação fica oculto, aparece a orientação para solicitar Controladoria/Admin e o retorno ao lead permanece.
+- Checks: 47 testes focados aprovados; `npx.cmd tsc --noEmit` e `git diff --check` com exit 0.

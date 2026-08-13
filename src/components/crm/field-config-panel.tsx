@@ -125,7 +125,6 @@ const TYPE_BADGE_COLOR: Record<string, string> = {
 
 interface FieldRowProps {
   field: FieldDefinition;
-  allFields: FieldDefinition[];
   onToggle: (id: string, active: boolean) => void;
   onUpdateRequired: (id: string, required: boolean) => void;
   onDelete: (id: string) => void;
@@ -133,7 +132,6 @@ interface FieldRowProps {
 
 function FieldRow({
   field,
-  allFields,
   onToggle,
   onUpdateRequired,
   onDelete,
@@ -244,7 +242,6 @@ function FieldRow({
 interface StageSectionProps {
   stageCode: string;
   fields: FieldDefinition[];
-  allFields: FieldDefinition[];
   onToggle: (id: string, active: boolean) => void;
   onUpdateRequired: (id: string, required: boolean) => void;
   onDelete: (id: string) => void;
@@ -253,7 +250,6 @@ interface StageSectionProps {
 function StageSection({
   stageCode,
   fields,
-  allFields,
   onToggle,
   onUpdateRequired,
   onDelete,
@@ -289,7 +285,6 @@ function StageSection({
             <FieldRow
               key={f.id}
               field={f}
-              allFields={allFields}
               onToggle={onToggle}
               onUpdateRequired={onUpdateRequired}
               onDelete={onDelete}
@@ -653,7 +648,6 @@ export function FieldConfigPanel({ initialFields, pipelineCode }: FieldConfigPan
             key={stage}
             stageCode={stage}
             fields={(byStage[stage] ?? []).sort((a, b) => a.sort_order - b.sort_order)}
-            allFields={fields}
             onToggle={handleToggle}
             onUpdateRequired={handleUpdateRequired}
             onDelete={handleDelete}

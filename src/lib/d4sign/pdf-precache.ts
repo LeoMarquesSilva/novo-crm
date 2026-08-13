@@ -4,6 +4,7 @@
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { logD4SignApiCall } from "@/lib/d4sign/api-usage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 
 const BUCKET = "d4sign-contracts";
 
@@ -35,7 +36,7 @@ export async function precacheD4SignPdfs(uuids: string[]): Promise<{ cached: num
     });
 
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${env.apiBaseUrl}/documents/${uuid}/download?${qs.toString()}`,
         { cache: "no-store" },
       );

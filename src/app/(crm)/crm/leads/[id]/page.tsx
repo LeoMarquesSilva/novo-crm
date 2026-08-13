@@ -137,6 +137,19 @@ export interface LeadDetailData extends Oportunidade {
     respondedBy?: ResolvedAppUser;
   }>;
   lifecycleTimeline: LeadLifecycleTimeline;
+  contractBilling: {
+    id: string;
+    lifecycleStatus: "rascunho" | "em_revisao" | "ativo" | "suspenso" | "encerrado";
+    version: {
+      id: string;
+      number: number;
+      status: "rascunho" | "ativa" | "substituida" | "cancelada";
+    } | null;
+    validationProgress: { completed: number; total: number; percentage: number };
+    suggestionsOrigin: string;
+    blockers: string[];
+    setupHref: string;
+  } | null;
 }
 
 function normalizeLabel(label: string): string {
@@ -618,6 +631,93 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
 
   const lifecycleTimeline = await fetchLeadLifecycleTimeline(supabase, id);
 
+  let contractBilling: LeadDetailData["contractBilling"] = null;
+  if (["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(etapa)) {
+    const { data: contract, error: contractError } = await supabase
+      .from("contratos")
+      .select(
+        "id, status, versao_ativa_id, cliente_id, vigente_de, primeiro_vencimento, primeiro_faturamento_condicionado",
+      )
+      .eq("oportunidade_id", id)
+      .maybeSingle();
+    if (contractError) throw contractError;
+
+    if (contract) {
+      const { data: versions, error: versionsError } = await supabase
+        .from("contrato_versoes")
+        .select("id, numero, status, origem_snapshot")
+        .eq("contrato_id", contract.id)
+        .order("numero", { ascending: false });
+      if (versionsError) throw versionsError;
+      const version =
+        (versions ?? []).find((candidate) => candidate.id === contract.versao_ativa_id) ??
+        (versions ?? []).find((candidate) => candidate.status === "rascunho") ??
+        versions?.[0] ??
+        null;
+
+      const [{ count: responsibleCount }, { count: componentCount }] =
+        await Promise.all([
+          supabase
+            .from("contrato_responsaveis")
+            .select("id", { count: "exact", head: true })
+            .eq("contrato_id", contract.id),
+          version
+            ? supabase
+                .from("contrato_componentes_cobranca")
+                .select("id", { count: "exact", head: true })
+                .eq("versao_id", version.id)
+            : Promise.resolve({ count: 0 }),
+        ]);
+
+      const firstInvoiceComplete = Boolean(
+        contract.primeiro_vencimento || contract.primeiro_faturamento_condicionado,
+      );
+      const checks = [
+        Boolean(contract.cliente_id),
+        Boolean(contract.vigente_de && firstInvoiceComplete),
+        (responsibleCount ?? 0) > 0,
+        (componentCount ?? 0) > 0,
+        contract.status === "ativo" && version?.status === "ativa",
+      ];
+      const blockers = [
+        ...(!contract.cliente_id ? ["Vincular o cliente do contrato."] : []),
+        ...(!contract.vigente_de ? ["Informar o início da vigência."] : []),
+        ...(!firstInvoiceComplete ? ["Definir o primeiro faturamento."] : []),
+        ...((responsibleCount ?? 0) < 1 ? ["Informar ao menos um responsável."] : []),
+        ...((componentCount ?? 0) < 1 ? ["Configurar ao menos uma regra de cobrança."] : []),
+        ...(contract.status !== "ativo" || version?.status !== "ativa"
+          ? ["Validar e ativar a versão contratual."]
+          : []),
+      ];
+      const originSnapshot =
+        version?.origem_snapshot &&
+        typeof version.origem_snapshot === "object" &&
+        !Array.isArray(version.origem_snapshot)
+          ? version.origem_snapshot
+          : {};
+      const completed = checks.filter(Boolean).length;
+
+      contractBilling = {
+        id: contract.id,
+        lifecycleStatus: contract.status,
+        version: version
+          ? { id: version.id, number: version.numero, status: version.status }
+          : null,
+        validationProgress: {
+          completed,
+          total: checks.length,
+          percentage: Math.round((completed / checks.length) * 100),
+        },
+        suggestionsOrigin:
+          Object.keys(originSnapshot).length > 0
+            ? "Dados sugeridos a partir da proposta e da assinatura."
+            : "Rascunho criado a partir da assinatura; confirme os dados financeiros.",
+        blockers,
+        setupHref: `/crm/contratos/${contract.id}?setup=1&returnTo=/crm/leads/${id}`,
+      };
+    }
+  }
+
   return {
     id: data.id,
     clienteId: data.cliente_id ?? undefined,
@@ -658,6 +758,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
     dueDocuments,
     dueAreaReviewTasks,
     lifecycleTimeline,
+    contractBilling,
   };
 }
 

@@ -202,13 +202,6 @@ export function formatInvestimentoCurrencyForMerge(raw: string): string {
   return `${numPart} (${ex})`;
 }
 
-function parcelasTemVencimentosCompletos(placeholders: Record<string, string>): boolean {
-  const count = parseParcelasCount(placeholders);
-  if (count < 1) return false;
-  const vencimentos = getParcelaVencimentos(placeholders);
-  return vencimentos.length >= count && vencimentos.slice(0, count).every((v) => v.trim());
-}
-
 function formatParcelasComVencimentos(placeholders: Record<string, string>): string {
   const count = parseParcelasCount(placeholders);
   const values = getParcelaValues(placeholders);
