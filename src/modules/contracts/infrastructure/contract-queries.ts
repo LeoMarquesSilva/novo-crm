@@ -129,7 +129,7 @@ export type ContractDetailViewModel = {
   configuration: ContractConfigurationDraft | null;
   sourceFields: Record<string, ContractSourceField>;
   originLabel: string;
-  users: Array<{ id: string; name: string; role: string }>;
+  users: Array<{ id: string; name: string; role: string; avatarUrl: string | null }>;
   clients: Array<{ id: string; name: string }>;
   versions: Array<{
     id: string;
@@ -345,7 +345,7 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     contract.oportunidade_id ? supabase.from("oportunidades").select("id, solicitante_nome, etapa").eq("id", contract.oportunidade_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     supabase.from("contrato_versoes").select("id, numero, status, vigente_de, vigente_ate, origem_snapshot, ativada_em, updated_at").eq("contrato_id", contractId).order("numero", { ascending: false }),
     supabase.from("contrato_responsaveis").select("id, papel, app_user_id, nome").eq("contrato_id", contractId),
-    supabase.from("app_users").select("id, full_name, role").order("full_name"),
+    supabase.from("app_users").select("id, full_name, role, avatar_url").order("full_name"),
     supabase.from("clientes").select("id, razao_social").order("razao_social"),
     supabase.from("aditivos").select("id, titulo, status, updated_at").eq("contrato_base_id", contractId).order("created_at", { ascending: false }),
     supabase.from("contrato_fechamentos").select("id, competencia, status, revisao_atual_id").eq("contrato_id", contractId).order("competencia", { ascending: false }),
@@ -509,7 +509,12 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     configuration,
     sourceFields,
     originLabel: editableVersion ? snapshotLabel(editableVersion.origem_snapshot) : "Manual",
-    users: (usersResult.data ?? []).map((user) => ({ id: user.id, name: user.full_name, role: user.role })),
+    users: (usersResult.data ?? []).map((user) => ({
+      id: user.id,
+      name: user.full_name,
+      role: user.role,
+      avatarUrl: user.avatar_url,
+    })),
     clients: (clientsResult.data ?? []).map((client) => ({ id: client.id, name: client.razao_social })),
     versions: versions.map((version) => ({ id: version.id, number: version.numero, status: version.status, startsAt: version.vigente_de, endsAt: version.vigente_ate, activatedAt: version.ativada_em })),
     addenda: (addendaResult.data ?? []).map((addendum) => ({ id: addendum.id, title: addendum.titulo, status: addendum.status, signedAt: null, link: null })),
