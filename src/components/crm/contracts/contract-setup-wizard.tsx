@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ContractConfigurationDraft, ContractDetailViewModel, ContractSource } from "@/modules/contracts/infrastructure/contract-queries";
+import { ContractResponsiblesEditor } from "./contract-responsibles-editor";
 
 const steps = [
   "Identificação e vigência",
@@ -190,7 +191,12 @@ export function ContractSetupWizard({ contract, canConfigure, returnTarget }: { 
         <Field label="Índice de reajuste"><Input value={configuration.adjustmentIndex ?? ""} disabled={!canConfigure} onChange={(event) => patch({ adjustmentIndex: event.target.value || null })} /></Field>
         <Field label="Primeiro vencimento"><Input type="date" value={configuration.firstInvoiceAt ?? ""} disabled={!canConfigure || configuration.firstInvoiceConditioned} onChange={(event) => patch({ firstInvoiceAt: event.target.value || null })} /></Field>
         <label className="flex items-center gap-2 self-end rounded-xl border border-zinc-200 p-3 text-sm"><input type="checkbox" checked={configuration.firstInvoiceConditioned} disabled={!canConfigure} onChange={(event) => patch({ firstInvoiceConditioned: event.target.checked, firstInvoiceAt: event.target.checked ? null : configuration.firstInvoiceAt })} />Vencimento condicionado</label>
-        <JsonEditor editorKey="responsibles" label="Responsáveis" value={configuration.responsibles} disabled={!canConfigure} onValidityChange={setEditorInvalid} onChange={(responsibles) => patch({ responsibles })} />
+        <ContractResponsiblesEditor
+          value={configuration.responsibles}
+          users={contract.users}
+          disabled={!canConfigure}
+          onChange={(responsibles) => patch({ responsibles })}
+        />
       </div> : null}
       {step === 1 ? <JsonEditor editorKey="areas" label="Áreas, franquias e preços excedentes" value={configuration.areas} disabled={!canConfigure} onValidityChange={setEditorInvalid} onChange={(areas) => patch({ areas })} /> : null}
       {step === 2 ? <JsonEditor editorKey="components" label="Componentes, faixas, parcelas, condições e tributação" value={configuration.version.components} disabled={!canConfigure} onValidityChange={setEditorInvalid} onChange={(components) => patchVersion({ components })} /> : null}
