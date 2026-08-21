@@ -525,7 +525,7 @@ export function ContractClosingReview({
         <section key={title}>
           <h4 className="font-semibold">{title}</h4>
           {items
-            .filter((entry) => kinds.includes(entry.tipo))
+            .filter((entry) => (kinds as ReadonlyArray<string>).includes(entry.tipo))
             .map((entry) => (
               <div className="flex justify-between gap-3 border-b py-2 text-sm" key={entry.id}>
                 <div className="min-w-0">{renderItemLabel(entry)}</div>
