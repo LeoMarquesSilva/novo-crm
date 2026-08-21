@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/supabase/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveOfficialAvatarUrls } from "@/lib/official-photos/overlay";
 
 export type AppUserProfile = Pick<
   Database["public"]["Tables"]["app_users"]["Row"],
@@ -31,7 +32,14 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfile> {
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
-  return { user, profile: profile ?? null };
+  if (!profile) return { user, profile: null };
+
+  const officialUrl = (await resolveOfficialAvatarUrls([profile.id])).get(profile.id);
+
+  return {
+    user,
+    profile: officialUrl ? { ...profile, avatar_url: officialUrl } : profile,
+  };
 }
 
 export async function requireAuth(nextPath = "/crm"): Promise<{

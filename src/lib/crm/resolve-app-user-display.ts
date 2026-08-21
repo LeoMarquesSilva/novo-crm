@@ -3,6 +3,7 @@ import {
   resolveSignerAvatarUrl,
   type SignerAppUserLookup,
 } from "@/lib/crm/signer-avatar-catalog";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 
 export type ResolvedAppUser = {
   fullName: string;
@@ -41,11 +42,12 @@ export async function fetchAppUsersByIds(
 
   if (error || !data) return new Map();
 
+  const withOfficialPhotos = await overlayOfficialAvatars(
+    data.map((u) => ({ id: u.id, fullName: u.full_name, avatarUrl: u.avatar_url })),
+  );
+
   return new Map(
-    data.map((u) => [
-      u.id,
-      { fullName: u.full_name, avatarUrl: u.avatar_url },
-    ]),
+    withOfficialPhotos.map((u) => [u.id, { fullName: u.fullName, avatarUrl: u.avatarUrl }]),
   );
 }
 
@@ -86,11 +88,20 @@ export async function fetchAppUsersByEmails(
     (authList.users ?? []).map((u) => [u.id, (u.email ?? "").trim().toLowerCase()]),
   );
 
+  const withOfficialPhotos = await overlayOfficialAvatars(
+    users.map((u) => ({
+      id: u.id,
+      authUserId: u.auth_user_id,
+      fullName: u.full_name,
+      avatarUrl: u.avatar_url,
+    })),
+  );
+
   const out = new Map<string, ResolvedAppUser>();
-  for (const u of users) {
-    const em = emailByAuthId.get(u.auth_user_id);
+  for (const u of withOfficialPhotos) {
+    const em = emailByAuthId.get(u.authUserId);
     if (!em) continue;
-    out.set(em, { fullName: u.full_name, avatarUrl: u.avatar_url });
+    out.set(em, { fullName: u.fullName, avatarUrl: u.avatarUrl });
   }
   return out;
 }
@@ -121,13 +132,22 @@ export async function fetchAppUsersByEmailLookup(
     }
   }
 
-  const out: SignerAppUserLookup = {};
-  for (const row of usersRows) {
-    const email = authEmailById.get(row.auth_user_id);
-    if (!email) continue;
-    out[email] = {
+  const withOfficialPhotos = await overlayOfficialAvatars(
+    usersRows.map((row) => ({
+      id: row.id,
+      authUserId: row.auth_user_id,
       fullName: row.full_name,
       avatarUrl: row.avatar_url,
+    })),
+  );
+
+  const out: SignerAppUserLookup = {};
+  for (const row of withOfficialPhotos) {
+    const email = authEmailById.get(row.authUserId);
+    if (!email) continue;
+    out[email] = {
+      fullName: row.fullName,
+      avatarUrl: row.avatarUrl,
     };
   }
   return out;

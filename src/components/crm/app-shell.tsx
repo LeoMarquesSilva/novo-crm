@@ -283,7 +283,7 @@ function SidebarSection({
 
   const hasActiveItem = visibleItems.some((item) => isNavLinkActive(pathname, item.href));
   const isCollapsible = group.id === "admin";
-  const forceOpen = Boolean(normalizedSearch) || compact || !isCollapsible;
+  const forceOpen = Boolean(normalizedSearch) || !isCollapsible;
   const showItems = open || forceOpen;
 
   return (

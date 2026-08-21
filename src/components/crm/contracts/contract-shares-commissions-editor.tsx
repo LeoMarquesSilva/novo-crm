@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Button } from "@/components/ui/button";
 import {
@@ -288,7 +288,7 @@ export function ContractSharesCommissionsEditor({
                         }}
                       >
                         <SelectTrigger className="!h-10 w-full border-[#dfe5ee] bg-white shadow-sm">
-                          <span>{MODE_LABELS[entry.mode]}</span>
+                          <CrmSelectValue value={entry.mode} labels={MODE_LABELS} placeholder="Modo" />
                         </SelectTrigger>
                         <CrmSelectContent side="bottom" align="start">
                           <CrmSelectItem value="percentual">Percentual</CrmSelectItem>
@@ -382,7 +382,7 @@ export function ContractSharesCommissionsEditor({
               value={draftUserId}
               onValueChange={(next) => setDraftUserId(next ?? "")}
             >
-              <SelectTrigger className="!h-11 w-full border-[#dfe5ee] bg-white shadow-sm">
+              <SelectTrigger className="!h-10 w-full border-[#dfe5ee] bg-white shadow-sm">
                 {draftUser ? (
                   <CrmUserLabel
                     name={draftUser.name}

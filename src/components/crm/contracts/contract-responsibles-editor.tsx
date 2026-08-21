@@ -233,7 +233,7 @@ export function ContractResponsiblesEditor({ value, users, disabled, onChange }:
                 value={draftUserId}
                 onValueChange={(next) => setDraftUserId(next ?? "")}
               >
-                <SelectTrigger className="!h-11 w-full border-[#dfe5ee] bg-white shadow-sm">
+                <SelectTrigger className="!h-10 w-full border-[#dfe5ee] bg-white shadow-sm">
                   {draftUser ? (
                     <CrmUserLabel
                       name={draftUser.name}

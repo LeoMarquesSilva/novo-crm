@@ -5,10 +5,15 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
-import { formatDateYmdBr } from "@/lib/format-datetime";
+import { BR_TIMEZONE, formatDateYmdBr } from "@/lib/format-datetime";
 import type { ContractPortfolioItem } from "@/modules/contracts/infrastructure/contract-queries";
 import { expectedRevisionForPreparation } from "@/modules/contracts/application/services/prepare-monthly-closing";
 import { ContractClosingReview, type ClosingPermissions } from "./contract-closing-review";
+
+/** Data civil de hoje no horário de Brasília (evita virar o mês por causa do UTC). */
+function todayYmdBr(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: BR_TIMEZONE }).format(new Date());
+}
 
 type Closing = {
   id: string;
@@ -44,7 +49,7 @@ export function ContractClosingsTab({
 }) {
   const [list, setList] = useState<Closing[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [competency, setCompetency] = useState(new Date().toISOString().slice(0, 7) + "-01");
+  const [competency, setCompetency] = useState(monthFirstDay(todayYmdBr()));
   const [error, setError] = useState<string | null>(null);
   const [serverPermissions, setServerPermissions] = useState<ClosingPermissions>(permissions);
 
@@ -62,25 +67,8 @@ export function ContractClosingsTab({
   }
 
   useEffect(() => {
-    if (!contractId) return;
-    let cancelled = false;
-    void fetchClosings(contractId)
-      .then((payload) => {
-        if (!cancelled) {
-          setError(null);
-          setServerPermissions(payload.permissions ?? denied);
-          setList(payload.closings);
-          setSelected((current) => current ?? payload.closings[0]?.id ?? null);
-        }
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : "Falha ao listar fechamentos.");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contractId]);
 
   if (!contractId) {
@@ -132,12 +120,15 @@ export function ContractClosingsTab({
             className="!h-10 max-w-xs border-[#dfe5ee] bg-white shadow-sm"
             onChange={(ymd) => setCompetency(monthFirstDay(ymd || competency))}
           />
-          <Button onClick={prepare}>Preparar / recalcular</Button>
+          <Button type="button" onClick={prepare}>
+            Preparar / recalcular
+          </Button>
         </div>
       ) : null}
       <div className="flex flex-wrap gap-2">
         {list.map((entry) => (
           <Button
+            type="button"
             size="sm"
             variant={selected === entry.id ? "default" : "outline"}
             onClick={() => setSelected(entry.id)}

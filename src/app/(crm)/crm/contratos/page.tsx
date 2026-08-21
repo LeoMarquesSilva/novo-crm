@@ -1,4 +1,5 @@
-import { FolderKanban } from "lucide-react";
+import Link from "next/link";
+import { ClipboardList, FolderKanban } from "lucide-react";
 import { CrmPageHeader } from "@/components/crm/crm-page-header";
 import { D4SignDashboard } from "@/components/crm/d4sign-dashboard";
 import { ContractsHub } from "@/components/crm/contracts/contracts-hub";
@@ -11,6 +12,7 @@ import { EnsureContractDraftBanner } from "@/components/crm/contracts/ensure-con
 import { canEnsureContractDraft } from "@/lib/auth/crm-access-policy";
 import { getContractsPortfolio } from "@/modules/contracts/infrastructure/contract-queries";
 import { centsToMaskedBrl } from "@/components/crm/contracts/contract-setup-form-helpers";
+import { buttonVariants } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +160,15 @@ export default async function ContratosPage({
         title="Contratos"
         description="Carteira, configuração de faturamento, fechamentos e renovações. Assinaturas D4Sign ficam na aba dedicada."
         icon={FolderKanban}
+        actions={
+          <Link
+            href="/crm/contratos/simulacao"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <ClipboardList />
+            Roteiro de simulação
+          </Link>
+        }
         stats={[
           { label: "Na carteira", value: portfolio.length, detail: "contratos cadastrados" },
           { label: "Ativos", value: ativos, detail: "em vigência" },

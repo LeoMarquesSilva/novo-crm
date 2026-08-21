@@ -3,18 +3,44 @@ import { requireAdmin } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { UserManagementPanel } from "@/components/crm/user-management-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 
 async function getUsers() {
   try {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("app_users")
-      .select("id, full_name, role, area, avatar_url, created_at")
+      .select("id, auth_user_id, full_name, role, area, avatar_url, created_at")
       .order("role", { ascending: true })
       .order("full_name", { ascending: true });
 
     if (error) throw error;
-    return { users: data ?? [], error: null };
+
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+    if (authError) throw authError;
+
+    const emailByAuthId = new Map(
+      (authUsers.users ?? []).map((authUser) => [authUser.id, authUser.email ?? undefined]),
+    );
+
+    const withOfficialPhotos = await overlayOfficialAvatars(
+      (data ?? []).map((user) => ({
+        id: user.id,
+        avatarUrl: user.avatar_url,
+      })),
+    );
+    const officialUrlById = new Map(withOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
+    const users = (data ?? []).map(({ auth_user_id, ...user }) => ({
+      ...user,
+      avatar_url: officialUrlById.get(user.id) ?? user.avatar_url,
+      email: emailByAuthId.get(auth_user_id),
+    }));
+
+    return { users, error: null };
   } catch (err) {
     return {
       users: [],
