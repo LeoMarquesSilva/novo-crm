@@ -9,10 +9,15 @@ import { Button } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger } from "@/components/ui/select";
-import { formatDateYmdBr } from "@/lib/format-datetime";
+import { BR_TIMEZONE, formatDateYmdBr } from "@/lib/format-datetime";
 import type { ContractDetailViewModel } from "@/modules/contracts/infrastructure/contract-queries";
 
 const formatDate = (value: string | null) => formatDateYmdBr(value) || "sem término";
+
+/** Data civil de hoje no horário de Brasília (evita virar o dia por causa do UTC). */
+function todayYmdBr(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: BR_TIMEZONE }).format(new Date());
+}
 
 export function ContractVersionsPanel({
   contract,
@@ -197,7 +202,7 @@ export function ContractVersionsPanel({
               onClick={() =>
                 execute({
                   action: "end_contract",
-                  endedAt: new Date().toISOString().slice(0, 10),
+                  endedAt: todayYmdBr(),
                   reason,
                 })
               }

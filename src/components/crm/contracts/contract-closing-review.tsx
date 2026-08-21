@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger } from "@/components/ui/select";
@@ -217,18 +218,18 @@ export function ContractClosingReview({
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border bg-white p-5">
+    <div className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
       {error ? (
-        <p role="alert" className="rounded bg-rose-50 p-3 text-sm text-rose-700">
+        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
           {error}
         </p>
       ) : null}
-      <div className="flex justify-between">
-        <strong>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <strong className="text-zinc-900">
           {formatDateYmdBr(detail.closing.competencia) || detail.closing.competencia} · revisão{" "}
           {revision?.numero}
         </strong>
-        <span>{revision?.status}</span>
+        <Badge variant="outline">{revision?.status}</Badge>
       </div>
       <div className="grid gap-2 sm:grid-cols-4">
         {(
@@ -239,18 +240,19 @@ export function ContractClosingReview({
             ["Total", revision?.total_geral],
           ] as const
         ).map(([label, value]) => (
-          <div className="rounded bg-zinc-50 p-3" key={label}>
-            <small>{label}</small>
-            <p className="font-bold tabular-nums">{money(Number(value ?? 0))}</p>
+          <div className="rounded-xl border border-[#dfe5ee] bg-zinc-50 p-3" key={label}>
+            <small className="text-xs text-zinc-500">{label}</small>
+            <p className="font-bold tabular-nums text-zinc-900">{money(Number(value ?? 0))}</p>
           </div>
         ))}
       </div>
 
       <section className="space-y-2">
         <div className="flex justify-between">
-          <h4 className="font-semibold">Consumos mensais</h4>
+          <h4 className="font-semibold text-zinc-900">Consumos mensais</h4>
           {editable ? (
             <Button
+              type="button"
               size="sm"
               variant="outline"
               onClick={() =>
@@ -286,7 +288,7 @@ export function ContractClosingReview({
           } as const;
           return (
             <div
-              className="grid gap-2 rounded border p-2 md:grid-cols-4"
+              className="grid gap-2 rounded-xl border border-[#dfe5ee] bg-white p-3 shadow-sm md:grid-cols-4"
               key={entry.id ?? index}
             >
               <Select
@@ -415,7 +417,7 @@ export function ContractClosingReview({
 
       {manualComponents.length ? (
         <section className="space-y-2">
-          <h4 className="font-semibold">Liberações desta competência</h4>
+          <h4 className="font-semibold text-zinc-900">Liberações desta competência</h4>
           {manualComponents.map((component) => {
             const current = resolutions.find((entry) => entry.componente_id === component.id) ?? {
               componente_id: component.id,
@@ -431,7 +433,7 @@ export function ContractClosingReview({
               ]);
             const areaName = component.area_id ? areaById.get(component.area_id) : null;
             return (
-              <div key={component.id} className="grid gap-2 rounded border p-3 md:grid-cols-4">
+              <div key={component.id} className="grid gap-2 rounded-xl border border-[#dfe5ee] bg-white p-3 shadow-sm md:grid-cols-4">
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     disabled={!editable}
@@ -482,13 +484,17 @@ export function ContractClosingReview({
         </section>
       ) : null}
 
-      {editable ? <Button onClick={saveInputs}>Salvar entradas e recalcular</Button> : null}
+      {editable ? (
+        <Button type="button" onClick={saveInputs}>
+          Salvar entradas e recalcular
+        </Button>
+      ) : null}
 
       {items
         .filter((entry) => entry.bloqueante)
         .map((entry) => (
-          <div key={entry.id} className="rounded border border-amber-300 bg-amber-50 p-3">
-            <p>{entry.bloqueio_descricao}</p>
+          <div key={entry.id} className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+            <p className="text-sm text-amber-900">{entry.bloqueio_descricao}</p>
             {!entry.resolvido_em && editable ? (
               <div className="mt-2 flex gap-2">
                 <Input
@@ -497,6 +503,7 @@ export function ContractClosingReview({
                   placeholder="Justificativa"
                 />
                 <Button
+                  type="button"
                   onClick={() =>
                     act({
                       action: "resolve_blocker",
@@ -523,11 +530,14 @@ export function ContractClosingReview({
         ] as const
       ).map(([title, kinds]) => (
         <section key={title}>
-          <h4 className="font-semibold">{title}</h4>
+          <h4 className="font-semibold text-zinc-900">{title}</h4>
           {items
             .filter((entry) => (kinds as ReadonlyArray<string>).includes(entry.tipo))
             .map((entry) => (
-              <div className="flex justify-between gap-3 border-b py-2 text-sm" key={entry.id}>
+              <div
+                className="flex justify-between gap-3 border-b border-zinc-100 py-2 text-sm"
+                key={entry.id}
+              >
                 <div className="min-w-0">{renderItemLabel(entry)}</div>
                 <strong className="shrink-0 tabular-nums">{money(entry.valor)}</strong>
               </div>
@@ -535,9 +545,10 @@ export function ContractClosingReview({
         </section>
       ))}
 
-      <div className="flex flex-wrap gap-2 border-t pt-3">
+      <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-3">
         {revision?.status === "em_revisao" && permissions.canApprove ? (
           <Button
+            type="button"
             disabled={blocked}
             onClick={() => act({ action: "approve", expectedRevision: revision.numero })}
           >
@@ -552,6 +563,7 @@ export function ContractClosingReview({
               placeholder="Motivo da nova revisão"
             />
             <Button
+              type="button"
               variant="outline"
               onClick={() =>
                 act({
@@ -574,6 +586,7 @@ export function ContractClosingReview({
               placeholder="Referência VIOS"
             />
             <Button
+              type="button"
               onClick={() =>
                 act({
                   action: "register_vios",
