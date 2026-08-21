@@ -9,12 +9,28 @@ async function getUsers() {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("app_users")
-      .select("id, full_name, role, area, avatar_url, created_at")
+      .select("id, auth_user_id, full_name, role, area, avatar_url, created_at")
       .order("role", { ascending: true })
       .order("full_name", { ascending: true });
 
     if (error) throw error;
-    return { users: data ?? [], error: null };
+
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+    if (authError) throw authError;
+
+    const emailByAuthId = new Map(
+      (authUsers.users ?? []).map((authUser) => [authUser.id, authUser.email ?? undefined]),
+    );
+
+    const users = (data ?? []).map(({ auth_user_id, ...user }) => ({
+      ...user,
+      email: emailByAuthId.get(auth_user_id),
+    }));
+
+    return { users, error: null };
   } catch (err) {
     return {
       users: [],
