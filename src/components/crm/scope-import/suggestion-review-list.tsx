@@ -6,39 +6,59 @@ import type { ScopeImportBatchState } from "./scope-import-shell";
 import { SuggestionCard } from "./suggestion-card";
 
 type Props = {
-  batchId: string;
+  batchId?: string;
   state: ScopeImportBatchState;
   catalog: ProposalCatalogAdminData;
   onUpdated: () => void;
+  combined?: boolean;
+  batchCount?: number;
+  decidedCount?: number;
 };
 
-export function SuggestionReviewList({ state, catalog, onUpdated }: Props) {
+export function SuggestionReviewList({
+  state,
+  catalog,
+  onUpdated,
+  combined = false,
+  batchCount = 0,
+  decidedCount = 0,
+}: Props) {
   const pending = state.suggestions.filter((s) => s.status === "pendente");
   const decided = state.suggestions.filter((s) => s.status !== "pendente");
 
   const grouped = useMemo(() => {
     const map = new Map<string, typeof pending>();
     for (const item of pending) {
-      const key = `${item.kind}::${item.area_key ?? "—"}`;
+      const batchPrefix = combined ? `${item.batch_id.slice(0, 8)} · ` : "";
+      const key = `${batchPrefix}${item.kind}::${item.area_key ?? "—"}`;
       const list = map.get(key) ?? [];
       list.push(item);
       map.set(key, list);
     }
     return [...map.entries()];
-  }, [pending]);
+  }, [pending, combined]);
+
+  const totalDecided = combined ? decidedCount + decided.length : decided.length;
 
   return (
     <section className="space-y-4 rounded-[24px] border border-white/55 bg-white/72 p-6 shadow-sm">
       <div>
-        <h2 className="text-lg font-bold text-primary-dark">3. Revisão e aprovação</h2>
+        <h2 className="text-lg font-bold text-primary-dark">
+          {combined ? "Revisão combinada — todos os lotes" : "3. Revisão e aprovação"}
+        </h2>
         <p className="text-sm text-muted-foreground">
-          {pending.length} pendente(s), {decided.length} já revisada(s). Aprovados entram no catálogo
-          imediatamente.
+          {pending.length} pendente(s), {totalDecided} já revisada(s).
+          {combined && batchCount > 0 ? ` ${batchCount} lote(s) com sugestões.` : null}{" "}
+          Aprovados entram no catálogo imediatamente.
         </p>
       </div>
 
       {grouped.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma sugestão pendente neste lote.</p>
+        <p className="text-sm text-muted-foreground">
+          {combined
+            ? "Nenhuma sugestão pendente em todos os lotes."
+            : "Nenhuma sugestão pendente neste lote."}
+        </p>
       ) : (
         grouped.map(([groupKey, items]) => (
           <div key={groupKey} className="space-y-3">
@@ -48,6 +68,7 @@ export function SuggestionReviewList({ state, catalog, onUpdated }: Props) {
                 key={suggestion.id}
                 suggestion={suggestion}
                 catalog={catalog}
+                showBatchLabel={combined}
                 onUpdated={onUpdated}
               />
             ))}

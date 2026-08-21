@@ -27,7 +27,25 @@ export async function loadScopeImportBatchState(supabase: AdminClient, batchId: 
     .order("created_at", { ascending: true });
   if (sugError) throw sugError;
 
-  const suggestionIds = (suggestions ?? []).map((s) => s.id);
+  const suggestionsWithSources = await attachSuggestionSources(
+    supabase,
+    suggestions ?? [],
+    documents ?? [],
+  );
+
+  return {
+    batch,
+    documents: documents ?? [],
+    suggestions: suggestionsWithSources,
+  };
+}
+
+async function attachSuggestionSources(
+  supabase: AdminClient,
+  suggestions: Database["public"]["Tables"]["scope_import_suggestions"]["Row"][],
+  documents: Database["public"]["Tables"]["scope_import_documents"]["Row"][],
+) {
+  const suggestionIds = suggestions.map((s) => s.id);
   let sources: Database["public"]["Tables"]["scope_import_suggestion_sources"]["Row"][] = [];
   if (suggestionIds.length) {
     const { data: sourceRows, error: srcError } = await supabase
@@ -49,10 +67,10 @@ export async function loadScopeImportBatchState(supabase: AdminClient, batchId: 
     extractions = extractionRows ?? [];
   }
 
-  const docById = new Map((documents ?? []).map((d) => [d.id, d]));
+  const docById = new Map(documents.map((d) => [d.id, d]));
   const extractionById = new Map(extractions.map((e) => [e.id, e]));
 
-  const suggestionsWithSources = (suggestions ?? []).map((suggestion) => {
+  return suggestions.map((suggestion) => {
     const linkedSources = sources.filter((s) => s.suggestion_id === suggestion.id);
     const sourceDetails = linkedSources.map((source) => {
       const extraction = extractionById.get(source.extraction_id) ?? null;
@@ -61,11 +79,47 @@ export async function loadScopeImportBatchState(supabase: AdminClient, batchId: 
     });
     return { ...suggestion, sources: sourceDetails };
   });
+}
+
+export async function loadScopeImportCombinedReview(supabase: AdminClient) {
+  const { data: suggestions, error: sugError } = await supabase
+    .from("scope_import_suggestions")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (sugError) throw sugError;
+
+  const rows = suggestions ?? [];
+  const pending = rows.filter((s) => s.status === "pendente");
+  const decided = rows.filter((s) => s.status !== "pendente");
+  if (pending.length === 0) {
+    return { batches: [], suggestions: [], pendingCount: 0, decidedCount: decided.length };
+  }
+
+  const batchIds = [...new Set(pending.map((s) => s.batch_id))];
+  const { data: batches, error: batchError } = await supabase
+    .from("scope_import_batches")
+    .select("id, status, document_count, processed_count, error_count, created_at")
+    .in("id", batchIds)
+    .order("created_at", { ascending: false });
+  if (batchError) throw batchError;
+
+  const { data: documents, error: docsError } = await supabase
+    .from("scope_import_documents")
+    .select("*")
+    .in("batch_id", batchIds);
+  if (docsError) throw docsError;
+
+  const suggestionsWithSources = await attachSuggestionSources(
+    supabase,
+    pending,
+    documents ?? [],
+  );
 
   return {
-    batch,
-    documents: documents ?? [],
+    batches: batches ?? [],
     suggestions: suggestionsWithSources,
+    pendingCount: pending.length,
+    decidedCount: decided.length,
   };
 }
 

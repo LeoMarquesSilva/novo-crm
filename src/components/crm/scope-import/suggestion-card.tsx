@@ -31,10 +31,11 @@ import { cn } from "@/lib/utils";
 type Props = {
   suggestion: ScopeImportSuggestion;
   catalog: ProposalCatalogAdminData;
+  showBatchLabel?: boolean;
   onUpdated: () => void;
 };
 
-export function SuggestionCard({ suggestion, catalog, onUpdated }: Props) {
+export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, onUpdated }: Props) {
   const [draft, setDraft] = useState(suggestion);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -150,6 +151,7 @@ export function SuggestionCard({ suggestion, catalog, onUpdated }: Props) {
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             {isScope ? "Escopo" : "Investimento"}
             {draft.area_key ? ` · ${draft.area_key}` : ""}
+            {showBatchLabel ? ` · lote ${draft.batch_id.slice(0, 8)}` : ""}
           </p>
           <h3 className="text-base font-bold text-primary-dark">{draft.subtype_label}</h3>
           <p className="text-xs text-muted-foreground">Tipo: {draft.type_label}</p>

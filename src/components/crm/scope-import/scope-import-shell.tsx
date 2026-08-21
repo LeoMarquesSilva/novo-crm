@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Layers } from "lucide-react";
 import type { ProposalCatalogAdminData } from "@/lib/crm/proposal-catalog-db";
+import { Button } from "@/components/ui/button";
 import { ImportUploadPanel } from "./import-upload-panel";
 import { ImportProgressPanel } from "./import-progress-panel";
 import { SuggestionReviewList } from "./suggestion-review-list";
@@ -27,6 +29,7 @@ export type ScopeImportSuggestionSource = {
 
 export type ScopeImportSuggestion = {
   id: string;
+  batch_id: string;
   kind: string;
   status: string;
   area_key: string | null;
@@ -68,6 +71,13 @@ type ScopeImportBatchSummary = {
   created_at: string;
 };
 
+type ScopeImportCombinedReview = {
+  batches: ScopeImportBatchSummary[];
+  suggestions: ScopeImportSuggestion[];
+  pendingCount: number;
+  decidedCount: number;
+};
+
 type Step = "upload" | "process" | "review";
 
 type Props = {
@@ -80,14 +90,38 @@ export function ScopeImportShell({ catalog }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pastBatches, setPastBatches] = useState<ScopeImportBatchSummary[] | null>(null);
+  const [reviewAll, setReviewAll] = useState(false);
+  const [combinedReview, setCombinedReview] = useState<ScopeImportCombinedReview | null>(null);
 
   const step: Step = useMemo(() => {
+    if (reviewAll && combinedReview) return "review";
     if (!batchId || !state) return "upload";
     if (state.batch.status === "revisao" || state.batch.status === "concluido") return "review";
     if (["extraindo", "consolidando"].includes(state.batch.status)) return "process";
     if (state.documents.some((d) => d.status === "extraido" || d.status === "erro")) return "process";
     return "upload";
-  }, [batchId, state]);
+  }, [batchId, state, reviewAll, combinedReview]);
+
+  const refreshCombinedReview = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/scope-import/review");
+      const json = (await res.json()) as {
+        ok?: boolean;
+        data?: ScopeImportCombinedReview;
+        error?: string;
+      };
+      if (!res.ok || !json.ok || !json.data) {
+        throw new Error(json.error ?? "Falha ao carregar revisão combinada.");
+      }
+      setCombinedReview(json.data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao carregar revisão combinada.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const refreshBatch = useCallback(async (id: string) => {
     setLoading(true);
@@ -111,13 +145,21 @@ export function ScopeImportShell({ catalog }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!batchId) return;
+    if (!batchId || reviewAll) return;
     if (step !== "review") return;
     const timer = setInterval(() => {
       void refreshBatch(batchId);
     }, 8000);
     return () => clearInterval(timer);
-  }, [batchId, step, refreshBatch]);
+  }, [batchId, step, reviewAll, refreshBatch]);
+
+  useEffect(() => {
+    if (!reviewAll) return;
+    const timer = setInterval(() => {
+      void refreshCombinedReview();
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [reviewAll, refreshCombinedReview]);
 
   const loadPastBatches = useCallback(async () => {
     try {
@@ -137,18 +179,37 @@ export function ScopeImportShell({ catalog }: Props) {
   }, []);
 
   useEffect(() => {
-    if (batchId) return;
+    if (batchId || reviewAll) return;
     void loadPastBatches();
-  }, [batchId, loadPastBatches]);
+  }, [batchId, reviewAll, loadPastBatches]);
 
   function handleBatchCreated(id: string) {
+    setReviewAll(false);
+    setCombinedReview(null);
     setBatchId(id);
     void refreshBatch(id);
   }
 
   function openBatch(id: string) {
+    setReviewAll(false);
+    setCombinedReview(null);
     setBatchId(id);
     void refreshBatch(id);
+  }
+
+  function openCombinedReview() {
+    setBatchId(null);
+    setState(null);
+    setReviewAll(true);
+    void refreshCombinedReview();
+  }
+
+  function exitFocusedView() {
+    setBatchId(null);
+    setState(null);
+    setReviewAll(false);
+    setCombinedReview(null);
+    void loadPastBatches();
   }
 
   return (
@@ -159,26 +220,38 @@ export function ScopeImportShell({ catalog }: Props) {
         </div>
       ) : null}
 
-      {batchId ? (
+      {batchId || reviewAll ? (
         <button
           type="button"
           className="text-xs font-semibold text-primary-dark underline underline-offset-2"
-          onClick={() => {
-            setBatchId(null);
-            setState(null);
-            void loadPastBatches();
-          }}
+          onClick={exitFocusedView}
         >
           ← Ver todos os lotes
         </button>
       ) : null}
 
-      {step === "upload" && !batchId && pastBatches && pastBatches.length > 0 ? (
+      {step === "upload" && !batchId && !reviewAll && pastBatches && pastBatches.length > 0 ? (
         <section className="rounded-[24px] border border-white/55 bg-white/72 p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-primary-dark">Lotes existentes</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Retome um lote já criado (upload, extração ou revisão em andamento).
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-primary-dark">Lotes existentes</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Retome um lote já criado (upload, extração ou revisão em andamento).
+              </p>
+            </div>
+            {pastBatches.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2 shrink-0"
+                onClick={openCombinedReview}
+              >
+                <Layers className="size-4" aria-hidden />
+                Revisar todos juntos
+              </Button>
+            ) : null}
+          </div>
           <ul className="mt-4 space-y-2">
             {pastBatches.map((b) => (
               <li key={b.id}>
@@ -202,7 +275,7 @@ export function ScopeImportShell({ catalog }: Props) {
         </section>
       ) : null}
 
-      {step === "upload" ? (
+      {step === "upload" && !reviewAll ? (
         <ImportUploadPanel
           batchId={batchId}
           state={state}
@@ -225,7 +298,28 @@ export function ScopeImportShell({ catalog }: Props) {
         />
       ) : null}
 
-      {step === "review" && batchId && state ? (
+      {step === "review" && reviewAll && combinedReview ? (
+        <SuggestionReviewList
+          state={{
+            batch: {
+              id: "combined",
+              status: "revisao",
+              document_count: combinedReview.batches.reduce((n, b) => n + b.document_count, 0),
+              processed_count: combinedReview.batches.reduce((n, b) => n + b.processed_count, 0),
+              error_count: combinedReview.batches.reduce((n, b) => n + b.error_count, 0),
+            },
+            documents: [],
+            suggestions: combinedReview.suggestions,
+          }}
+          catalog={catalog}
+          combined
+          batchCount={combinedReview.batches.length}
+          decidedCount={combinedReview.decidedCount}
+          onUpdated={() => void refreshCombinedReview()}
+        />
+      ) : null}
+
+      {step === "review" && batchId && state && !reviewAll ? (
         <SuggestionReviewList
           batchId={batchId}
           state={state}
