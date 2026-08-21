@@ -8,6 +8,7 @@ import {
   type DueAreaTaskSummary,
 } from "@/lib/crm/due-area-tasks";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 import type { Oportunidade } from "@/modules/crm/domain/entities";
 
 type LeadApiRecord = Oportunidade;
@@ -270,12 +271,20 @@ export async function GET() {
       email: authEmailById.get(user.auth_user_id) ?? null,
     }));
 
+    const usersWithOfficialPhotos = await overlayOfficialAvatars(
+      (usersRows ?? []).map((u) => ({ id: u.id, avatarUrl: u.avatar_url })),
+    );
+    const officialAvatarById = new Map(usersWithOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
     const userRowById = new Map<
       string,
       { full_name: string; avatar_url: string | null }
     >();
     for (const u of usersRows ?? []) {
-      userRowById.set(u.id, { full_name: u.full_name, avatar_url: u.avatar_url });
+      userRowById.set(u.id, {
+        full_name: u.full_name,
+        avatar_url: officialAvatarById.get(u.id) ?? u.avatar_url,
+      });
     }
 
     const ownerByEmail = new Map<

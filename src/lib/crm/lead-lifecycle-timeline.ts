@@ -3,6 +3,7 @@ import { formatarDuracaoBr } from "@/lib/crm/due-diligence-timeline";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import type { LeadActivityKind } from "@/lib/crm/record-lead-activity";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 
 export type LeadActivityActor = {
   appUserId: string;
@@ -78,13 +79,18 @@ async function fetchActivityActors(
     .select("id, full_name, avatar_url, area")
     .in("id", unique);
 
+  const withOfficialPhotos = await overlayOfficialAvatars(
+    (data ?? []).map((row) => ({ id: String(row.id), avatarUrl: row.avatar_url ?? null })),
+  );
+  const officialAvatarById = new Map(withOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
   const map = new Map<string, LeadActivityActor>();
   for (const row of data ?? []) {
     const area = row.area != null ? String(row.area).trim() : "";
     map.set(String(row.id), {
       appUserId: String(row.id),
       fullName: String(row.full_name),
-      avatarUrl: row.avatar_url ?? null,
+      avatarUrl: officialAvatarById.get(String(row.id)) ?? row.avatar_url ?? null,
       area: area || null,
     });
   }
