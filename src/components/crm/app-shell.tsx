@@ -53,7 +53,7 @@ type SidebarGroup = {
 
 const STORAGE_KEYS = {
   favorites: "crm.sidebar.favorites.v1",
-  groups: "crm.sidebar.groups.v1",
+  groups: "crm.sidebar.groups.v2",
   collapsed: "crm.sidebar.collapsed.v1",
 };
 
@@ -281,33 +281,42 @@ function SidebarSection({
 
   if (visibleItems.length === 0) return null;
 
+  const hasActiveItem = visibleItems.some((item) => isNavLinkActive(pathname, item.href));
+  const isCollapsible = group.id === "admin";
+  const forceOpen = Boolean(normalizedSearch) || compact || !isCollapsible;
+  const showItems = open || forceOpen;
+
   return (
     <section className="space-y-1.5">
       {!collapsed ? (
-        <button
-          type="button"
-          onClick={() => onToggleOpen(group.id)}
-          disabled={compact}
-          className={cn(
-            "flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 transition-colors",
-            compact ? "cursor-default" : "hover:bg-white/70 hover:text-slate-600",
-          )}
-        >
-          <span>{group.title}</span>
-          {!compact ? (
+        isCollapsible ? (
+          <button
+            type="button"
+            onClick={() => onToggleOpen(group.id)}
+            aria-expanded={showItems}
+            className={cn(
+              "flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 transition-colors hover:border-slate-200 hover:bg-white/70 hover:text-slate-600",
+              hasActiveItem && !open && "text-slate-600",
+            )}
+          >
+            <span>{group.title}</span>
             <ChevronDown
-              className={cn("size-3.5 transition-transform duration-150", open ? "rotate-0" : "-rotate-90")}
+              className={cn("size-3.5 transition-transform duration-150", showItems ? "rotate-0" : "-rotate-90")}
               strokeWidth={2}
             />
-          ) : null}
-        </button>
+          </button>
+        ) : (
+          <p className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+            {group.title}
+          </p>
+        )
       ) : null}
 
       <AnimatePresence initial={false}>
-        {(open || collapsed || compact) ? (
+        {showItems ? (
           <motion.div
             key={group.id}
-            initial={{ height: 0, opacity: 0 }}
+            initial={isCollapsible ? { height: 0, opacity: 0 } : false}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
@@ -349,7 +358,7 @@ export function AppShell({
   const [favorites, setFavorites] = useState<string[]>([]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     commercial: true,
-    admin: true,
+    admin: false,
   });
   const [hydratedStorage, setHydratedStorage] = useState(false);
 
@@ -385,6 +394,13 @@ export function AppShell({
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!showAdminNav || !pathname) return;
+    const onAdminRoute = adminItems.some((item) => isNavLinkActive(pathname, item.href));
+    if (!onAdminRoute) return;
+    setOpenGroups((current) => (current.admin ? current : { ...current, admin: true }));
+  }, [pathname, showAdminNav]);
 
   useEffect(() => {
     if (!hydratedStorage) return;
