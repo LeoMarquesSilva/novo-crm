@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 
 export async function GET() {
   try {
@@ -46,6 +47,11 @@ export async function GET() {
       }
     }
 
+    const usersWithOfficialPhotos = await overlayOfficialAvatars(
+      (users ?? []).map((user) => ({ id: user.id, avatarUrl: user.avatar_url })),
+    );
+    const officialAvatarById = new Map(usersWithOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
     const systemUsers = (users ?? [])
       .map((user) => {
         const email = authEmailById.get(user.auth_user_id) ?? null;
@@ -56,6 +62,7 @@ export async function GET() {
           name: user.full_name,
           email,
           avatarUrl:
+            officialAvatarById.get(user.id) ||
             user.avatar_url ||
             `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(
               user.full_name,

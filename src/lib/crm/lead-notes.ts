@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import type { AppUserProfile } from "@/lib/auth/server";
 import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 
 export type LeadNoteAuthor = {
   id: string;
@@ -67,7 +68,11 @@ function normalizeMentionIds(ids: string[], authorAppUserId?: string): string[] 
   ];
 }
 
-function toNoteItem(row: LeadNoteRow, viewer: AppUserProfile | null): LeadNoteItem {
+function toNoteItem(
+  row: LeadNoteRow,
+  viewer: AppUserProfile | null,
+  officialAvatarById: Map<string, string | null>,
+): LeadNoteItem {
   const canManage =
     Boolean(viewer) &&
     (viewer?.role === "admin" || viewer?.id === row.created_by_app_user_id);
@@ -85,7 +90,7 @@ function toNoteItem(row: LeadNoteRow, viewer: AppUserProfile | null): LeadNoteIt
       ? {
           id: row.author.id,
           fullName: row.author.full_name,
-          avatarUrl: row.author.avatar_url,
+          avatarUrl: officialAvatarById.get(row.author.id) ?? row.author.avatar_url,
         }
       : null,
     mentions: row.mentions
@@ -94,7 +99,7 @@ function toNoteItem(row: LeadNoteRow, viewer: AppUserProfile | null): LeadNoteIt
       .map((user) => ({
         id: user.id,
         fullName: user.full_name,
-        avatarUrl: user.avatar_url,
+        avatarUrl: officialAvatarById.get(user.id) ?? user.avatar_url,
       })),
   };
 }
@@ -129,7 +134,20 @@ export async function listLeadNotes(
     return { ok: false, error: error.message, status: 500 };
   }
 
-  return { ok: true, notes: asLeadNoteRows(data).map((row) => toNoteItem(row, viewer)) };
+  const rows = asLeadNoteRows(data);
+  const involvedIds = new Set<string>();
+  for (const row of rows) {
+    if (row.author?.id) involvedIds.add(row.author.id);
+    for (const mention of row.mentions) {
+      if (mention.mentioned_app_user?.id) involvedIds.add(mention.mentioned_app_user.id);
+    }
+  }
+  const withOfficialPhotos = await overlayOfficialAvatars(
+    [...involvedIds].map((id) => ({ id, avatarUrl: null as string | null })),
+  );
+  const officialAvatarById = new Map(withOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
+  return { ok: true, notes: rows.map((row) => toNoteItem(row, viewer, officialAvatarById)) };
 }
 
 export async function listLeadMentionableUsers(
@@ -144,12 +162,17 @@ export async function listLeadMentionableUsers(
     return { ok: false, error: error.message, status: 500 };
   }
 
+  const withOfficialPhotos = await overlayOfficialAvatars(
+    (data ?? []).map((user) => ({ id: user.id, avatarUrl: user.avatar_url })),
+  );
+  const officialAvatarById = new Map(withOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
   return {
     ok: true,
     users: (data ?? []).map((user) => ({
       id: user.id,
       fullName: user.full_name,
-      avatarUrl: user.avatar_url,
+      avatarUrl: officialAvatarById.get(user.id) ?? user.avatar_url,
       role: String(user.role),
       area: user.area,
     })),

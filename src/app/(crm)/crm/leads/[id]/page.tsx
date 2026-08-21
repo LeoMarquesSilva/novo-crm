@@ -20,6 +20,7 @@ import { formatMaybeDateLikeBr } from "@/lib/format-datetime";
 import { resolvePipelineEtapaFromDbAndRd } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 import type { Oportunidade } from "@/modules/crm/domain/entities";
 import { LeadDetailView } from "./lead-detail-view";
 import type { LeadIntakeEmpresaRow } from "./lead-intake-types";
@@ -607,14 +608,10 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
         .eq("role", "comercial")
         .in("area", appUserAreaCandidatesForScopeKey(areaKey))
         .order("full_name", { ascending: true });
-      responsaveisByArea.set(
-        normalizePracticeAreaKey(areaKey),
-        (users ?? []).map((u) => ({
-          id: u.id,
-          fullName: u.full_name,
-          avatarUrl: u.avatar_url,
-        })),
+      const usersWithOfficialPhotos = await overlayOfficialAvatars(
+        (users ?? []).map((u) => ({ id: u.id, fullName: u.full_name, avatarUrl: u.avatar_url })),
       );
+      responsaveisByArea.set(normalizePracticeAreaKey(areaKey), usersWithOfficialPhotos);
     }
     escopoSolicitacoes = (solRows ?? []).map((r) => ({
       areaKey: r.area_key,
@@ -766,14 +763,20 @@ async function getAppUsersByEmail(): Promise<Record<string, { avatarUrl: string 
   try {
     const supabase = createSupabaseAdminClient();
     const [{ data: appUsers }, { data: authData }] = await Promise.all([
-      supabase.from("app_users").select("auth_user_id, full_name, avatar_url"),
+      supabase.from("app_users").select("id, auth_user_id, full_name, avatar_url"),
       supabase.auth.admin.listUsers({ perPage: 1000 }),
     ]);
     const emailById = new Map((authData?.users ?? []).map((u) => [u.id, u.email ?? ""]));
+    const usersWithOfficialPhotos = await overlayOfficialAvatars(
+      (appUsers ?? []).map((u) => ({ id: u.id, avatarUrl: u.avatar_url })),
+    );
+    const officialAvatarById = new Map(usersWithOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
     const map: Record<string, { avatarUrl: string | null; fullName: string }> = {};
     for (const u of appUsers ?? []) {
       const email = emailById.get(u.auth_user_id)?.toLowerCase();
-      if (email) map[email] = { avatarUrl: u.avatar_url ?? null, fullName: u.full_name };
+      if (email) {
+        map[email] = { avatarUrl: officialAvatarById.get(u.id) ?? u.avatar_url ?? null, fullName: u.full_name };
+      }
     }
     return map;
   } catch {

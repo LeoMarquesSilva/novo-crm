@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { actorFromAppUserRow, parseOriginadoPor, type InAppNotificationActor } from "@/lib/crm/in-app-notification-meta";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 
 export type EnrichableInAppNotificationRow = {
   id: string;
@@ -63,9 +64,17 @@ export async function enrichInAppNotificationsWithLeadCreator(
     .select("id, full_name, avatar_url")
     .in("id", [...creatorIds]);
 
+  const creatorsWithOfficialPhotos = await overlayOfficialAvatars(
+    (creators ?? []).map((c) => ({ id: c.id as string, avatarUrl: c.avatar_url as string | null })),
+  );
+  const officialAvatarById = new Map(creatorsWithOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
   const actorByAppUserId = new Map<string, InAppNotificationActor>();
   for (const c of creators ?? []) {
-    const a = actorFromAppUserRow(c);
+    const a = actorFromAppUserRow({
+      ...c,
+      avatar_url: officialAvatarById.get(c.id as string) ?? (c.avatar_url as string | null),
+    });
     if (a) actorByAppUserId.set(c.id as string, a);
   }
 

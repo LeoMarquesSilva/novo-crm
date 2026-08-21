@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 export type ContractSource = "proposta" | "contrato" | "rd" | "manual";
@@ -353,6 +354,11 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     contract.d4sign_document_id ? supabase.from("d4sign_documents").select("id, uuid_doc, name_document, status_name, d4sign_status, link_contrato, updated_at").eq("id", contract.d4sign_document_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
 
+  const usersWithOfficialPhotos = await overlayOfficialAvatars(
+    (usersResult.data ?? []).map((user) => ({ id: user.id, avatarUrl: user.avatar_url })),
+  );
+  const officialAvatarByUserId = new Map(usersWithOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
   const versions = versionsResult.data ?? [];
   const editableVersion = versions.find((version) => version.status === "rascunho")
     ?? versions.find((version) => version.id === contract.versao_ativa_id)
@@ -513,7 +519,7 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
       id: user.id,
       name: user.full_name,
       role: user.role,
-      avatarUrl: user.avatar_url,
+      avatarUrl: officialAvatarByUserId.get(user.id) ?? user.avatar_url,
     })),
     clients: (clientsResult.data ?? []).map((client) => ({ id: client.id, name: client.razao_social })),
     versions: versions.map((version) => ({ id: version.id, number: version.numero, status: version.status, startsAt: version.vigente_de, endsAt: version.vigente_ate, activatedAt: version.ativada_em })),

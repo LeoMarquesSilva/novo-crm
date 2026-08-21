@@ -3,6 +3,7 @@ import { z } from "zod";
 import { adminInitialPasswordSchema } from "@/lib/auth/admin-user-policy";
 import { requireAdminApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 
 const createUserSchema = z.object({
   full_name: z.string().trim().min(2).max(160),
@@ -41,8 +42,14 @@ export async function GET() {
       (authUsers.users ?? []).map((authUser) => [authUser.id, authUser.email ?? null]),
     );
 
+    const usersWithOfficialPhotos = await overlayOfficialAvatars(
+      (users ?? []).map((user) => ({ id: user.id, avatarUrl: user.avatar_url })),
+    );
+    const officialAvatarById = new Map(usersWithOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
     const data = (users ?? []).map((user) => ({
       ...user,
+      avatar_url: officialAvatarById.get(user.id) ?? user.avatar_url,
       email: emailByAuthId.get(user.auth_user_id) ?? null,
     }));
 
