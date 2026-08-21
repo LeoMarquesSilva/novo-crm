@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { UserManagementPanel } from "@/components/crm/user-management-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 
 async function getUsers() {
   try {
@@ -25,8 +26,17 @@ async function getUsers() {
       (authUsers.users ?? []).map((authUser) => [authUser.id, authUser.email ?? undefined]),
     );
 
+    const withOfficialPhotos = await overlayOfficialAvatars(
+      (data ?? []).map((user) => ({
+        id: user.id,
+        avatarUrl: user.avatar_url,
+      })),
+    );
+    const officialUrlById = new Map(withOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
+
     const users = (data ?? []).map(({ auth_user_id, ...user }) => ({
       ...user,
+      avatar_url: officialUrlById.get(user.id) ?? user.avatar_url,
       email: emailByAuthId.get(auth_user_id),
     }));
 
