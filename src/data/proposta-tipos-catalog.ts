@@ -42,6 +42,18 @@ export type PropostaEscopoDetalheEntry = {
 /** Área de atuação → um ou mais blocos de escopo + investimento. */
 export type PropostaEscopoDetalhe = Record<string, PropostaEscopoDetalheEntry[]>;
 
+/** Chave reservada em `cp_escopo_detalhe_json` (não é área de escopo). */
+export const INVESTIMENTO_DOCUMENTO_KEY = "__investimentoDocumento__";
+
+/** Investimento consolidado exibido no Word (`[INVESTIMENTO]`). */
+export type PropostaInvestimentoDocumento = {
+  tipoId: string;
+  subtipoId: string;
+  placeholders: Record<string, string>;
+  /** Default `true`: recalcula valor primário a partir da soma das áreas. */
+  autoSum?: boolean;
+};
+
 /** Preenchido no CRM; no Word usa-se `[RESUMO]` (rótulo «Síntese da demanda:» fica só no modelo). */
 export const PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO = "RESUMO_DO_PROCESSO";
 

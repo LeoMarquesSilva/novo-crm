@@ -43,6 +43,8 @@ import {
   normalizeEscopoEntry,
   parseAreasList,
   parseEscopoJson,
+  parseEscopoJsonWithMeta,
+  stringifyEscopoJsonWithMeta,
   syncEscopoToAreas,
 } from "@/lib/crm/proposta-escopo-json";
 import { PropostaEscopoEntryForm } from "@/components/crm/proposta-escopo-entry-form";
@@ -91,6 +93,8 @@ type Props = {
    * Usado pelo builder de proposta para atualizar o live preview sem buscar do DB.
    */
   onSaved?: (escopoJson: string) => void;
+  /** Rascunho local (antes do PATCH) — alimenta preview ao vivo no builder. */
+  onEscopoDraftChange?: (escopoJson: string) => void;
 };
 
 type EscopoAreaSolicitacao = {
@@ -114,6 +118,7 @@ export function PropostaEscopoPorArea({
   solicitacoes = [],
   className,
   onSaved,
+  onEscopoDraftChange,
 }: Props) {
   const router = useRouter();
   const [escopo, setEscopo] = useState<PropostaEscopoDetalhe>(() => parseEscopoJson(initialValue));
@@ -132,6 +137,10 @@ export function PropostaEscopoPorArea({
   );
   const lastPersisted = useRef<string>(initialValue.trim());
   const lastSavedSnapshot = useRef<PropostaEscopoDetalhe>(parseEscopoJson(initialValue));
+  const investimentoMetaRef = useRef(
+    parseEscopoJsonWithMeta(initialValue).investimentoDocumento,
+  );
+  const lastDraftSentRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,10 +160,17 @@ export function PropostaEscopoPorArea({
   }, []);
 
   useEffect(() => {
+    investimentoMetaRef.current = parseEscopoJsonWithMeta(initialValue).investimentoDocumento;
+    if (initialValue.trim() === lastDraftSentRef.current) return;
     const parsed = syncEscopoToAreas(parseEscopoJson(initialValue), parseAreasList(areasDisplay));
-    const normalized = JSON.stringify(parsed);
-    setEscopo(parsed);
-    lastPersisted.current = normalized;
+    setEscopo((prev) => {
+      if (escopoJsonEqual(parsed, prev)) {
+        lastDraftSentRef.current = initialValue.trim();
+        return prev;
+      }
+      return parsed;
+    });
+    lastPersisted.current = initialValue.trim();
     lastSavedSnapshot.current = parsed;
   }, [areasDisplay, initialValue]);
 
@@ -207,7 +223,8 @@ export function PropostaEscopoPorArea({
   const persist = useCallback(
     async (next: PropostaEscopoDetalhe, options?: { restrictToArea?: string }) => {
       const normalizedNext = syncEscopoToAreas(next, parseAreasList(areasDisplay));
-      const body = JSON.stringify(normalizedNext);
+      const meta = investimentoMetaRef.current;
+      const body = stringifyEscopoJsonWithMeta(normalizedNext, meta);
       const payloadEscopo =
         options?.restrictToArea
           ? {
@@ -215,7 +232,9 @@ export function PropostaEscopoPorArea({
                 getEscopoEntriesForArea(normalizedNext, options.restrictToArea),
             }
           : normalizedNext;
-      const payloadBody = JSON.stringify(payloadEscopo);
+      const payloadBody = options?.restrictToArea
+        ? JSON.stringify(payloadEscopo)
+        : body;
       if (!options?.restrictToArea && body === lastPersisted.current) return;
       setError(null);
       try {
@@ -232,6 +251,7 @@ export function PropostaEscopoPorArea({
         }
         lastPersisted.current = body;
         lastSavedSnapshot.current = normalizedNext;
+        lastDraftSentRef.current = body;
         setEscopo(normalizedNext);
         collapseCompleteEditableAreas(normalizedNext);
         setLastSavedAt(
@@ -255,6 +275,18 @@ export function PropostaEscopoPorArea({
       return next;
     });
   }, [areasDisplay]);
+
+  useEffect(() => {
+    if (!onEscopoDraftChange) return;
+    const timer = setTimeout(() => {
+      const normalized = syncEscopoToAreas(escopo, parseAreasList(areasDisplay));
+      const json = stringifyEscopoJsonWithMeta(normalized, investimentoMetaRef.current);
+      if (json === lastDraftSentRef.current) return;
+      lastDraftSentRef.current = json;
+      onEscopoDraftChange(json);
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [escopo, areasDisplay, onEscopoDraftChange]);
 
   const isAreaDirty = useCallback((areaKey: string): boolean => {
     const a = getEscopoEntriesForArea(escopo, areaKey);

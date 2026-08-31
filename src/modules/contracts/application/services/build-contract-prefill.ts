@@ -7,7 +7,7 @@ import {
   getParcelaVencimentos,
   parseParcelasCount,
 } from "@/lib/crm/proposta-investimento-parcelas";
-import { parseEscopoJson } from "@/lib/crm/proposta-escopo-json";
+import { parseEscopoJson, isInvestimentoDocumentoMetaKey } from "@/lib/crm/proposta-escopo-json";
 
 export type ContractPrefillSource = "contrato" | "proposta" | "manual" | "rd";
 
@@ -278,7 +278,9 @@ function proposalAreas(raw: unknown): Array<ContractPrefillSuggestion<ContractPr
   const json = serializedProposalJson(raw);
   if (!json) return [];
   const parsed = parseEscopoJson(json);
-  return Object.entries(parsed).map(([rawAreaKey, entries]) => {
+  return Object.entries(parsed)
+    .filter(([rawAreaKey]) => !isInvestimentoDocumentoMetaKey(rawAreaKey))
+    .map(([rawAreaKey, entries]) => {
     const placeholders = Object.assign({}, ...entries.map((entry) => entry.placeholders ?? {}));
     return suggestion({
       areaKey: normalizePracticeAreaKey(rawAreaKey),
@@ -312,6 +314,7 @@ function proposalComponents(raw: unknown): Array<ContractPrefillSuggestion<Contr
   const parsed = parseEscopoJson(json);
   const result: Array<ContractPrefillSuggestion<ContractPrefillBillingComponent>> = [];
   for (const [rawAreaKey, entries] of Object.entries(parsed)) {
+    if (isInvestimentoDocumentoMetaKey(rawAreaKey)) continue;
     const areaKey = normalizePracticeAreaKey(rawAreaKey);
     for (const entry of entries) {
       const investment = entry.investimento;

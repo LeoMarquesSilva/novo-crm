@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,15 +35,35 @@ type Props = {
   onUpdated: () => void;
 };
 
+function normalizeLabel(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function pickDefaultTargetTypeId(
+  suggestion: ScopeImportSuggestion,
+  typeOptions: Array<{ id: string; label: string; typeKey?: string; areaKey?: string }>,
+) {
+  if (typeOptions.length === 0) return "";
+
+  const byKey = suggestion.type_key
+    ? typeOptions.find((option) => option.typeKey === suggestion.type_key)
+    : undefined;
+  if (byKey) return byKey.id;
+
+  const byLabel = suggestion.type_label
+    ? typeOptions.find((option) => normalizeLabel(option.label) === normalizeLabel(suggestion.type_label))
+    : undefined;
+  if (byLabel) return byLabel.id;
+
+  if (typeOptions.length === 1) return typeOptions[0]!.id;
+  return "";
+}
+
 export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, onUpdated }: Props) {
   const [draft, setDraft] = useState(suggestion);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [showSources, setShowSources] = useState(false);
-  const [targetMode, setTargetMode] = useState<"existing" | "new">("existing");
-  const [targetTypeId, setTargetTypeId] = useState("");
-  const [newTypeLabel, setNewTypeLabel] = useState(draft.type_label ?? "");
-
   const isScope = draft.kind === "escopo";
   const typeOptions = useMemo(() => {
     if (isScope) {
@@ -53,6 +73,33 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
     }
     return catalog.adminRows.investmentTypes;
   }, [catalog, draft.area_key, isScope]);
+
+  const defaultTargetTypeId = useMemo(
+    () => pickDefaultTargetTypeId(draft, typeOptions),
+    [draft, typeOptions],
+  );
+
+  const [targetMode, setTargetMode] = useState<"existing" | "new">(
+    defaultTargetTypeId ? "existing" : typeOptions.length > 0 ? "existing" : "new",
+  );
+  const [targetTypeId, setTargetTypeId] = useState(defaultTargetTypeId);
+  const [newTypeLabel, setNewTypeLabel] = useState(draft.type_label ?? "");
+
+  useEffect(() => {
+    setDraft(suggestion);
+    setNewTypeLabel(suggestion.type_label ?? "");
+    const nextDefaultTargetTypeId = pickDefaultTargetTypeId(
+      suggestion,
+      isScope
+        ? catalog.adminRows.scopeTypes.filter(
+            (t) => !suggestion.area_key || t.areaKey === suggestion.area_key,
+          )
+        : catalog.adminRows.investmentTypes,
+    );
+    setTargetTypeId(nextDefaultTargetTypeId);
+    setTargetMode(nextDefaultTargetTypeId ? "existing" : typeOptions.length > 0 ? "existing" : "new");
+    setFeedback(null);
+  }, [suggestion, catalog.adminRows.scopeTypes, catalog.adminRows.investmentTypes, isScope, typeOptions.length]);
 
   const detected = useMemo(
     () => extractPlaceholderKeysFromText(draft.template ?? "", draft.conceito ?? ""),
@@ -104,16 +151,26 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
       let body: Record<string, unknown>;
       if (action === "rejeitar") {
         body = { action: "rejeitar" };
-      } else if (targetMode === "existing" && targetTypeId) {
+      } else if (targetMode === "existing") {
+        if (!targetTypeId) {
+          throw new Error("Selecione o tipo de destino no catálogo ou escolha \"Novo tipo\".");
+        }
         body = isScope
           ? { action: "aprovar", target: { scopeTypeId: targetTypeId } }
           : { action: "aprovar", target: { investmentTypeId: targetTypeId } };
       } else {
+        const label = newTypeLabel.trim() || draft.type_label?.trim() || "";
+        if (!label) {
+          throw new Error("Informe o nome do novo tipo de destino.");
+        }
+        if (isScope && !draft.area_key) {
+          throw new Error("Selecione a área antes de aprovar.");
+        }
         body = {
           action: "aprovar",
           target: {
             newType: {
-              label: newTypeLabel.trim() || draft.type_label,
+              label,
               areaKey: isScope ? draft.area_key : undefined,
             },
           },

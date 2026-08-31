@@ -80,8 +80,11 @@ describe("splitEscopoTextForDocx", () => {
     expect(d.AREAS).toBe("Cível, Recuperação de Créditos");
     expect(d.ESCOPO_AREA).toContain("Cível");
     expect(d.ESCOPO_AREA).toContain("Recuperação de Créditos");
-    expect(d.INVESTIMENTO).toContain("1.000,00");
-    expect(d.INVESTIMENTO).toContain("2.000,00");
+    expect(d.INVESTIMENTO).toContain("3.000,00");
+    expect(d.INVESTIMENTO).not.toContain("Cível");
+    expect(d.INVESTIMENTO).not.toContain("Recuperação de Créditos");
+    expect(d.INVESTIMENTO).not.toContain("1.000,00");
+    expect(d.INVESTIMENTO).not.toContain("2.000,00");
   });
 });
 

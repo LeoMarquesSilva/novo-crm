@@ -1,9 +1,17 @@
 import type {
   PropostaEscopoDetalhe,
   PropostaEscopoDetalheEntry,
+  PropostaInvestimentoDocumento,
   PropostaInvestimentoEntry,
 } from "@/data/proposta-tipos-catalog";
+import { INVESTIMENTO_DOCUMENTO_KEY } from "@/data/proposta-tipos-catalog";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
+
+export { INVESTIMENTO_DOCUMENTO_KEY };
+
+export function isInvestimentoDocumentoMetaKey(key: string): boolean {
+  return key === INVESTIMENTO_DOCUMENTO_KEY;
+}
 
 export function createEscopoEntryId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -46,6 +54,26 @@ function normalizeInvestimento(raw: unknown): PropostaInvestimentoEntry | undefi
   return out;
 }
 
+export function normalizeInvestimentoDocumento(
+  raw: unknown,
+): PropostaInvestimentoDocumento | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const e = raw as Record<string, unknown>;
+  const tipoId = typeof e.tipoId === "string" ? e.tipoId : "";
+  const subtipoId = typeof e.subtipoId === "string" ? e.subtipoId : "";
+  const placeholders = normalizePlaceholdersRecord(e.placeholders);
+  const autoSum = e.autoSum === false ? false : undefined;
+  if (!tipoId.trim() && !subtipoId.trim() && Object.keys(placeholders).length === 0) {
+    return undefined;
+  }
+  return {
+    tipoId,
+    subtipoId,
+    placeholders,
+    ...(autoSum === false ? { autoSum: false } : {}),
+  };
+}
+
 export function normalizeEscopoEntry(raw: unknown): PropostaEscopoDetalheEntry {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return createEmptyEscopoEntry();
@@ -78,19 +106,60 @@ export function normalizeEntriesForArea(raw: unknown): PropostaEscopoDetalheEntr
   return [createEmptyEscopoEntry()];
 }
 
-export function parseEscopoJson(raw: string): PropostaEscopoDetalhe {
-  if (!raw.trim()) return {};
+export type ParsedEscopoJson = {
+  escopo: PropostaEscopoDetalhe;
+  investimentoDocumento?: PropostaInvestimentoDocumento;
+};
+
+export function parseEscopoJsonWithMeta(raw: string): ParsedEscopoJson {
+  if (!raw.trim()) return { escopo: {} };
   try {
     const o = JSON.parse(raw) as unknown;
-    if (!o || typeof o !== "object" || Array.isArray(o)) return {};
-    const result: PropostaEscopoDetalhe = {};
+    if (!o || typeof o !== "object" || Array.isArray(o)) return { escopo: {} };
+    const escopo: PropostaEscopoDetalhe = {};
+    let investimentoDocumento: PropostaInvestimentoDocumento | undefined;
     for (const [key, val] of Object.entries(o as Record<string, unknown>)) {
-      result[key] = normalizeEntriesForArea(val);
+      if (isInvestimentoDocumentoMetaKey(key)) {
+        investimentoDocumento = normalizeInvestimentoDocumento(val);
+        continue;
+      }
+      escopo[key] = normalizeEntriesForArea(val);
     }
-    return result;
+    return { escopo, investimentoDocumento };
   } catch {
-    return {};
+    return { escopo: {} };
   }
+}
+
+export function parseEscopoJson(raw: string): PropostaEscopoDetalhe {
+  return parseEscopoJsonWithMeta(raw).escopo;
+}
+
+export function getInvestimentoDocumentoFromRaw(
+  raw: string,
+): PropostaInvestimentoDocumento | undefined {
+  return parseEscopoJsonWithMeta(raw).investimentoDocumento;
+}
+
+export function stringifyEscopoJsonWithMeta(
+  escopo: PropostaEscopoDetalhe,
+  investimentoDocumento?: PropostaInvestimentoDocumento | null,
+): string {
+  const o: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(escopo)) {
+    if (isInvestimentoDocumentoMetaKey(key)) continue;
+    o[key] = val;
+  }
+  const doc = investimentoDocumento ?? undefined;
+  if (
+    doc &&
+    (doc.tipoId.trim() ||
+      doc.subtipoId.trim() ||
+      Object.values(doc.placeholders ?? {}).some((v) => v.trim()))
+  ) {
+    o[INVESTIMENTO_DOCUMENTO_KEY] = doc;
+  }
+  return JSON.stringify(o);
 }
 
 function entryScore(entry: PropostaEscopoDetalheEntry): number {
@@ -108,7 +177,9 @@ function entryScore(entry: PropostaEscopoDetalheEntry): number {
 function bestEntriesForArea(current: PropostaEscopoDetalhe, area: string): PropostaEscopoDetalheEntry[] {
   const canonical = normalizePracticeAreaKey(area);
   const candidates = Object.entries(current).filter(
-    ([key]) => key === area || key === canonical || normalizePracticeAreaKey(key) === canonical,
+    ([key]) =>
+      !isInvestimentoDocumentoMetaKey(key) &&
+      (key === area || key === canonical || normalizePracticeAreaKey(key) === canonical),
   );
   if (candidates.length === 0) return [];
   candidates.sort(([, a], [, b]) => {

@@ -17,7 +17,8 @@ export function findScopeSubtype(
   tipoId: string,
   subtipoId: string,
 ) {
-  const tipos = catalog[area as keyof PropostaTiposCatalog] ?? [];
+  const catalogArea = normalizePracticeAreaKey(area) as PropostaAreaKey;
+  const tipos = catalog[catalogArea] ?? [];
   const tipo = tipos.find((item) => item.tipoId === tipoId);
   return tipo?.subtipos.find((item) => item.subtipoId === subtipoId);
 }

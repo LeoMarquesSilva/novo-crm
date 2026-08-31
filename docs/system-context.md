@@ -77,6 +77,8 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - `/crm/admin/campos`: CRUD de `field_definitions` por funil/etapa com drawer de novo campo e ConditionBuilder.
 - `/crm/admin/proposta-escopo`: catálogo de escopos e investimentos (CRUD admin).
 - `/crm/admin/proposta-escopo/importacao`: wizard de importação em massa de PDF/DOCX → extração IA → consolidação → revisão/aprovação para o catálogo.
+
+**Proposta — investimento no Word:** o placeholder `[INVESTIMENTO]` recebe um único parágrafo com valor total consolidado (soma das áreas, editável manualmente e com forma de pagamento no builder). Valores por área em `cp_escopo_detalhe_json` permanecem para coordenação interna; a chave reservada `__investimentoDocumento__` no mesmo JSON guarda tipo/subtipo e placeholders do documento.
 - `/crm/perfil`: edição do próprio `app_users` (nome, área, URL da foto).
 
 Observação: a navegação principal está no `AppShell` — inclui seção "Administração" com links para Usuários e Campos, e rodapé com conta (avatar, link para perfil, sair).

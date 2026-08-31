@@ -33,7 +33,9 @@ export type ScopeImportSuggestion = {
   kind: string;
   status: string;
   area_key: string | null;
+  type_key: string | null;
   type_label: string | null;
+  subtype_key: string | null;
   subtype_label: string | null;
   conceito: string | null;
   template: string | null;

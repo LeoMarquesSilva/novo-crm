@@ -14,7 +14,7 @@ import {
   investmentSubtypeHasParcelas,
   validateParcelasPlaceholders,
 } from "@/lib/crm/proposta-investimento-parcelas";
-import { normalizeEntriesForArea } from "@/lib/crm/proposta-escopo-json";
+import { normalizeEntriesForArea, isInvestimentoDocumentoMetaKey } from "@/lib/crm/proposta-escopo-json";
 
 /** Entradas no JSON podem estar na chave legada ou canónica da área. */
 export function getEscopoEntriesForArea(
@@ -26,6 +26,7 @@ export function getEscopoEntriesForArea(
   const canon = normalizePracticeAreaKey(k);
   if (canon !== k && escopo[canon]) return escopo[canon].map((e) => ({ ...e }));
   for (const [key, val] of Object.entries(escopo)) {
+    if (isInvestimentoDocumentoMetaKey(key)) continue;
     if (normalizePracticeAreaKey(key) === canon) {
       return Array.isArray(val) ? val.map((e) => ({ ...e })) : normalizeEntriesForArea(val);
     }

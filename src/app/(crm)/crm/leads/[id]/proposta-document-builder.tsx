@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -41,11 +41,26 @@ import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { cn } from "@/lib/utils";
 import { LeadDetailFieldEditor, pipelineFieldToEditorProps } from "./lead-detail-field-editor";
 import {
-  buildPropostaDocxTemplateData,
-  buildPropostaDocumentPagePreview,
+  buildPropostaLivePreview,
+  type EscopoPreviewSection,
 } from "@/lib/crm/proposta-docx-data";
 import { PropostaEscopoAreaCoordenacao } from "./proposta-escopo-area-coordenacao";
 import { PropostaEscopoPorArea } from "./proposta-escopo-por-area";
+import { PropostaInvestimentoConsolidadoForm } from "@/components/crm/proposta-investimento-consolidado-form";
+import {
+  parseAreasList,
+  parseEscopoJsonWithMeta,
+  stringifyEscopoJsonWithMeta,
+} from "@/lib/crm/proposta-escopo-json";
+import { resolveInvestimentoDocumento } from "@/lib/crm/proposta-investimento-consolidado";
+import {
+  PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
+  type InvestimentoTipoDef,
+} from "@/data/proposta-investimento-catalog";
+import {
+  PROPOSTA_TIPOS_CATALOG,
+  type PropostaTiposCatalog,
+} from "@/data/proposta-tipos-catalog";
 import type { LeadDetailData, LeadDetailViewer } from "./page";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -85,6 +100,7 @@ type PreviewPage = {
   clienteIntro: string;
   area: string;
   escopo: string;
+  escopoSections: EscopoPreviewSection[];
   resumo: string;
   investimento: string;
   dataVigencia: string;
@@ -363,6 +379,8 @@ function PropostaBuilderDialog({
   const [escopoJson, setEscopoJson] = useState<string>(
     escopoDetalhe?.value ?? draftValues.cp_escopo_detalhe_json ?? "",
   );
+  /** Preview usa valor adiado para não recalcular o documento a cada tecla. */
+  const previewEscopoJson = useDeferredValue(escopoJson);
 
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -370,6 +388,34 @@ function PropostaBuilderDialog({
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [confirmClose, setConfirmClose] = useState(false);
+
+  const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(PROPOSTA_TIPOS_CATALOG);
+  const [investmentCatalog, setInvestmentCatalog] = useState<InvestimentoTipoDef[]>(
+    PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch("/api/crm/proposal-catalog", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (json: {
+          ok?: boolean;
+          data?: { scope?: PropostaTiposCatalog; investment?: InvestimentoTipoDef[] };
+        } | null) => {
+          if (cancelled || !json?.ok || !json.data) return;
+          if (json.data.scope) setScopeCatalog(json.data.scope);
+          if (json.data.investment) setInvestmentCatalog(json.data.investment);
+        },
+      )
+      .catch(() => {
+        // Fallback estático já carregado.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const pending = docState.snapshot.pending;
 
@@ -406,24 +452,40 @@ function PropostaBuilderDialog({
 
   const areasField = proposalPipelineFields.find((f) => f.fieldCode === "cp_areas_objeto");
 
+  const syncEscopoJsonFromDraft = useCallback(
+    (json: string) => {
+      const { escopo, investimentoDocumento } = parseEscopoJsonWithMeta(json);
+      const areas = parseAreasList(draftValues.cp_areas_objeto ?? areasField?.value ?? "");
+      const resolved = resolveInvestimentoDocumento(
+        escopo,
+        areas,
+        investimentoDocumento,
+        investmentCatalog,
+      );
+      const next = stringifyEscopoJsonWithMeta(escopo, resolved);
+      setEscopoJson((prev) => (prev === next ? prev : next));
+    },
+    [draftValues.cp_areas_objeto, areasField?.value, investmentCatalog],
+  );
+
   // ── Live preview client-side ──────────────────────────────────────────────
-  // Recomputa `templateData` a cada mudança de `draftValues` / `escopoJson`,
-  // sem ir ao servidor. Catálogos: usa o fallback estático (PROPOSTA_*_CATALOG).
+  // Recomputa preview a cada mudança; catálogo vem da API (mesmo do Word).
   const livePreview = useMemo<PreviewState | null>(() => {
     if (!selectedTemplateId) return null;
     try {
       const merged: Record<string, string> = {
         ...draftValues,
-        cp_escopo_detalhe_json: escopoJson,
+        cp_escopo_detalhe_json: previewEscopoJson,
       };
-      const templateData = buildPropostaDocxTemplateData({
+      const { page } = buildPropostaLivePreview({
         empresasIntake: lead.empresasIntake ?? [],
         cpPropostaEmpresasJson: merged.cp_proposta_empresas_json,
         fieldByCode: merged,
-        cpEscopoDetalheJson: escopoJson,
+        cpEscopoDetalheJson: previewEscopoJson,
         generatedAt: new Date(),
+        scopeCatalog,
+        investmentCatalog,
       });
-      const page = buildPropostaDocumentPagePreview(templateData);
       return {
         page,
         templateName: selectedTemplateName,
@@ -435,7 +497,15 @@ function PropostaBuilderDialog({
       console.error("[live preview]", e);
       return null;
     }
-  }, [draftValues, escopoJson, selectedTemplateId, selectedTemplateName, lead.empresasIntake]);
+  }, [
+    draftValues,
+    previewEscopoJson,
+    selectedTemplateId,
+    selectedTemplateName,
+    lead.empresasIntake,
+    scopeCatalog,
+    investmentCatalog,
+  ]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   function fieldChange(code: string, value: string) {
@@ -698,14 +768,17 @@ function PropostaBuilderDialog({
                     <PropostaEscopoPorArea
                       leadId={lead.id}
                       fieldDefinitionId={escopoDetalhe.definitionId}
-                      initialValue={escopoDetalhe.value}
+                      initialValue={escopoJson}
                       areasDisplay={draftValues.cp_areas_objeto ?? areasField.value}
                       defaultNomeEmpresa={propostaEmpresaPrincipalNome}
                       viewerProfileArea={viewer?.area ?? null}
                       viewerRole={viewer?.role ?? null}
                       solicitacoes={lead.escopoSolicitacoes ?? []}
                       className="border-0 bg-transparent p-0"
-                      onSaved={(json) => setEscopoJson(json)}
+                      onSaved={(json) => {
+                        syncEscopoJsonFromDraft(json);
+                      }}
+                      onEscopoDraftChange={syncEscopoJsonFromDraft}
                     />
                     {lead.escopoSolicitacoes && lead.escopoSolicitacoes.length > 0 ? (
                       <PropostaEscopoAreaCoordenacao
@@ -714,6 +787,28 @@ function PropostaBuilderDialog({
                         viewer={viewer ? { area: viewer.area } : null}
                       />
                     ) : null}
+                  </div>
+                ) : null}
+
+                {escopoDetalhe && areasField ? (
+                  <div className="rounded-xl border border-white/60 bg-slate-50/70 p-5 shadow-sm">
+                    <div className="mb-4">
+                      <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">
+                        Investimento da proposta
+                      </h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Valor total e forma de pagamento exibidos no Word ([INVESTIMENTO]).
+                      </p>
+                    </div>
+                    <PropostaInvestimentoConsolidadoForm
+                      escopoJson={escopoJson}
+                      areasDisplay={draftValues.cp_areas_objeto ?? areasField.value ?? ""}
+                      fieldDefinitionId={escopoDetalhe.definitionId}
+                      leadId={lead.id}
+                      investmentCatalog={investmentCatalog}
+                      disabled={saving || generating}
+                      onEscopoJsonChange={setEscopoJson}
+                    />
                   </div>
                 ) : null}
 
@@ -1138,9 +1233,17 @@ function ProposalPagePreviewDocument({ preview }: { preview: PreviewState }) {
           <section className="space-y-5">
             <p className="font-extrabold">Descrição dos serviços:</p>
 
-            <div className="space-y-3">
-              <p className="font-bold uppercase tracking-[0.02em] text-[#0d2031]">{page.area}</p>
-              {page.escopo ? (
+            <div className="space-y-5">
+              {page.escopoSections.length > 0 ? (
+                page.escopoSections.map((section) => (
+                  <div key={section.label} className="space-y-2">
+                    <p className="font-bold uppercase tracking-[0.02em] text-[#0d2031]">
+                      {section.label}
+                    </p>
+                    <p className="whitespace-pre-wrap text-justify">{section.text}</p>
+                  </div>
+                ))
+              ) : page.escopo ? (
                 <p className="whitespace-pre-wrap text-justify">{page.escopo}</p>
               ) : (
                 <p className="text-slate-400">Escopo ainda não preenchido.</p>

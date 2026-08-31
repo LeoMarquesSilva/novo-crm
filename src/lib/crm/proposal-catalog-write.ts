@@ -33,6 +33,89 @@ export function insertScopeType(
   });
 }
 
+export async function findOrCreateScopeType(
+  supabase: AdminClient,
+  input: {
+    areaKey: string;
+    label: string;
+    typeKey?: string;
+  },
+): Promise<string> {
+  const areaKey = input.areaKey.trim();
+  const label = input.label.trim();
+  const typeKey = cleanKey(input.typeKey, label);
+
+  const { data: existing, error: findError } = await supabase
+    .from("proposal_scope_types")
+    .select("id")
+    .eq("area_key", areaKey)
+    .eq("type_key", typeKey)
+    .maybeSingle();
+  if (findError) throw findError;
+  if (existing?.id) return existing.id;
+
+  const { data: created, error: createError } = await insertScopeType(supabase, {
+    areaKey,
+    label,
+    typeKey,
+  })
+    .select("id")
+    .single();
+  if (createError) {
+    if (createError.code === "23505") {
+      const { data: raced, error: raceError } = await supabase
+        .from("proposal_scope_types")
+        .select("id")
+        .eq("area_key", areaKey)
+        .eq("type_key", typeKey)
+        .maybeSingle();
+      if (raceError) throw raceError;
+      if (raced?.id) return raced.id;
+    }
+    throw createError;
+  }
+  return created.id;
+}
+
+export async function findOrCreateInvestmentType(
+  supabase: AdminClient,
+  input: {
+    label: string;
+    typeKey?: string;
+  },
+): Promise<string> {
+  const label = input.label.trim();
+  const typeKey = cleanKey(input.typeKey, label);
+
+  const { data: existing, error: findError } = await supabase
+    .from("proposal_investment_types")
+    .select("id")
+    .eq("type_key", typeKey)
+    .maybeSingle();
+  if (findError) throw findError;
+  if (existing?.id) return existing.id;
+
+  const { data: created, error: createError } = await insertInvestmentType(supabase, {
+    label,
+    typeKey,
+  })
+    .select("id")
+    .single();
+  if (createError) {
+    if (createError.code === "23505") {
+      const { data: raced, error: raceError } = await supabase
+        .from("proposal_investment_types")
+        .select("id")
+        .eq("type_key", typeKey)
+        .maybeSingle();
+      if (raceError) throw raceError;
+      if (raced?.id) return raced.id;
+    }
+    throw createError;
+  }
+  return created.id;
+}
+
 export function insertScopeSubtype(
   supabase: AdminClient,
   input: {

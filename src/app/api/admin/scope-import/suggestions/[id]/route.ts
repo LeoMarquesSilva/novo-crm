@@ -3,10 +3,10 @@ import { z } from "zod";
 import { requireAdminApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
+  findOrCreateInvestmentType,
+  findOrCreateScopeType,
   insertInvestmentSubtype,
-  insertInvestmentType,
   insertScopeSubtype,
-  insertScopeType,
   nextInvestmentSubtypeSortOrder,
   nextScopeSubtypeSortOrder,
 } from "@/lib/crm/proposal-catalog-write";
@@ -170,14 +170,11 @@ export async function POST(
         if (!areaKey) {
           return NextResponse.json({ ok: false, error: "Área obrigatória para novo tipo." }, { status: 422 });
         }
-        const { data: typeRow, error: typeError } = await insertScopeType(supabase, {
+        scopeTypeId = await findOrCreateScopeType(supabase, {
           areaKey,
           label: body.target.newType.label,
-        })
-          .select("id")
-          .single();
-        if (typeError) throw typeError;
-        scopeTypeId = typeRow.id;
+          typeKey: suggestion.type_key ?? undefined,
+        });
       }
 
       if (!scopeTypeId) {
@@ -196,7 +193,19 @@ export async function POST(
       })
         .select("id")
         .single();
-      if (subtypeError) throw subtypeError;
+      if (subtypeError) {
+        if (subtypeError.code === "23505") {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Já existe um subtipo com a mesma chave neste tipo. Altere o label ou escolha outro destino.",
+            },
+            { status: 409 },
+          );
+        }
+        throw subtypeError;
+      }
 
       const { data: updated, error } = await supabase
         .from("scope_import_suggestions")
@@ -225,13 +234,10 @@ export async function POST(
     if ("investmentTypeId" in body.target) {
       investmentTypeId = body.target.investmentTypeId;
     } else if ("newType" in body.target) {
-      const { data: typeRow, error: typeError } = await insertInvestmentType(supabase, {
+      investmentTypeId = await findOrCreateInvestmentType(supabase, {
         label: body.target.newType.label,
-      })
-        .select("id")
-        .single();
-      if (typeError) throw typeError;
-      investmentTypeId = typeRow.id;
+        typeKey: suggestion.type_key ?? undefined,
+      });
     }
 
     if (!investmentTypeId) {
@@ -251,7 +257,19 @@ export async function POST(
     })
       .select("id")
       .single();
-    if (subtypeError) throw subtypeError;
+    if (subtypeError) {
+      if (subtypeError.code === "23505") {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Já existe um subtipo com a mesma chave neste tipo. Altere o label ou escolha outro destino.",
+          },
+          { status: 409 },
+        );
+      }
+      throw subtypeError;
+    }
 
     const { data: updated, error } = await supabase
       .from("scope_import_suggestions")

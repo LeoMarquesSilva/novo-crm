@@ -10,7 +10,11 @@ import { loadProposalCatalog } from "@/lib/crm/proposal-catalog-db";
 import { findInvestmentSubtype, findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
 import { getEscopoEntriesForArea, isEscopoEntryCompleteWithCatalog } from "@/lib/crm/proposta-escopo-entry";
 import { mergeEscopoTemplate, mergeInvestimentoTemplate } from "@/lib/crm/proposta-escopo-preview";
-import { parseAreasList, parseEscopoJson } from "@/lib/crm/proposta-escopo-json";
+import { parseAreasList, parseEscopoJson, parseEscopoJsonWithMeta } from "@/lib/crm/proposta-escopo-json";
+import {
+  isInvestimentoDocumentoComplete,
+  resolveInvestimentoDocumento,
+} from "@/lib/crm/proposta-investimento-consolidado";
 import { buildPropostaDocxTemplateData } from "@/lib/crm/proposta-docx-data";
 import { valueJsonToDisplayString } from "@/lib/crm/pipeline-field-values";
 
@@ -228,7 +232,13 @@ export async function buildPropostaDocumentSnapshot(params: {
     catalog.scope,
     catalog.investment,
   );
-  const pending = listPendingFields({ template, fieldByCode, templateData, areas });
+  const pending = listPendingFields({
+    template,
+    fieldByCode,
+    templateData,
+    areas,
+    investmentCatalog: catalog.investment,
+  });
 
   return { templateData, fieldByCode, pending, areas };
 }
@@ -298,6 +308,7 @@ function listPendingFields(params: {
   fieldByCode: Record<string, string>;
   templateData: Record<string, string>;
   areas: PropostaDocumentSnapshot["areas"];
+  investmentCatalog: InvestimentoTipoDef[];
 }): string[] {
   const pending = new Set<string>();
   for (const f of params.template.fields) {
@@ -308,6 +319,19 @@ function listPendingFields(params: {
     }
     const value = params.fieldByCode[f.fieldCode] ?? params.templateData[f.fieldCode] ?? "";
     if (!String(value).trim()) pending.add(f.label);
+  }
+
+  const cpEscopoDetalheJson = params.fieldByCode.cp_escopo_detalhe_json ?? "";
+  const areasList = parseAreasList(params.fieldByCode.cp_areas_objeto ?? "");
+  const { escopo, investimentoDocumento } = parseEscopoJsonWithMeta(cpEscopoDetalheJson);
+  const invDoc = resolveInvestimentoDocumento(
+    escopo,
+    areasList,
+    investimentoDocumento,
+    params.investmentCatalog,
+  );
+  if (areasList.length > 0 && !isInvestimentoDocumentoComplete(invDoc, params.investmentCatalog)) {
+    pending.add("Investimento da proposta");
   }
 
   for (const key of ["EMPRESA", "DOCUMENTO", "ESCOPO_AREA", "INVESTIMENTO"]) {

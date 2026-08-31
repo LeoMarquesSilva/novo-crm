@@ -13,6 +13,7 @@ type Props = {
   className?: string;
   placeholder?: string;
   id?: string;
+  disabled?: boolean;
 };
 
 export function PropostaBrlCurrencyInput({
@@ -21,6 +22,7 @@ export function PropostaBrlCurrencyInput({
   className,
   placeholder = "R$ 0,00",
   id,
+  disabled = false,
 }: Props) {
   return (
     <Input
@@ -32,6 +34,7 @@ export function PropostaBrlCurrencyInput({
       inputMode="numeric"
       autoComplete="off"
       spellCheck={false}
+      disabled={disabled}
     />
   );
 }
