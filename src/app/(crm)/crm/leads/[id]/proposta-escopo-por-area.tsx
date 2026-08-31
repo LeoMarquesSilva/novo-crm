@@ -537,15 +537,16 @@ function buildEntriesPreviewText(
   const invParts: string[] = [];
   const areaLabel = normalizePracticeAreaKey(catalogArea);
 
-  entries.forEach((entry, index) => {
-    const prefix = entries.length > 1 ? `Escopo ${index + 1}\n` : "";
+  entries.forEach((entry) => {
+    let scopeLabelPrefix = "";
     if (entry.tipoId && entry.subtipoId) {
       const sub = findScopeSubtype(scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId);
       if (sub) {
+        scopeLabelPrefix = entries.length > 1 ? `${sub.label}\n` : "";
         const text = mergeEscopoTemplate(sub.escopoTemplate, entry.placeholders ?? {}, {
           defaultNomeEmpresa,
         }).trim();
-        if (text) escopoParts.push(`${prefix}${text}`);
+        if (text) escopoParts.push(`${scopeLabelPrefix}${text}`);
       }
     }
     const inv = entry.investimento;
@@ -555,7 +556,7 @@ function buildEntriesPreviewText(
         const text = mergeInvestimentoTemplate(invSub.template, inv.placeholders ?? {}, {
           defaultNomeEmpresa,
         }).trim();
-        if (text) invParts.push(`${prefix}${text}`);
+        if (text) invParts.push(`${scopeLabelPrefix}${text}`);
       }
     }
   });

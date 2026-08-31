@@ -1,6 +1,18 @@
 import type { InvestimentoTipoDef } from "@/data/proposta-investimento-catalog";
-import type { PropostaAreaKey, PropostaTiposCatalog } from "@/data/proposta-tipos-catalog";
+import type { PropostaAreaKey, PropostaTiposCatalog, SubtipoDef, TipoDef } from "@/data/proposta-tipos-catalog";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
+
+export function formatScopeTypeLabel(
+  tipo: TipoDef | undefined,
+  sub: SubtipoDef | undefined,
+): string | null {
+  if (!sub?.label?.trim()) return null;
+  const subLabel = sub.label.trim();
+  const tipoLabel = tipo?.label?.trim();
+  if (!tipoLabel) return subLabel;
+  if (subLabel.toLowerCase().includes(tipoLabel.toLowerCase())) return subLabel;
+  return `${tipoLabel} - ${subLabel}`;
+}
 
 export function findScopeTipo(
   catalog: PropostaTiposCatalog,

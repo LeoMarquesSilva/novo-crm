@@ -606,7 +606,7 @@ function ScopePreview({ escopo }: { escopo: string }) {
     <div className="space-y-4 rounded-xl bg-white/92 p-4 text-[13px] leading-[1.65] text-primary-dark shadow-sm ring-1 ring-primary-dark/8">
       <PreviewSection label="Texto do escopo">
         {escopo.trim() ? (
-          <p className="whitespace-pre-wrap">{escopo}</p>
+          <p className="whitespace-pre-wrap text-justify">{escopo}</p>
         ) : (
           <p className="italic text-slate-400">Nenhum texto definido ainda.</p>
         )}
@@ -620,13 +620,13 @@ function InvestmentPreview({ conceito, template }: { conceito: string; template:
     <div className="space-y-4 rounded-xl bg-white/92 p-4 text-[13px] leading-[1.65] text-primary-dark shadow-sm ring-1 ring-primary-dark/8">
       {conceito.trim() ? (
         <PreviewSection label="Conceito">
-          <p className="whitespace-pre-wrap italic text-slate-600">{conceito}</p>
+          <p className="whitespace-pre-wrap text-justify italic text-slate-600">{conceito}</p>
         </PreviewSection>
       ) : null}
       <div className={cn(conceito.trim() ? "border-t border-primary-dark/8 pt-4" : "")}>
         <PreviewSection label="Texto renderizado">
           {template.trim() ? (
-            <p className="whitespace-pre-wrap">{template}</p>
+            <p className="whitespace-pre-wrap text-justify">{template}</p>
           ) : (
             <p className="italic text-slate-400">Nenhum texto definido ainda.</p>
           )}

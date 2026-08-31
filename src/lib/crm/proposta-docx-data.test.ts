@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO } from "@/data/proposta-tipos-catalog";
 import {
   buildPropostaDocxTemplateData,
+  buildPropostaLivePreview,
   buildPropostaPlainTextPreview,
   formatDataVigenciaProposta,
   splitEscopoTextForDocx,
@@ -213,6 +214,64 @@ describe("buildPropostaDocxTemplateData", () => {
     expect(d.INVESTIMENTO).toContain("1.500,50");
     expect(d.INVESTIMENTO.toLowerCase()).toContain("quinhentos");
     expect(d.INVESTIMENTO).toContain("pagamento mensal de R$");
+  });
+
+  it("dois escopos na mesma área usam nome do subtipo como cabeçalho", () => {
+    const cpEscopoDetalheJson = JSON.stringify({
+      Cível: [
+        {
+          id: "a",
+          tipoId: "contencioso",
+          subtipoId: "um_processo",
+          placeholders: {
+            [PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO]: "Resumo A",
+            "NOME EMPRESA": "ACME",
+            "TIPO DA AÇÃO": "Ação A",
+            "NUM. DO PROCESSO": "0000000-00.0000.0.00.0000",
+            PARTE_CONTRÁRIA: "Autor",
+            VALOR_CAUSA: "1000",
+          },
+        },
+        {
+          id: "b",
+          tipoId: "contencioso",
+          subtipoId: "mais_um_processo",
+          placeholders: {
+            "NOME EMPRESA": "ACME",
+            "QTD DE PROCESSOS": "3",
+          },
+        },
+      ],
+    });
+
+    const { page, templateData } = buildPropostaLivePreview({
+      empresasIntake: [
+        {
+          index: 1,
+          razao_social: "ACME Ltda",
+          tipo_documento: "CNPJ",
+          documento: "12345678000199",
+        },
+      ],
+      cpPropostaEmpresasJson: JSON.stringify({ primaryIndex: 1, extras: [] }),
+      fieldByCode: {
+        cp_areas_objeto: "Cível",
+        cp_cliente_cidade: "São Paulo",
+        cp_cliente_uf: "SP",
+        cp_cliente_cep: "01310100",
+        cp_cliente_numero: "100",
+      },
+      cpEscopoDetalheJson,
+      generatedAt: new Date("2026-04-16T12:00:00"),
+    });
+
+    expect(page.escopoSections).toHaveLength(2);
+    expect(page.escopoSections[0]?.areaLabel).toBe("Cível");
+    expect(page.escopoSections[0]?.scopeTypeLabel).toBe("Contencioso - 1 processo");
+    expect(page.escopoSections[1]?.areaLabel).toBe("Cível");
+    expect(page.escopoSections[1]?.scopeTypeLabel).toBe("Contencioso - +1 processo");
+    expect(templateData.ESCOPO_AREA).toContain("Cível\nContencioso - 1 processo\n");
+    expect(templateData.ESCOPO_AREA).toContain("Cível\nContencioso - +1 processo\n");
   });
 });
 

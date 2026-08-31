@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -46,6 +46,7 @@ import {
 } from "@/lib/crm/proposta-docx-data";
 import { PropostaEscopoAreaCoordenacao } from "./proposta-escopo-area-coordenacao";
 import { PropostaEscopoPorArea } from "./proposta-escopo-por-area";
+import { JustifiedDocumentText } from "@/components/crm/justified-document-text";
 import { PropostaInvestimentoConsolidadoForm } from "@/components/crm/proposta-investimento-consolidado-form";
 import {
   parseAreasList,
@@ -1235,16 +1236,23 @@ function ProposalPagePreviewDocument({ preview }: { preview: PreviewState }) {
 
             <div className="space-y-5">
               {page.escopoSections.length > 0 ? (
-                page.escopoSections.map((section) => (
-                  <div key={section.label} className="space-y-2">
-                    <p className="font-bold uppercase tracking-[0.02em] text-[#0d2031]">
-                      {section.label}
-                    </p>
-                    <p className="whitespace-pre-wrap text-justify">{section.text}</p>
+                page.escopoSections.map((section, index) => (
+                  <div key={`${section.areaLabel}-${section.scopeTypeLabel ?? "scope"}-${index}`} className="space-y-2">
+                    <div className="space-y-0.5">
+                      <p className="font-bold uppercase tracking-[0.02em] text-[#0d2031]">
+                        {section.areaLabel}
+                      </p>
+                      {section.scopeTypeLabel ? (
+                        <p className="text-[12px] font-bold uppercase tracking-[0.02em] text-[#0d2031]/85">
+                          {section.scopeTypeLabel}
+                        </p>
+                      ) : null}
+                    </div>
+                    <JustifiedDocumentText text={section.text} />
                   </div>
                 ))
               ) : page.escopo ? (
-                <p className="whitespace-pre-wrap text-justify">{page.escopo}</p>
+                <JustifiedDocumentText text={page.escopo} />
               ) : (
                 <p className="text-slate-400">Escopo ainda não preenchido.</p>
               )}
@@ -1256,7 +1264,7 @@ function ProposalPagePreviewDocument({ preview }: { preview: PreviewState }) {
             </p>
 
             {page.investimento ? (
-              <p className="whitespace-pre-wrap text-justify">{page.investimento}</p>
+              <JustifiedDocumentText text={page.investimento} />
             ) : (
               <p className="text-slate-400">Investimento ainda não preenchido.</p>
             )}

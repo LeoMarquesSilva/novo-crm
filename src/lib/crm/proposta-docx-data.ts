@@ -10,7 +10,7 @@ import {
   type PropostaTiposCatalog,
 } from "@/data/proposta-tipos-catalog";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
-import { findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
+import { findScopeSubtype, findScopeTipo, formatScopeTypeLabel } from "@/lib/crm/proposal-catalog-utils";
 import {
   parseAreasList,
   parseEscopoJsonWithMeta,
@@ -68,6 +68,9 @@ export function splitEscopoTextForDocx(escopoText: string): { antesSintese: stri
 }
 
 export type EscopoPreviewSection = {
+  areaLabel: string;
+  scopeTypeLabel: string | null;
+  /** Cabeçalho serializado para Word / parsers legados */
   label: string;
   text: string;
 };
@@ -78,6 +81,18 @@ type BuiltEscopoContent = {
   resumoDocx: string;
   firstEscopoText: string;
 };
+
+function formatEscopoSectionHeader(section: EscopoPreviewSection): string {
+  if (section.scopeTypeLabel) {
+    return `${section.areaLabel}\n${section.scopeTypeLabel}`;
+  }
+  return section.areaLabel;
+}
+
+function buildEscopoSectionLabel(areaLabel: string, scopeTypeLabel: string | null): string {
+  if (scopeTypeLabel) return `${areaLabel}\n${scopeTypeLabel}`;
+  return areaLabel;
+}
 
 function buildEscopoContent(params: {
   areas: string[];
@@ -91,34 +106,37 @@ function buildEscopoContent(params: {
   for (const area of params.areas) {
     const entries = getEscopoEntriesForArea(params.escopo, area);
     const areaLabel = normalizePracticeAreaKey(area);
-    const areaEscopoTexts: string[] = [];
 
     for (const entry of entries) {
       const phEscopo = entry.placeholders ?? {};
       if (entry.tipoId && entry.subtipoId) {
+        const tipo = findScopeTipo(params.scopeCatalog, areaLabel, entry.tipoId);
         const sub = findScopeSubtype(params.scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId);
         if (sub) {
+          const scopeTypeLabel = formatScopeTypeLabel(tipo, sub);
           const text = mergeEscopoTemplate(sub.escopoTemplate, phEscopo, {
             defaultNomeEmpresa: params.nomeEmpresa,
           }).trim();
-          if (text) areaEscopoTexts.push(text);
+          if (text) {
+            sections.push({
+              areaLabel,
+              scopeTypeLabel,
+              label: buildEscopoSectionLabel(areaLabel, scopeTypeLabel),
+              text,
+            });
+          }
           const { resumoSintese } = splitEscopoTextForDocx(text);
           const resumoFromPlaceholder = String(phEscopo[PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO] ?? "").trim();
           if (!resumoDocx) resumoDocx = resumoFromPlaceholder || resumoSintese;
         }
       }
     }
-
-    if (areaEscopoTexts.length > 0) {
-      sections.push({
-        label: areaLabel,
-        text: areaEscopoTexts.join("\n\n"),
-      });
-    }
   }
 
-  const multi = sections.length > 1;
-  const text = sections.map((s) => (multi ? `${s.label}\n${s.text}` : s.text)).join("\n\n");
+  const includeHeader = sections.length > 1 || sections.some((s) => s.scopeTypeLabel);
+  const text = sections
+    .map((s) => (includeHeader ? `${formatEscopoSectionHeader(s)}\n${s.text}` : s.text))
+    .join("\n\n");
 
   const firstArea = params.areas[0] ?? "";
   const firstEntry = firstArea ? getEscopoEntryForArea(params.escopo, firstArea) : undefined;
@@ -145,49 +163,94 @@ function parseEscopoSectionsFromTemplateData(data: Record<string, string>): Esco
   if (!escopo) return [];
 
   const areas = parseAreasList(String(data.AREAS ?? data.AREA ?? ""));
+
   if (areas.length <= 1) {
-    return [
-      {
-        label: normalizePracticeAreaKey(areas[0] ?? data.AREA ?? ""),
-        text: escopo,
-      },
-    ];
+    const parsed = parseEscopoPreviewBlock(escopo, areas, 0);
+    if (parsed) return [parsed];
+    const areaLabel = normalizePracticeAreaKey(areas[0] ?? data.AREA ?? "");
+    return [{ areaLabel, scopeTypeLabel: null, label: areaLabel, text: escopo }];
   }
 
   const sections: EscopoPreviewSection[] = [];
-  for (const block of escopo.split(/\n\n+/)) {
+  for (const [index, block] of escopo.split(/\n\n+/).entries()) {
     const trimmed = block.trim();
     if (!trimmed) continue;
-    const nl = trimmed.indexOf("\n");
-    if (nl === -1) {
-      sections.push({
-        label: normalizePracticeAreaKey(areas[sections.length] ?? trimmed),
-        text: trimmed,
-      });
-      continue;
-    }
-    const firstLine = trimmed.slice(0, nl).trim();
-    const rest = trimmed.slice(nl + 1).trim();
-    const matchesArea = areas.some(
-      (a) => normalizePracticeAreaKey(a) === normalizePracticeAreaKey(firstLine),
-    );
-    if (matchesArea && rest) {
-      sections.push({ label: normalizePracticeAreaKey(firstLine), text: rest });
-    } else {
-      sections.push({
-        label: normalizePracticeAreaKey(areas[sections.length] ?? firstLine),
-        text: trimmed,
-      });
-    }
+    const parsed = parseEscopoPreviewBlock(trimmed, areas, index);
+    if (parsed) sections.push(parsed);
   }
   return sections;
+}
+
+function parseEscopoPreviewBlock(
+  trimmed: string,
+  areas: string[],
+  blockIndex: number,
+): EscopoPreviewSection | null {
+  if (!trimmed) return null;
+
+  const lines = trimmed.split("\n");
+  if (lines.length === 1) {
+    const areaLabel = normalizePracticeAreaKey(areas[blockIndex] ?? areas[0] ?? trimmed);
+    return { areaLabel, scopeTypeLabel: null, label: areaLabel, text: trimmed };
+  }
+
+  const firstLine = lines[0]?.trim() ?? "";
+  const matchedArea = areas.find(
+    (a) => normalizePracticeAreaKey(a) === normalizePracticeAreaKey(firstLine),
+  );
+  const areaLabel = matchedArea
+    ? normalizePracticeAreaKey(matchedArea)
+    : normalizePracticeAreaKey(areas[blockIndex] ?? firstLine);
+
+  if (matchedArea && lines.length >= 3) {
+    const scopeTypeLabel = lines[1]?.trim() || null;
+    const text = lines.slice(2).join("\n").trim();
+    return {
+      areaLabel,
+      scopeTypeLabel,
+      label: buildEscopoSectionLabel(areaLabel, scopeTypeLabel),
+      text,
+    };
+  }
+
+  if (matchedArea && lines.length === 2) {
+    return {
+      areaLabel,
+      scopeTypeLabel: null,
+      label: areaLabel,
+      text: lines[1]!.trim(),
+    };
+  }
+
+  const rest = lines.slice(1).join("\n").trim();
+  const scopeTypeLabel = rest.includes("\n") ? lines[1]?.trim() || null : null;
+  if (scopeTypeLabel && lines.length >= 3) {
+    return {
+      areaLabel,
+      scopeTypeLabel,
+      label: buildEscopoSectionLabel(areaLabel, scopeTypeLabel),
+      text: lines.slice(2).join("\n").trim(),
+    };
+  }
+
+  return {
+    areaLabel,
+    scopeTypeLabel: null,
+    label: areaLabel,
+    text: rest,
+  };
 }
 
 /**
  * Objeto de substituição para docxtemplater com delimitadores `[` e `]`.
  * Chaves = texto dentro dos colchetes no Word (ex.: `DATA VIGENCIA` com espaço).
  */
-export function buildPropostaDocxTemplateData(input: PropostaDocxTemplateInput): Record<string, string> {
+type PropostaDocxPayload = {
+  templateData: Record<string, string>;
+  escopoSections: EscopoPreviewSection[];
+};
+
+function buildPropostaDocxPayload(input: PropostaDocxTemplateInput): PropostaDocxPayload {
   const { empresasIntake, cpPropostaEmpresasJson, fieldByCode, cpEscopoDetalheJson, generatedAt } =
     input;
   const scopeCatalog = input.scopeCatalog ?? PROPOSTA_TIPOS_CATALOG;
@@ -254,18 +317,20 @@ export function buildPropostaDocxTemplateData(input: PropostaDocxTemplateInput):
     F: "1",
   };
 
-  return data;
+  return { templateData: data, escopoSections: builtEscopo.sections };
 }
 
-/** Template Word + preview estruturado (seções por área). */
+export function buildPropostaDocxTemplateData(input: PropostaDocxTemplateInput): Record<string, string> {
+  return buildPropostaDocxPayload(input).templateData;
+}
+
+/** Template Word + preview estruturado (seções por área ou por escopo). */
 export function buildPropostaLivePreview(input: PropostaDocxTemplateInput): {
   templateData: Record<string, string>;
   page: PropostaDocumentPagePreview;
 } {
-  const templateData = buildPropostaDocxTemplateData(input);
-  const page = buildPropostaDocumentPagePreview(templateData, {
-    escopoSections: parseEscopoSectionsFromTemplateData(templateData),
-  });
+  const { templateData, escopoSections } = buildPropostaDocxPayload(input);
+  const page = buildPropostaDocumentPagePreview(templateData, { escopoSections });
   return { templateData, page };
 }
 
@@ -304,7 +369,7 @@ export function buildPropostaDocumentPagePreview(
   const escopo = g("ESCOPO_AREA") || g("ESCOPO_AREAS") || "";
   const area =
     escopoSections.length === 1
-      ? escopoSections[0]!.label
+      ? escopoSections[0]!.areaLabel
       : areasList.length > 0
         ? areasList.map((a) => normalizePracticeAreaKey(a)).join(", ")
         : g("AREA") || g("AREAS") || ELLIPSIS;
@@ -329,9 +394,12 @@ export function buildPropostaPlainTextPreview(data: Record<string, string>): str
   const escopoBlock =
     page.escopoSections.length > 0
       ? page.escopoSections
-          .map((s) =>
-            page.escopoSections.length > 1 ? `${s.label}\n\n${s.text}` : `${s.label}\n\n${s.text}`,
-          )
+          .map((s) => {
+            const header = s.scopeTypeLabel
+              ? `${s.areaLabel}\n\n${s.scopeTypeLabel}`
+              : s.areaLabel;
+            return `${header}\n\n${s.text}`;
+          })
           .join("\n\n")
       : page.escopo
         ? `${page.area}\n\n${page.escopo}`
