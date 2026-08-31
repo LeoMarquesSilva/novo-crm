@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,11 +59,26 @@ function pickDefaultTargetTypeId(
   return "";
 }
 
+function suggestionEditSig(s: ScopeImportSuggestion) {
+  return JSON.stringify({
+    id: s.id,
+    status: s.status,
+    template: s.template ?? "",
+    area_key: s.area_key ?? "",
+    type_label: s.type_label ?? "",
+    subtype_label: s.subtype_label ?? "",
+    conceito: s.conceito ?? "",
+  });
+}
+
 export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, onUpdated }: Props) {
   const [draft, setDraft] = useState(suggestion);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [showSources, setShowSources] = useState(false);
+  const lastAppliedSigRef = useRef(suggestionEditSig(suggestion));
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const isScope = draft.kind === "escopo";
   const typeOptions = useMemo(() => {
     if (isScope) {
@@ -86,11 +101,19 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
   const [newTypeLabel, setNewTypeLabel] = useState(draft.type_label ?? "");
 
   useEffect(() => {
+    const nextSig = suggestionEditSig(suggestion);
+    if (nextSig === lastAppliedSigRef.current) return;
+    const localSig = suggestionEditSig(draftRef.current);
+    const isDirty = localSig !== lastAppliedSigRef.current;
+    const statusChanged = suggestion.status !== draftRef.current.status;
+    if (isDirty && !statusChanged) return;
+
+    lastAppliedSigRef.current = nextSig;
     setDraft(suggestion);
     setNewTypeLabel(suggestion.type_label ?? "");
     const nextDefaultTargetTypeId = pickDefaultTargetTypeId(
       suggestion,
-      isScope
+      suggestion.kind === "escopo"
         ? catalog.adminRows.scopeTypes.filter(
             (t) => !suggestion.area_key || t.areaKey === suggestion.area_key,
           )
@@ -99,7 +122,7 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
     setTargetTypeId(nextDefaultTargetTypeId);
     setTargetMode(nextDefaultTargetTypeId ? "existing" : typeOptions.length > 0 ? "existing" : "new");
     setFeedback(null);
-  }, [suggestion, catalog.adminRows.scopeTypes, catalog.adminRows.investmentTypes, isScope, typeOptions.length]);
+  }, [suggestion, catalog.adminRows.scopeTypes, catalog.adminRows.investmentTypes, typeOptions.length]);
 
   const detected = useMemo(
     () => extractPlaceholderKeysFromText(draft.template ?? "", draft.conceito ?? ""),
@@ -136,6 +159,7 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Falha ao salvar.");
       setFeedback("Alterações salvas.");
+      lastAppliedSigRef.current = suggestionEditSig(draft);
       onUpdated();
     } catch (e) {
       setFeedback(e instanceof Error ? e.message : "Erro ao salvar.");

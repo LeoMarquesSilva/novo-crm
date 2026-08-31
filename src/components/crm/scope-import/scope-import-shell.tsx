@@ -104,8 +104,8 @@ export function ScopeImportShell({ catalog }: Props) {
     return "upload";
   }, [batchId, state, reviewAll, combinedReview]);
 
-  const refreshCombinedReview = useCallback(async () => {
-    setLoading(true);
+  const refreshCombinedReview = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/admin/scope-import/review");
@@ -121,12 +121,12 @@ export function ScopeImportShell({ catalog }: Props) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar revisão combinada.");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
-  const refreshBatch = useCallback(async (id: string) => {
-    setLoading(true);
+  const refreshBatch = useCallback(async (id: string, opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/admin/scope-import/${encodeURIComponent(id)}`);
@@ -142,26 +142,18 @@ export function ScopeImportShell({ catalog }: Props) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar lote.");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (!batchId || reviewAll) return;
-    if (step !== "review") return;
+    if (step !== "process") return;
     const timer = setInterval(() => {
-      void refreshBatch(batchId);
+      void refreshBatch(batchId, { silent: true });
     }, 8000);
     return () => clearInterval(timer);
   }, [batchId, step, reviewAll, refreshBatch]);
-
-  useEffect(() => {
-    if (!reviewAll) return;
-    const timer = setInterval(() => {
-      void refreshCombinedReview();
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [reviewAll, refreshCombinedReview]);
 
   const loadPastBatches = useCallback(async () => {
     try {

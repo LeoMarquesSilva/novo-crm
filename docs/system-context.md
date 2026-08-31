@@ -143,7 +143,7 @@ No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e 
 - `POST/PATCH/DELETE /api/admin/proposal-catalog` — CRUD e seed do catálogo.
 - `GET /api/admin/scope-import` — lista lotes de importação de escopos.
 - `POST /api/admin/scope-import` — cria lote + signed upload URLs (`files: [{name,size,contentType}]`, máx. 40 arquivos / 25 MB).
-- `GET/DELETE /api/admin/scope-import/[batchId]` — estado do lote (polling UI) / abandonar lote.
+- `GET/DELETE /api/admin/scope-import/[batchId]` — estado do lote (polling UI só na etapa de extração) / abandonar lote.
 - `POST /api/admin/scope-import/[batchId]/confirm` — confirma uploads no storage, batch → `extraindo`.
 - `POST /api/admin/scope-import/[batchId]/process` — processa 1 documento por chamada (texto + OpenAI extração); `maxDuration=120`.
 - `POST /api/admin/scope-import/[batchId]/consolidate` — consolida extrações em sugestões; `maxDuration=300`.
