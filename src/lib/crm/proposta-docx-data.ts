@@ -52,6 +52,29 @@ export function formatDataVigenciaProposta(generatedAt: Date): string {
 const ESCOPO_SINTESE_MARKER = "Síntese da demanda:";
 
 /**
+ * Junta quebras soltas no meio da frase e preserva parágrafos (`\\n\\n`).
+ * Evita linhas “esticadas” no Word justificado.
+ */
+export function normalizePropostaBodyText(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/([.!?…;])\s*\n(?!\n)/g, "$1\n\n")
+    .replace(/([^\n])\n(?!\n)(\S)/g, "$1 $2")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+export function formatEscopoItemLine(label: string, texto: string): string {
+  const body = normalizePropostaBodyText(texto);
+  const heading = label.trim();
+  if (!heading || !body) return body;
+  return `${heading}: ${body}`;
+}
+
+/**
  * Separa o bloco após `Síntese da demanda:`: o trecho seguinte vai para `[RESUMO]` no Word
  * (rótulo fixo no modelo); o anterior para `[ESCOPO_ANTES_SINTESE]`.
  * Mantém `ESCOPO_AREA` completo para modelos que só usam um placeholder.
@@ -82,16 +105,38 @@ type BuiltEscopoContent = {
   firstEscopoText: string;
 };
 
-function formatEscopoSectionHeader(section: EscopoPreviewSection): string {
-  if (section.scopeTypeLabel) {
-    return `${section.areaLabel}\n${section.scopeTypeLabel}`;
-  }
-  return section.areaLabel;
-}
-
 function buildEscopoSectionLabel(areaLabel: string, scopeTypeLabel: string | null): string {
   if (scopeTypeLabel) return `${areaLabel}\n${scopeTypeLabel}`;
   return areaLabel;
+}
+
+/** Área uma vez; cada subtipo na mesma linha do texto. A primeira área vai para `[AREA]`. */
+function composeEscopoDocumentText(sections: EscopoPreviewSection[], firstArea: string): string {
+  const omit = normalizePracticeAreaKey(firstArea);
+  const parts: string[] = [];
+  let lastArea = "";
+  const itemLines: string[] = [];
+
+  const flush = () => {
+    if (itemLines.length === 0) return;
+    const body = itemLines.join("\n\n");
+    const hideHeading = Boolean(lastArea) && lastArea === omit;
+    parts.push(hideHeading || !lastArea ? body : `${lastArea}\n\n${body}`);
+    itemLines.length = 0;
+  };
+
+  for (const section of sections) {
+    if (section.areaLabel !== lastArea) {
+      flush();
+      lastArea = section.areaLabel;
+    }
+    const line = section.scopeTypeLabel
+      ? formatEscopoItemLine(section.scopeTypeLabel, section.text)
+      : normalizePropostaBodyText(section.text);
+    if (line) itemLines.push(line);
+  }
+  flush();
+  return parts.join("\n\n");
 }
 
 function buildEscopoContent(params: {
@@ -114,9 +159,11 @@ function buildEscopoContent(params: {
         const sub = findScopeSubtype(params.scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId);
         if (sub) {
           const scopeTypeLabel = formatScopeTypeLabel(tipo, sub);
-          const text = mergeEscopoTemplate(sub.escopoTemplate, phEscopo, {
+          const merged = mergeEscopoTemplate(sub.escopoTemplate, phEscopo, {
             defaultNomeEmpresa: params.nomeEmpresa,
           }).trim();
+          const { antesSintese, resumoSintese } = splitEscopoTextForDocx(merged);
+          const text = normalizePropostaBodyText(antesSintese);
           if (text) {
             sections.push({
               areaLabel,
@@ -125,7 +172,6 @@ function buildEscopoContent(params: {
               text,
             });
           }
-          const { resumoSintese } = splitEscopoTextForDocx(text);
           const resumoFromPlaceholder = String(phEscopo[PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO] ?? "").trim();
           if (!resumoDocx) resumoDocx = resumoFromPlaceholder || resumoSintese;
         }
@@ -133,12 +179,8 @@ function buildEscopoContent(params: {
     }
   }
 
-  const includeHeader = sections.length > 1 || sections.some((s) => s.scopeTypeLabel);
-  const text = sections
-    .map((s) => (includeHeader ? `${formatEscopoSectionHeader(s)}\n${s.text}` : s.text))
-    .join("\n\n");
-
   const firstArea = params.areas[0] ?? "";
+  const text = composeEscopoDocumentText(sections, firstArea);
   const firstEntry = firstArea ? getEscopoEntryForArea(params.escopo, firstArea) : undefined;
   let firstEscopoText = "";
   if (firstArea && firstEntry?.tipoId && firstEntry.subtipoId) {
@@ -307,6 +349,10 @@ function buildPropostaDocxPayload(input: PropostaDocxTemplateInput): PropostaDoc
     RESUMO_SINTESE: resumoDocx,
     INVESTIMENTO: investimentoText,
     INVESTIMENTOS: investimentoText,
+    ESCOPO_SUBTIPO_LABELS: builtEscopo.sections
+      .map((s) => s.scopeTypeLabel?.trim())
+      .filter((label): label is string => Boolean(label))
+      .join("\n"),
     "DATA VIGENCIA": formatDataVigenciaProposta(generatedAt),
     /**
      * Rodapé "Página [P] de [F]" (muitas vezes dentro de caixa de texto): substituição por texto.
@@ -393,14 +439,22 @@ export function buildPropostaPlainTextPreview(data: Record<string, string>): str
 
   const escopoBlock =
     page.escopoSections.length > 0
-      ? page.escopoSections
-          .map((s) => {
-            const header = s.scopeTypeLabel
-              ? `${s.areaLabel}\n\n${s.scopeTypeLabel}`
-              : s.areaLabel;
-            return `${header}\n\n${s.text}`;
-          })
-          .join("\n\n")
+      ? (() => {
+          const lines: string[] = [];
+          let lastArea = "";
+          for (const s of page.escopoSections) {
+            if (s.areaLabel !== lastArea) {
+              if (lines.length) lines.push("");
+              lines.push(s.areaLabel, "");
+              lastArea = s.areaLabel;
+            }
+            lines.push(
+              s.scopeTypeLabel ? formatEscopoItemLine(s.scopeTypeLabel, s.text) : s.text,
+              "",
+            );
+          }
+          return lines.join("\n").trim();
+        })()
       : page.escopo
         ? `${page.area}\n\n${page.escopo}`
         : page.area;

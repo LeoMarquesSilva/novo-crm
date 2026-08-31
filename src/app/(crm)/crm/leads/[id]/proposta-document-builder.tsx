@@ -114,6 +114,19 @@ type PreviewState = {
   previewFormat: "document_page";
 };
 
+function groupEscopoSectionsByArea(sections: EscopoPreviewSection[]) {
+  const groups: Array<{ area: string; items: EscopoPreviewSection[] }> = [];
+  for (const section of sections) {
+    const last = groups[groups.length - 1];
+    if (last && last.area === section.areaLabel) {
+      last.items.push(section);
+      continue;
+    }
+    groups.push({ area: section.areaLabel, items: [section] });
+  }
+  return groups;
+}
+
 // ─── Seções e campos ──────────────────────────────────────────────────────────
 
 const SECTION_META = {
@@ -1236,19 +1249,16 @@ function ProposalPagePreviewDocument({ preview }: { preview: PreviewState }) {
 
             <div className="space-y-5">
               {page.escopoSections.length > 0 ? (
-                page.escopoSections.map((section, index) => (
-                  <div key={`${section.areaLabel}-${section.scopeTypeLabel ?? "scope"}-${index}`} className="space-y-2">
-                    <div className="space-y-0.5">
-                      <p className="font-bold uppercase tracking-[0.02em] text-[#0d2031]">
-                        {section.areaLabel}
-                      </p>
-                      {section.scopeTypeLabel ? (
-                        <p className="text-[12px] font-bold uppercase tracking-[0.02em] text-[#0d2031]/85">
-                          {section.scopeTypeLabel}
-                        </p>
-                      ) : null}
-                    </div>
-                    <JustifiedDocumentText text={section.text} />
+                groupEscopoSectionsByArea(page.escopoSections).map((group) => (
+                  <div key={group.area} className="space-y-3">
+                    <p className="font-bold uppercase tracking-[0.02em] text-[#0d2031]">{group.area}</p>
+                    {group.items.map((section, index) => (
+                      <JustifiedDocumentText
+                        key={`${group.area}-${section.scopeTypeLabel ?? "scope"}-${index}`}
+                        text={section.text}
+                        leadPrefix={section.scopeTypeLabel}
+                      />
+                    ))}
                   </div>
                 ))
               ) : page.escopo ? (

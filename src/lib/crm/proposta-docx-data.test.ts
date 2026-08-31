@@ -79,8 +79,10 @@ describe("splitEscopoTextForDocx", () => {
     });
 
     expect(d.AREAS).toBe("Cível, Recuperação de Créditos");
-    expect(d.ESCOPO_AREA).toContain("Cível");
+    expect(d.AREA).toBe("Cível");
+    expect(d.ESCOPO_AREA).toMatch(/^1 processo:/);
     expect(d.ESCOPO_AREA).toContain("Recuperação de Créditos");
+    expect(d.ESCOPO_AREA).toContain("Ajuizamento de ações de recuperação de crédito:");
     expect(d.INVESTIMENTO).toContain("3.000,00");
     expect(d.INVESTIMENTO).not.toContain("Cível");
     expect(d.INVESTIMENTO).not.toContain("Recuperação de Créditos");
@@ -267,11 +269,13 @@ describe("buildPropostaDocxTemplateData", () => {
 
     expect(page.escopoSections).toHaveLength(2);
     expect(page.escopoSections[0]?.areaLabel).toBe("Cível");
-    expect(page.escopoSections[0]?.scopeTypeLabel).toBe("Contencioso - 1 processo");
+    expect(page.escopoSections[0]?.scopeTypeLabel).toBe("1 processo");
     expect(page.escopoSections[1]?.areaLabel).toBe("Cível");
-    expect(page.escopoSections[1]?.scopeTypeLabel).toBe("Contencioso - +1 processo");
-    expect(templateData.ESCOPO_AREA).toContain("Cível\nContencioso - 1 processo\n");
-    expect(templateData.ESCOPO_AREA).toContain("Cível\nContencioso - +1 processo\n");
+    expect(page.escopoSections[1]?.scopeTypeLabel).toBe("+1 processo");
+    expect(templateData.AREA).toBe("Cível");
+    expect(templateData.ESCOPO_AREA).toMatch(/^1 processo:/);
+    expect(templateData.ESCOPO_AREA).toContain("+1 processo:");
+    expect(templateData.ESCOPO_AREA).not.toMatch(/^Cível\n/);
   });
 });
 

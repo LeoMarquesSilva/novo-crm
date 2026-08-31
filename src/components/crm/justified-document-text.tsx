@@ -2,6 +2,8 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   text: string;
+  /** Subtipo em negrito, na mesma linha do primeiro parágrafo (`Subtipo: texto`). */
+  leadPrefix?: string | null;
   className?: string;
   paragraphClassName?: string;
 };
@@ -28,9 +30,15 @@ export function splitJustifiedParagraphs(text: string): string[] {
  * Texto corrido justificado (preview de proposta / catálogo).
  * `white-space: pre-wrap` impede `text-align: justify` na maioria dos browsers.
  */
-export function JustifiedDocumentText({ text, className, paragraphClassName }: Props) {
+export function JustifiedDocumentText({
+  text,
+  leadPrefix,
+  className,
+  paragraphClassName,
+}: Props) {
   const paragraphs = splitJustifiedParagraphs(text);
   if (paragraphs.length === 0) return null;
+  const prefix = leadPrefix?.trim() ?? "";
 
   return (
     <div className={cn(paragraphs.length > 1 ? "space-y-3" : undefined, className)}>
@@ -43,7 +51,13 @@ export function JustifiedDocumentText({ text, className, paragraphClassName }: P
             paragraphClassName,
           )}
         >
-          {paragraph}
+          {index === 0 && prefix ? (
+            <>
+              <span className="font-extrabold text-[#0d2031]">{prefix}:</span> {paragraph}
+            </>
+          ) : (
+            paragraph
+          )}
         </p>
       ))}
     </div>
