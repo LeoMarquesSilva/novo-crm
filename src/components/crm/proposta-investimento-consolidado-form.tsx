@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
+import { Select, SelectTrigger } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { PropostaBrlCurrencyInput } from "@/components/crm/proposta-brl-currency-input";
 import {
   PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
@@ -100,8 +100,19 @@ export function PropostaInvestimentoConsolidadoForm({
   const invPlaceholderKeys = invSubDef?.placeholderKeys ?? [];
   const invKeysGeneric = filterInvestimentoPlaceholderKeys(invPlaceholderKeys);
   const primarySumKey = doc.subtipoId ? getPrimarySumKeyForSubtipo(doc.subtipoId) : null;
+  const extraPaymentKeys = invKeysGeneric.filter((key) => key !== primarySumKey);
   const showParcelasBlock = investmentSubtypeHasParcelas(invPlaceholderKeys);
   const autoSum = doc.autoSum !== false;
+  const tipoSelectValue = doc.tipoId ? doc.tipoId : SELECT_EMPTY;
+  const subtipoSelectValue = doc.subtipoId ? doc.subtipoId : SELECT_EMPTY;
+  const tipoLabels = {
+    [SELECT_EMPTY]: "Selecione o tipo",
+    ...Object.fromEntries(investmentCatalog.map((t) => [t.tipoId, t.label])),
+  };
+  const subtipoLabels = {
+    [SELECT_EMPTY]: "Selecione o subtipo",
+    ...Object.fromEntries((invTipoSel?.subtipos ?? []).map((s) => [s.subtipoId, s.label])),
+  };
 
   function applyDoc(next: PropostaInvestimentoDocumento) {
     const json = stringifyEscopoJsonWithMeta(escopo, next);
@@ -198,68 +209,6 @@ export function PropostaInvestimentoConsolidadoForm({
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</Label>
-          <Select
-            value={doc.tipoId ? doc.tipoId : SELECT_EMPTY}
-            disabled={disabled || saving}
-            onValueChange={(v) => {
-              const tipoId = v === SELECT_EMPTY || v == null ? "" : v;
-              patchDoc({ tipoId, subtipoId: "", placeholders: {}, autoSum: true });
-            }}
-          >
-            <SelectTrigger className="h-10 border-[#dfe5ee] bg-white shadow-sm">
-              <SelectValue placeholder="Tipo de investimento">
-                {!doc.tipoId ? "Tipo de investimento" : (invTipoSel?.label ?? doc.tipoId)}
-              </SelectValue>
-            </SelectTrigger>
-            <CrmSelectContent>
-              <CrmSelectItem value={SELECT_EMPTY}>Selecione</CrmSelectItem>
-              {investmentCatalog.map((t) => (
-                <CrmSelectItem key={t.tipoId} value={t.tipoId}>
-                  {t.label}
-                </CrmSelectItem>
-              ))}
-            </CrmSelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Subtipo</Label>
-          <Select
-            value={doc.subtipoId ? doc.subtipoId : SELECT_EMPTY}
-            disabled={disabled || saving || !doc.tipoId}
-            onValueChange={(v) => {
-              const subtipoId = v === SELECT_EMPTY || v == null ? "" : v;
-              patchDoc({ subtipoId, placeholders: {}, autoSum: true });
-            }}
-          >
-            <SelectTrigger className="h-10 border-[#dfe5ee] bg-white shadow-sm">
-              <SelectValue placeholder="Subtipo">
-                {!doc.subtipoId
-                  ? "Subtipo"
-                  : (invTipoSel?.subtipos.find((s) => s.subtipoId === doc.subtipoId)?.label ??
-                    doc.subtipoId)}
-              </SelectValue>
-            </SelectTrigger>
-            <CrmSelectContent>
-              <CrmSelectItem value={SELECT_EMPTY}>Selecione</CrmSelectItem>
-              {(invTipoSel?.subtipos ?? []).map((s) => (
-                <CrmSelectItem key={s.subtipoId} value={s.subtipoId}>
-                  {s.label}
-                </CrmSelectItem>
-              ))}
-            </CrmSelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {invSubDef?.conceito ? (
-        <p className="rounded-2xl border border-[#edf0f4] bg-white p-3 text-xs leading-relaxed text-slate-600">
-          {invSubDef.conceito}
-        </p>
-      ) : null}
-
       {primarySumKey && invSubDef ? (
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -302,68 +251,140 @@ export function PropostaInvestimentoConsolidadoForm({
         </div>
       ) : null}
 
-      {invSubDef && (showParcelasBlock || invKeysGeneric.length > 0) ? (
-        <div className="space-y-3 border-t border-[#edf0f4] pt-4">
+      <div className="space-y-3 border-t border-[#edf0f4] pt-4">
+        <div>
           <p className="text-xs font-black uppercase tracking-[0.14em] text-[#24615b]">
             Forma de pagamento
           </p>
-          {invKeysGeneric
-            .filter((key) => key !== primarySumKey)
-            .map((key) => (
-              <div key={key} className={cn("space-y-1.5", key.length > 20 && "sm:col-span-2")}>
-                <Label className="text-xs font-bold text-slate-500">
-                  {getPropostaPlaceholderLabel(key)}
-                </Label>
-                {isInvestimentoCurrencyKey(key) ? (
-                  <PropostaBrlCurrencyInput
-                    value={doc.placeholders[key] ?? ""}
-                    disabled={disabled || saving}
-                    onChange={(next) =>
-                      patchDoc({
-                        placeholders: { ...doc.placeholders, [key]: next },
-                        autoSum: doc.autoSum,
-                      })
-                    }
-                    className="h-10 border-[#dfe5ee] bg-white shadow-sm"
-                  />
-                ) : key.includes("CONDIC") || key.includes("DETALHE") || key.includes("PRAZO") ? (
-                  <Textarea
-                    value={doc.placeholders[key] ?? ""}
-                    disabled={disabled || saving}
-                    rows={2}
-                    onChange={(e) =>
-                      patchDoc({
-                        placeholders: { ...doc.placeholders, [key]: e.target.value },
-                        autoSum: doc.autoSum,
-                      })
-                    }
-                    className="min-h-[72px] border-[#dfe5ee] bg-white shadow-sm"
-                  />
-                ) : (
-                  <Input
-                    value={doc.placeholders[key] ?? ""}
-                    disabled={disabled || saving}
-                    onChange={(e) =>
-                      patchDoc({
-                        placeholders: { ...doc.placeholders, [key]: e.target.value },
-                        autoSum: doc.autoSum,
-                      })
-                    }
-                    className="h-10 border-[#dfe5ee] bg-white shadow-sm"
-                  />
-                )}
-              </div>
-            ))}
-          {showParcelasBlock ? (
-            <PropostaInvestimentoParcelasFields
-              placeholders={doc.placeholders}
-              onChange={(next) =>
-                patchDoc({ placeholders: next, autoSum: doc.autoSum })
-              }
-            />
-          ) : null}
+          <p className="mt-1 text-xs text-slate-500">
+            Mesmas opções do catálogo de investimento (tipo e subtipo).
+          </p>
         </div>
-      ) : null}
+
+        {investmentCatalog.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nenhum modelo de investimento no catálogo. Cadastre tipos e subtipos em Escopo e
+            investimento.
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</Label>
+              <Select
+                value={tipoSelectValue}
+                disabled={disabled || saving}
+                onValueChange={(v) => {
+                  const tipoId = v === SELECT_EMPTY || v == null ? "" : v;
+                  patchDoc({ tipoId, subtipoId: "", placeholders: {}, autoSum: true });
+                }}
+              >
+                <SelectTrigger className="h-10 border-[#dfe5ee] bg-white shadow-sm">
+                  <CrmSelectValue
+                    value={tipoSelectValue}
+                    labels={tipoLabels}
+                    placeholder="Selecione o tipo"
+                  />
+                </SelectTrigger>
+                <CrmSelectContent inModal>
+                  <CrmSelectItem value={SELECT_EMPTY}>Selecione o tipo</CrmSelectItem>
+                  {investmentCatalog.map((t) => (
+                    <CrmSelectItem key={t.tipoId} value={t.tipoId}>
+                      {t.label}
+                    </CrmSelectItem>
+                  ))}
+                </CrmSelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">Subtipo</Label>
+              <Select
+                value={subtipoSelectValue}
+                disabled={disabled || saving || !doc.tipoId}
+                onValueChange={(v) => {
+                  const subtipoId = v === SELECT_EMPTY || v == null ? "" : v;
+                  patchDoc({ subtipoId, placeholders: {}, autoSum: true });
+                }}
+              >
+                <SelectTrigger className="h-10 border-[#dfe5ee] bg-white shadow-sm">
+                  <CrmSelectValue
+                    value={subtipoSelectValue}
+                    labels={subtipoLabels}
+                    placeholder="Selecione o subtipo"
+                  />
+                </SelectTrigger>
+                <CrmSelectContent inModal>
+                  <CrmSelectItem value={SELECT_EMPTY}>Selecione o subtipo</CrmSelectItem>
+                  {(invTipoSel?.subtipos ?? []).map((s) => (
+                    <CrmSelectItem key={s.subtipoId} value={s.subtipoId}>
+                      {s.label}
+                    </CrmSelectItem>
+                  ))}
+                </CrmSelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
+        {invSubDef?.conceito ? (
+          <p className="rounded-2xl border border-[#edf0f4] bg-white p-3 text-xs leading-relaxed text-slate-600">
+            {invSubDef.conceito}
+          </p>
+        ) : null}
+
+        {extraPaymentKeys.map((key) => (
+          <div key={key} className={cn("space-y-1.5", key.length > 20 && "sm:col-span-2")}>
+            <Label className="text-xs font-bold text-slate-500">
+              {getPropostaPlaceholderLabel(key)}
+            </Label>
+            {isInvestimentoCurrencyKey(key) ? (
+              <PropostaBrlCurrencyInput
+                value={doc.placeholders[key] ?? ""}
+                disabled={disabled || saving}
+                onChange={(next) =>
+                  patchDoc({
+                    placeholders: { ...doc.placeholders, [key]: next },
+                    autoSum: doc.autoSum,
+                  })
+                }
+                className="h-10 border-[#dfe5ee] bg-white shadow-sm"
+              />
+            ) : key.includes("CONDIC") || key.includes("DETALHE") || key.includes("PRAZO") ? (
+              <Textarea
+                value={doc.placeholders[key] ?? ""}
+                disabled={disabled || saving}
+                rows={2}
+                onChange={(e) =>
+                  patchDoc({
+                    placeholders: { ...doc.placeholders, [key]: e.target.value },
+                    autoSum: doc.autoSum,
+                  })
+                }
+                className="min-h-[72px] border-[#dfe5ee] bg-white shadow-sm"
+              />
+            ) : (
+              <Input
+                value={doc.placeholders[key] ?? ""}
+                disabled={disabled || saving}
+                onChange={(e) =>
+                  patchDoc({
+                    placeholders: { ...doc.placeholders, [key]: e.target.value },
+                    autoSum: doc.autoSum,
+                  })
+                }
+                className="h-10 border-[#dfe5ee] bg-white shadow-sm"
+              />
+            )}
+          </div>
+        ))}
+        {showParcelasBlock ? (
+          <PropostaInvestimentoParcelasFields
+            placeholders={doc.placeholders}
+            onChange={(next) =>
+              patchDoc({ placeholders: next, autoSum: doc.autoSum })
+            }
+          />
+        ) : null}
+      </div>
 
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
       {saving ? (
