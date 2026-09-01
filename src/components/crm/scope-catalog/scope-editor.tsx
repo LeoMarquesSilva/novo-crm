@@ -72,30 +72,33 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
         isActive: boolean;
       };
 
-  const initialDraft = useMemo<Draft>(
-    () => (mode.kind === "scope" ? draftFromScope(mode.row) : draftFromInvestment(mode.row)),
-    [mode],
-  );
-  const [draft, setDraft] = useState<Draft>(initialDraft);
-  const [saved, setSaved] = useState<Draft>(initialDraft);
+  const itemKey = `${mode.kind}:${mode.row.id}`;
+  const [draft, setDraft] = useState<Draft>(() => draftFromMode(mode));
+  const [saved, setSaved] = useState<Draft>(() => draftFromMode(mode));
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset quando trocar de subtipo
+  // Reset só ao trocar de item. `mode` é um objeto novo a cada render do pai
+  // (onDirtyChange → setState), e resetar por identidade apagava o que o usuário digitava.
   useEffect(() => {
-    setDraft(initialDraft);
-    setSaved(initialDraft);
+    const next = draftFromMode(mode);
+    setDraft(next);
+    setSaved(next);
     setFeedback(null);
     setError(null);
-  }, [initialDraft]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional: só itemKey
+  }, [itemKey]);
 
   const isDirty = useMemo(() => !draftsEqual(draft, saved), [draft, saved]);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
-    return () => onDirtyChange?.(false);
   }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange]);
 
   // ── Placeholders: detectados vs declarados ──────────────────────────────────
   const detected = useMemo(() => {
@@ -637,6 +640,10 @@ function InvestmentPreview({ conceito, template }: { conceito: string; template:
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function draftFromMode(mode: EditorMode): AnyDraft {
+  return mode.kind === "scope" ? draftFromScope(mode.row) : draftFromInvestment(mode.row);
+}
 
 function draftFromScope(row: ScopeSubtypeRow): Extract<
   Parameters<typeof draftsEqual>[0],
