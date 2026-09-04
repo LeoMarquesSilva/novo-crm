@@ -317,11 +317,20 @@ export async function PATCH(
         clauseLibrary,
       });
       const rebuiltPatch = engineToDataJsonPatch(rebuilt, stored.snapshot, draft);
-      const { clausulas_selecionadas: _engineClauses, ...enginePatch } = rebuiltPatch;
+      // `rebuiltPatch.clausulas_selecionadas` é um retrato das cláusulas que o
+      // MOTOR já gera sozinho — nunca deve virar a "seleção manual" do usuário
+      // (campo usado pela barra lateral de Cláusulas Adicionais e como
+      // `userExtras` na geração do Word). Antes, quando esse campo ainda não
+      // existia, ele "adotava" esse retrato como se fosse escolha manual — daí
+      // pra frente a barra lateral mostrava dezenas de cláusulas fantasma como
+      // "adicionadas" (nenhuma bate com um id da biblioteca), e se o texto de
+      // alguma cláusula do catálogo mudasse depois, a cópia antiga parava de
+      // ser reconhecida como redundante e virava duplicata de verdade no
+      // contrato gerado. Ver achado real no lead Ingevity, corrigido nesta sessão.
       nextJson = {
         ...mergedJson,
-        ...enginePatch,
-        clausulas_selecionadas: mergedJson.clausulas_selecionadas ?? _engineClauses,
+        ...rebuiltPatch,
+        clausulas_selecionadas: mergedJson.clausulas_selecionadas ?? [],
       } as unknown as Record<string, Json>;
     }
 

@@ -293,9 +293,16 @@ export const CONTRACT_CLAUSE_CATALOG: ContractClauseTemplate[] = [
   clause(
     "general_tributos",
     "Tributos",
-    "A incidência de tributos sobre os honorários observa a condição comercial da proposta ([TRIBUTACAO]). REQUIRES LEGAL DECISION: os modelos às vezes afirmam que o valor engloba tributos mesmo quando a proposta diz o contrário.",
+    "A incidência de tributos sobre os honorários observa a condição comercial da proposta ([TRIBUTACAO]).",
     "general",
-    { category: "PADRÃO BP", sortOrder: 270, isRequired: true, placeholders: ["[TRIBUTACAO]"] },
+    {
+      category: "PADRÃO BP",
+      sortOrder: 270,
+      isRequired: true,
+      placeholders: ["[TRIBUTACAO]"],
+      legalReviewNote:
+        "Os modelos Word às vezes afirmam que o valor engloba tributos mesmo quando a proposta diz o contrário — REQUIRES LEGAL DECISION sobre qual redação padronizar.",
+    },
   ),
   clause(
     "general_foro",

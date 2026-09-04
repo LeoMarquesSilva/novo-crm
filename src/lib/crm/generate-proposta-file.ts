@@ -10,6 +10,7 @@ import {
   sanitizeFilenamePart,
 } from "@/lib/crm/proposta-document-data";
 import { readModeloPropostaTemplateBuffer, renderCanonicalProposalDocx } from "@/lib/crm/render-proposta-docx";
+import { backupGeneratedDocument } from "@/lib/crm/generated-document-storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -150,6 +151,13 @@ export async function generatePropostaFile(params: {
     generated_by: appUserId,
   });
   if (versionErr) throw versionErr;
+
+  await backupGeneratedDocument(
+    supabase,
+    filePath,
+    bytes,
+    format === "pdf" ? "application/pdf" : PROPOSAL_DOCX_MIME,
+  );
 
   const { error: instanceErr } = await supabase
     .from("document_instances")

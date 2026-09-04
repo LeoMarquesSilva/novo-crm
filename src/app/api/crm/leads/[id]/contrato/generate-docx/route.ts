@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
@@ -9,13 +8,15 @@ import {
   loadDocumentTemplateById,
   sanitizeFilenamePart,
 } from "@/lib/crm/proposta-document-data";
+import { formatPropostaFileStamp } from "@/lib/crm/proposta-docx-data";
 import {
   buildContratoDocxTemplateData,
   buildContratoDocumentPagePreview,
   listContratoPendingFields,
 } from "@/lib/crm/contrato-docx-data";
 import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-principal";
-import { generateContratoDocxBuffer } from "@/lib/crm/generate-contrato-docx";
+import { renderContratoDocx } from "@/lib/crm/render-contrato-docx";
+import { backupGeneratedDocument } from "@/lib/crm/generated-document-storage";
 import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
 import { listForbiddenDraftTokens } from "@/lib/crm/contract-engine/placeholders";
 import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
@@ -211,9 +212,16 @@ export async function POST(
     const page = storedEngine.build
       ? buildCanonicalContratoPage({ canonicalData: storedEngine.build.data, userExtras })
       : buildContratoDocumentPagePreview(templateData, userExtras);
-    const outBuf = await generateContratoDocxBuffer(page);
+    const outBuf = await renderContratoDocx(page);
     const base = sanitizeFilenamePart(String(op.solicitante_nome ?? "contrato"));
-    const filename = `Contrato-${base}-v${nextVersion}-${format(generatedAt, "yyyy-MM-dd-HHmm")}.docx`;
+    const filename = `Contrato-${base}-v${nextVersion}-${formatPropostaFileStamp(generatedAt)}.docx`;
+
+    await backupGeneratedDocument(
+      supabase,
+      filePath,
+      new Uint8Array(outBuf),
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
 
     return new NextResponse(new Uint8Array(outBuf), {
       status: 200,

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -19,6 +19,7 @@ import {
   FileText,
   History,
   Loader2,
+  Lock,
   MapPin,
   PenLine,
   Plus,
@@ -52,6 +53,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { DateInputBr } from "@/components/ui/date-input-br";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { evaluateCondition, type FieldCondition } from "@/lib/crm/field-condition";
 import {
@@ -131,6 +133,13 @@ type ClauseTemplate = {
   sort_order: number;
   /** `ClauseRole` bruto do banco — usado só p/ agrupar por seção do contrato no builder. */
   role?: string | null;
+  /** Cláusula obrigatória — o motor sempre a inclui, independente de "seleção
+   * manual" aqui; não pode ser adicionada/removida por este picker. */
+  is_required?: boolean | null;
+  /** Chave estável (`ResolvedContractClause.stableKey`) — usada pra checar se
+   * o motor canônico já está gerando esta cláusula sozinho (ver `liveBuild`
+   * em `ContratoBuilderDialog`), mesmo quando `is_required` está `false`. */
+  stable_key?: string | null;
 };
 
 /** Cláusula selecionada + editada para este contrato específico */
@@ -628,6 +637,20 @@ function ContratoBuilderDialog({
     objectOverrides,
     scopeAdjustment,
   ]);
+
+  // Texto de verdade (placeholders resolvidos) de tudo que o motor já está
+  // gerando pra este contrato AGORA (escopo contratado, reavaliado a cada
+  // mudança de draft), por chave estável — usado pra travar essas linhas na
+  // barra lateral de Cláusulas Adicionais (mesmo quando o catálogo não marca
+  // a cláusula como `is_required` — ex.: exclusões específicas de área, que
+  // só existem quando aquele escopo foi contratado) e pro "Visualizar".
+  const engineClauseContent = useMemo(
+    () =>
+      liveBuild
+        ? new Map(liveBuild.data.clauses.map((c) => [c.stableKey, c.content]))
+        : undefined,
+    [liveBuild],
+  );
 
   // ── Preview client-side (instantâneo, sem API) ────────────────────────────
   const livePreview = useMemo((): ContratoDocumentPagePreview => {
@@ -1129,6 +1152,7 @@ function ContratoBuilderDialog({
                     selected={draftSelectedClauses}
                     onChange={setDraftSelectedClauses}
                     disabled={saving || generating}
+                    engineClauseContent={engineClauseContent}
                   />
                 </div>
 
@@ -2190,6 +2214,22 @@ type ClauseRow = {
   templateContent: string;
   isAdded: boolean;
   selectedClause: SelectedClause | null;
+  /** Motor gera esta cláusula sozinho — adicionar/remover aqui não tem efeito
+   * nenhum sobre o contrato real. Cobre tanto cláusulas marcadas obrigatórias
+   * no catálogo (`is_required`) quanto cláusulas que o motor já está gerando
+   * pra este contrato específico a partir do escopo contratado (mesmo com
+   * `is_required: false` — ex.: exclusões específicas de área). */
+  isEngineControlled: boolean;
+  /** Texto de verdade que o motor gerou pra esta cláusula NESTE contrato
+   * (placeholders já resolvidos) — só presente quando `isEngineControlled` via
+   * geração ativa; usado pro "Visualizar" somente-leitura na barra lateral.
+   * `null` quando travada só pela flag `is_required` sem geração ativa agora. */
+  engineContent: string | null;
+  /** `isAdded` (extra manual de verdade) OU o motor já gerou esta cláusula
+   * pra este contrato agora — usado pra contar/abrir o grupo por padrão.
+   * Sem isso, um grupo cheio de cláusulas travadas (geradas pelo motor)
+   * aparecia como "vazio" e ficava fechado, escondendo tudo. */
+  isIncludedInContract: boolean;
 };
 
 type ClauseGroup = {
@@ -2198,7 +2238,11 @@ type ClauseGroup = {
   addedCount: number;
 };
 
-function groupClausesBySection(available: ClauseTemplate[], selected: SelectedClause[]): ClauseGroup[] {
+function groupClausesBySection(
+  available: ClauseTemplate[],
+  selected: SelectedClause[],
+  engineClauseContent?: ReadonlyMap<string, string>,
+): ClauseGroup[] {
   const selectedById = new Map(selected.map((c) => [c.id, c]));
   const availableIds = new Set(available.map((t) => t.id));
   const bySection = new Map<string, ClauseRow[]>();
@@ -2211,12 +2255,17 @@ function groupClausesBySection(available: ClauseTemplate[], selected: SelectedCl
 
   for (const tpl of available) {
     const sel = selectedById.get(tpl.id) ?? null;
+    const engineContent = tpl.stable_key ? engineClauseContent?.get(tpl.stable_key) ?? null : null;
+    const isAdded = Boolean(sel);
     pushRow(resolveClauseSectionTitle(tpl.role), {
       id: tpl.id,
       title: tpl.title,
       templateContent: tpl.content,
-      isAdded: Boolean(sel),
+      isAdded,
       selectedClause: sel,
+      isEngineControlled: Boolean(tpl.is_required) || engineContent !== null,
+      engineContent,
+      isIncludedInContract: isAdded || engineContent !== null,
     });
   }
   // Cláusulas adicionadas cujo template não existe mais na biblioteca ativa
@@ -2229,16 +2278,24 @@ function groupClausesBySection(available: ClauseTemplate[], selected: SelectedCl
       templateContent: sel.content,
       isAdded: true,
       selectedClause: sel,
+      isEngineControlled: false,
+      engineContent: null,
+      isIncludedInContract: true,
     });
   }
 
   const orderedTitles = [...SECTION_ORDER.map((s) => s.title), CLAUSE_FALLBACK_SECTION_TITLE];
-  return orderedTitles
+  const groups = orderedTitles
     .filter((title) => bySection.has(title))
     .map((title) => {
       const rows = bySection.get(title)!;
-      return { title, rows, addedCount: rows.filter((r) => r.isAdded).length };
+      return { title, rows, addedCount: rows.filter((r) => r.isIncludedInContract).length };
     });
+  // Grupos com cláusula(s) já adicionada(s) primeiro — mais relevante pra quem
+  // está revisando o que já foi incluído do que a ordem em que a seção aparece
+  // no documento final. `.sort` é estável, então a ordem de documento é mantida
+  // dentro de cada bucket (com added / sem added).
+  return groups.sort((a, b) => Number(b.addedCount > 0) - Number(a.addedCount > 0));
 }
 
 function ClausulasSection({
@@ -2246,13 +2303,21 @@ function ClausulasSection({
   selected,
   onChange,
   disabled,
+  engineClauseContent,
 }: {
   available: ClauseTemplate[];
   selected: SelectedClause[];
   onChange: (clauses: SelectedClause[]) => void;
   disabled?: boolean;
+  /** Texto de verdade (placeholders resolvidos) que o motor canônico já está
+   * gerando pra este contrato agora, por chave estável — ver `liveBuild` no
+   * dialog pai. Usado tanto pra travar a linha quanto pro "Visualizar". */
+  engineClauseContent?: ReadonlyMap<string, string>;
 }) {
-  const groups = useMemo(() => groupClausesBySection(available, selected), [available, selected]);
+  const groups = useMemo(
+    () => groupClausesBySection(available, selected, engineClauseContent),
+    [available, selected, engineClauseContent],
+  );
 
   function addClause(row: ClauseRow) {
     const next: SelectedClause = {
@@ -2352,7 +2417,7 @@ function ClauseGroupBlock({
         </span>
         {group.addedCount > 0 ? (
           <span className="shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
-            {group.addedCount} adicionada{group.addedCount > 1 ? "s" : ""}
+            {group.addedCount} no contrato
           </span>
         ) : null}
         <span className="shrink-0 text-[10px] font-semibold text-slate-400">{group.rows.length}</span>
@@ -2408,6 +2473,73 @@ function ClauseRowItem({
   onUpdateContent: (content: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+
+  if (row.isEngineControlled) {
+    // Presente de verdade no contrato AGORA (o motor já resolveu essa chave
+    // pro escopo contratado) vs. só marcada obrigatória no catálogo mas sem
+    // geração ativa no momento (raro — ex.: escopo ainda incompleto).
+    const inContractNow = row.engineContent !== null;
+    const viewContent = row.engineContent ?? row.templateContent;
+    return (
+      <div
+        className={cn(
+          "rounded-lg border p-2.5",
+          inContractNow ? "border-teal-200/70 bg-teal-50/40" : "border-amber-200/70 bg-amber-50/50",
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "flex size-4 shrink-0 items-center justify-center rounded-full text-white",
+              inContractNow ? "bg-teal-500" : "bg-amber-400",
+            )}
+          >
+            {inContractNow ? <Check className="size-2.5" aria-hidden /> : <Lock className="size-2.5" aria-hidden />}
+          </span>
+          <span className="flex-1 truncate text-xs font-semibold text-primary-dark">{row.title}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className={cn(
+                  "flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                  inContractNow
+                    ? "border-teal-300 bg-teal-100 text-teal-800"
+                    : "border-amber-300 bg-amber-100 text-amber-800",
+                )}
+              >
+                <Lock className="size-2.5" aria-hidden />
+                {inContractNow ? "No contrato atual" : "Obrigatória"}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[240px] text-center">
+              {inContractNow
+                ? "O motor já gerou e incluiu esta cláusula no contrato atual, a partir do escopo contratado. Não pode ser removida por aqui."
+                : "Cláusula obrigatória no catálogo, mas o motor ainda não a gerou pra este contrato (escopo pode estar incompleto). Não pode ser adicionada por aqui."}
+            </TooltipContent>
+          </Tooltip>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 shrink-0 px-2 text-[11px]"
+            onClick={() => setEditing((v) => !v)}
+          >
+            {editing ? "Ocultar" : "Visualizar"}
+          </Button>
+        </div>
+        {editing ? (
+          <p
+            className={cn(
+              "mt-2 whitespace-pre-wrap rounded-md border bg-white p-2 text-xs leading-relaxed text-slate-600",
+              inContractNow ? "border-teal-200/70" : "border-amber-200/70",
+            )}
+          >
+            {viewContent || "—"}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -2720,13 +2852,8 @@ function ClickablePreview({
 
   return (
     <div className="mx-auto max-w-[794px] space-y-4">
-      {/* Folha 1 — corpo do contrato (somente leitura) */}
-      <div>
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-          Folha 1 — Corpo do contrato
-        </p>
-        <ContratoBodyDocument page={page} />
-      </div>
+      {/* Corpo do contrato — paginado por altura medida (somente leitura) */}
+      <ContratoBodyPages page={page} />
 
       {/* Folha de assinaturas — pins D4Sign */}
       <div>
@@ -3018,9 +3145,136 @@ const CONTRACT_BODY_STYLE: React.CSSProperties = {
 };
 
 const A4_PAGE_CLASS =
-  "mx-auto w-full max-w-[794px] bg-white px-[11%] py-10 shadow-[0_24px_70px_rgba(16,31,46,0.22)] ring-1 ring-black/5";
+  "mx-auto w-full max-w-[794px] bg-white px-[11%] shadow-[0_24px_70px_rgba(16,31,46,0.22)] ring-1 ring-black/5";
 
-function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
+/**
+ * Cabeçalho/rodapé reais do modelo Word oficial (`templates/contrato/
+ * MODELO_CONTRATO_RODAPE.docx`) — uma única imagem do tamanho de uma página A4
+ * inteira (logo no topo, endereço no rodapé, miolo transparente), extraída de
+ * `word/media/image2.png` do modelo e salva em `public/contrato-assets/`.
+ * `backgroundSize` usa a proporção exata de A4 (794×1123, mesma referência já
+ * usada para a folha de assinaturas do D4Sign). Aplicada uma vez por página
+ * real (ver `ContratoBodyPages`), sem repetição — o conteúdo é cortado por
+ * altura medida antes de renderizar, então o timbrado nunca é cortado no meio.
+ */
+const CONTRACT_LETTERHEAD_STYLE: React.CSSProperties = {
+  backgroundImage: "url(/contrato-assets/letterhead.png)",
+  backgroundSize: `${D4SIGN_A4_WIDTH}px ${D4SIGN_A4_HEIGHT}px`,
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "top center",
+};
+
+/** Espaço reservado no topo/base de cada página pro cabeçalho/rodapé do papel
+ * timbrado (mesmo valor de `pt-28`/`pb-16` usado no container da página) —
+ * usado pra calcular quanto de conteúdo cabe por página na paginação real. */
+const PAGE_TOP_SAFE_ZONE = 112; // pt-28
+const PAGE_BOTTOM_SAFE_ZONE = 64; // pb-16
+const PAGE_CONTENT_HEIGHT = D4SIGN_A4_HEIGHT - PAGE_TOP_SAFE_ZONE - PAGE_BOTTOM_SAFE_ZONE;
+
+type PreviewBlock = { key: string; node: React.ReactNode; forceBreakBefore?: boolean };
+
+/**
+ * Corta os blocos do corpo do contrato em páginas de verdade — mede a altura
+ * real de cada bloco (renderizado escondido, mesma largura da página) e
+ * agrupa até estourar `PAGE_CONTENT_HEIGHT`, começando página nova a cada
+ * estouro. Sem isso, a imagem do cabeçalho/rodapé do papel timbrado repetia a
+ * cada "altura de página" num fluxo contínuo, sem relação nenhuma com onde o
+ * conteúdo realmente cabia — cortava o timbrado no meio de qualquer jeito.
+ */
+function ContratoBodyPages({ page }: { page: ContratoDocumentPagePreview }) {
+  const blocks = useMemo(() => buildContratoBodyBlocks(page), [page]);
+  const measureHostRef = useRef<HTMLDivElement | null>(null);
+  const [pages, setPages] = useState<PreviewBlock[][]>(() => [blocks]);
+
+  useLayoutEffect(() => {
+    const host = measureHostRef.current;
+    if (!host) return;
+    // Mede pela POSIÇÃO real de cada bloco (topo em relação ao host), não
+    // pela altura isolada de cada `<div>` — somar alturas individuais é
+    // sujeito a erro por causa do colapso de margem do CSS (a margin-bottom
+    // de um parágrafo "escapa" do próprio elemento e não entra no
+    // getBoundingClientRect() dele, mas ainda desloca o próximo elemento).
+    // Medindo a diferença entre o topo de um bloco e o do próximo, o efeito
+    // do colapso de margem já vem embutido automaticamente — é exatamente
+    // o espaço real que aquele bloco ocupa no fluxo, sem precisar adivinhar.
+    // `children` inclui o sentinela final (ver JSX abaixo) — usado só pra
+    // capturar a posição real do fim do último bloco, já que a própria altura
+    // do host não inclui a margin-bottom do último filho quando ela colapsa
+    // "através" do host (o host não tem padding/borda pra conter a margem).
+    const hostTop = host.getBoundingClientRect().top;
+    const children = Array.from(host.children);
+    const tops = children.map((el) => el.getBoundingClientRect().top - hostTop);
+    const heights = blocks.map((_, i) => (tops[i + 1] ?? 0) - tops[i]);
+
+    const result: PreviewBlock[][] = [];
+    let current: PreviewBlock[] = [];
+    let currentHeight = 0;
+    blocks.forEach((block, i) => {
+      const h = heights[i] ?? 0;
+      const mustBreak = Boolean(block.forceBreakBefore) && current.length > 0;
+      const overflows = current.length > 0 && currentHeight + h > PAGE_CONTENT_HEIGHT;
+      if (mustBreak || overflows) {
+        result.push(current);
+        current = [];
+        currentHeight = 0;
+      }
+      current.push(block);
+      currentHeight += h;
+    });
+    if (current.length > 0) result.push(current);
+    // Paginação depende da altura real renderizada (fonte, largura, quebra de
+    // linha) — não dá pra calcular isso durante o render, só depois que o DOM
+    // de medição existe. Mesmo padrão de "measure then setState" documentado
+    // pelo React para useLayoutEffect (react.dev/learn/you-might-not-need-an-effect).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPages(result.length > 0 ? result : [[]]);
+  }, [blocks]);
+
+  return (
+    <>
+      {/* Medição escondida: mesma largura/padding da página real, pra cada
+          bloco quebrar linha igualzinho ao que vai aparecer de verdade. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          visibility: "hidden",
+          pointerEvents: "none",
+          top: 0,
+          left: -99999,
+          width: D4SIGN_A4_WIDTH,
+        }}
+      >
+        <div ref={measureHostRef} className={cn(A4_PAGE_CLASS, "space-y-0")} style={CONTRACT_BODY_STYLE}>
+          {blocks.map((b) => (
+            <div key={b.key}>{b.node}</div>
+          ))}
+          {/* Sentinela: marca o fim real do último bloco (ver comentário no
+              useLayoutEffect acima) — não é um bloco de conteúdo. */}
+          <div key="__end-sentinel__" />
+        </div>
+      </div>
+
+      {pages.map((pageBlocks, i) => (
+        <div key={i}>
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+            Folha {i + 1} — Corpo do contrato
+          </p>
+          <div
+            className={cn(A4_PAGE_CLASS, "pt-28 pb-16")}
+            style={{ ...CONTRACT_BODY_STYLE, ...CONTRACT_LETTERHEAD_STYLE, minHeight: D4SIGN_A4_HEIGHT }}
+          >
+            {pageBlocks.map((b) => (
+              <div key={b.key}>{b.node}</div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function buildContratoBodyBlocks(page: ContratoDocumentPagePreview): PreviewBlock[] {
   const ELLIPSIS = "…";
 
   // Separar o nome da empresa (bold) do restante da qualificação
@@ -3066,19 +3320,11 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
   const nPrazo = hasPrazoConfeccao ? ++clauseCounter : 0;
   const nBaseAdicionais = clauseCounter;
 
-  return (
-    <div className={cn(A4_PAGE_CLASS, "min-h-[600px]")} style={CONTRACT_BODY_STYLE}>
-      {/* ── Cabeçalho / Logomarca ── */}
-      <div className="mb-5 flex flex-col items-center gap-0.5" style={{ fontFamily: "inherit" }}>
-        <p className="text-[13pt] font-extrabold tracking-[0.07em]" style={{ color: "#0b1724" }}>
-          BISMARCHI<span className="mx-1.5 font-black" style={{ color: "#2dc8b7" }}>|</span>PIRES
-        </p>
-        <p className="text-[7.5pt] uppercase tracking-[0.35em]" style={{ color: "#6b7280" }}>
-          Sociedade de Advogados
-        </p>
-      </div>
+  const blocks: PreviewBlock[] = [];
 
-      {/* ── Título do documento ── */}
+  blocks.push({
+    key: "titulo",
+    node: (
       <div className="mb-6">
         <div style={{ borderTop: "1px solid rgba(0,0,0,0.55)" }} />
         <p
@@ -3089,20 +3335,32 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
         </p>
         <div style={{ borderTop: "1px solid rgba(0,0,0,0.55)" }} />
       </div>
+    ),
+  });
 
-      {/* ── Abertura ── */}
+  blocks.push({
+    key: "abertura",
+    node: (
       <p className="mb-4">
         Pelo presente instrumento particular, as partes a seguir identificadas e qualificadas:
       </p>
+    ),
+  });
 
-      {/* ── Qualificação do CONTRATANTE ── */}
+  blocks.push({
+    key: "qual-contratante",
+    node: (
       <p className="mb-4">
         <strong>{companyName || ELLIPSIS}</strong>
         {companyDetail}, doravante denominada{" "}
         <strong>&ldquo;CONTRATANTE&rdquo;</strong>.
       </p>
+    ),
+  });
 
-      {/* ── Qualificação da CONTRATADA (Bismarchi | Pires — fixo) ── */}
+  blocks.push({
+    key: "qual-contratada",
+    node: (
       <p className="mb-4">
         <strong>BISMARCHI | PIRES – SOCIEDADE DE ADVOGADOS</strong>, pessoa jurídica de direito
         privado, inscrita no CNPJ sob o n° 26.080.152/0001-35, com sede na Rua Coronel Quirino,
@@ -3112,8 +3370,12 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
         <strong>RICARDO VISCARDI PIRES</strong>, inscrito na OAB/SP sob o n° 353.389, doravante
         denominada <strong>&ldquo;CONTRATADA&rdquo;</strong>.
       </p>
+    ),
+  });
 
-      {/* ── Parágrafo de conjunção ── */}
+  blocks.push({
+    key: "conjuncao",
+    node: (
       <p className="mb-7">
         <strong>CONTRATANTE</strong> e <strong>CONTRATADA</strong>, quando em conjunto, doravante
         denominadas <strong>&ldquo;Partes&rdquo;</strong> e, individual e indiscriminadamente,{" "}
@@ -3122,20 +3384,26 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
         <strong>&ldquo;Contrato&rdquo;</strong>), o qual reger-se-á pelas seguintes cláusulas e
         condições.
       </p>
+    ),
+  });
 
-      {/* ── 1. OBJETO DO CONTRATO ── */}
-      <ContratoClause num={nObjeto} title="OBJETO DO CONTRATO">
-        <p className="whitespace-pre-wrap">{page.objeto || ELLIPSIS}</p>
-      </ContratoClause>
+  blocks.push(...buildClauseBlocks("clausula-objeto", nObjeto, "OBJETO DO CONTRATO", { content: page.objeto }, ELLIPSIS));
 
-      {/* ── 2. OBJETOS EXCLUÍDOS DO CONTRATO ── */}
-      {page.objetosExcluidos ? (
-        <ContratoClause num={nObjetosExcluidos} title={page.objetosExcluidos.title.toUpperCase()}>
-          <ClausulaBody num={nObjetosExcluidos} clausula={page.objetosExcluidos} ellipsis={ELLIPSIS} />
-        </ContratoClause>
-      ) : null}
+  if (page.objetosExcluidos) {
+    blocks.push(
+      ...buildClauseBlocks(
+        "clausula-objetos-excluidos",
+        nObjetosExcluidos,
+        page.objetosExcluidos.title.toUpperCase(),
+        page.objetosExcluidos,
+        ELLIPSIS,
+      ),
+    );
+  }
 
-      {/* ── 3. DOS HONORÁRIOS ── */}
+  blocks.push({
+    key: "clausula-honorarios",
+    node: (
       <ContratoClause num={nHonorarios} title="DOS HONORÁRIOS CONTRATUAIS">
         <p className="whitespace-pre-wrap">{page.valores || ELLIPSIS}</p>
         {page.tipoPagamento ? (
@@ -3149,14 +3417,14 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
           </p>
         ) : null}
       </ContratoClause>
+    ),
+  });
 
-      {/* ── N. ÁREAS DE ATUAÇÃO (novo sistema) ── */}
-      {areasClauses.map((area, i) => (
-        <ContratoClause
-          key={area.key}
-          num={areaClauseNums[i] ?? i + 3}
-          title={area.label.toUpperCase()}
-        >
+  areasClauses.forEach((area, i) => {
+    blocks.push({
+      key: `area-${area.key}`,
+      node: (
+        <ContratoClause num={areaClauseNums[i] ?? i + 3} title={area.label.toUpperCase()}>
           {area.details.length > 0 ? (
             <ul className="mt-1 space-y-1">
               {area.details.map((det) => (
@@ -3167,25 +3435,33 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
             </ul>
           ) : null}
         </ContratoClause>
-      ))}
+      ),
+    });
+  });
 
-      {/* ── N. HONORÁRIOS DE ÊXITO (área especial, novo sistema) ── */}
-      {exitoArea && nExitoArea > 0 ? (
+  if (exitoArea && nExitoArea > 0) {
+    blocks.push({
+      key: "clausula-exito-area",
+      node: (
         <ContratoClause num={nExitoArea} title="DOS HONORÁRIOS DE ÊXITO">
-          {exitoArea.details.map((det) => (
+          {exitoArea.details.map((det) =>
             det.label === "Detalhamento" ? (
               <p key="det" className="whitespace-pre-wrap">{det.value}</p>
             ) : (
               <p key={det.label} className="mt-1">
                 <strong>{det.label}:</strong> {det.value}.
               </p>
-            )
-          ))}
+            ),
+          )}
         </ContratoClause>
-      ) : null}
+      ),
+    });
+  }
 
-      {/* ── N. DAS LIMITAÇÕES (legado — sem novas áreas) ── */}
-      {hasLimitacoes && nLimitacoes > 0 ? (
+  if (hasLimitacoes && nLimitacoes > 0) {
+    blocks.push({
+      key: "clausula-limitacoes-legado",
+      node: (
         <ContratoClause num={nLimitacoes} title="DAS LIMITAÇÕES DE SERVIÇOS">
           {page.limiteProcessos ? (
             <p><strong>Limite de processos:</strong> {page.limiteProcessos}.</p>
@@ -3194,60 +3470,98 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
             <p className="mt-2"><strong>Limite de horas mensais:</strong> {page.limiteHoras}.</p>
           ) : null}
         </ContratoClause>
-      ) : null}
+      ),
+    });
+  }
 
-      {/* ── N. DOS HONORÁRIOS DE ÊXITO (legado) ── */}
-      {hasExitoLegado && nExitoLegado > 0 ? (
+  if (hasExitoLegado && nExitoLegado > 0) {
+    blocks.push({
+      key: "clausula-exito-legado",
+      node: (
         <ContratoClause num={nExitoLegado} title="DOS HONORÁRIOS DE ÊXITO">
           <p className="whitespace-pre-wrap">{page.exitoAreas}</p>
         </ContratoClause>
-      ) : null}
+      ),
+    });
+  }
 
-      {/* ── N. DO PRAZO PARA CONFECÇÃO (legado — cc_prazo_confeccao desativado) ── */}
-      {hasPrazoConfeccao && nPrazo > 0 ? (
+  if (hasPrazoConfeccao && nPrazo > 0) {
+    blocks.push({
+      key: "clausula-prazo-legado",
+      node: (
         <ContratoClause num={nPrazo} title="DO PRAZO PARA CONFECÇÃO DO CONTRATO DEFINITIVO">
           <p>{page.prazoConfeccao}.</p>
         </ContratoClause>
-      ) : null}
+      ),
+    });
+  }
 
-      {/* ── Cláusulas adicionais (biblioteca) ── */}
-      {page.clausulasAdicionais.map((c, i) => {
-        const num = nBaseAdicionais + i + 1;
-        return (
-          <ContratoClause key={i} num={num} title={c.title.toUpperCase()}>
-            <ClausulaBody num={num} clausula={c} ellipsis={ELLIPSIS} />
-          </ContratoClause>
-        );
-      })}
-    </div>
-  );
+  page.clausulasAdicionais.forEach((c, i) => {
+    const num = nBaseAdicionais + i + 1;
+    blocks.push(...buildClauseBlocks(`adicional-${i}`, num, c.title.toUpperCase(), c, ELLIPSIS));
+  });
+
+  return blocks;
 }
 
-/** Corpo de uma cláusula: texto único, ou sub-itens N.1, N.2... numerados com o N do pai. */
-function ClausulaBody({
-  num,
-  clausula,
-  ellipsis,
-}: {
-  num: number;
-  clausula: { content: string; items?: Array<{ title: string; content: string }> };
-  ellipsis: string;
-}) {
-  if (clausula.items && clausula.items.length > 0) {
-    return (
-      <div className="space-y-2">
-        {clausula.items.map((item, j) => (
-          <p key={j} className="whitespace-pre-wrap">
-            <strong>
-              {num}.{j + 1}. {item.title}.
-            </strong>{" "}
-            {item.content}
-          </p>
-        ))}
-      </div>
-    );
+/**
+ * Constrói os blocos medíveis de uma cláusula. Cláusulas com sub-itens (N.1,
+ * N.2...) — como "Disposições Gerais", que pode ter 10+ itens — viram UM
+ * bloco por item, não um bloco gigante só. Sem isso, uma cláusula longa não
+ * cabia inteira no espaço restante da página e o paginador (que só decide
+ * onde cortar ENTRE blocos, nunca dentro de um) deixava o bloco inteiro
+ * estourar pro fundo da página, sobrepondo o rodapé do papel timbrado.
+ */
+function buildClauseBlocks(
+  baseKey: string,
+  num: number,
+  title: string,
+  clausula: { content: string; items?: Array<{ title: string; content: string }> },
+  ellipsis: string,
+): PreviewBlock[] {
+  if (!clausula.items || clausula.items.length === 0) {
+    // Conteúdo de parágrafo único também pode ser longo o bastante pra não
+    // caber no espaço restante de uma página (ex.: Objeto de um Full Service,
+    // que junta Contencioso + Consultivo em várias linhas numeradas separadas
+    // por linha em branco) — separa em um bloco por parágrafo, mesma lógica
+    // usada abaixo pros sub-itens, senão o bloco inteiro pula pra próxima
+    // página e deixa a atual com metade do espaço vazio.
+    const paragraphs = (clausula.content || ellipsis).split(/\n{2,}/).filter((p) => p.trim());
+    const paras = paragraphs.length > 0 ? paragraphs : [ellipsis];
+    return paras.map((paragraph, j) => ({
+      key: `${baseKey}-p-${j}`,
+      node: (
+        <div className={j === paras.length - 1 ? "mb-5" : "mb-2"}>
+          {j === 0 ? (
+            <p className="mb-1.5 font-bold" style={{ fontSize: "11pt" }}>
+              {num}.&emsp;{title}
+            </p>
+          ) : null}
+          <p className="whitespace-pre-wrap">{paragraph}</p>
+        </div>
+      ),
+    }));
   }
-  return <p className="whitespace-pre-wrap">{clausula.content || ellipsis}</p>;
+
+  const items = clausula.items;
+  return items.map((item, j) => ({
+    key: `${baseKey}-item-${j}`,
+    node: (
+      <div className={cn(j === items.length - 1 ? "mb-5" : "mb-2")}>
+        {j === 0 ? (
+          <p className="mb-1.5 font-bold" style={{ fontSize: "11pt" }}>
+            {num}.&emsp;{title}
+          </p>
+        ) : null}
+        <p className="whitespace-pre-wrap">
+          <strong>
+            {num}.{j + 1}. {item.title}.
+          </strong>{" "}
+          {item.content}
+        </p>
+      </div>
+    ),
+  }));
 }
 
 /** Folha dedicada de assinaturas — sempre a última página do PDF enviado à D4Sign. */
@@ -3256,8 +3570,8 @@ function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePre
 
   return (
     <div
-      className={A4_PAGE_CLASS}
-      style={{ ...CONTRACT_BODY_STYLE, minHeight: D4SIGN_A4_HEIGHT }}
+      className={cn(A4_PAGE_CLASS, "pt-28 pb-16")}
+      style={{ ...CONTRACT_BODY_STYLE, ...CONTRACT_LETTERHEAD_STYLE, minHeight: D4SIGN_A4_HEIGHT }}
     >
       <p
         className="mb-2 text-center text-[10pt] font-bold uppercase tracking-[0.12em]"
@@ -3286,16 +3600,6 @@ function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePre
           <p className="mt-4 w-full" style={{ borderTop: "1px solid #333" }} />
           <p className="mt-1 text-[9pt] text-slate-500">Ricardo Viscardi Pires</p>
         </div>
-      </div>
-
-      <div className="mt-auto pt-16" style={{ borderTop: "1px solid rgba(0,0,0,0.2)" }}>
-        <p
-          className="mt-2 text-center"
-          style={{ fontSize: "8pt", color: "#6b7280", letterSpacing: "0.02em" }}
-        >
-          Rua Coronel Quirino, 1.266 — Cambuí — Campinas/SP &nbsp;·&nbsp; (19) 3254-6446
-          &nbsp;·&nbsp; contato@bismarchipires.com.br
-        </p>
       </div>
     </div>
   );

@@ -97,7 +97,21 @@ function clausulaBodyParagraphs(
 
 export async function generateContratoDocxBuffer(
   page: ContratoDocumentPagePreview,
+  options?: {
+    /**
+     * `false` omite o cabeçalho de texto ("BISMARCHI | PIRES"), o título e o
+     * rodapé de endereço gerados aqui — usado quando o corpo produzido por
+     * esta função vai ser inserido dentro do modelo Word oficial
+     * (`render-contrato-docx.ts`), que já traz essa marca gráfica real (logo +
+     * endereço) impressa no cabeçalho/rodapé do próprio arquivo. Sem isso, o
+     * .docx final duplicaria a marca — uma vez como imagem do modelo, outra
+     * como texto gerado aqui. Default `true` preserva o comportamento
+     * standalone (sem modelo) para qualquer chamador que não passe a opção.
+     */
+    standaloneBranding?: boolean;
+  },
 ): Promise<Buffer> {
+  const standaloneBranding = options?.standaloneBranding ?? true;
   const ELLIPSIS = "…";
 
   // Separa o nome da empresa (negrito) do restante da qualificação
@@ -115,30 +129,32 @@ export async function generateContratoDocxBuffer(
 
   const children: (Paragraph | Table)[] = [];
 
-  // ── Cabeçalho / Logomarca ───────────────────────────────────────────────────
-  children.push(
-    para([run("BISMARCHI  |  PIRES", true, PT13)], {
-      align: AlignmentType.CENTER,
-      after: 20,
-    }),
-  );
-  children.push(
-    para([run("SOCIEDADE DE ADVOGADOS", false, PT8)], {
-      align: AlignmentType.CENTER,
-      after: 220,
-      borderBottom: true,
-    }),
-  );
+  if (standaloneBranding) {
+    // ── Cabeçalho / Logomarca ─────────────────────────────────────────────────
+    children.push(
+      para([run("BISMARCHI  |  PIRES", true, PT13)], {
+        align: AlignmentType.CENTER,
+        after: 20,
+      }),
+    );
+    children.push(
+      para([run("SOCIEDADE DE ADVOGADOS", false, PT8)], {
+        align: AlignmentType.CENTER,
+        after: 220,
+        borderBottom: true,
+      }),
+    );
 
-  // ── Título ──────────────────────────────────────────────────────────────────
-  children.push(
-    para([run("CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS", true)], {
-      align: AlignmentType.CENTER,
-      after: 0,
-      borderBottom: true,
-    }),
-  );
-  children.push(para([], { after: 220 }));
+    // ── Título ────────────────────────────────────────────────────────────────
+    children.push(
+      para([run("CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS", true)], {
+        align: AlignmentType.CENTER,
+        after: 0,
+        borderBottom: true,
+      }),
+    );
+    children.push(para([], { after: 220 }));
+  }
 
   // ── Abertura ────────────────────────────────────────────────────────────────
   children.push(
@@ -417,20 +433,22 @@ export async function generateContratoDocxBuffer(
     }),
   );
 
-  // ── Rodapé ─────────────────────────────────────────────────────────────────
-  children.push(para([], { before: 280, after: 80, borderTop: true }));
-  children.push(
-    para(
-      [
-        run(
-          "Rua Coronel Quirino, 1.266  —  Cambuí  —  Campinas/SP   ·   (19) 3254-6446   ·   contato@bismarchipires.com.br",
-          false,
-          PT8,
-        ),
-      ],
-      { align: AlignmentType.CENTER, after: 0 },
-    ),
-  );
+  if (standaloneBranding) {
+    // ── Rodapé ───────────────────────────────────────────────────────────────
+    children.push(para([], { before: 280, after: 80, borderTop: true }));
+    children.push(
+      para(
+        [
+          run(
+            "Rua Coronel Quirino, 1.266  —  Cambuí  —  Campinas/SP   ·   (19) 3254-6446   ·   contato@bismarchipires.com.br",
+            false,
+            PT8,
+          ),
+        ],
+        { align: AlignmentType.CENTER, after: 0 },
+      ),
+    );
+  }
 
   // ── Documento final ─────────────────────────────────────────────────────────
   const doc = new Document({

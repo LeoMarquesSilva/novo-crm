@@ -6,7 +6,6 @@ import {
 } from "@/lib/crm/lead-rd-field-labels";
 import {
   fetchAppUsersByEmails,
-  fetchAppUsersByIds,
   looksLikeUuid,
   resolvedUserFromEmailMap,
   type ResolvedAppUser,
@@ -271,6 +270,10 @@ function mergeFilledFieldsWithCrmOverrides(
 
 async function getLeadById(id: string): Promise<LeadDetailData | null> {
   const supabase = createSupabaseAdminClient();
+
+  // Disparado já — só depende do `id`, não de nada buscado abaixo.
+  const lifecycleTimelinePromise = fetchLeadLifecycleTimeline(supabase, id);
+
   const { data, error } = await supabase
     .from("oportunidades")
     .select(
@@ -286,24 +289,82 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
     return null;
   }
 
-  const [{ data: reconciliation, error: reconciliationError }, { data: intake, error: intakeError }] =
-    await Promise.all([
-      supabase
-        .from("rd_deal_reconciliacao")
-        .select("rd_deal_id, detalhes")
-        .eq("oportunidade_id", id)
-        .order("reconciled_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("lead_intakes")
-        .select("*")
-        .eq("oportunidade_id", id)
-        .maybeSingle(),
-    ]);
+  const dueRevisionCycle =
+    typeof data.due_revision_cycle === "number"
+      ? data.due_revision_cycle
+      : Number(data.due_revision_cycle) || 0;
+  const wantsDueDocs = Boolean(data.havera_due_diligence);
+  const wantsDueReviewTasks = wantsDueDocs && dueRevisionCycle >= 1;
+
+  // Leva única: tudo aqui só depende do `id` (ou de campos já conhecidos de
+  // `data`), então roda em paralelo em vez de uma pergunta de cada vez.
+  const [
+    { data: reconciliation, error: reconciliationError },
+    { data: intake, error: intakeError },
+    { data: fvRows, error: fvErr },
+    { data: dueTaskRows, error: dueTaskErr },
+    { data: escopoDefRows, error: escopoDefErr },
+    { data: docRows, error: docErr },
+    { data: revRows, error: revErr },
+  ] = await Promise.all([
+    supabase
+      .from("rd_deal_reconciliacao")
+      .select("rd_deal_id, detalhes")
+      .eq("oportunidade_id", id)
+      .order("reconciled_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("lead_intakes").select("*").eq("oportunidade_id", id).maybeSingle(),
+    supabase
+      .from("field_values")
+      .select("field_definition_id, value_json")
+      .eq("entity_name", "oportunidade")
+      .eq("entity_record_id", id)
+      .order("updated_at", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("due_area_tasks")
+      .select(
+        "id, area_key, status, prazo_ate, pasta_due_confirmada, sem_processos_ativos, observacao_sem_processos, iniciado_em, dados_disponibilizados_em, responsavel_app_user_id",
+      )
+      .eq("oportunidade_id", id)
+      .order("area_key", { ascending: true }),
+    supabase
+      .from("field_definitions")
+      .select("id")
+      .eq("entity_name", "oportunidade")
+      .eq("field_code", "cp_escopo_detalhe_json")
+      .eq("pipeline_code", "vendas")
+      .eq("stage_code", "confeccao_proposta")
+      .order("id", { ascending: true })
+      .limit(1),
+    wantsDueDocs
+      ? supabase
+          .from("due_documents")
+          .select(
+            "id, document_kind, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id",
+          )
+          .eq("oportunidade_id", id)
+          .order("uploaded_at", { ascending: false })
+      : Promise.resolve({ data: null, error: null }),
+    wantsDueReviewTasks
+      ? supabase
+          .from("due_area_review_tasks")
+          .select(
+            "id, area_key, status, prazo_ate, observacao_ajustes, review_started_at, adjustments_requested_at, approved_at, compilation_returned_at, revisao_reentry_at, review_elapsed_ms, compilation_elapsed_ms, adjustment_completed_at, adjustment_completed_by_app_user_id, adjustment_completion_note, adjustment_evidence_kind, adjustment_evidence_value, responded_at, responded_by_app_user_id, responsavel_app_user_id",
+          )
+          .eq("oportunidade_id", id)
+          .eq("revision_cycle", dueRevisionCycle)
+          .order("area_key", { ascending: true })
+      : Promise.resolve({ data: null, error: null }),
+  ]);
 
   if (reconciliationError) throw reconciliationError;
   if (intakeError) throw intakeError;
+  if (fvErr) throw fvErr;
+  if (dueTaskErr) throw dueTaskErr;
+  if (escopoDefErr) throw escopoDefErr;
+  if (docErr) throw docErr;
+  if (revErr) throw revErr;
 
   const rdDealId = reconciliation?.rd_deal_id ?? null;
   const rdDealUrl =
@@ -348,7 +409,59 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       emailsForIntakeUsers.push(f.value.trim());
     }
   }
-  const intakeEmailMap = await fetchAppUsersByEmails(supabase, emailsForIntakeUsers);
+
+  const defIds = [...new Set((fvRows ?? []).map((r) => r.field_definition_id))];
+  const wantsEscopoSolicitacoes = etapa === "confeccao_proposta";
+  const wantsContrato = ["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(etapa);
+
+  // Segunda leva: depende de `etapa`/`defIds` (calculados acima), mas as 5
+  // buscas entre si são independentes — outra vez em paralelo.
+  const [
+    intakeEmailMap,
+    { data: defRows, error: defErr },
+    { data: tribRows, error: tribErr },
+    { data: solRows, error: solErr },
+    { data: contract, error: contractError },
+  ] = await Promise.all([
+    fetchAppUsersByEmails(supabase, emailsForIntakeUsers),
+    defIds.length > 0
+      ? supabase
+          .from("field_definitions")
+          .select("id, field_code, label, field_type, sort_order, field_options, condition_json")
+          .in("id", defIds)
+          .eq("entity_name", "oportunidade")
+      : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from("field_definitions")
+      .select("id, field_code, label, field_type, sort_order, field_options, condition_json")
+      .eq("entity_name", "oportunidade")
+      .eq("field_code", "cp_tributacao")
+      .eq("pipeline_code", "vendas")
+      .eq("stage_code", "confeccao_proposta")
+      .order("id", { ascending: true })
+      .limit(1),
+    wantsEscopoSolicitacoes
+      ? supabase
+          .from("proposta_escopo_solicitacao")
+          .select("area_key, concluido_em, notificado_em, prazo_ate, gestor_app_user_id, preenchido_por_app_user_id")
+          .eq("oportunidade_id", id)
+          .order("area_key", { ascending: true })
+      : Promise.resolve({ data: null, error: null }),
+    wantsContrato
+      ? supabase
+          .from("contratos")
+          .select(
+            "id, status, versao_ativa_id, cliente_id, vigente_de, primeiro_vencimento, primeiro_faturamento_condicionado",
+          )
+          .eq("oportunidade_id", id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  if (defErr) throw defErr;
+  if (tribErr) throw tribErr;
+  if (solErr) throw solErr;
+  if (contractError) throw contractError;
 
   const intakeFields = intakeFieldsRaw
     .filter((f) => !/^empresa_\d+_(razao|doc)$/.test(f.key))
@@ -360,147 +473,22 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       return { ...f, ...(ru ? { resolvedUser: ru } : {}) };
     });
 
-  const { data: fvRows, error: fvErr } = await supabase
-    .from("field_values")
-    .select("field_definition_id, value_json")
-    .eq("entity_name", "oportunidade")
-    .eq("entity_record_id", id)
-    .order("updated_at", { ascending: false, nullsFirst: false });
+  const valueByDefId = new Map((fvRows ?? []).map((r) => [r.field_definition_id, r.value_json]));
 
-  if (fvErr) throw fvErr;
-
-  const { data: dueTaskRows, error: dueTaskErr } = await supabase
-    .from("due_area_tasks")
-    .select(
-      "id, area_key, status, prazo_ate, pasta_due_confirmada, sem_processos_ativos, observacao_sem_processos, iniciado_em, dados_disponibilizados_em, responsavel_app_user_id",
-    )
-    .eq("oportunidade_id", id)
-    .order("area_key", { ascending: true });
-
-  if (dueTaskErr) throw dueTaskErr;
-
-  let dueDocuments: LeadDetailData["dueDocuments"] = [];
-  let dueAreaReviewTasks: LeadDetailData["dueAreaReviewTasks"] = [];
-
-  const dueRevisionCycle =
-    typeof data.due_revision_cycle === "number"
-      ? data.due_revision_cycle
-      : Number(data.due_revision_cycle) || 0;
-
-  if (data.havera_due_diligence) {
-    const [{ data: docRows, error: docErr }, { data: revRows, error: revErr }] = await Promise.all([
-      supabase
-        .from("due_documents")
-        .select(
-          "id, document_kind, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id",
-        )
-        .eq("oportunidade_id", id)
-        .order("uploaded_at", { ascending: false }),
-      dueRevisionCycle >= 1
-        ? supabase
-            .from("due_area_review_tasks")
-            .select(
-              "id, area_key, status, prazo_ate, observacao_ajustes, review_started_at, adjustments_requested_at, approved_at, compilation_returned_at, revisao_reentry_at, review_elapsed_ms, compilation_elapsed_ms, adjustment_completed_at, adjustment_completed_by_app_user_id, adjustment_completion_note, adjustment_evidence_kind, adjustment_evidence_value, responded_at, responded_by_app_user_id, responsavel_app_user_id",
-            )
-            .eq("oportunidade_id", id)
-            .eq("revision_cycle", dueRevisionCycle)
-            .order("area_key", { ascending: true })
-        : Promise.resolve({ data: null, error: null }),
-    ]);
-
-    if (docErr) throw docErr;
-    if (revErr) throw revErr;
-
-    const docUploaderIds = [...new Set((docRows ?? []).map((r) => r.uploaded_by_app_user_id).filter(Boolean))] as string[];
-    const revUserIds = [
-      ...new Set(
-        (revRows ?? []).flatMap((r) => [r.responsavel_app_user_id, r.responded_by_app_user_id].filter(Boolean)),
-      ),
-    ] as string[];
-    const mergedRevIds = [...new Set([...docUploaderIds, ...revUserIds])];
-    const dueExtraUserMap = mergedRevIds.length ? await fetchAppUsersByIds(supabase, mergedRevIds) : new Map();
-
-    dueDocuments = (docRows ?? []).map((r) => ({
-      id: r.id,
-      documentKind: r.document_kind,
-      originalFilename: r.original_filename,
-      contentType: r.content_type,
-      byteSize: r.byte_size != null ? Number(r.byte_size) : null,
-      uploadedAt: r.uploaded_at,
-      uploadedByAppUserId: r.uploaded_by_app_user_id,
-      uploadedBy: r.uploaded_by_app_user_id ? dueExtraUserMap.get(r.uploaded_by_app_user_id) : undefined,
+  const pipelineFields: LeadDetailData["pipelineFields"] = (defRows ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((d) => ({
+      definitionId: d.id,
+      fieldCode: d.field_code,
+      label: d.label,
+      fieldType: d.field_type,
+      fieldOptions: fieldOptionsFromDb(d.field_options),
+      conditionJson: d.condition_json ?? null,
+      value: valueJsonToDisplayString(valueByDefId.get(d.id)),
     }));
-
-    dueAreaReviewTasks = (revRows ?? []).map((r) => ({
-      id: r.id,
-      areaKey: r.area_key,
-      status: r.status as "pendente" | "ok" | "ajustes_solicitados",
-      prazoAte: r.prazo_ate,
-      observacaoAjustes: r.observacao_ajustes,
-      reviewStartedAt: r.review_started_at,
-      adjustmentsRequestedAt: r.adjustments_requested_at,
-      approvedAt: r.approved_at,
-      compilationReturnedAt: r.compilation_returned_at,
-      revisaoReentryAt: r.revisao_reentry_at,
-      reviewElapsedMs: r.review_elapsed_ms != null ? Number(r.review_elapsed_ms) : null,
-      compilationElapsedMs: r.compilation_elapsed_ms != null ? Number(r.compilation_elapsed_ms) : null,
-      adjustmentCompletedAt: r.adjustment_completed_at,
-      adjustmentCompletedByAppUserId: r.adjustment_completed_by_app_user_id,
-      adjustmentCompletionNote: r.adjustment_completion_note,
-      adjustmentEvidenceKind:
-        r.adjustment_evidence_kind === "link" || r.adjustment_evidence_kind === "file"
-          ? r.adjustment_evidence_kind
-          : null,
-      adjustmentEvidenceValue: r.adjustment_evidence_value,
-      respondedAt: r.responded_at,
-      respondedByAppUserId: r.responded_by_app_user_id,
-      responsavelAppUserId: r.responsavel_app_user_id,
-      responsavel: r.responsavel_app_user_id ? dueExtraUserMap.get(r.responsavel_app_user_id) : undefined,
-      respondedBy: r.responded_by_app_user_id ? dueExtraUserMap.get(r.responded_by_app_user_id) : undefined,
-    }));
-  }
-
-  const defIds = [...new Set((fvRows ?? []).map((r) => r.field_definition_id))];
-  let pipelineFields: LeadDetailData["pipelineFields"] = [];
-
-  if (defIds.length > 0) {
-    const { data: defRows, error: defErr } = await supabase
-      .from("field_definitions")
-      .select("id, field_code, label, field_type, sort_order, field_options, condition_json")
-      .in("id", defIds)
-      .eq("entity_name", "oportunidade");
-
-    if (defErr) throw defErr;
-
-    const valueByDefId = new Map(
-      (fvRows ?? []).map((r) => [r.field_definition_id, r.value_json]),
-    );
-
-    pipelineFields = (defRows ?? [])
-      .slice()
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      .map((d) => ({
-        definitionId: d.id,
-        fieldCode: d.field_code,
-        label: d.label,
-        fieldType: d.field_type,
-        fieldOptions: fieldOptionsFromDb(d.field_options),
-        conditionJson: d.condition_json ?? null,
-        value: valueJsonToDisplayString(valueByDefId.get(d.id)),
-      }));
-  }
 
   if (!pipelineFields.some((field) => field.fieldCode === "cp_tributacao")) {
-    const { data: tribRows, error: tribErr } = await supabase
-      .from("field_definitions")
-      .select("id, field_code, label, field_type, sort_order, field_options, condition_json")
-      .eq("entity_name", "oportunidade")
-      .eq("field_code", "cp_tributacao")
-      .eq("pipeline_code", "vendas")
-      .eq("stage_code", "confeccao_proposta")
-      .order("id", { ascending: true })
-      .limit(1);
-    if (tribErr) throw tribErr;
     const trib = tribRows?.[0];
     if (trib) {
       const rawFv = (fvRows ?? []).find((r) => r.field_definition_id === trib.id);
@@ -521,24 +509,84 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
     data.crm_rd_field_overrides,
   );
 
-  const userIdsToResolve = new Set<string>();
+  // Resolução de utilizadores/avatares: uma única leva combinada (1 query de
+  // IDs + 1 query por área + 1 chamada à API de fotos oficiais) em vez de uma
+  // chamada separada por secção da ficha — antes eram até ~8 chamadas
+  // sequenciais (cada uma podendo bater na API externa de fotos).
+  const docUploaderIds = [...new Set((docRows ?? []).map((r) => r.uploaded_by_app_user_id).filter(Boolean))] as string[];
+  const revUserIds = [
+    ...new Set(
+      (revRows ?? []).flatMap((r) => [r.responsavel_app_user_id, r.responded_by_app_user_id].filter(Boolean)),
+    ),
+  ] as string[];
+
+  const genericUserIds = new Set<string>();
   for (const f of filledFieldsMerged) {
     if (isRdFieldAppUserKey(f.key) && looksLikeUuid(f.value)) {
-      userIdsToResolve.add(f.value.trim());
+      genericUserIds.add(f.value.trim());
     }
   }
   for (const p of pipelineFields) {
     if (p.fieldType === "user" && looksLikeUuid(p.value)) {
-      userIdsToResolve.add(p.value.trim());
+      genericUserIds.add(p.value.trim());
     }
   }
   for (const task of dueTaskRows ?? []) {
     if (task.responsavel_app_user_id) {
-      userIdsToResolve.add(task.responsavel_app_user_id);
+      genericUserIds.add(task.responsavel_app_user_id);
+    }
+  }
+  for (const uid of docUploaderIds) genericUserIds.add(uid);
+  for (const uid of revUserIds) genericUserIds.add(uid);
+  for (const row of solRows ?? []) {
+    if (row.gestor_app_user_id) genericUserIds.add(row.gestor_app_user_id);
+    if (row.preenchido_por_app_user_id) genericUserIds.add(row.preenchido_por_app_user_id);
+  }
+
+  const areaKeysForEscopo = [...new Set((solRows ?? []).map((r) => r.area_key).filter(Boolean))];
+  const areaCandidatesUnion = [
+    ...new Set(areaKeysForEscopo.flatMap((areaKey) => appUserAreaCandidatesForScopeKey(areaKey))),
+  ];
+
+  const [{ data: genericUserRows, error: genericUserErr }, { data: areaUserRows, error: areaUserErr }] =
+    await Promise.all([
+      genericUserIds.size > 0
+        ? supabase.from("app_users").select("id, full_name, avatar_url").in("id", [...genericUserIds])
+        : Promise.resolve({ data: [], error: null }),
+      areaCandidatesUnion.length > 0
+        ? supabase
+            .from("app_users")
+            .select("id, full_name, avatar_url, area")
+            .eq("role", "comercial")
+            .in("area", areaCandidatesUnion)
+            .order("full_name", { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+  if (genericUserErr) throw genericUserErr;
+  if (areaUserErr) throw areaUserErr;
+
+  const rawUsersById = new Map<string, { id: string; fullName: string; avatarUrl: string | null }>();
+  for (const r of genericUserRows ?? []) {
+    rawUsersById.set(r.id, { id: r.id, fullName: r.full_name, avatarUrl: r.avatar_url });
+  }
+  for (const r of areaUserRows ?? []) {
+    if (!rawUsersById.has(r.id)) {
+      rawUsersById.set(r.id, { id: r.id, fullName: r.full_name, avatarUrl: r.avatar_url });
     }
   }
 
-  const appUserMap = await fetchAppUsersByIds(supabase, [...userIdsToResolve]);
+  const overlaidUsers = await overlayOfficialAvatars([...rawUsersById.values()]);
+  const appUserMap = new Map(overlaidUsers.map((u) => [u.id, { fullName: u.fullName, avatarUrl: u.avatarUrl }]));
+
+  const responsaveisByArea = new Map<string, Array<ResolvedAppUser & { id: string }>>();
+  for (const areaKey of areaKeysForEscopo) {
+    const candidates = appUserAreaCandidatesForScopeKey(areaKey);
+    const matching = (areaUserRows ?? [])
+      .filter((r) => r.area != null && candidates.includes(r.area))
+      .map((r) => ({ id: r.id, ...(appUserMap.get(r.id) ?? { fullName: r.full_name, avatarUrl: r.avatar_url }) }));
+    responsaveisByArea.set(normalizePracticeAreaKey(areaKey), matching);
+  }
 
   const filledFieldsResolved = filledFieldsMerged.map((f) => ({
     ...f,
@@ -572,17 +620,44 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       : undefined,
   }));
 
-  const { data: escopoDefRows, error: escopoDefErr } = await supabase
-    .from("field_definitions")
-    .select("id")
-    .eq("entity_name", "oportunidade")
-    .eq("field_code", "cp_escopo_detalhe_json")
-    .eq("pipeline_code", "vendas")
-    .eq("stage_code", "confeccao_proposta")
-    .order("id", { ascending: true })
-    .limit(1);
+  const dueDocuments: LeadDetailData["dueDocuments"] = (docRows ?? []).map((r) => ({
+    id: r.id,
+    documentKind: r.document_kind,
+    originalFilename: r.original_filename,
+    contentType: r.content_type,
+    byteSize: r.byte_size != null ? Number(r.byte_size) : null,
+    uploadedAt: r.uploaded_at,
+    uploadedByAppUserId: r.uploaded_by_app_user_id,
+    uploadedBy: r.uploaded_by_app_user_id ? appUserMap.get(r.uploaded_by_app_user_id) : undefined,
+  }));
 
-  if (escopoDefErr) throw escopoDefErr;
+  const dueAreaReviewTasks: LeadDetailData["dueAreaReviewTasks"] = (revRows ?? []).map((r) => ({
+    id: r.id,
+    areaKey: r.area_key,
+    status: r.status as "pendente" | "ok" | "ajustes_solicitados",
+    prazoAte: r.prazo_ate,
+    observacaoAjustes: r.observacao_ajustes,
+    reviewStartedAt: r.review_started_at,
+    adjustmentsRequestedAt: r.adjustments_requested_at,
+    approvedAt: r.approved_at,
+    compilationReturnedAt: r.compilation_returned_at,
+    revisaoReentryAt: r.revisao_reentry_at,
+    reviewElapsedMs: r.review_elapsed_ms != null ? Number(r.review_elapsed_ms) : null,
+    compilationElapsedMs: r.compilation_elapsed_ms != null ? Number(r.compilation_elapsed_ms) : null,
+    adjustmentCompletedAt: r.adjustment_completed_at,
+    adjustmentCompletedByAppUserId: r.adjustment_completed_by_app_user_id,
+    adjustmentCompletionNote: r.adjustment_completion_note,
+    adjustmentEvidenceKind:
+      r.adjustment_evidence_kind === "link" || r.adjustment_evidence_kind === "file"
+        ? r.adjustment_evidence_kind
+        : null,
+    adjustmentEvidenceValue: r.adjustment_evidence_value,
+    respondedAt: r.responded_at,
+    respondedByAppUserId: r.responded_by_app_user_id,
+    responsavelAppUserId: r.responsavel_app_user_id,
+    responsavel: r.responsavel_app_user_id ? appUserMap.get(r.responsavel_app_user_id) : undefined,
+    respondedBy: r.responded_by_app_user_id ? appUserMap.get(r.responded_by_app_user_id) : undefined,
+  }));
 
   const escopoDefRow = escopoDefRows?.[0];
 
@@ -608,137 +683,96 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       ? String(data.d4sign_updated_at).trim()
       : null;
 
-  let escopoSolicitacoes: LeadDetailData["escopoSolicitacoes"] = null;
-  if (etapa === "confeccao_proposta") {
-    const { data: solRows, error: solErr } = await supabase
-      .from("proposta_escopo_solicitacao")
-      .select("area_key, concluido_em, notificado_em, prazo_ate, gestor_app_user_id, preenchido_por_app_user_id")
-      .eq("oportunidade_id", id)
-      .order("area_key", { ascending: true });
-    if (solErr) throw solErr;
-    const gestoresMap = await fetchAppUsersByIds(
-      supabase,
-      [
-        ...new Set(
-          (solRows ?? [])
-            .flatMap((r) => [r.gestor_app_user_id, r.preenchido_por_app_user_id])
-            .filter((id): id is string => Boolean(id)),
-        ),
-      ],
-    );
-    const responsaveisByArea = new Map<string, Array<ResolvedAppUser & { id: string }>>();
-    for (const areaKey of [...new Set((solRows ?? []).map((r) => r.area_key).filter(Boolean))]) {
-      const { data: users } = await supabase
-        .from("app_users")
-        .select("id, full_name, avatar_url, area")
-        .eq("role", "comercial")
-        .in("area", appUserAreaCandidatesForScopeKey(areaKey))
-        .order("full_name", { ascending: true });
-      const usersWithOfficialPhotos = await overlayOfficialAvatars(
-        (users ?? []).map((u) => ({ id: u.id, fullName: u.full_name, avatarUrl: u.avatar_url })),
-      );
-      responsaveisByArea.set(normalizePracticeAreaKey(areaKey), usersWithOfficialPhotos);
-    }
-    escopoSolicitacoes = (solRows ?? []).map((r) => ({
-      areaKey: r.area_key,
-      concluidoEm: r.concluido_em,
-      notificadoEm: r.notificado_em,
-      prazoAte: r.prazo_ate,
-      gestor: r.gestor_app_user_id ? gestoresMap.get(r.gestor_app_user_id) : undefined,
-      preenchidoPor: r.preenchido_por_app_user_id
-        ? gestoresMap.get(r.preenchido_por_app_user_id)
-        : undefined,
-      responsaveis: responsaveisByArea.get(normalizePracticeAreaKey(r.area_key)) ?? [],
-    }));
-  }
+  const escopoSolicitacoes: LeadDetailData["escopoSolicitacoes"] = wantsEscopoSolicitacoes
+    ? (solRows ?? []).map((r) => ({
+        areaKey: r.area_key,
+        concluidoEm: r.concluido_em,
+        notificadoEm: r.notificado_em,
+        prazoAte: r.prazo_ate,
+        gestor: r.gestor_app_user_id ? appUserMap.get(r.gestor_app_user_id) : undefined,
+        preenchidoPor: r.preenchido_por_app_user_id
+          ? appUserMap.get(r.preenchido_por_app_user_id)
+          : undefined,
+        responsaveis: responsaveisByArea.get(normalizePracticeAreaKey(r.area_key)) ?? [],
+      }))
+    : null;
 
-  const lifecycleTimeline = await fetchLeadLifecycleTimeline(supabase, id);
+  const lifecycleTimeline = await lifecycleTimelinePromise;
 
   let contractBilling: LeadDetailData["contractBilling"] = null;
-  if (["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(etapa)) {
-    const { data: contract, error: contractError } = await supabase
-      .from("contratos")
-      .select(
-        "id, status, versao_ativa_id, cliente_id, vigente_de, primeiro_vencimento, primeiro_faturamento_condicionado",
-      )
-      .eq("oportunidade_id", id)
-      .maybeSingle();
-    if (contractError) throw contractError;
+  if (contract) {
+    const { data: versions, error: versionsError } = await supabase
+      .from("contrato_versoes")
+      .select("id, numero, status, origem_snapshot")
+      .eq("contrato_id", contract.id)
+      .order("numero", { ascending: false });
+    if (versionsError) throw versionsError;
+    const version =
+      (versions ?? []).find((candidate) => candidate.id === contract.versao_ativa_id) ??
+      (versions ?? []).find((candidate) => candidate.status === "rascunho") ??
+      versions?.[0] ??
+      null;
 
-    if (contract) {
-      const { data: versions, error: versionsError } = await supabase
-        .from("contrato_versoes")
-        .select("id, numero, status, origem_snapshot")
-        .eq("contrato_id", contract.id)
-        .order("numero", { ascending: false });
-      if (versionsError) throw versionsError;
-      const version =
-        (versions ?? []).find((candidate) => candidate.id === contract.versao_ativa_id) ??
-        (versions ?? []).find((candidate) => candidate.status === "rascunho") ??
-        versions?.[0] ??
-        null;
+    const [{ count: responsibleCount }, { count: componentCount }] =
+      await Promise.all([
+        supabase
+          .from("contrato_responsaveis")
+          .select("id", { count: "exact", head: true })
+          .eq("contrato_id", contract.id),
+        version
+          ? supabase
+              .from("contrato_componentes_cobranca")
+              .select("id", { count: "exact", head: true })
+              .eq("versao_id", version.id)
+          : Promise.resolve({ count: 0 }),
+      ]);
 
-      const [{ count: responsibleCount }, { count: componentCount }] =
-        await Promise.all([
-          supabase
-            .from("contrato_responsaveis")
-            .select("id", { count: "exact", head: true })
-            .eq("contrato_id", contract.id),
-          version
-            ? supabase
-                .from("contrato_componentes_cobranca")
-                .select("id", { count: "exact", head: true })
-                .eq("versao_id", version.id)
-            : Promise.resolve({ count: 0 }),
-        ]);
+    const firstInvoiceComplete = Boolean(
+      contract.primeiro_vencimento || contract.primeiro_faturamento_condicionado,
+    );
+    const checks = [
+      Boolean(contract.cliente_id),
+      Boolean(contract.vigente_de && firstInvoiceComplete),
+      (responsibleCount ?? 0) > 0,
+      (componentCount ?? 0) > 0,
+      contract.status === "ativo" && version?.status === "ativa",
+    ];
+    const blockers = [
+      ...(!contract.cliente_id ? ["Vincular o cliente do contrato."] : []),
+      ...(!contract.vigente_de ? ["Informar o início da vigência."] : []),
+      ...(!firstInvoiceComplete ? ["Definir o primeiro faturamento."] : []),
+      ...((responsibleCount ?? 0) < 1 ? ["Informar ao menos um responsável."] : []),
+      ...((componentCount ?? 0) < 1 ? ["Configurar ao menos uma regra de cobrança."] : []),
+      ...(contract.status !== "ativo" || version?.status !== "ativa"
+        ? ["Validar e ativar a versão contratual."]
+        : []),
+    ];
+    const originSnapshot =
+      version?.origem_snapshot &&
+      typeof version.origem_snapshot === "object" &&
+      !Array.isArray(version.origem_snapshot)
+        ? version.origem_snapshot
+        : {};
+    const completed = checks.filter(Boolean).length;
 
-      const firstInvoiceComplete = Boolean(
-        contract.primeiro_vencimento || contract.primeiro_faturamento_condicionado,
-      );
-      const checks = [
-        Boolean(contract.cliente_id),
-        Boolean(contract.vigente_de && firstInvoiceComplete),
-        (responsibleCount ?? 0) > 0,
-        (componentCount ?? 0) > 0,
-        contract.status === "ativo" && version?.status === "ativa",
-      ];
-      const blockers = [
-        ...(!contract.cliente_id ? ["Vincular o cliente do contrato."] : []),
-        ...(!contract.vigente_de ? ["Informar o início da vigência."] : []),
-        ...(!firstInvoiceComplete ? ["Definir o primeiro faturamento."] : []),
-        ...((responsibleCount ?? 0) < 1 ? ["Informar ao menos um responsável."] : []),
-        ...((componentCount ?? 0) < 1 ? ["Configurar ao menos uma regra de cobrança."] : []),
-        ...(contract.status !== "ativo" || version?.status !== "ativa"
-          ? ["Validar e ativar a versão contratual."]
-          : []),
-      ];
-      const originSnapshot =
-        version?.origem_snapshot &&
-        typeof version.origem_snapshot === "object" &&
-        !Array.isArray(version.origem_snapshot)
-          ? version.origem_snapshot
-          : {};
-      const completed = checks.filter(Boolean).length;
-
-      contractBilling = {
-        id: contract.id,
-        lifecycleStatus: contract.status,
-        version: version
-          ? { id: version.id, number: version.numero, status: version.status }
-          : null,
-        validationProgress: {
-          completed,
-          total: checks.length,
-          percentage: Math.round((completed / checks.length) * 100),
-        },
-        suggestionsOrigin:
-          Object.keys(originSnapshot).length > 0
-            ? "Dados sugeridos a partir da proposta e da assinatura."
-            : "Rascunho criado a partir da assinatura; confirme os dados financeiros.",
-        blockers,
-        setupHref: `/crm/contratos/${contract.id}?setup=1&returnTo=/crm/leads/${id}`,
-      };
-    }
+    contractBilling = {
+      id: contract.id,
+      lifecycleStatus: contract.status,
+      version: version
+        ? { id: version.id, number: version.numero, status: version.status }
+        : null,
+      validationProgress: {
+        completed,
+        total: checks.length,
+        percentage: Math.round((completed / checks.length) * 100),
+      },
+      suggestionsOrigin:
+        Object.keys(originSnapshot).length > 0
+          ? "Dados sugeridos a partir da proposta e da assinatura."
+          : "Rascunho criado a partir da assinatura; confirme os dados financeiros.",
+      blockers,
+      setupHref: `/crm/contratos/${contract.id}?setup=1&returnTo=/crm/leads/${id}`,
+    };
   }
 
   return {

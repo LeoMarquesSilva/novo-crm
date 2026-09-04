@@ -203,6 +203,8 @@ export interface D4SignSendDocumentInput {
   safeUuid: string;
   file: Blob;
   fileName: string;
+  /** Pasta destino dentro do cofre (opcional) — sem isso, o doc cai solto na raiz do cofre. */
+  uuidFolder?: string;
   signers: D4SignSignerInput[];
   /** Mensagem aos signatários (se skip_email=0) */
   message?: string;
@@ -719,6 +721,40 @@ export class D4SignConnector {
   }
 
   /**
+   * Cria uma pasta (ou subpasta, se `parentUuidFolder` informado) dentro do cofre.
+   *
+   * `POST /folders/{uuid-safe}/create` — body `{ folder_name, uuid_folder? }`,
+   * resposta `{ uuid }` (confirmado na doc oficial). Sem `parentUuidFolder`, a
+   * pasta nasce na raiz do cofre — mesma convenção das ~43 pastas-cliente já
+   * existentes (nenhuma delas aninhada sob pasta de área).
+   */
+  async createFolder(
+    safeUuid: string,
+    folderName: string,
+    parentUuidFolder?: string,
+  ): Promise<string> {
+    const url = `${this.apiBaseUrl.replace(/\/$/, "")}/folders/${encodeURIComponent(safeUuid)}/create${this.authSearchParams()}`;
+    const body: Record<string, string> = { folder_name: folderName };
+    if (parentUuidFolder) body.uuid_folder = parentUuidFolder;
+    const res = await this.d4Fetch(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(body),
+      },
+      "folders/create",
+      "send",
+    );
+    const raw = (await this.parseJsonResponse(res)) as Record<string, unknown>;
+    const uuid = (raw.uuid ?? raw.uuid_folder ?? raw.uuidFolder) as string | undefined;
+    if (!uuid || typeof uuid !== "string") {
+      throw new Error("Resposta de criação de pasta D4Sign sem uuid.");
+    }
+    return uuid;
+  }
+
+  /**
    * Lista documentos de uma pasta específica dentro de um cofre.
    *
    * Endpoint correto (documentado em https://docapi.d4sign.com.br/docs/endpoints):
@@ -886,7 +922,7 @@ export class D4SignConnector {
       input.safeUuid,
       input.file,
       input.fileName,
-      { workflow: uploadWf },
+      { workflow: uploadWf, uuidFolder: input.uuidFolder },
     );
 
     const listResponse = await this.createSignersList(documentUuid, input.signers);
