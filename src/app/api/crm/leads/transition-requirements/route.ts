@@ -7,6 +7,7 @@ import {
   buildTransitionWarnings,
   computeLeadIntakeRequirement,
   dedupeConfeccaoPropostaDefinitionsByNormalizedLabel,
+  filterConfeccaoContratoTransitionDefinitions,
   filterConfeccaoPropostaTransitionDefinitions,
   filterPropostaEnviadaDuplicateLinkFields,
   linkFieldsMissing,
@@ -243,10 +244,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: defError.message }, { status: 500 });
     }
 
-    const defs = dedupeConfeccaoPropostaDefinitionsByNormalizedLabel(
-      filterPropostaEnviadaDuplicateLinkFields(
-        filterConfeccaoPropostaTransitionDefinitions(
-          (defRows ?? []).map((r) => mapDbFieldToDefinition(r as Record<string, unknown>)),
+    const defs = filterConfeccaoContratoTransitionDefinitions(
+      dedupeConfeccaoPropostaDefinitionsByNormalizedLabel(
+        filterPropostaEnviadaDuplicateLinkFields(
+          filterConfeccaoPropostaTransitionDefinitions(
+            (defRows ?? []).map((r) => mapDbFieldToDefinition(r as Record<string, unknown>)),
+            { pipeline: pipeline as PipelineCode, nextStage },
+          ),
           { pipeline: pipeline as PipelineCode, nextStage },
         ),
         { pipeline: pipeline as PipelineCode, nextStage },

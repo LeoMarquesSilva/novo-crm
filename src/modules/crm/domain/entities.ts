@@ -78,7 +78,7 @@ export interface Oportunidade {
   encerramento?: "ganho" | "perdido";
   /** Motivo de perda vindo do RD (`deal_lost_reason.name`), quando houver. */
   motivoPerda?: string | null;
-  /** Link da proposta (SharePoint / Vios), preenchido ao avançar para proposta enviada. */
+  /** Link da proposta (SharePoint / Vios), opcional. */
   linkProposta?: string | null;
   /** Link do contrato ao avançar etapas de contrato elaborado/assinado. */
   linkContrato?: string | null;

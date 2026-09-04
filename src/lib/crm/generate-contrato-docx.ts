@@ -75,6 +75,24 @@ function textParagraphs(text: string, after = 200): Paragraph[] {
   );
 }
 
+/**
+ * Corpo de uma cláusula que agrupa sub-itens (ex.: Objetos Excluídos, Disposições
+ * Gerais): texto único quando não há `items`, ou N.1, N.2... numerados com o N
+ * já atribuído ao título-pai (`parentNum`) — nunca um número próprio.
+ */
+function clausulaBodyParagraphs(
+  clausula: { content: string; items?: Array<{ title: string; content: string }> },
+  parentNum: number,
+  fallback: string,
+): Paragraph[] {
+  if (clausula.items && clausula.items.length > 0) {
+    return clausula.items.map((item, j) =>
+      para([run(`${parentNum}.${j + 1}. ${item.title}. `, true), run(item.content)], { after: 80 }),
+    );
+  }
+  return textParagraphs(clausula.content || fallback, 200);
+}
+
 // ─── Gerador principal ────────────────────────────────────────────────────────
 
 export async function generateContratoDocxBuffer(
@@ -189,7 +207,18 @@ export async function generateContratoDocxBuffer(
   );
   children.push(...textParagraphs(page.objeto || ELLIPSIS));
 
-  // ── 2. DOS HONORÁRIOS CONTRATUAIS ─────────────────────────────────────────
+  // ── 2. OBJETOS EXCLUÍDOS DO CONTRATO ──────────────────────────────────────
+  if (page.objetosExcluidos) {
+    children.push(
+      para([run(`${N()}  ${page.objetosExcluidos.title.toUpperCase()}`, true)], {
+        before: 240,
+        after: 100,
+      }),
+    );
+    children.push(...clausulaBodyParagraphs(page.objetosExcluidos, cn, ELLIPSIS));
+  }
+
+  // ── 3. DOS HONORÁRIOS CONTRATUAIS ─────────────────────────────────────────
   children.push(
     para([run(`${N()}  DOS HONORÁRIOS CONTRATUAIS`, true)], { before: 240, after: 100 }),
   );
@@ -282,7 +311,7 @@ export async function generateContratoDocxBuffer(
     children.push(
       para([run(`${N()}  ${c.title.toUpperCase()}`, true)], { before: 240, after: 100 }),
     );
-    children.push(...textParagraphs(c.content || "…", 200));
+    children.push(...clausulaBodyParagraphs(c, cn, "…"));
   }
 
   // ── Quebra de página → folha dedicada de assinaturas (última página do PDF) ──

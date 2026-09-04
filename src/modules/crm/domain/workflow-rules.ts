@@ -40,7 +40,6 @@ export function buildContractTransitionBlocker(
 }
 
 const stageRequirements: Partial<Record<OpportunityStage, (keyof TransitionPayload)[]>> = {
-  proposta_enviada: ["linkProposta"],
   contrato_elaborado: ["linkContrato"],
   contrato_assinado: ["linkContrato"],
 };
@@ -56,7 +55,7 @@ function payloadFieldPresent(
   return false;
 }
 
-/** Campos extras obrigatórios ao entrar nesta etapa (ex.: link da proposta). */
+/** Campos extras obrigatórios ao entrar nesta etapa (ex.: link do contrato). */
 export function getPayloadFieldsRequiredForStage(
   nextStage: OpportunityStage,
 ): (keyof TransitionPayload)[] {

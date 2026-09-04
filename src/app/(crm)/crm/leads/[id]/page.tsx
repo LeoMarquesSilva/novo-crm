@@ -490,6 +490,32 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       }));
   }
 
+  if (!pipelineFields.some((field) => field.fieldCode === "cp_tributacao")) {
+    const { data: tribRows, error: tribErr } = await supabase
+      .from("field_definitions")
+      .select("id, field_code, label, field_type, sort_order, field_options, condition_json")
+      .eq("entity_name", "oportunidade")
+      .eq("field_code", "cp_tributacao")
+      .eq("pipeline_code", "vendas")
+      .eq("stage_code", "confeccao_proposta")
+      .order("id", { ascending: true })
+      .limit(1);
+    if (tribErr) throw tribErr;
+    const trib = tribRows?.[0];
+    if (trib) {
+      const rawFv = (fvRows ?? []).find((r) => r.field_definition_id === trib.id);
+      pipelineFields.push({
+        definitionId: trib.id,
+        fieldCode: trib.field_code,
+        label: trib.label,
+        fieldType: trib.field_type,
+        fieldOptions: fieldOptionsFromDb(trib.field_options),
+        conditionJson: trib.condition_json ?? null,
+        value: rawFv ? valueJsonToDisplayString(rawFv.value_json) : "",
+      });
+    }
+  }
+
   const filledFieldsMerged = mergeFilledFieldsWithCrmOverrides(
     extractFilledFields(reconciliation?.detalhes),
     data.crm_rd_field_overrides,

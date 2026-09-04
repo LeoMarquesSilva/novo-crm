@@ -12,7 +12,7 @@ import type { Json } from "@/lib/supabase/database.types";
 const patchSchema = z.object({
   templateId: z.string().uuid().optional(),
   status: z.string().min(1).max(40).optional(),
-  data: z.record(z.string(), z.unknown()).optional(),
+  data: z.object({ responsavel: z.string().trim().max(160).optional() }).strict().optional(),
 });
 
 async function ensureInstance(params: {
@@ -129,7 +129,7 @@ export async function PATCH(
     const template = parsed.templateId
       ? await loadDocumentTemplateById(supabase, parsed.templateId)
       : await loadDefaultDocumentTemplate(supabase);
-    if (!template) return NextResponse.json({ ok: false, error: "Modelo não encontrado." }, { status: 404 });
+    if (!template || template.documentType !== "proposta" || !template.isActive) return NextResponse.json({ ok: false, error: "Modelo de proposta não encontrado." }, { status: 404 });
 
     const instance = await ensureInstance({
       supabase,

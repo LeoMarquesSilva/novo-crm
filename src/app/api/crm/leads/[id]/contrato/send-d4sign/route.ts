@@ -22,6 +22,8 @@ import {
 } from "@/lib/crm/contract-send-gate";
 import { buildInitialD4SignSigners } from "@/lib/crm/sync-oportunidade-d4sign-signers";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
+import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
 import { enrichDocuments, pickDocumentsToEnrich } from "@/lib/d4sign/enrich-documents";
 import { assertD4SignSendEnv, getD4SignEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
@@ -155,13 +157,30 @@ export async function POST(
       empresasIntake,
       cpPropostaEmpresasJson: fieldByCode.cp_proposta_empresas_json,
     });
-    const pending = listContratoPendingFields(fieldByCode, empresa.razaoSocial ?? "");
+    const { data: engineInstance } = await supabase
+      .from("document_instances")
+      .select("data_json")
+      .eq("oportunidade_id", oportunidadeId)
+      .eq("template_id", template.id)
+      .maybeSingle();
+    const storedEngine = readStoredEngine(
+      engineInstance?.data_json &&
+        typeof engineInstance.data_json === "object" &&
+        !Array.isArray(engineInstance.data_json)
+        ? (engineInstance.data_json as Record<string, unknown>)
+        : {},
+    );
+    const pending = listContratoPendingFields(
+      fieldByCode,
+      empresa.razaoSocial ?? "",
+      storedEngine.build?.data ?? null,
+    );
     if (pending.length > 0) {
       return NextResponse.json(
         {
           ok: false,
-          error: `Preencha os campos pendentes antes de enviar: ${pending.join(", ")}.`,
-          pending,
+          error: `Preencha os campos pendentes antes de enviar: ${pending.map((p) => p.label).join(", ")}.`,
+          pending: pending.map((p) => p.label),
         },
         { status: 422 },
       );
@@ -197,7 +216,14 @@ export async function POST(
       fieldByCode,
       generatedAt,
     });
-    const page = buildContratoDocumentPagePreview(templateData, clausulasAdicionais);
+    // Achado durante auditoria: este envio ao D4Sign nunca usava o motor
+    // canônico (só o sistema legado de toggles cc_incluir_*), mesmo quando
+    // `storedEngine.build` existia — o cliente podia assinar um documento
+    // diferente do que o advogado revisou/aprovou no builder. Corrigido para
+    // usar a mesma fonte do preview ao vivo e do botão "Gerar DOCX".
+    const page = storedEngine.build
+      ? buildCanonicalContratoPage({ canonicalData: storedEngine.build.data, userExtras: clausulasAdicionais })
+      : buildContratoDocumentPagePreview(templateData, clausulasAdicionais);
     const docxBuffer = await generateContratoDocxBuffer(page);
 
     // Enviar à D4Sign

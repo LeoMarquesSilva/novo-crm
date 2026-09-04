@@ -45,6 +45,16 @@ export type PropostaEscopoDetalhe = Record<string, PropostaEscopoDetalheEntry[]>
 /** Chave reservada em `cp_escopo_detalhe_json` (não é área de escopo). */
 export const INVESTIMENTO_DOCUMENTO_KEY = "__investimentoDocumento__";
 
+/** Uma forma de pagamento no investimento consolidado. */
+export type PropostaInvestimentoDocumentoItem = {
+  id: string;
+  tipoId: string;
+  subtipoId: string;
+  placeholders: Record<string, string>;
+  /** Default `true`: recalcula valor primário a partir da soma das áreas. */
+  autoSum?: boolean;
+};
+
 /** Investimento consolidado exibido no Word (`[INVESTIMENTO]`). */
 export type PropostaInvestimentoDocumento = {
   tipoId: string;
@@ -52,6 +62,8 @@ export type PropostaInvestimentoDocumento = {
   placeholders: Record<string, string>;
   /** Default `true`: recalcula valor primário a partir da soma das áreas. */
   autoSum?: boolean;
+  /** Várias formas de pagamento; o primeiro item espelha `tipoId`/`subtipoId`. */
+  items?: PropostaInvestimentoDocumentoItem[];
 };
 
 /** Preenchido no CRM; no Word usa-se `[RESUMO]` (rótulo «Síntese da demanda:» fica só no modelo). */
@@ -120,13 +132,17 @@ export const PROPOSTA_TIPOS_CATALOG: PropostaTiposCatalog = {
       tipoId: "ajuizamento_acoes",
       label: "Ajuizamento de ações",
       subtipos: [
-        st("padrao", "Padrão", ""),
+        // Chave própria (não "padrao"): colidia com "Consultivo › Padrão" logo
+        // abaixo — mesmo subtype_key para dois subtipos diferentes fazia o
+        // motor de contratos tratar os dois como o mesmo perfil. Renomeado
+        // também no banco (proposal_scope_subtypes) nesta mesma correção.
+        st("ajuizamento_padrao", "Padrão", ""),
       ],
     },
     {
       tipoId: "consultivo",
       label: "Consultivo",
-      subtipos: [st("padrao", "Padrão", "")],
+      subtipos: [st("consultivo_padrao", "Padrão", "")],
     },
   ],
   "Recuperação de Créditos": [

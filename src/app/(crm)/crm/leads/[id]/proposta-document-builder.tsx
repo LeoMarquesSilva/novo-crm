@@ -1,11 +1,10 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
-  Eye,
   FileDown,
   FileText,
   History,
@@ -37,16 +36,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Select, SelectTrigger } from "@/components/ui/select";
-import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { cn } from "@/lib/utils";
 import { LeadDetailFieldEditor, pipelineFieldToEditorProps } from "./lead-detail-field-editor";
+import { buildCanonicalProposalData } from "@/lib/crm/proposta-docx-data";
+import { listProposalPendingFields, type ProposalRequiredField } from "@/lib/crm/proposta-document-validation";
 import {
-  buildPropostaLivePreview,
-  type EscopoPreviewSection,
-} from "@/lib/crm/proposta-docx-data";
+  createProposalPdfPreviewController, persistProposalDraft, readProposalDocxResponse,
+  readProposalPdfResponse, selectProposalDraftValues, type ProposalPdfPreviewState,
+} from "@/lib/crm/proposta-document-client";
 import { PropostaEscopoAreaCoordenacao } from "./proposta-escopo-area-coordenacao";
 import { PropostaEscopoPorArea } from "./proposta-escopo-por-area";
-import { JustifiedDocumentText } from "@/components/crm/justified-document-text";
 import { PropostaInvestimentoConsolidadoForm } from "@/components/crm/proposta-investimento-consolidado-form";
 import {
   parseAreasList,
@@ -54,6 +54,11 @@ import {
   stringifyEscopoJsonWithMeta,
 } from "@/lib/crm/proposta-escopo-json";
 import { resolveInvestimentoDocumento } from "@/lib/crm/proposta-investimento-consolidado";
+import {
+  normalizeTributacaoValue,
+  PROPOSTA_TRIBUTACAO_LABELS,
+  PROPOSTA_TRIBUTACAO_OPTIONS,
+} from "@/lib/crm/proposta-tributacao";
 import {
   PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
   type InvestimentoTipoDef,
@@ -71,6 +76,7 @@ type Template = {
   name: string;
   templatePath: string;
   version: number;
+  fields: ProposalRequiredField[];
 };
 
 type DocumentState = {
@@ -88,6 +94,7 @@ type DocumentState = {
     generated_at: string;
   }>;
   snapshot: {
+    responsavel: string;
     pending: string[];
     areas: Array<{ key: string; label: string; complete: boolean }>;
     /** Valores por `field_code` vindos do DB (alimenta o draft inicial). */
@@ -96,36 +103,6 @@ type DocumentState = {
     templateData: Record<string, string>;
   };
 };
-
-type PreviewPage = {
-  clienteIntro: string;
-  area: string;
-  escopo: string;
-  escopoSections: EscopoPreviewSection[];
-  resumo: string;
-  investimento: string;
-  dataVigencia: string;
-};
-
-type PreviewState = {
-  page: PreviewPage;
-  templateName: string;
-  generatedAt: string;
-  previewFormat: "document_page";
-};
-
-function groupEscopoSectionsByArea(sections: EscopoPreviewSection[]) {
-  const groups: Array<{ area: string; items: EscopoPreviewSection[] }> = [];
-  for (const section of sections) {
-    const last = groups[groups.length - 1];
-    if (last && last.area === section.areaLabel) {
-      last.items.push(section);
-      continue;
-    }
-    groups.push({ area: section.areaLabel, items: [section] });
-  }
-  return groups;
-}
 
 // ─── Seções e campos ──────────────────────────────────────────────────────────
 
@@ -244,7 +221,7 @@ export function PropostaDocumentBuilder({
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-100/85">
               {hasInstance
                 ? "Rascunho em andamento. Clique em \"Elaborar Proposta\" para editar."
-                : "Selecione o modelo, preencha os dados e visualize o preview ao vivo."}
+                : "Selecione o modelo, preencha os dados e baixe a prévia em Word."}
             </p>
           </div>
           <Button
@@ -381,20 +358,53 @@ function PropostaBuilderDialog({
 
   // Draft / saved dos campos cp_*. Inicializa a partir do snapshot do servidor.
   // Edição é local; persistência acontece em batch via `persistAllFields()`.
+  const initialEscopoJson =
+    escopoDetalhe?.value ?? docState.snapshot.fieldByCode?.cp_escopo_detalhe_json ?? "";
   const [draftValues, setDraftValues] = useState<Record<string, string>>(
-    () => ({ ...(docState.snapshot.fieldByCode ?? {}) }),
+    () => ({
+      ...(docState.snapshot.fieldByCode ?? {}),
+      ...(escopoDetalhe ? { cp_escopo_detalhe_json: initialEscopoJson } : {}),
+    }),
   );
   const [savedValues, setSavedValues] = useState<Record<string, string>>(
-    () => ({ ...(docState.snapshot.fieldByCode ?? {}) }),
+    () => ({
+      ...(docState.snapshot.fieldByCode ?? {}),
+      ...(escopoDetalhe ? { cp_escopo_detalhe_json: initialEscopoJson } : {}),
+    }),
   );
 
-  // Espelho do JSON do escopo — `PropostaEscopoPorArea` persiste por dentro e
-  // chama `onSaved(novoJson)` para sincronizar o preview daqui.
-  const [escopoJson, setEscopoJson] = useState<string>(
-    escopoDetalhe?.value ?? draftValues.cp_escopo_detalhe_json ?? "",
-  );
-  /** Preview usa valor adiado para não recalcular o documento a cada tecla. */
-  const previewEscopoJson = useDeferredValue(escopoJson);
+  // O escopo local é propagado imediatamente pelo editor de áreas.
+  const [escopoJson, setEscopoJson] = useState<string>(initialEscopoJson);
+  const [responsavel, setResponsavel] = useState(docState.snapshot.responsavel ?? "");
+  const [savedResponsavel, setSavedResponsavel] = useState(docState.snapshot.responsavel ?? "");
+  const [generatedAt] = useState(() => new Date().toISOString());
+  const [previewing, setPreviewing] = useState(false);
+  const [scopeSaving, setScopeSaving] = useState(false);
+  const [pdfPreview, setPdfPreview] = useState<ProposalPdfPreviewState>({
+    url: null, sourceSha256: null, updating: false, error: null,
+  });
+  const [previewRetry, setPreviewRetry] = useState(0);
+  const pdfPreviewController = useMemo(() => createProposalPdfPreviewController({ onState: setPdfPreview }), []);
+  useEffect(() => {
+    if (!open || !selectedTemplateId) return;
+    pdfPreviewController.schedule(`/api/crm/leads/${encodeURIComponent(lead.id)}/document/preview`, {
+      templateId: selectedTemplateId, draftValues: selectProposalDraftValues(draftValues), responsavel, generatedAt,
+    });
+    return () => pdfPreviewController.cancelPending();
+  }, [pdfPreviewController, open, selectedTemplateId, lead.id, draftValues, responsavel, generatedAt, previewRetry]);
+  useEffect(() => () => pdfPreviewController.dispose(), [pdfPreviewController]);
+  const operationRef = useRef(false);
+  const downloadUrls = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const urls = downloadUrls.current;
+    return () => {
+      for (const [url, timer] of urls) {
+        clearTimeout(timer);
+        URL.revokeObjectURL(url);
+      }
+      urls.clear();
+    };
+  }, []);
 
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -431,17 +441,17 @@ function PropostaBuilderDialog({
     };
   }, [open]);
 
-  const pending = docState.snapshot.pending;
+  const busy = saving || generating || previewing || scopeSaving;
 
   const isDirty = useMemo(() => {
-    if (selectedTemplateId !== savedTemplateId) return true;
+    if (selectedTemplateId !== savedTemplateId || responsavel !== savedResponsavel) return true;
     // Compara só chaves que existem em qualquer um dos dois mapas
     const keys = new Set([...Object.keys(draftValues), ...Object.keys(savedValues)]);
     for (const k of keys) {
       if ((draftValues[k] ?? "") !== (savedValues[k] ?? "")) return true;
     }
     return false;
-  }, [draftValues, savedValues, selectedTemplateId, savedTemplateId]);
+  }, [draftValues, savedValues, selectedTemplateId, savedTemplateId, responsavel, savedResponsavel]);
 
   const selectedTemplateName =
     templates.find((t) => t.id === selectedTemplateId)?.name ?? "Selecione um modelo";
@@ -478,148 +488,137 @@ function PropostaBuilderDialog({
       );
       const next = stringifyEscopoJsonWithMeta(escopo, resolved);
       setEscopoJson((prev) => (prev === next ? prev : next));
+      setDraftValues((prev) =>
+        prev.cp_escopo_detalhe_json === next ? prev : { ...prev, cp_escopo_detalhe_json: next },
+      );
+      setFeedback(null);
     },
     [draftValues.cp_areas_objeto, areasField?.value, investmentCatalog],
   );
 
-  // ── Live preview client-side ──────────────────────────────────────────────
-  // Recomputa preview a cada mudança; catálogo vem da API (mesmo do Word).
-  const livePreview = useMemo<PreviewState | null>(() => {
-    if (!selectedTemplateId) return null;
+  const currentValidation = useMemo(() => {
     try {
-      const merged: Record<string, string> = {
-        ...draftValues,
-        cp_escopo_detalhe_json: previewEscopoJson,
-      };
-      const { page } = buildPropostaLivePreview({
+      const { templateData } = buildCanonicalProposalData({
         empresasIntake: lead.empresasIntake ?? [],
-        cpPropostaEmpresasJson: merged.cp_proposta_empresas_json,
-        fieldByCode: merged,
-        cpEscopoDetalheJson: previewEscopoJson,
-        generatedAt: new Date(),
+        cpPropostaEmpresasJson: draftValues.cp_proposta_empresas_json,
+        fieldByCode: draftValues,
+        cpEscopoDetalheJson: draftValues.cp_escopo_detalhe_json ?? "",
+        generatedAt: new Date(generatedAt),
+        responsavel,
         scopeCatalog,
         investmentCatalog,
       });
-      return {
-        page,
-        templateName: selectedTemplateName,
-        generatedAt: new Date().toISOString(),
-        previewFormat: "document_page" as const,
-      };
-    } catch (e) {
-      // Se algo falhar, deixa o painel direito mostrar o erro
-      console.error("[live preview]", e);
-      return null;
+      const template = templates.find((item) => item.id === selectedTemplateId) ?? docState.template;
+      return listProposalPendingFields({
+        templateFields: template.fields ?? [],
+        fieldByCode: draftValues,
+        templateData,
+        scopeCatalog,
+        investmentCatalog,
+        responsavel,
+      });
+    } catch {
+      return ["Não foi possível validar o rascunho atual. Revise os campos da proposta."];
     }
-  }, [
-    draftValues,
-    previewEscopoJson,
-    selectedTemplateId,
-    selectedTemplateName,
-    lead.empresasIntake,
-    scopeCatalog,
-    investmentCatalog,
-  ]);
+  }, [draftValues, generatedAt, responsavel, lead.empresasIntake, scopeCatalog, investmentCatalog, templates, selectedTemplateId, docState.template]);
+  const pending = currentValidation;
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
   function fieldChange(code: string, value: string) {
     setDraftValues((prev) => ({ ...prev, [code]: value }));
     setFeedback(null);
   }
 
   async function persistAllFields() {
-    if (!selectedTemplateId) return;
     setSaving(true);
-    setSaveError(null);
-    setFeedback(null);
+    const definitionIds = new Map(proposalPipelineFields.map((field) => [field.fieldCode, field.definitionId]));
+    if (escopoDetalhe) definitionIds.set("cp_escopo_detalhe_json", escopoDetalhe.definitionId);
     try {
-      // 1) PATCH por campo que mudou
-      const changedEntries = Object.entries(draftValues).filter(
-        ([code, value]) => (savedValues[code] ?? "") !== (value ?? ""),
-      );
-      // Resolve fieldDefinitionId via `proposalPipelineFields`
-      const defIdByCode = new Map(
-        proposalPipelineFields.map((f) => [f.fieldCode, f.definitionId] as const),
-      );
-      await Promise.all(
-        changedEntries.map(([code, value]) => {
-          const defId = defIdByCode.get(code);
-          if (!defId) return Promise.resolve(); // ignora códigos órfãos
-          return fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              pipelineField: { fieldDefinitionId: defId, value },
-            }),
-          });
-        }),
-      );
-
-      // 2) PATCH template + status do documento
-      const res = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/document`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId: selectedTemplateId, status: "draft" }),
+      const saved = await persistProposalDraft({
+        leadId: lead.id,
+        templateId: selectedTemplateId,
+        responsavel,
+        draftValues,
+        savedValues,
+        definitionIds,
       });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !json.ok) throw new Error(json.error ?? "Falha ao salvar documento.");
-
-      setSavedTemplateId(selectedTemplateId);
-      setSavedValues({ ...draftValues });
-      setFeedback("Rascunho salvo com sucesso.");
-      await onRefresh();
-      router.refresh();
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Falha ao salvar.");
+      setSavedTemplateId(saved.templateId);
+      setSavedResponsavel(saved.responsavel);
+      setSavedValues(saved.draftValues);
     } finally {
       setSaving(false);
     }
   }
 
-  async function generateDocx() {
-    if (!selectedTemplateId) return;
-    setGenerating(true);
+  async function saveDraft() {
+    if (operationRef.current || scopeSaving) return;
+    operationRef.current = true;
     setSaveError(null);
     setFeedback(null);
     try {
-      // Garante que tudo está salvo antes de gerar (campos + template)
-      if (isDirty) {
-        await persistAllFields();
-      }
-
-      const res = await fetch(
-        `/api/crm/leads/${encodeURIComponent(lead.id)}/document/generate-docx`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ templateId: selectedTemplateId }),
-        },
-      );
-      if (!res.ok) {
-        const json = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(json.error ?? `Erro ${res.status}`);
-      }
-      const blob = await res.blob();
-      const cd = res.headers.get("Content-Disposition");
-      const m = cd?.match(/filename="([^"]+)"/);
-      const filename = m?.[1] ?? "Proposta.docx";
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      setFeedback("Proposta gerada e baixada.");
+      await persistAllFields();
+      setFeedback("Rascunho salvo com sucesso.");
       await onRefresh();
       router.refresh();
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Erro ao gerar proposta.");
+    } catch (error) {
+      setSaveError((error instanceof Error ? error.message : "Falha ao salvar.") + " O salvamento pode estar parcial. Revise e tente novamente.");
     } finally {
-      setGenerating(false);
+      operationRef.current = false;
     }
   }
 
+  async function downloadDocument(format: "docx" | "pdf", preview = false) {
+    if (operationRef.current || scopeSaving || !selectedTemplateId || (!preview && pending.length > 0)) return;
+    operationRef.current = true;
+    setPreviewing(preview);
+    setGenerating(!preview);
+    setSaveError(null);
+    setFeedback(null);
+    // Capture one immutable draft for this request, including edits not yet saved.
+    const payload = {
+      templateId: selectedTemplateId,
+      generatedAt,
+      responsavel,
+      ...(preview ? { draftValues: selectProposalDraftValues(draftValues) } : {}),
+    };
+    try {
+      if (!preview && isDirty) await persistAllFields();
+      const response = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/document/${preview ? "preview" : `generate-${format}`}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const { blob, filename } = await (format === "pdf" ? readProposalPdfResponse(response) : readProposalDocxResponse(response));
+      const url = URL.createObjectURL(blob);
+      const timer = setTimeout(() => {
+        URL.revokeObjectURL(url);
+        downloadUrls.current.delete(url);
+      }, 60_000);
+      downloadUrls.current.set(url, timer);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      try { anchor.click(); } finally { anchor.remove(); }
+      setFeedback(preview ? "Prévia Word baixada com o rascunho atual. Os dados não foram salvos." : `Proposta ${format === "pdf" ? "PDF" : "Word"} gerada e baixada.`);
+      if (!preview) {
+        await onRefresh();
+        router.refresh();
+      }
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Não foi possível gerar a proposta.");
+    } finally {
+      setGenerating(false);
+      setPreviewing(false);
+      operationRef.current = false;
+    }
+  }
+
+  function downloadFinal(format: "docx" | "pdf") {
+    return downloadDocument(format);
+  }
+
   function handleCloseAttempt() {
+    if (busy || operationRef.current) return;
     if (isDirty) {
       setConfirmClose(true);
     } else {
@@ -676,7 +675,7 @@ function PropostaBuilderDialog({
                   if (v) setSelectedTemplateId(v);
                   setFeedback(null);
                 }}
-                disabled={templates.length === 0}
+                disabled={busy || templates.length === 0}
               >
                 <SelectTrigger className="h-9 min-w-[14rem] max-w-[22rem] border-white/25 bg-white/15 text-sm text-white shadow-sm backdrop-blur">
                   <span className="min-w-0 truncate text-left">{selectedTemplateName}</span>
@@ -695,8 +694,8 @@ function PropostaBuilderDialog({
                 size="sm"
                 variant="outline"
                 className="h-9 gap-1.5 border-white/25 bg-white/15 text-white shadow-sm backdrop-blur hover:bg-white/20"
-                disabled={saving || generating || !isDirty}
-                onClick={() => void persistAllFields()}
+                disabled={busy || !isDirty}
+                onClick={() => void saveDraft()}
               >
                 {saving ? (
                   <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -711,8 +710,8 @@ function PropostaBuilderDialog({
                 variant="teal"
                 size="sm"
                 className="h-9 gap-1.5"
-                disabled={generating || saving || pending.length > 0}
-                onClick={() => void generateDocx()}
+                disabled={busy || !selectedTemplateId || pending.length > 0}
+                onClick={() => void downloadFinal("docx")}
               >
                 {generating ? (
                   <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -722,10 +721,27 @@ function PropostaBuilderDialog({
                 Gerar Word
               </Button>
 
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 border-white/25 bg-white/15 text-white shadow-sm backdrop-blur hover:bg-white/20"
+                disabled={busy || !selectedTemplateId || pending.length > 0}
+                onClick={() => void downloadFinal("pdf")}
+              >
+                {generating ? (
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <FileText className="size-3.5" aria-hidden />
+                )}
+                Gerar PDF
+              </Button>
+
               <button
                 type="button"
                 onClick={handleCloseAttempt}
                 className="ml-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white"
+                disabled={busy}
                 aria-label="Fechar"
               >
                 <X className="size-4" aria-hidden />
@@ -750,14 +766,21 @@ function PropostaBuilderDialog({
           {/* ── Body split-pane ── */}
           <div className="flex min-h-0 flex-1 overflow-hidden">
             {/* Painel esquerdo — Formulário */}
-            <aside className="crm-scrollbar w-[46%] shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-5 py-6 sm:px-6">
+            <aside inert={busy} className="crm-scrollbar w-[46%] shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-5 py-6 sm:px-6">
               <div className="space-y-6">
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-5">
+                  <Label htmlFor="proposal-responsavel" className="text-sm font-bold text-primary-dark">Enviado por</Label>
+                  <Input id="proposal-responsavel" value={responsavel} disabled={busy}
+                    onChange={(event) => { setResponsavel(event.target.value); setFeedback(null); }}
+                    placeholder="Nome do responsável pela proposta" />
+                  <p className="text-xs text-muted-foreground">Nome que aparecerá no documento oficial.</p>
+                </div>
                 <BuilderSection
                   meta={SECTION_META.cliente}
                   fields={fieldsBySection.cliente}
                   draftValues={draftValues}
                   onChange={fieldChange}
-                  disabled={saving || generating}
+                  disabled={busy}
                   propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
                 />
 
@@ -766,7 +789,7 @@ function PropostaBuilderDialog({
                   fields={fieldsBySection.objeto}
                   draftValues={draftValues}
                   onChange={fieldChange}
-                  disabled={saving || generating}
+                  disabled={busy}
                 />
 
                 {escopoDetalhe && areasField ? (
@@ -783,14 +806,17 @@ function PropostaBuilderDialog({
                       leadId={lead.id}
                       fieldDefinitionId={escopoDetalhe.definitionId}
                       initialValue={escopoJson}
+                      savedValue={savedValues.cp_escopo_detalhe_json ?? ""}
                       areasDisplay={draftValues.cp_areas_objeto ?? areasField.value}
                       defaultNomeEmpresa={propostaEmpresaPrincipalNome}
                       viewerProfileArea={viewer?.area ?? null}
                       viewerRole={viewer?.role ?? null}
                       solicitacoes={lead.escopoSolicitacoes ?? []}
                       className="border-0 bg-transparent p-0"
+                      disabled={busy}
+                      onSavingChange={setScopeSaving}
                       onSaved={(json) => {
-                        syncEscopoJsonFromDraft(json);
+                        setSavedValues((previous) => ({ ...previous, cp_escopo_detalhe_json: json }));
                       }}
                       onEscopoDraftChange={syncEscopoJsonFromDraft}
                     />
@@ -817,11 +843,9 @@ function PropostaBuilderDialog({
                     <PropostaInvestimentoConsolidadoForm
                       escopoJson={escopoJson}
                       areasDisplay={draftValues.cp_areas_objeto ?? areasField.value ?? ""}
-                      fieldDefinitionId={escopoDetalhe.definitionId}
-                      leadId={lead.id}
                       investmentCatalog={investmentCatalog}
-                      disabled={saving || generating}
-                      onEscopoJsonChange={setEscopoJson}
+                      disabled={busy}
+                      onEscopoJsonChange={syncEscopoJsonFromDraft}
                     />
                   </div>
                 ) : null}
@@ -831,7 +855,7 @@ function PropostaBuilderDialog({
                   fields={fieldsBySection.condicoes}
                   draftValues={draftValues}
                   onChange={fieldChange}
-                  disabled={saving || generating}
+                  disabled={busy}
                 />
 
                 {fieldsBySection.revisao.length > 0 ? (
@@ -843,7 +867,7 @@ function PropostaBuilderDialog({
                     fields={fieldsBySection.revisao}
                     draftValues={draftValues}
                     onChange={fieldChange}
-                    disabled={saving || generating}
+                    disabled={busy}
                   />
                 ) : null}
 
@@ -867,35 +891,42 @@ function PropostaBuilderDialog({
               </div>
             </aside>
 
-            {/* Painel direito — Preview ao vivo */}
-            <main className="relative flex w-[54%] flex-1 flex-col overflow-hidden bg-slate-50">
-              {/* Cabeçalho do preview */}
-              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-[#f8f5ed] px-4 py-2.5">
-                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#24615b]">
-                  <Eye className="size-3.5 shrink-0" aria-hidden />
-                  Preview da proposta
-                  {livePreview ? (
-                    <span className="ml-1 size-2 shrink-0 rounded-full bg-emerald-500" aria-hidden />
-                  ) : null}
+            <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+                <div>
+                  <h3 className="text-sm font-bold text-primary-dark">Prévia da proposta</h3>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500" role="status">
+                    {pdfPreview.updating ? <><Loader2 className="size-3.5 animate-spin" aria-hidden /> Atualizando…</> :
+                      pdfPreview.error ? "A atualização não foi concluída." : pdfPreview.url ? "Atualizada com o rascunho atual." : "Preparando a prévia…"}
+                  </p>
                 </div>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                  Atualiza ao digitar
-                </span>
+                <Button type="button" variant="outline" size="sm" className="gap-2"
+                  disabled={busy || !selectedTemplateId} onClick={() => void downloadDocument("docx", true)}>
+                  {previewing ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <FileDown className="size-3.5" aria-hidden />}
+                  Baixar prévia Word
+                </Button>
               </div>
-
-              {/* Preview content */}
-              <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto">
-                <div className="bg-[radial-gradient(circle_at_top,#f7f0df_0%,#ece8dc_36%,#e6e1d4_100%)] p-3 sm:p-4">
-                  {livePreview ? (
-                    <ProposalPagePreviewDocument preview={livePreview} />
-                  ) : (
-                    <PreviewEmpty
-                      title="Preview indisponível"
-                      description="Selecione um modelo para gerar o preview."
-                    />
-                  )}
+              {pdfPreview.error ? (
+                <div className="shrink-0 space-y-2 border-b border-rose-200 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+                  <p className="whitespace-pre-wrap break-words">{pdfPreview.error}</p>
+                  {pdfPreview.url ? <p className="text-xs">A última prévia permanece visível abaixo.</p> : null}
+                  <Button type="button" variant="outline" size="sm" onClick={() => setPreviewRetry((value) => value + 1)}>
+                    Tentar novamente
+                  </Button>
                 </div>
-              </div>
+              ) : null}
+              {pdfPreview.url ? (
+                <iframe title="Prévia PDF da proposta" className="min-h-0 w-full flex-1 border-0"
+                  src={pdfPreview.url + "#toolbar=0&navpanes=0&view=FitH"} data-source-sha256={pdfPreview.sourceSha256 ?? undefined} />
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-slate-500">
+                  {pdfPreview.updating ? <Loader2 className="size-9 animate-spin" aria-hidden /> : <FileText className="size-9" aria-hidden />}
+                  <p className="text-sm">{pdfPreview.updating ? "Preparando o documento para leitura…" : "A prévia será exibida aqui."}</p>
+                </div>
+              )}
+              <p className="shrink-0 border-t border-slate-200 bg-white px-4 py-2 text-xs text-slate-500">
+                Prévia do rascunho, ainda sem salvar. Preencha as pendências para gerar a versão final.
+              </p>
             </main>
           </div>
         </DialogContent>
@@ -905,9 +936,9 @@ function PropostaBuilderDialog({
       <AlertDialog open={confirmClose}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Modelo não salvo</AlertDialogTitle>
+            <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
             <AlertDialogDescription>
-              A seleção de modelo ainda não foi salva. Deseja descartar e fechar?
+              Há alterações no rascunho que ainda não foram salvas. Deseja descartar e fechar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1010,6 +1041,37 @@ function PropFieldInput({
   const label = field.label.replace(" [CP]", "");
   const pe = pipelineFieldToEditorProps(field);
   const wrapperClass = field.fieldType === "textarea" ? "sm:col-span-2" : undefined;
+
+  if (field.fieldCode === "cp_tributacao") {
+    const selected = normalizeTributacaoValue(value);
+    return (
+      <div className={cn("space-y-1.5", wrapperClass)}>
+        <Label className="text-xs font-medium text-primary-dark">Tributação</Label>
+        <Select
+          value={selected || undefined}
+          onValueChange={(v) => {
+            if (v) onChange(normalizeTributacaoValue(v) || v);
+          }}
+          disabled={disabled}
+        >
+          <SelectTrigger className="h-10 border-slate-200 bg-white text-sm">
+            <CrmSelectValue
+              value={selected}
+              labels={PROPOSTA_TRIBUTACAO_LABELS}
+              placeholder="Incluindo ou não tributos"
+            />
+          </SelectTrigger>
+          <CrmSelectContent inModal>
+            {PROPOSTA_TRIBUTACAO_OPTIONS.map((opt) => (
+              <CrmSelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </CrmSelectItem>
+            ))}
+          </CrmSelectContent>
+        </Select>
+      </div>
+    );
+  }
 
   // SELECT (com opções definidas)
   if (pe.kind === "select" && pe.selectOptions && pe.selectOptions.length > 0) {
@@ -1196,152 +1258,6 @@ function ProposalCompanySummary({
           {selection.extrasCount > 0 ? `+${selection.extrasCount} extra(s)` : "Sem extras"}
         </span>
       </div>
-    </div>
-  );
-}
-
-// ─── Preview document ─────────────────────────────────────────────────────────
-
-function ProposalPagePreviewDocument({ preview }: { preview: PreviewState }) {
-  const { page } = preview;
-  return (
-    <div className="mx-auto flex min-h-[980px] w-full max-w-[720px] flex-col overflow-hidden bg-white text-[#111827] shadow-[0_24px_70px_rgba(16,31,46,0.22)] ring-1 ring-black/5">
-      <div className="relative h-[110px] shrink-0 bg-white">
-        <div className="absolute left-0 top-0 h-28 w-44 overflow-hidden">
-          <div className="absolute -left-16 -top-16 h-40 w-48 rounded-[50%] border-[12px] border-[#d3ad67]/80" />
-          <div className="absolute -left-10 -top-9 h-32 w-40 rounded-[50%] border-[8px] border-[#d3ad67]/55" />
-        </div>
-        <div className="absolute right-0 top-0 rounded-bl-[18px] bg-[#0d2031] px-8 py-2 text-[11px] font-extrabold tracking-[0.02em] text-white">
-          Proposta de Prestação de Serviços Advocatícios
-        </div>
-        <div className="flex h-full items-center justify-center pt-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#d3ad67] text-2xl font-black text-[#d3ad67]">
-              BP
-            </div>
-            <div>
-              <p className="text-2xl font-black uppercase tracking-[0.18em] text-[#0d2031]">
-                Bismarchi<span className="mx-1 text-[#d3ad67]">|</span>Pires
-              </p>
-              <p className="text-center text-[9px] font-bold uppercase tracking-[0.52em] text-[#0d2031]/70">
-                Sociedade de Advogados
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative flex flex-1 flex-col px-[13.5%] pb-12 pt-4">
-        <div className="mb-12 flex items-end">
-          <div className="relative z-[1] rounded-r-[9px] bg-[#d3ad67] px-8 py-2.5 pr-12 text-2xl font-black text-white shadow-[3px_4px_0_rgba(13,32,49,0.28)]">
-            1.&nbsp; Objeto da Proposta
-          </div>
-          <div className="-ml-4 mb-1 h-px flex-1 bg-[#0d2031]" />
-        </div>
-
-        <div className="space-y-6 text-[13.5px] leading-[1.75]">
-          <p className="rounded-[4px] border border-[#0d2031]/35 bg-[#faf9f5] p-4 text-[13px] leading-relaxed">
-            {page.clienteIntro}
-          </p>
-
-          <section className="space-y-5">
-            <p className="font-extrabold">Descrição dos serviços:</p>
-
-            <div className="space-y-5">
-              {page.escopoSections.length > 0 ? (
-                groupEscopoSectionsByArea(page.escopoSections).map((group) => (
-                  <div key={group.area} className="space-y-3">
-                    <p className="font-bold uppercase tracking-[0.02em] text-[#0d2031]">{group.area}</p>
-                    {group.items.map((section, index) => (
-                      <JustifiedDocumentText
-                        key={`${group.area}-${section.scopeTypeLabel ?? "scope"}-${index}`}
-                        text={section.text}
-                        leadPrefix={section.scopeTypeLabel}
-                      />
-                    ))}
-                  </div>
-                ))
-              ) : page.escopo ? (
-                <JustifiedDocumentText text={page.escopo} />
-              ) : (
-                <p className="text-slate-400">Escopo ainda não preenchido.</p>
-              )}
-            </div>
-
-            <p>
-              <span className="font-extrabold">Síntese da demanda:</span>{" "}
-              {page.resumo || <span className="text-slate-400">Resumo ainda não preenchido.</span>}
-            </p>
-
-            {page.investimento ? (
-              <JustifiedDocumentText text={page.investimento} />
-            ) : (
-              <p className="text-slate-400">Investimento ainda não preenchido.</p>
-            )}
-
-            <p>
-              <span className="font-extrabold">Data de vigência proposta:</span> {page.dataVigencia}
-            </p>
-          </section>
-
-          <p className="pt-10">Cordialmente,</p>
-
-          <div className="grid max-w-[440px] gap-10 pt-6">
-            <SignatureBlock name="Gustavo Bismarchi Motta" oab="OAB/SP 275.477" />
-            <SignatureBlock name="Ricardo Viscardi Pires" oab="OAB/SP 353.389" />
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-auto border-t-4 border-[#d3ad67] bg-[#0d2031] px-8 py-3 text-white">
-        <div className="mx-auto flex max-w-[640px] flex-wrap items-center justify-center gap-x-8 gap-y-1 text-[10px] font-semibold">
-          <span>Rua Coronel Quirino, 1266 - Cambuí - Campinas-SP</span>
-          <span>(19) 3254-6446</span>
-          <span>contato@bismarchipires.com.br</span>
-          <span>bismarchipires.com.br</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SignatureBlock({ name, oab }: { name: string; oab: string }) {
-  return (
-    <div>
-      <div className="mb-2 h-px w-[280px] bg-[#111827]" />
-      <p className="text-[12px] font-black uppercase">Bismarchi | Pires - Sociedade de Advogados</p>
-      <p>{name}</p>
-      <p>{oab}</p>
-    </div>
-  );
-}
-
-// ─── Preview empty state ──────────────────────────────────────────────────────
-
-function PreviewEmpty({
-  title,
-  description,
-  tone = "neutral",
-  action,
-}: {
-  title: string;
-  description: string;
-  tone?: "neutral" | "error";
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-white/70 p-6 text-center">
-      <div
-        className={cn(
-          "mb-3 flex size-10 items-center justify-center rounded-xl",
-          tone === "error" ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600",
-        )}
-      >
-        {tone === "error" ? <TriangleAlert className="size-5" /> : <Eye className="size-5" />}
-      </div>
-      <p className="text-sm font-bold text-primary-dark">{title}</p>
-      <p className="mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">{description}</p>
-      {action ? <div className="mt-1 flex justify-center">{action}</div> : null}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type {
   PropostaEscopoDetalhe,
   PropostaEscopoDetalheEntry,
   PropostaInvestimentoDocumento,
+  PropostaInvestimentoDocumentoItem,
   PropostaInvestimentoEntry,
 } from "@/data/proposta-tipos-catalog";
 import { INVESTIMENTO_DOCUMENTO_KEY } from "@/data/proposta-tipos-catalog";
@@ -18,6 +19,40 @@ export function createEscopoEntryId(): string {
     return crypto.randomUUID();
   }
   return `esc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export function createInvestimentoDocumentoItemId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `inv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export function createEmptyInvestimentoDocumentoItem(): PropostaInvestimentoDocumentoItem {
+  return {
+    id: createInvestimentoDocumentoItemId(),
+    tipoId: "",
+    subtipoId: "",
+    placeholders: {},
+  };
+}
+
+function normalizeInvestimentoDocumentoItem(raw: unknown): PropostaInvestimentoDocumentoItem | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const e = raw as Record<string, unknown>;
+  const tipoId = typeof e.tipoId === "string" ? e.tipoId : "";
+  const subtipoId = typeof e.subtipoId === "string" ? e.subtipoId : "";
+  const placeholders = normalizePlaceholdersRecord(e.placeholders);
+  const autoSum = e.autoSum === false ? false : undefined;
+  const id =
+    typeof e.id === "string" && e.id.trim() ? e.id.trim() : createInvestimentoDocumentoItemId();
+  return {
+    id,
+    tipoId,
+    subtipoId,
+    placeholders,
+    ...(autoSum === false ? { autoSum: false } : {}),
+  };
 }
 
 export function createEmptyEscopoEntry(): PropostaEscopoDetalheEntry {
@@ -63,14 +98,36 @@ export function normalizeInvestimentoDocumento(
   const subtipoId = typeof e.subtipoId === "string" ? e.subtipoId : "";
   const placeholders = normalizePlaceholdersRecord(e.placeholders);
   const autoSum = e.autoSum === false ? false : undefined;
-  if (!tipoId.trim() && !subtipoId.trim() && Object.keys(placeholders).length === 0) {
-    return undefined;
-  }
+  const items = Array.isArray(e.items)
+    ? e.items
+        .map((item) => normalizeInvestimentoDocumentoItem(item))
+        .filter((item): item is PropostaInvestimentoDocumentoItem => item != null)
+    : [];
+  const hasLegacy = Boolean(
+    tipoId.trim() || subtipoId.trim() || Object.keys(placeholders).length > 0,
+  );
+  if (!hasLegacy && items.length === 0) return undefined;
+  const first = items[0];
   return {
-    tipoId,
-    subtipoId,
-    placeholders,
-    ...(autoSum === false ? { autoSum: false } : {}),
+    tipoId: first?.tipoId ?? tipoId,
+    subtipoId: first?.subtipoId ?? subtipoId,
+    placeholders: first?.placeholders ?? placeholders,
+    ...( (first?.autoSum ?? autoSum) === false ? { autoSum: false } : {}),
+    ...(items.length > 0
+      ? { items }
+      : hasLegacy
+        ? {
+            items: [
+              {
+                id: "inv-0",
+                tipoId,
+                subtipoId,
+                placeholders,
+                ...(autoSum === false ? { autoSum: false } : {}),
+              },
+            ],
+          }
+        : {}),
   };
 }
 
@@ -151,11 +208,18 @@ export function stringifyEscopoJsonWithMeta(
     o[key] = val;
   }
   const doc = investimentoDocumento ?? undefined;
+  const hasItems = (doc?.items ?? []).some(
+    (item) =>
+      item.tipoId.trim() ||
+      item.subtipoId.trim() ||
+      Object.values(item.placeholders ?? {}).some((v) => v.trim()),
+  );
   if (
     doc &&
     (doc.tipoId.trim() ||
       doc.subtipoId.trim() ||
-      Object.values(doc.placeholders ?? {}).some((v) => v.trim()))
+      Object.values(doc.placeholders ?? {}).some((v) => v.trim()) ||
+      hasItems)
   ) {
     o[INVESTIMENTO_DOCUMENTO_KEY] = doc;
   }

@@ -8,6 +8,10 @@ const createSchema = z.object({
   content:    z.string().default(""),
   category:   z.string().min(1).max(100).default("Geral"),
   sort_order: z.number().int().default(0),
+  /** Área de CRM_PRACTICE_AREAS; null = cláusula transversal. */
+  area_key:   z.string().min(1).max(60).nullable().optional(),
+  /** subtype_key do catálogo de propostas; null = cláusula de área inteira/transversal. */
+  scope_subtype_key: z.string().min(1).max(120).nullable().optional(),
 });
 
 async function requireAdmin() {
@@ -34,7 +38,7 @@ export async function GET() {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("contract_clause_templates")
-      .select("id, title, content, category, sort_order, is_active, created_at, updated_at")
+      .select("id, title, content, category, sort_order, is_active, created_at, updated_at, stable_key, version, status, role, is_required, placeholders, legal_review_note, area_key, scope_subtype_key")
       .order("category")
       .order("sort_order")
       .order("created_at");
@@ -62,7 +66,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from("contract_clause_templates")
       .insert({ ...body.data, created_by: auth.profile.id })
-      .select("id, title, content, category, sort_order, is_active, created_at, updated_at")
+      .select("id, title, content, category, sort_order, is_active, created_at, updated_at, stable_key, version, status, role, is_required, placeholders, legal_review_note, area_key, scope_subtype_key")
       .single();
 
     if (error) throw error;

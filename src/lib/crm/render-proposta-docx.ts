@@ -2,30 +2,42 @@ import fs from "fs";
 import path from "path";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
+import { PROPOSTA_INCLUDE_SINTESE_DEMANDA, type CanonicalProposalData } from "./proposta-docx-data";
+import { buildPropostaWordBlocks } from "./proposta-word-blocks";
 
 /** Nome fixo do template legado na pasta `public/` do Next. */
-export const MODELO_PROPOSTA_FILENAME = "MODELO-PROPOSTA-1.docx" as const;
+export const MODELO_PROPOSTA_FILENAME = "PROPOSTA-BP-V1.docx" as const;
 
 /** Caminho absoluto do modelo Word usado na geração da proposta. */
 export function resolveModeloPropostaTemplatePath(
   cwd: string = process.cwd(),
   templatePath: string = MODELO_PROPOSTA_FILENAME,
 ): string {
-  const safeTemplatePath = templatePath.replace(/^[/\\]+/, "");
-  const publicRoot = path.resolve(cwd, "public");
-  const p = path.resolve(publicRoot, safeTemplatePath);
-  if (!p.startsWith(publicRoot)) {
-    throw new Error("Caminho do modelo Word inválido.");
-  }
+  // Compatibility alias for existing metadata rows; never read public templates.
+  if (![MODELO_PROPOSTA_FILENAME, "MODELO-PROPOSTA-1.docx", "templates/proposta/PROPOSTA-BP-V1.docx"].includes(templatePath))
+    throw new Error("Modelo da proposta não homologado. Use PROPOSTA-BP-V1.docx.");
+  const p = path.resolve(cwd, "templates", "proposta", MODELO_PROPOSTA_FILENAME);
   if (fs.existsSync(p)) return p;
-  throw new Error(
-    `Modelo Word não encontrado em public/${safeTemplatePath}. Coloque o arquivo em crm/public/ ou execute pnpm run generate:modelo-proposta para um modelo mínimo.`,
-  );
+  throw new Error("Template oficial ausente em templates/proposta/PROPOSTA-BP-V1.docx.");
 }
 
 export function readModeloPropostaTemplateBuffer(cwd?: string, templatePath?: string): Buffer {
   const p = resolveModeloPropostaTemplatePath(cwd, templatePath);
   return fs.readFileSync(p);
+}
+
+export function renderCanonicalProposalDocx(data: CanonicalProposalData, templateBuffer = readModeloPropostaTemplateBuffer()): Buffer {
+  const blocks = buildPropostaWordBlocks(data);
+  const zip = new PizZip(templateBuffer);
+  const doc = new Docxtemplater(zip, {
+    delimiters: { start: "[", end: "]" }, paragraphLoop: true, linebreaks: true,
+    nullGetter: () => "",
+  });
+  doc.render({ ...data.templateData, ESCOPO_AREAS: blocks.scope, INVESTIMENTO: blocks.investment });
+  // PizZip assigns 'now' when docxtemplater replaces a part. Normalize ZIP dates
+  // so identical data and template yield identical bytes for preview/download.
+  for (const file of Object.values(doc.getZip().files)) file.date = new Date("2000-01-01T00:00:00Z");
+  return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
 function paragraphPlainText(paragraphXml: string): string {
@@ -46,6 +58,7 @@ function collectAreaHeadings(data: Record<string, string>): Set<string> {
   };
   add(String(data.AREA ?? ""));
   for (const part of String(data.AREAS ?? "").split(/[,;]+/)) add(part);
+  add("Investimento");
   return labels;
 }
 
@@ -143,13 +156,25 @@ export function boldLeadingLabelsInParagraphs(xml: string, labels: string[]): st
   });
 }
 
+/** Remove o parágrafo «Síntese da demanda…» do modelo Word (rótulo fixo + `[RESUMO]`). */
+export function stripSinteseDemandaParagraphs(xml: string): string {
+  return xml.replace(new RegExp(W_PARAGRAPH_SOURCE, "g"), (paragraph) => {
+    const text = paragraphPlainText(paragraph).toLocaleLowerCase("pt-BR");
+    if (text.startsWith("síntese da demanda")) return "";
+    return paragraph;
+  });
+}
+
 export function formatPropostaDocumentXml(xml: string, data: Record<string, string>): string {
   const withParagraphs = convertSoftBreaksToParagraphs(xml);
   const withInlineBold = boldLeadingLabelsInParagraphs(
     withParagraphs,
     collectEscopoInlineLabels(data),
   );
-  return restyleMatchingAreaHeadings(withInlineBold, collectAreaHeadings(data));
+  const withHeadings = restyleMatchingAreaHeadings(withInlineBold, collectAreaHeadings(data));
+  return PROPOSTA_INCLUDE_SINTESE_DEMANDA
+    ? withHeadings
+    : stripSinteseDemandaParagraphs(withHeadings);
 }
 
 /**
@@ -157,6 +182,7 @@ export function formatPropostaDocumentXml(xml: string, data: Record<string, stri
  * `[P]` e `[F]` vêm dos dados (`buildPropostaDocxTemplateData`) como texto; no modelo atual
  * o rodapé usa caixa de texto e campos PAGE/NUMPAGES em OOXML podem corromper o arquivo.
  */
+/** @deprecated Legacy renderer retained for regression tests. Use renderCanonicalProposalDocx. */
 export function renderPropostaDocx(templateBuffer: Buffer, data: Record<string, string>): Buffer {
   const zip = new PizZip(templateBuffer);
   const doc = new Docxtemplater(zip, {

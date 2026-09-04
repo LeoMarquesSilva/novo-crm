@@ -22,8 +22,6 @@ import {
 import { getEscopoEntriesForArea, getEscopoEntryForArea } from "@/lib/crm/proposta-escopo-entry";
 import { mergeEscopoTemplate } from "@/lib/crm/proposta-escopo-preview";
 import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-principal";
-import { addDays } from "date-fns";
-import { format } from "date-fns";
 
 export type PropostaDocxTemplateInput = {
   empresasIntake: LeadIntakeEmpresaRow[];
@@ -33,6 +31,8 @@ export type PropostaDocxTemplateInput = {
   cpEscopoDetalheJson: string;
   /** Momento do pedido de geração (para [DATA VIGENCIA] = +7 dias). */
   generatedAt: Date;
+  /** Nome configurável em document_instances.data_json.responsavel. */
+  responsavel?: string;
   scopeCatalog?: PropostaTiposCatalog;
   investmentCatalog?: InvestimentoTipoDef[];
 };
@@ -45,11 +45,63 @@ function formatCepBr(raw: string): string {
 
 /** Data de vigência: 7 dias após `generatedAt`, em dd/MM/aaaa. */
 export function formatDataVigenciaProposta(generatedAt: Date): string {
-  return format(addDays(generatedAt, 7), "dd/MM/yyyy");
+  const localDate = proposalLocalCalendarDate(generatedAt);
+  localDate.setUTCDate(localDate.getUTCDate() + 7);
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(localDate);
 }
+
+export const PROPOSTA_TIME_ZONE = "America/Sao_Paulo";
+
+function proposalLocalCalendarDate(date: Date): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: PROPOSTA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(date);
+  const get = (key: string) => Number(parts.find(p => p.type === key)!.value);
+  return new Date(Date.UTC(get("year"), get("month") - 1, get("day")));
+}
+
+export function formatDataProposta(date: Date): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: PROPOSTA_TIME_ZONE, day: "numeric", month: "long", year: "numeric",
+  }).format(date);
+}
+
+export function formatPropostaFileStamp(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: PROPOSTA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (key: string) => parts.find(p => p.type === key)!.value;
+  return `${get("year")}-${get("month")}-${get("day")}-${get("hour")}${get("minute")}`;
+}
+
+/**
+ * Temporário: a síntese não entra no preview nem no Word.
+ * Religar: `true` (rótulo no modelo + `[RESUMO]`).
+ */
+export const PROPOSTA_INCLUDE_SINTESE_DEMANDA = false;
 
 /** Alinhado ao texto modelo em `proposta-tipos-catalog` (ex.: escopo «1 processo»). */
 const ESCOPO_SINTESE_MARKER = "Síntese da demanda:";
+
+/** Título da secção no Word/preview, no mesmo papel do nome da área. */
+export const PROPOSTA_INVESTIMENTO_HEADING = "Investimento";
+
+export function withInvestimentoSectionHeading(text: string): string {
+  const body = text.trim();
+  if (!body) return "";
+  const heading = PROPOSTA_INVESTIMENTO_HEADING;
+  if (body.toLocaleLowerCase("pt-BR").startsWith(heading.toLocaleLowerCase("pt-BR"))) {
+    return body;
+  }
+  return `${heading}\n\n${body}`;
+}
+
+export function stripInvestimentoSectionHeading(text: string): string {
+  const heading = PROPOSTA_INVESTIMENTO_HEADING;
+  const match = text.match(new RegExp(`^${heading}\\s*\\n+`, "i"));
+  return (match ? text.slice(match[0].length) : text).trim();
+}
 
 /**
  * Junta quebras soltas no meio da frase e preserva parágrafos (`\\n\\n`).
@@ -324,6 +376,7 @@ function buildPropostaDocxPayload(input: PropostaDocxTemplateInput): PropostaDoc
   );
   const investimentoText = buildInvestimentoDocumentoText(investimentoDoc, investmentCatalog, {
     defaultNomeEmpresa: nomeEmpresa,
+    tributacao: f("cp_tributacao"),
   });
 
   const firstArea = areas[0] ?? "";
@@ -333,6 +386,9 @@ function buildPropostaDocxPayload(input: PropostaDocxTemplateInput): PropostaDoc
 
   const data: Record<string, string> = {
     EMPRESA: empresa.razaoSocial ?? "",
+    RESPONSAVEL: input.responsavel?.trim() ?? "",
+    DATA_PROPOSTA: formatDataProposta(generatedAt),
+    DATA_VIGENCIA: formatDataVigenciaProposta(generatedAt),
     CIDADE: f("cp_cliente_cidade"),
     UF: f("cp_cliente_uf"),
     CEP: formatCepBr(f("cp_cliente_cep")),
@@ -344,11 +400,11 @@ function buildPropostaDocxPayload(input: PropostaDocxTemplateInput): PropostaDoc
     ESCOPO_AREAS: escopoText,
     ESCOPO_ANTES_SINTESE: antesSintese,
     /** Conteúdo do campo «Resumo do processo» no CRM → `[RESUMO]` no modelo Word (rótulo só no .docx). */
-    RESUMO: resumoDocx,
+    RESUMO: PROPOSTA_INCLUDE_SINTESE_DEMANDA ? resumoDocx : "",
     /** Alias legado (mesmo valor que `RESUMO`). */
-    RESUMO_SINTESE: resumoDocx,
-    INVESTIMENTO: investimentoText,
-    INVESTIMENTOS: investimentoText,
+    RESUMO_SINTESE: PROPOSTA_INCLUDE_SINTESE_DEMANDA ? resumoDocx : "",
+    INVESTIMENTO: withInvestimentoSectionHeading(investimentoText),
+    INVESTIMENTOS: withInvestimentoSectionHeading(investimentoText),
     ESCOPO_SUBTIPO_LABELS: builtEscopo.sections
       .map((s) => s.scopeTypeLabel?.trim())
       .filter((label): label is string => Boolean(label))
@@ -370,7 +426,15 @@ export function buildPropostaDocxTemplateData(input: PropostaDocxTemplateInput):
   return buildPropostaDocxPayload(input).templateData;
 }
 
+/** Única construção dos dados usados no DOCX de draft e na exportação. */
+export type CanonicalProposalData = PropostaDocxPayload & { generatedAt: string };
+
+export function buildCanonicalProposalData(input: PropostaDocxTemplateInput): CanonicalProposalData {
+  return { ...buildPropostaDocxPayload(input), generatedAt: input.generatedAt.toISOString() };
+}
+
 /** Template Word + preview estruturado (seções por área ou por escopo). */
+/** @deprecated Legacy DTO for regression tests; never use as the official document preview. */
 export function buildPropostaLivePreview(input: PropostaDocxTemplateInput): {
   templateData: Record<string, string>;
   page: PropostaDocumentPagePreview;
@@ -397,6 +461,7 @@ export type PropostaDocumentPagePreview = {
  * Pré-visualização em texto corrido (pós-capas / objeto), alinhada ao corpo típico da proposta.
  * Usa as mesmas chaves que `buildPropostaDocxTemplateData` — sem abrir o .docx nem Mammoth.
  */
+/** @deprecated The official document is rendered from CanonicalProposalData as DOCX. */
 export function buildPropostaDocumentPagePreview(
   data: Record<string, string>,
   opts?: { escopoSections?: EscopoPreviewSection[] },
@@ -419,8 +484,12 @@ export function buildPropostaDocumentPagePreview(
       : areasList.length > 0
         ? areasList.map((a) => normalizePracticeAreaKey(a)).join(", ")
         : g("AREA") || g("AREAS") || ELLIPSIS;
-  const resumo = g("RESUMO") || g("RESUMO_SINTESE") || ELLIPSIS;
-  const investimento = g("INVESTIMENTO") || g("INVESTIMENTOS") || "";
+  const resumo = PROPOSTA_INCLUDE_SINTESE_DEMANDA
+    ? g("RESUMO") || g("RESUMO_SINTESE") || ELLIPSIS
+    : "";
+  const investimento = stripInvestimentoSectionHeading(
+    g("INVESTIMENTO") || g("INVESTIMENTOS") || "",
+  );
   const vigencia = g("DATA VIGENCIA") || ELLIPSIS;
 
   return {
@@ -467,12 +536,13 @@ export function buildPropostaPlainTextPreview(data: Record<string, string>): str
     "Descrição dos serviços:",
     "",
     escopoBlock,
-    "",
-    `Síntese da demanda: ${page.resumo}`,
   ];
+  if (PROPOSTA_INCLUDE_SINTESE_DEMANDA) {
+    linhas.push("", `Síntese da demanda: ${page.resumo}`);
+  }
 
   if (page.investimento) {
-    linhas.push("", page.investimento);
+    linhas.push("", PROPOSTA_INVESTIMENTO_HEADING, "", page.investimento);
   }
   linhas.push("", `Data de vigência proposta: ${page.dataVigencia}`, "", "Cordialmente,");
 

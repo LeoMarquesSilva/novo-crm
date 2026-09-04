@@ -47,6 +47,7 @@ yarn-error.log*
 .next-dev*.log
 
 # temp docx extraction artifacts
+/tmp/
 public/_tmp_docx/
 public/_unzip_modelo/
 public/_m.zip
@@ -57,3 +58,8 @@ public/MODELO-temp.zip
 next-env.d.ts
 
 .vercel
+
+# local npm caches, supabase CLI temp, arquivos avulsos
+.npm-cache-*/
+supabase/.temp/
+CARDAPIO_FJ_BAR_2026_V2.png

@@ -8,8 +8,12 @@ export default defineConfig({
     },
   },
   test: {
+    // Testes de lógica pura (.test.ts) rodam em "node" (mais rápido). Testes de
+    // componente React (.test.tsx) precisam de DOM — cada um declara isso com
+    // `// @vitest-environment jsdom` no topo do próprio arquivo.
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    setupFiles: ["./vitest.setup.ts"],
     coverage: {
       enabled: false,
     },

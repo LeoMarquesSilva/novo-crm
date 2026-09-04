@@ -199,12 +199,8 @@ export function PropostaEnviadaKanbanPanel({ linkProposta }: PropostaEnviadaKanb
       tone="sky"
       icon={<Send className="h-3.5 w-3.5" />}
       title="Proposta enviada"
-      subtitle={
-        hasLink
-          ? "Aguardando retorno do cliente"
-          : "Informe o link da proposta na ficha do lead"
-      }
-      badge={hasLink ? "Enviada" : "Sem link"}
+      subtitle="Aguardando retorno do cliente"
+      badge={hasLink ? "Enviada" : undefined}
       className={!hasLink ? "border-dashed" : undefined}
       footer={
         hasLink ? (
@@ -219,11 +215,7 @@ export function PropostaEnviadaKanbanPanel({ linkProposta }: PropostaEnviadaKanb
             <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
             <span className="min-w-0 truncate">Abrir proposta</span>
           </a>
-        ) : (
-          <p className="text-[9px] font-medium text-primary-dark/55">
-            Avance para esta etapa com o link SharePoint / Vios da proposta.
-          </p>
-        )
+        ) : undefined
       }
     />
   );

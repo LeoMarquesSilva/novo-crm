@@ -7,6 +7,7 @@ import {
   convertSoftBreaksToParagraphs,
   renderPropostaDocx,
   restyleMatchingAreaHeadings,
+  stripSinteseDemandaParagraphs,
 } from "./render-proposta-docx";
 import PizZip from "pizzip";
 
@@ -36,6 +37,29 @@ describe("restyleMatchingAreaHeadings", () => {
     const out = restyleMatchingAreaHeadings(xml, new Set(["cível"]));
     expect(out).toContain('w:val="left"');
     expect(out).toContain("<w:b/>");
+  });
+
+  it("destaca o título INVESTIMENTO como o da área", () => {
+    const xml =
+      '<w:p><w:pPr><w:jc w:val="both"/></w:pPr><w:r><w:rPr><w:sz w:val="24"/></w:rPr><w:t>Investimento</w:t></w:r></w:p>';
+    const out = restyleMatchingAreaHeadings(xml, new Set(["investimento"]));
+    expect(out).toContain('w:val="left"');
+    expect(out).toContain("<w:b/>");
+  });
+});
+
+describe("stripSinteseDemandaParagraphs", () => {
+  it("remove o parágrafo da síntese e mantém o resto", () => {
+    const xml = [
+      "<w:p><w:r><w:t>Escopo ok.</w:t></w:r></w:p>",
+      "<w:p><w:r><w:t>Síntese da demanda: </w:t></w:r><w:r><w:t>Resumo 1</w:t></w:r></w:p>",
+      "<w:p><w:r><w:t>Investimento.</w:t></w:r></w:p>",
+    ].join("");
+    const out = stripSinteseDemandaParagraphs(xml);
+    expect(out).toContain("Escopo ok.");
+    expect(out).toContain("Investimento.");
+    expect(out).not.toContain("Síntese da demanda");
+    expect(out).not.toContain("Resumo 1");
   });
 });
 
@@ -101,5 +125,7 @@ describe("renderPropostaDocx contra o modelo real", () => {
     expect(xml).toContain("1 processo: ");
     expect(xml).toContain("+1 processo: ");
     expect(xml).toMatch(/<w:t[^>]*>Cível<\/w:t>/);
+    expect(xml).not.toContain("Síntese da demanda");
+    expect(xml).not.toContain("Resumo 1");
   });
 });

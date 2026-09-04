@@ -19,7 +19,8 @@ O CRM está em produção interna com persistência Supabase e fluxos principais
 - Kanban e ficha do lead com dados reais (`oportunidades`, campos dinâmicos, intake)
 - Motor de workflow com transições via `POST /api/crm/leads/transition`
 - DUE por área (tarefas, revisão, ajustes) e proposta por área
-- Contrato/proposta (builders PDF) e integração D4Sign (envio + webhook)
+- Proposta com Word BP canônico, prévia por download DOCX e geração final validada; prévia visual/PDF dependem de conversor
+- Contrato com builder próprio e integração D4Sign (envio + webhook)
 - Histórico do lead (`lead_activity_events`) na aba **Histórico** da ficha
 - Admin: usuários, campos dinâmicos, config WhatsApp DUE
 
@@ -78,8 +79,20 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - `/crm/admin/proposta-escopo`: catálogo de escopos e investimentos (CRUD admin).
 - `/crm/admin/proposta-escopo/importacao`: wizard de importação em massa de PDF/DOCX → extração IA → consolidação → revisão/aprovação para o catálogo.
 
-**Proposta — investimento no Word:** o placeholder `[INVESTIMENTO]` recebe um único parágrafo com valor total consolidado (soma das áreas, editável manualmente e com forma de pagamento no builder). Valores por área em `cp_escopo_detalhe_json` permanecem para coordenação interna; a chave reservada `__investimentoDocumento__` no mesmo JSON guarda tipo/subtipo e placeholders do documento.
+**Proposta — investimento no Word:** o placeholder `[@INVESTIMENTO]` recebe um bloco com valor total consolidado (soma das áreas, editável manualmente e com forma de pagamento no builder). Valores por área em `cp_escopo_detalhe_json` permanecem para coordenação interna; a chave reservada `__investimentoDocumento__` no mesmo JSON guarda tipo/subtipo e placeholders do documento.
 - `/crm/perfil`: edição do próprio `app_users` (nome, área, URL da foto).
+
+### 4.1 Motor documental da proposta BP (02/09/2026)
+
+- Fonte canônica privada: `templates/proposta/PROPOSTA-BP-V1.docx`, preparado do Word oficial fornecido. Layout institucional fica no template.
+- `buildPropostaDocumentSnapshot` → `buildCanonicalProposalData` → `renderCanonicalProposalDocx`; mesma geração determinística para dados/template iguais.
+- `POST /api/crm/leads/:id/document/preview` retorna DOCX binário do draft sem persistir. O antigo preview JSX foi removido; a UI oferece **Baixar prévia Word**. O ensaio com docx-preview perdeu caixas de texto/objetos do modelo; não foi adotado.
+- **Gerar Word** aguarda saves confirmados e revalida o estado salvo no servidor; falha de save bloqueia exportação. Validação local acompanha o draft atual.
+- **Enviado por** é explícito e obrigatório, persistido em `document_instances.data_json.responsavel`; não se presume que o criador do lead seja o remetente.
+- Data compartilhada entre pedidos em `America/Sao_Paulo`, vigência +7 dias. Escopos usam parágrafos/estilos Word e paginação natural.
+- DOCX é transmitido em streaming e retorna SHA256; versão guarda snapshot e hashes. Nenhum arquivo é arquivado em storage por esse fluxo.
+- PDF da proposta retorna HTTP 503 até existir conversão real do DOCX. A rota legada `/api/crm/leads/:id/proposta-docx` retorna HTTP 410. Contratos/D4Sign não foram alterados.
+- Detalhes, testes, diferenças visuais do DOCX/PDF original e limitações: `docs/PROPOSTA-DOCUMENT-ENGINE.md`.
 
 Observação: a navegação principal está no `AppShell` — inclui seção "Administração" com links para Usuários e Campos, e rodapé com conta (avatar, link para perfil, sair).
 

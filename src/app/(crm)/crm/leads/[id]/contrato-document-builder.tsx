@@ -13,6 +13,7 @@ import {
   Building2,
   Check,
   CheckCircle2,
+  ChevronRight,
   ClipboardList,
   ExternalLink,
   Eye,
@@ -43,6 +44,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -50,13 +52,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
-import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { cn } from "@/lib/utils";
 import { evaluateCondition, type FieldCondition } from "@/lib/crm/field-condition";
 import {
   buildContratoDocumentPagePreview,
   type ContratoDocumentPagePreview,
+  type ContratoPendingField,
 } from "@/lib/crm/contrato-docx-data";
 import {
   buildDefaultSignaturePins,
@@ -75,6 +78,30 @@ import {
 } from "@/lib/crm/contract-send-gate";
 import { useOportunidadeRealtime } from "@/lib/crm/use-d4sign-realtime";
 import { D4SignViewDialog } from "@/components/crm/d4sign-view-dialog";
+import {
+  contractAreaTogglesFromProposal,
+  mergeInheritedContractAreaToggles,
+} from "@/lib/crm/contract-engine/inherit-areas";
+import { buildCanonicalContract } from "@/lib/crm/contract-engine/build-canonical";
+import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
+import { applyObjectOverride } from "@/lib/crm/contract-engine/object-engine";
+import { appendContractEngineEvent } from "@/lib/crm/contract-engine/object-events";
+import { resolveContractScopes } from "@/lib/crm/contract-engine/proposal-snapshot";
+import type { ContractObjectDraft } from "@/lib/crm/contract-engine/persist";
+import type {
+  CanonicalContractBuildResult,
+  ContractClauseTemplate,
+  ContractEngineEvent,
+  ContractObjectOverride,
+  ContractScopeAdjustment,
+} from "@/lib/crm/contract-engine/types";
+import type { ProposalContractSnapshot } from "@/lib/crm/contract-engine/proposal-snapshot";
+import {
+  AlterarEscoposDialog,
+  EscoposContratadosSection,
+  ObjetoContratoSection,
+  SectionHeading,
+} from "./contrato-object-panels";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,6 +120,7 @@ type CcFieldDef = {
   fieldOptions: string[] | null;
   conditionJson: unknown;
   value: string;
+  required: boolean;
 };
 
 /** Template de cláusula da biblioteca (admin gerencia) */
@@ -147,7 +175,7 @@ type ContratoState = {
     generated_file_path: string | null;
     generated_at: string;
   }>;
-  pending: string[];
+  pending: ContratoPendingField[];
   snapshot: {
     fieldByCode: Record<string, string>;
     empresa: {
@@ -157,6 +185,8 @@ type ContratoState = {
   };
   ccFieldDefs: CcFieldDef[];
   availableClauses: ClauseTemplate[];
+  /** Biblioteca de cláusulas ativa (banco > catálogo fixo) usada no preview ao vivo. */
+  clauseLibrary?: ContractClauseTemplate[];
   selectedClauses: SelectedClause[];
   signaturePins: SignaturePin[];
   reviewTask: {
@@ -168,46 +198,32 @@ type ContratoState = {
     concluido_em: string | null;
     created_at: string;
   } | null;
+  engine: CanonicalContractBuildResult | null;
+  proposalSnapshot: ProposalContractSnapshot | null;
+  objectDraft?: ContractObjectDraft;
+  proposalChanged?: boolean;
 };
 
 // ─── Seções e códigos dos campos ─────────────────────────────────────────────
 
 /** Campos agrupados por seção do formulário do builder. */
-const SECTION_INSTRUMENTO = ["cc_tipo_instrumento", "cc_objeto"] as const;
 const SECTION_VALORES = [
   "cc_tipo_pagamento",
   "cc_valores",
 ] as const;
 const SECTION_PRAZO = ["cc_prazo_revisao"] as const;
 
-/** Áreas de atuação — cada área tem um toggle "cc_incluir_X" e campos condicionais */
-const AREAS_CONFIG = [
-  {
-    toggleCode: "cc_incluir_trabalhista",
-    label: "Assessoria Trabalhista",
-    detailCodes: ["cc_trabalhista_limite_acoes", "cc_trabalhista_horas_consultivas"],
-  },
-  {
-    toggleCode: "cc_incluir_civel",
-    label: "Assessoria Cível",
-    detailCodes: ["cc_civel_limite_processos", "cc_civel_horas_consultivas"],
-  },
-  {
-    toggleCode: "cc_incluir_contratual",
-    label: "Assessoria Contratual/Societária",
-    detailCodes: ["cc_contratual_horas_mensais"],
-  },
-  {
-    toggleCode: "cc_incluir_tributario",
-    label: "Assessoria Tributária",
-    detailCodes: ["cc_tributario_limite_acoes"],
-  },
-  {
-    toggleCode: "cc_incluir_exito",
-    label: "Honorários de Êxito",
-    detailCodes: ["cc_exito_percentual"],
-  },
-] as const;
+type InclusionToggle = {
+  toggleCode: string;
+  label: string;
+  detailCodes: readonly string[];
+};
+
+const EXITO_CONFIG: InclusionToggle = {
+  toggleCode: "cc_incluir_exito",
+  label: "Honorários de êxito",
+  detailCodes: ["cc_exito_percentual"],
+};
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -266,6 +282,15 @@ export function ContratoDocumentBuilder({
     ["cp_cliente_cidade", "cp_cliente_uf", "cp_investimento_resumo"].includes(f.fieldCode),
   );
 
+  function goToPendingItem(item: ContratoPendingField) {
+    setBuilderOpen(true);
+    if (!item.sectionId) return;
+    const sectionId = item.sectionId;
+    window.setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  }
+
   return (
     <section className="overflow-hidden rounded-[28px] border border-crm-border-warm-strong bg-crm-surface-warm shadow-[0_28px_80px_rgba(16,31,46,0.12)]">
       {/* Header */}
@@ -284,7 +309,7 @@ export function ContratoDocumentBuilder({
             </h2>
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-100/85">
               {hasInstance
-                ? "Rascunho em andamento. Clique em &ldquo;Continuar Elaboração&rdquo; para editar."
+                ? "Rascunho em andamento. Clique em “Continuar Elaboração” para editar."
                 : "Selecione o modelo, preencha os dados e visualize o preview ao vivo."}
             </p>
           </div>
@@ -363,12 +388,25 @@ export function ContratoDocumentBuilder({
                   Todos os campos obrigatórios estão preenchidos.
                 </p>
               ) : (
-                <ul className="space-y-1 text-sm text-primary-dark/80">
+                <ul className="space-y-1">
                   {pending.slice(0, 6).map((item) => (
-                    <li key={item}>· {item}</li>
+                    <li key={item.label}>
+                      <button
+                        type="button"
+                        onClick={() => goToPendingItem(item)}
+                        className="group flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-sm text-primary-dark/80 transition-colors hover:bg-amber-100/60"
+                      >
+                        <TriangleAlert className="size-3.5 shrink-0 text-amber-500" aria-hidden />
+                        <span className="flex-1">{item.label}</span>
+                        <ChevronRight
+                          className="size-3.5 shrink-0 text-amber-400 opacity-0 transition-opacity group-hover:opacity-100"
+                          aria-hidden
+                        />
+                      </button>
+                    </li>
                   ))}
                   {pending.length > 6 ? (
-                    <li className="text-xs text-muted-foreground">
+                    <li className="px-1.5 text-xs text-muted-foreground">
                       + {pending.length - 6} pendências
                     </li>
                   ) : null}
@@ -457,7 +495,10 @@ function ContratoBuilderDialog({
 
   // ── State ──────────────────────────────────────────────────────────────────
   const initDraft = () =>
-    Object.fromEntries(contratoState.ccFieldDefs.map((f) => [f.fieldCode, f.value]));
+    mergeInheritedContractAreaToggles(
+      Object.fromEntries(contratoState.ccFieldDefs.map((f) => [f.fieldCode, f.value])),
+      contractAreaTogglesFromProposal(contratoState.snapshot.fieldByCode),
+    );
 
   const [draftValues, setDraftValues] = useState<Record<string, string>>(initDraft);
   const [savedValues, setSavedValues] = useState<Record<string, string>>(initDraft);
@@ -500,13 +541,46 @@ function ContratoBuilderDialog({
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
 
   const [confirmClose, setConfirmClose] = useState(false);
+  const [alterarEscoposOpen, setAlterarEscoposOpen] = useState(false);
+
+  const initialObjectDraft = contratoState.objectDraft ?? {
+    objectFieldValues: {},
+    objectOverrides: [] as ContractObjectOverride[],
+    scopeAdjustment: null as ContractScopeAdjustment | null,
+    engineEvents: [] as ContractEngineEvent[],
+    explicitCompositionKey: null as string | null,
+  };
+  const [objectFields, setObjectFields] = useState<Record<string, string>>(
+    initialObjectDraft.objectFieldValues,
+  );
+  const [savedObjectFields, setSavedObjectFields] = useState<Record<string, string>>(
+    initialObjectDraft.objectFieldValues,
+  );
+  const [objectOverrides, setObjectOverrides] = useState<ContractObjectOverride[]>(
+    initialObjectDraft.objectOverrides,
+  );
+  const [savedObjectOverrides, setSavedObjectOverrides] = useState<ContractObjectOverride[]>(
+    initialObjectDraft.objectOverrides,
+  );
+  const [scopeAdjustment, setScopeAdjustment] = useState<ContractScopeAdjustment | null>(
+    initialObjectDraft.scopeAdjustment,
+  );
+  const [savedScopeAdjustment, setSavedScopeAdjustment] = useState<ContractScopeAdjustment | null>(
+    initialObjectDraft.scopeAdjustment,
+  );
+  const [engineEvents, setEngineEvents] = useState<ContractEngineEvent[]>(
+    initialObjectDraft.engineEvents,
+  );
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const isDirty =
     JSON.stringify(draftValues) !== JSON.stringify(savedValues) ||
     selectedTemplateId !== savedTemplateId ||
     JSON.stringify(draftSelectedClauses) !== JSON.stringify(savedSelectedClauses) ||
-    JSON.stringify(draftPins) !== JSON.stringify(savedPins);
+    JSON.stringify(draftPins) !== JSON.stringify(savedPins) ||
+    JSON.stringify(objectFields) !== JSON.stringify(savedObjectFields) ||
+    JSON.stringify(objectOverrides) !== JSON.stringify(savedObjectOverrides) ||
+    JSON.stringify(scopeAdjustment) !== JSON.stringify(savedScopeAdjustment);
 
   const templates = contratoState.templates;
   const selectedTemplateName =
@@ -522,6 +596,36 @@ function ContratoBuilderDialog({
     if (!f) return false;
     return evaluateCondition(f.conditionJson as FieldCondition, draftValues);
   }
+
+  const clauseLibrary = useMemo(() => {
+    if (!contratoState.clauseLibrary) return undefined;
+    return new Map(contratoState.clauseLibrary.map((clause) => [clause.stableKey, clause]));
+  }, [contratoState.clauseLibrary]);
+
+  const liveBuild = useMemo((): CanonicalContractBuildResult | null => {
+    if (!contratoState.proposalSnapshot) return contratoState.engine;
+    return buildCanonicalContract({
+      snapshot: contratoState.proposalSnapshot,
+      fieldByCode: { ...contratoState.snapshot.fieldByCode, ...draftValues },
+      objectFieldValues: objectFields,
+      objectOverrides,
+      scopeAdjustment,
+      explicitCompositionKey: initialObjectDraft.explicitCompositionKey,
+      engineEvents,
+      clauseLibrary,
+    });
+  }, [
+    clauseLibrary,
+    contratoState.engine,
+    contratoState.proposalSnapshot,
+    contratoState.snapshot.fieldByCode,
+    draftValues,
+    engineEvents,
+    initialObjectDraft.explicitCompositionKey,
+    objectFields,
+    objectOverrides,
+    scopeAdjustment,
+  ]);
 
   // ── Preview client-side (instantâneo, sem API) ────────────────────────────
   const livePreview = useMemo((): ContratoDocumentPagePreview => {
@@ -551,7 +655,6 @@ function ContratoBuilderDialog({
       TIPO_PAGAMENTO: f("cc_tipo_pagamento"),
       PRAZO_CONFECCAO: f("cc_prazo_confeccao"),
       PRAZO_REVISAO: f("cc_prazo_revisao"),
-      // Áreas de atuação
       INCLUIR_TRABALHISTA: f("cc_incluir_trabalhista"),
       TRABALHISTA_LIMITE_ACOES: f("cc_trabalhista_limite_acoes"),
       TRABALHISTA_HORAS_CONSULTIVAS: f("cc_trabalhista_horas_consultivas"),
@@ -568,19 +671,27 @@ function ContratoBuilderDialog({
       P: "1",
       F: "1",
     };
-    return buildContratoDocumentPagePreview(data, draftSelectedClauses);
-  }, [contratoState, draftValues, draftSelectedClauses]);
+    const base = buildContratoDocumentPagePreview(data, draftSelectedClauses);
+    if (!liveBuild) return base;
+    // Motor canônico ativo: usa a mesma função (buildCanonicalContratoPage) que
+    // o botão "Gerar DOCX" e o envio ao D4Sign, para os três nunca divergirem.
+    return buildCanonicalContratoPage({
+      canonicalData: liveBuild.data,
+      userExtras: draftSelectedClauses,
+    });
+  }, [contratoState, draftValues, draftSelectedClauses, liveBuild]);
 
-  /** Campos que obrigatoriamente precisam de valor dado o tipo de pagamento. */
-  const instrComplete =
-    Boolean(draftValues.cc_tipo_instrumento?.trim()) &&
-    Boolean(draftValues.cc_objeto?.trim());
+  const objectComplete = Boolean(
+    liveBuild &&
+      liveBuild.data.contractObject.missingScopeIds.length === 0 &&
+      liveBuild.data.contractObject.missingRequiredFields.length === 0 &&
+      liveBuild.data.scopes.every((s) => !s.missingProfile),
+  );
+  const scopesComplete = Boolean(
+    liveBuild && liveBuild.data.scopes.length > 0 && liveBuild.data.scopes.every((s) => !s.missingProfile),
+  );
   const valsComplete = Boolean(draftValues.cc_tipo_pagamento?.trim());
   const prazComplete = Boolean(draftValues.cc_prazo_revisao?.trim());
-  /** Pelo menos uma área de atuação selecionada */
-  const areasComplete = AREAS_CONFIG.some(
-    (a) => draftValues[a.toggleCode]?.trim() === "Sim",
-  );
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   function fieldChange(code: string, value: string) {
@@ -603,35 +714,69 @@ function ContratoBuilderDialog({
       }),
     );
     await Promise.all(patches);
+    const completedFields = Object.entries(objectFields).filter(
+      ([key, value]) => value.trim() && !String(savedObjectFields[key] ?? "").trim(),
+    );
+    const nextEvents = completedFields.reduce(
+      (events, [key]) =>
+        appendContractEngineEvent(events, {
+          type: "contract_object_field_completed",
+          payload: { key },
+        }),
+      engineEvents,
+    );
+    if (nextEvents !== engineEvents) setEngineEvents(nextEvents);
     // Salvar seleção de template + cláusulas adicionais + pins
-    await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato`, {
+    const persistRes = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         templateId: selectedTemplateId,
         status: "draft",
+        expectedUpdatedAt: contratoState.instance?.updated_at,
         data: {
           clausulas_selecionadas: draftSelectedClauses,
           pins_signatarios: draftPins,
+          contract_object_fields: objectFields,
+          contract_object_overrides: objectOverrides,
+          contract_scope_adjustments: scopeAdjustment,
+          contract_engine_events: nextEvents,
+          explicit_composition_key: initialObjectDraft.explicitCompositionKey,
         },
       }),
     });
+    if (!persistRes.ok) {
+      const json = (await persistRes.json().catch(() => ({}))) as { error?: string };
+      throw new Error(json.error ?? "Falha ao salvar o rascunho do contrato.");
+    }
 
     // Se prazo de revisão foi definido ou alterado, notificar Societário e Contratos
     const prazoRevisao = draftValues.cc_prazo_revisao?.trim() ?? "";
     const savedPrazoRevisao = savedValues.cc_prazo_revisao?.trim() ?? "";
     if (prazoRevisao && prazoRevisao !== savedPrazoRevisao) {
-      await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/review-task`, {
+      if (!objectComplete) {
+        throw new Error(
+          "Não é possível enviar o contrato para revisão. Complete o Objeto do Contrato e os escopos sem perfil.",
+        );
+      }
+      const reviewRes = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/review-task`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prazoRevisao }),
       });
+      if (!reviewRes.ok) {
+        const json = (await reviewRes.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error ?? "Não foi possível enviar o contrato para revisão.");
+      }
     }
 
     setSavedValues({ ...draftValues });
     setSavedTemplateId(selectedTemplateId);
     setSavedSelectedClauses([...draftSelectedClauses]);
     setSavedPins([...draftPins]);
+    setSavedObjectFields({ ...objectFields });
+    setSavedObjectOverrides([...objectOverrides]);
+    setSavedScopeAdjustment(scopeAdjustment);
   }
 
   async function handleSave() {
@@ -733,6 +878,9 @@ function ContratoBuilderDialog({
                 <DialogTitle className="text-base font-extrabold tracking-[-0.02em] text-white">
                   Elaborar Contrato
                 </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Edição do contrato herdado automaticamente da proposta aprovada.
+                </DialogDescription>
                 {isDirty ? (
                   <span className="rounded-full bg-amber-500/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">
                     Não salvo
@@ -823,10 +971,21 @@ function ContratoBuilderDialog({
           {/* ── Body split-pane ── */}
           <div className="flex min-h-0 flex-1 overflow-hidden">
             {/* Painel esquerdo — Formulário */}
-            <aside className="crm-scrollbar w-[46%] shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-5 py-6 sm:px-6">
-              <div className="space-y-8">
+            <aside className="crm-scrollbar w-[46%] shrink-0 overflow-y-auto border-r border-slate-200 bg-white">
+              <SectionNav
+                sections={[
+                  { id: "section-partes", num: 1, label: "Partes", state: propostaEmpresaPrincipalNome ? "complete" : "pending" },
+                  { id: "section-escopos", num: 2, label: "Escopos", state: scopesComplete ? "complete" : "pending" },
+                  { id: "section-objeto", num: 3, label: "Objeto", state: objectComplete ? "complete" : "pending" },
+                  { id: "section-condicoes", num: 4, label: "Condições", state: valsComplete ? "complete" : "pending" },
+                  { id: "section-vigencia", num: 5, label: "Vigência", state: prazComplete || Boolean(liveBuild) ? "complete" : "pending" },
+                  { id: "section-clausulas", num: 6, label: "Cláusulas", state: "neutral" },
+                  { id: "section-assinaturas", num: 7, label: "Assinaturas", state: "neutral" },
+                ]}
+              />
+              <div className="space-y-8 px-5 py-6 sm:px-6">
                 {/* Seção: Partes (read-only) */}
-                <FormSection num={1} title="Partes" isComplete={Boolean(propostaEmpresaPrincipalNome)}>
+                <FormSection id="section-partes" num={1} title="Partes" isComplete={Boolean(propostaEmpresaPrincipalNome)}>
                   {propostaEmpresaPrincipalNome ? (
                     <div className="rounded-xl border border-teal-200/60 bg-teal-50/50 p-3">
                       <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent-teal/80">
@@ -843,48 +1002,76 @@ function ContratoBuilderDialog({
                   )}
                 </FormSection>
 
-                {/* Seção: Instrumento e Objeto */}
-                <FormSection
-                  num={2}
-                  title="Instrumento e Objeto"
-                  isComplete={instrComplete}
-                >
-                  {(SECTION_INSTRUMENTO as readonly string[]).map((code) => {
-                    const f = fieldByCode[code];
-                    if (!f) return null;
-                    return (
-                      <CcFieldInput
-                        key={code}
-                        field={f}
-                        value={draftValues[code] ?? ""}
-                        onChange={(v) => fieldChange(code, v)}
-                        disabled={saving || generating}
-                      />
-                    );
-                  })}
-                </FormSection>
+                <div id="section-escopos" className="scroll-mt-16">
+                  <EscoposContratadosSection
+                    num={2}
+                    scopes={liveBuild?.data.scopes ?? []}
+                    proposalAligned={!scopeAdjustment}
+                    disabled={saving || generating}
+                    onRequestChange={() => setAlterarEscoposOpen(true)}
+                  />
+                </div>
 
-                {/* Seção 3: Áreas de Atuação */}
-                <AreasSection
-                  num={3}
-                  areasConfig={AREAS_CONFIG}
-                  fieldByCode={fieldByCode}
-                  draftValues={draftValues}
-                  onChange={fieldChange}
-                  isComplete={areasComplete}
-                  disabled={saving || generating}
-                />
+                <div id="section-objeto" className="scroll-mt-16">
+                  <ObjetoContratoSection
+                    num={3}
+                    build={liveBuild}
+                    disabled={saving || generating}
+                    onFieldChange={(key, value) => {
+                      setObjectFields((prev) => ({ ...prev, [key]: value }));
+                      setSaveFeedback(null);
+                    }}
+                    onOverride={(blockStableKey, content, reason) => {
+                      if (!liveBuild) return;
+                      const next = applyObjectOverride({
+                        object: liveBuild.data.contractObject,
+                        blockStableKey,
+                        overrideContent: content,
+                        reason,
+                        changedBy: "comercial",
+                      });
+                      setObjectOverrides(next.overrides);
+                      setEngineEvents((prev) =>
+                        appendContractEngineEvent(prev, {
+                          type: "contract_object_overridden",
+                          payload: { blockStableKey, reason, invalidatesReview: true },
+                        }),
+                      );
+                      if (contratoState.reviewTask && contratoState.reviewTask.status !== "pendente") {
+                        void fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/review-task`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            status: "pendente",
+                            observacao: "Revisão invalidada: objeto do contrato foi ajustado.",
+                          }),
+                        });
+                      }
+                      setSaveFeedback(null);
+                    }}
+                  />
+                </div>
 
-                {/* Seção: Valores e Pagamento */}
+                {/* Seção: Condições comerciais */}
                 <FormSection
+                  id="section-condicoes"
                   num={4}
-                  title="Valores e Pagamento"
+                  title="Condições Comerciais"
                   isComplete={valsComplete}
                 >
                   {(SECTION_VALORES as readonly string[]).map((code) => {
                     if (!isVisible(code)) return null;
                     const f = fieldByCode[code];
                     if (!f) return null;
+                    // cc_valores é obrigatório sempre que há forma de pagamento definida e
+                    // ela não é "Êxito" puro (mesma regra de listContratoPendingFields) —
+                    // is_required no banco é false porque a obrigatoriedade é condicional,
+                    // então o asterisco precisa desse override pontual pra não ficar errado.
+                    const requiredOverride =
+                      code === "cc_valores"
+                        ? Boolean(draftValues.cc_tipo_pagamento?.trim()) &&
+                          draftValues.cc_tipo_pagamento?.trim() !== "Êxito"
+                        : undefined;
                     return (
                       <CcFieldInput
                         key={code}
@@ -892,13 +1079,40 @@ function ContratoBuilderDialog({
                         value={draftValues[code] ?? ""}
                         onChange={(v) => fieldChange(code, v)}
                         disabled={saving || generating}
+                        requiredOverride={requiredOverride}
                       />
                     );
                   })}
+                  <InclusionToggleCard
+                    item={EXITO_CONFIG}
+                    fieldByCode={fieldByCode}
+                    draftValues={draftValues}
+                    onChange={fieldChange}
+                    disabled={saving || generating}
+                  />
                 </FormSection>
 
-                {/* Seção 5: Prazo para Revisão */}
-                <FormSection num={5} title="Prazo para Revisão" isComplete={prazComplete}>
+                {/* Seção 5: Vigência e início */}
+                <FormSection id="section-vigencia" num={5} title="Vigência e Início" isComplete={prazComplete || Boolean(liveBuild)}>
+                  {liveBuild ? (
+                    <div className="rounded-xl border border-teal-200/60 bg-teal-50/40 p-3 text-xs text-primary-dark">
+                      <p>
+                        <span className="font-bold">Vigência: </span>
+                        {liveBuild.data.term.kind === "indefinite"
+                          ? "Prazo indeterminado"
+                          : liveBuild.data.term.estimateLabel || liveBuild.data.term.kind}
+                      </p>
+                      <p className="mt-1">
+                        <span className="font-bold">Início: </span>
+                        {liveBuild.data.startRule.kind === "on_signature"
+                          ? "Na assinatura"
+                          : liveBuild.data.startRule.kind === "on_first_payment"
+                            ? "No primeiro pagamento"
+                            : liveBuild.data.startRule.date || "Data definida"}
+                      </p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">Resolvida pelo perfil contratual ✓</p>
+                    </div>
+                  ) : null}
                   {(SECTION_PRAZO as readonly string[]).map((code) => {
                     const f = fieldByCode[code];
                     if (!f) return null;
@@ -928,21 +1142,26 @@ function ContratoBuilderDialog({
                 </FormSection>
 
                 {/* Seção 6: Cláusulas Adicionais */}
-                <ClausulasSection
-                  available={contratoState.availableClauses ?? []}
-                  selected={draftSelectedClauses}
-                  onChange={setDraftSelectedClauses}
-                  disabled={saving || generating}
-                />
+                <div id="section-clausulas" className="scroll-mt-16">
+                  <ClausulasSection
+                    available={contratoState.availableClauses ?? []}
+                    selected={draftSelectedClauses}
+                    onChange={setDraftSelectedClauses}
+                    disabled={saving || generating}
+                  />
+                </div>
 
                 {/* Seção 7: Posicionar Assinaturas (rubrica/pin) */}
-                <PinsSection
-                  pins={draftPins}
-                  onChange={setDraftPins}
-                  pinMode={pinMode}
-                  onPinModeChange={setPinMode}
-                  disabled={saving || generating}
-                />
+                <div id="section-assinaturas" className="scroll-mt-16">
+                  <PinsSection
+                    pins={draftPins}
+                    onChange={setDraftPins}
+                    pinMode={pinMode}
+                    onPinModeChange={setPinMode}
+                    disabled={saving || generating}
+                  />
+                </div>
+
               </div>
             </aside>
 
@@ -1016,6 +1235,41 @@ function ContratoBuilderDialog({
         </DialogContent>
       </Dialog>
 
+      <AlterarEscoposDialog
+        open={alterarEscoposOpen}
+        onOpenChange={setAlterarEscoposOpen}
+        scopes={
+          contratoState.proposalSnapshot
+            ? resolveContractScopes(contratoState.proposalSnapshot.escopoJson)
+            : (contratoState.engine?.data.scopes ?? [])
+        }
+        current={scopeAdjustment}
+        onConfirm={(adjustment) => {
+          const removed = new Set(adjustment.removedEntryIds);
+          const prevRemoved = new Set(scopeAdjustment?.removedEntryIds ?? []);
+          let events = engineEvents;
+          for (const id of removed) {
+            if (!prevRemoved.has(id)) {
+              events = appendContractEngineEvent(events, {
+                type: "contract_scope_removed_from_object",
+                payload: { entryId: id, reason: adjustment.reason },
+              });
+            }
+          }
+          for (const id of prevRemoved) {
+            if (!removed.has(id)) {
+              events = appendContractEngineEvent(events, {
+                type: "contract_scope_added_to_object",
+                payload: { entryId: id, reason: adjustment.reason },
+              });
+            }
+          }
+          setEngineEvents(events);
+          setScopeAdjustment(adjustment);
+          setSaveFeedback(null);
+        }}
+      />
+
       {/* Confirmação de descarte — z acima do builder (z-[110]) */}
       <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
         <AlertDialogContent overlayClassName="z-[120]" className="z-[130]">
@@ -1080,7 +1334,7 @@ function D4SignSendSection({
   appUsersByEmail = {},
 }: {
   lead: LeadDetailData;
-  pending: string[];
+  pending: ContratoPendingField[];
   reviewTask: ContratoState["reviewTask"];
   onRefresh: () => Promise<void>;
   appUsersByEmail?: Record<string, { avatarUrl: string | null; fullName: string }>;
@@ -1345,7 +1599,12 @@ function D4SignSendSection({
               Preencha os campos pendentes no builder antes de enviar:
             </p>
             <ul className="mt-1 space-y-0.5 text-xs text-amber-600">
-              {pending.slice(0, 4).map((p) => <li key={p}>· {p}</li>)}
+              {pending.slice(0, 4).map((p) => (
+                <li key={p.label} className="flex items-center gap-1.5">
+                  <TriangleAlert className="size-3 shrink-0" aria-hidden />
+                  {p.label}
+                </li>
+              ))}
               {pending.length > 4 && <li>+ {pending.length - 4} campos</li>}
             </ul>
           </div>
@@ -1695,102 +1954,77 @@ function SignerRow({
 
 // ─── Seção: Áreas de Atuação ─────────────────────────────────────────────────
 
-function AreasSection({
-  num,
-  areasConfig,
+function InclusionToggleCard({
+  item,
   fieldByCode,
   draftValues,
   onChange,
-  isComplete,
   disabled,
 }: {
-  num: number;
-  areasConfig: typeof AREAS_CONFIG;
+  item: InclusionToggle;
   fieldByCode: Record<string, CcFieldDef>;
   draftValues: Record<string, string>;
   onChange: (code: string, value: string) => void;
-  isComplete: boolean;
   disabled?: boolean;
 }) {
+  const isIncluded = draftValues[item.toggleCode]?.trim() === "Sim";
   return (
-    <FormSection num={num} title="Áreas de Atuação" isComplete={isComplete}>
-      <p className="text-xs text-muted-foreground">
-        Selecione quais áreas fazem parte deste contrato e preencha os limites correspondentes.
-      </p>
-      <div className="space-y-3">
-        {areasConfig.map((area) => {
-          const isIncluded = draftValues[area.toggleCode]?.trim() === "Sim";
-          return (
-            <div
-              key={area.toggleCode}
-              className={cn(
-                "rounded-xl border transition-colors",
-                isIncluded
-                  ? "border-teal-200 bg-teal-50/50"
-                  : "border-slate-200 bg-white",
-              )}
-            >
-              {/* Toggle header */}
-              <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={isIncluded}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      onChange(area.toggleCode, e.target.checked ? "Sim" : "Não")
-                    }
-                  />
-                  <div
-                    className={cn(
-                      "flex size-5 items-center justify-center rounded-md border-2 transition-colors",
-                      isIncluded
-                        ? "border-teal-500 bg-teal-500"
-                        : "border-slate-300 bg-white",
-                    )}
-                  >
-                    {isIncluded && <Check className="size-3 text-white" aria-hidden />}
-                  </div>
-                </div>
-                <span
-                  className={cn(
-                    "flex-1 text-sm font-semibold",
-                    isIncluded ? "text-teal-900" : "text-slate-600",
-                  )}
-                >
-                  {area.label}
-                </span>
-                {isIncluded && (
-                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
-                    Incluído
-                  </span>
-                )}
-              </label>
-
-              {/* Detail fields (conditionally shown) */}
-              {isIncluded && area.detailCodes.length > 0 && (
-                <div className="border-t border-teal-100 px-4 pb-4 pt-3 space-y-3">
-                  {(area.detailCodes as readonly string[]).map((code) => {
-                    const f = fieldByCode[code];
-                    if (!f) return null;
-                    return (
-                      <CcFieldInput
-                        key={code}
-                        field={f}
-                        value={draftValues[code] ?? ""}
-                        onChange={(v) => onChange(code, v)}
-                        disabled={disabled}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </FormSection>
+    <div
+      className={cn(
+        "rounded-xl border transition-colors",
+        isIncluded ? "border-teal-200 bg-teal-50/50" : "border-slate-200 bg-white",
+      )}
+    >
+      <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
+        <div className="relative">
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={isIncluded}
+            disabled={disabled}
+            onChange={(e) => onChange(item.toggleCode, e.target.checked ? "Sim" : "Não")}
+          />
+          <div
+            className={cn(
+              "flex size-5 items-center justify-center rounded-md border-2 transition-colors",
+              isIncluded ? "border-teal-500 bg-teal-500" : "border-slate-300 bg-white",
+            )}
+          >
+            {isIncluded && <Check className="size-3 text-white" aria-hidden />}
+          </div>
+        </div>
+        <span
+          className={cn(
+            "flex-1 text-sm font-semibold",
+            isIncluded ? "text-teal-900" : "text-slate-600",
+          )}
+        >
+          {item.label}
+        </span>
+        {isIncluded ? (
+          <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+            Incluído
+          </span>
+        ) : null}
+      </label>
+      {isIncluded && item.detailCodes.length > 0 ? (
+        <div className="space-y-3 border-t border-teal-100 px-4 pb-4 pt-3">
+          {item.detailCodes.map((code) => {
+            const f = fieldByCode[code];
+            if (!f) return null;
+            return (
+              <CcFieldInput
+                key={code}
+                field={f}
+                value={draftValues[code] ?? ""}
+                onChange={(v) => onChange(code, v)}
+                disabled={disabled}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -2441,41 +2675,71 @@ function ClickablePreview({
 
 // ─── Seção do formulário ──────────────────────────────────────────────────────
 
+// ─── Índice fixo de seções (navegação rápida no painel esquerdo) ─────────────
+
+type NavSectionState = "complete" | "pending" | "neutral";
+
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function SectionNav({
+  sections,
+}: {
+  sections: Array<{ id: string; num: number; label: string; state: NavSectionState }>;
+}) {
+  return (
+    <div className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white/95 px-5 py-2 backdrop-blur sm:px-6">
+      {sections.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          title={s.label}
+          onClick={() => scrollToSection(s.id)}
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors",
+            s.state === "complete"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              : s.state === "pending"
+                ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100",
+          )}
+        >
+          <span
+            className={cn(
+              "flex size-4 shrink-0 items-center justify-center rounded-full text-[9px]",
+              s.state === "complete"
+                ? "bg-emerald-600 text-white"
+                : s.state === "pending"
+                  ? "bg-amber-500 text-white"
+                  : "bg-slate-300 text-white",
+            )}
+          >
+            {s.state === "complete" ? <Check className="size-2.5" aria-hidden /> : s.num}
+          </span>
+          <span className="hidden md:inline">{s.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function FormSection({
+  id,
   num,
   title,
   isComplete,
   children,
 }: {
+  id?: string;
   num: number;
   title: string;
   isComplete: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <span
-          className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-black",
-            isComplete
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-slate-100 text-slate-500",
-          )}
-        >
-          {isComplete ? <Check className="size-3.5" aria-hidden /> : num}
-        </span>
-        <h3 className="text-sm font-bold tracking-[-0.01em] text-primary-dark">{title}</h3>
-        {!isComplete ? (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-            Pendente
-          </span>
-        ) : (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-            Completo
-          </span>
-        )}
-      </div>
+    <div id={id} className="scroll-mt-16 space-y-3">
+      <SectionHeading num={num} title={title} complete={isComplete} />
       <div className="ml-10 space-y-4">{children}</div>
     </div>
   );
@@ -2483,28 +2747,58 @@ function FormSection({
 
 // ─── Input de campo cc_* ──────────────────────────────────────────────────────
 
+/** Dicas de preenchimento por código de campo — evita repetir a própria label como placeholder. */
+const CC_FIELD_PLACEHOLDER_HINTS: Record<string, string> = {
+  cc_valores: "Ex.: R$ 2.000,00/mês",
+  cc_tipo_pagamento: "Ex.: Boleto mensal, dia 10",
+  cc_prazo_revisao: "Data limite para o Societário revisar",
+  cc_prazo_confeccao: "Prazo para elaboração do contrato",
+  cc_exito_percentual: "Ex.: 10% sobre o proveito econômico",
+  cc_exito_areas: "Áreas em que o êxito se aplica",
+  cc_trabalhista_limite_acoes: "Quantidade de ações inclusas no pacote",
+  cc_trabalhista_horas_consultivas: "Ex.: 10 horas/mês",
+  cc_civel_limite_processos: "Quantidade de processos inclusos no pacote",
+  cc_civel_horas_consultivas: "Ex.: 10 horas/mês",
+  cc_contratual_horas_mensais: "Ex.: 10 horas/mês",
+  cc_tributario_limite_acoes: "Quantidade de ações inclusas no pacote",
+  cc_objeto: "Descrição livre do objeto contratado",
+};
+
+function ccFieldPlaceholder(field: CcFieldDef, label: string): string {
+  return CC_FIELD_PLACEHOLDER_HINTS[field.fieldCode] ?? `Preencha: ${label.toLowerCase()}`;
+}
+
 function CcFieldInput({
   field,
   value,
   onChange,
   disabled,
+  requiredOverride,
 }: {
   field: CcFieldDef;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  /** Sobrepõe `field.required` quando a obrigatoriedade é condicional (não fixa no banco). */
+  requiredOverride?: boolean;
 }) {
   const label = field.label.replace(" [CC]", "");
+  const isRequired = requiredOverride ?? field.required;
+  const labelNode = (
+    <Label className="flex items-center gap-1 text-xs font-medium text-primary-dark">
+      {label}
+      {isRequired ? <span className="text-rose-500" aria-hidden>*</span> : null}
+      {isRequired ? <span className="sr-only"> (obrigatório)</span> : null}
+    </Label>
+  );
 
   if (field.fieldType === "select" && Array.isArray(field.fieldOptions)) {
     return (
       <div className="space-y-1.5">
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+        {labelNode}
         <Select value={value} onValueChange={(v) => { if (v) onChange(v); }} disabled={disabled}>
           <SelectTrigger className="h-10 border-slate-200 bg-white text-sm">
-            <span className={cn("text-left", !value && "text-muted-foreground")}>
-              {value || "Selecionar..."}
-            </span>
+            <CrmSelectValue value={value} placeholder="Selecionar..." />
           </SelectTrigger>
           <CrmSelectContent className="max-h-[min(280px,50dvh)]">
             {field.fieldOptions.map((opt) => (
@@ -2521,7 +2815,7 @@ function CcFieldInput({
   if (field.fieldType === "date") {
     return (
       <div className="space-y-1.5">
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+        {labelNode}
         <DateInputBr
           value={value}
           onChange={onChange}
@@ -2535,12 +2829,12 @@ function CcFieldInput({
   if (field.fieldType === "textarea") {
     return (
       <div className="space-y-1.5">
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+        {labelNode}
         <Textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          placeholder={`${label}…`}
+          placeholder={ccFieldPlaceholder(field, label)}
           className="min-h-[110px] resize-y border-slate-200 bg-white text-sm leading-relaxed"
         />
       </div>
@@ -2549,12 +2843,12 @@ function CcFieldInput({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+      {labelNode}
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        placeholder={`${label}…`}
+        placeholder={ccFieldPlaceholder(field, label)}
         className="h-10 border-slate-200 bg-white text-sm"
       />
     </div>
@@ -2634,9 +2928,10 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
     ? (page.areas ?? []).find((a) => a.key === "exito")
     : null;
 
-  let clauseCounter = 2; // 1=objeto, 2=honorários
+  let clauseCounter = 3; // 1=objeto, 2=objetos excluídos, 3=honorários
   const nObjeto    = 1;
-  const nHonorarios = 2;
+  const nObjetosExcluidos = 2;
+  const nHonorarios = 3;
 
   // Áreas não-êxito: cada uma recebe um número
   const areaClauseNums = areasClauses.map(() => ++clauseCounter);
@@ -2714,7 +3009,14 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
         <p className="whitespace-pre-wrap">{page.objeto || ELLIPSIS}</p>
       </ContratoClause>
 
-      {/* ── 2. DOS HONORÁRIOS ── */}
+      {/* ── 2. OBJETOS EXCLUÍDOS DO CONTRATO ── */}
+      {page.objetosExcluidos ? (
+        <ContratoClause num={nObjetosExcluidos} title={page.objetosExcluidos.title.toUpperCase()}>
+          <ClausulaBody num={nObjetosExcluidos} clausula={page.objetosExcluidos} ellipsis={ELLIPSIS} />
+        </ContratoClause>
+      ) : null}
+
+      {/* ── 3. DOS HONORÁRIOS ── */}
       <ContratoClause num={nHonorarios} title="DOS HONORÁRIOS CONTRATUAIS">
         <p className="whitespace-pre-wrap">{page.valores || ELLIPSIS}</p>
         {page.tipoPagamento ? (
@@ -2790,13 +3092,43 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
       ) : null}
 
       {/* ── Cláusulas adicionais (biblioteca) ── */}
-      {page.clausulasAdicionais.map((c, i) => (
-        <ContratoClause key={i} num={nBaseAdicionais + i + 1} title={c.title.toUpperCase()}>
-          <p className="whitespace-pre-wrap">{c.content || ELLIPSIS}</p>
-        </ContratoClause>
-      ))}
+      {page.clausulasAdicionais.map((c, i) => {
+        const num = nBaseAdicionais + i + 1;
+        return (
+          <ContratoClause key={i} num={num} title={c.title.toUpperCase()}>
+            <ClausulaBody num={num} clausula={c} ellipsis={ELLIPSIS} />
+          </ContratoClause>
+        );
+      })}
     </div>
   );
+}
+
+/** Corpo de uma cláusula: texto único, ou sub-itens N.1, N.2... numerados com o N do pai. */
+function ClausulaBody({
+  num,
+  clausula,
+  ellipsis,
+}: {
+  num: number;
+  clausula: { content: string; items?: Array<{ title: string; content: string }> };
+  ellipsis: string;
+}) {
+  if (clausula.items && clausula.items.length > 0) {
+    return (
+      <div className="space-y-2">
+        {clausula.items.map((item, j) => (
+          <p key={j} className="whitespace-pre-wrap">
+            <strong>
+              {num}.{j + 1}. {item.title}.
+            </strong>{" "}
+            {item.content}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return <p className="whitespace-pre-wrap">{clausula.content || ellipsis}</p>;
 }
 
 /** Folha dedicada de assinaturas — sempre a última página do PDF enviado à D4Sign. */
