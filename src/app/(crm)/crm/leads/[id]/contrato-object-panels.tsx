@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Check,
+  ChevronRight,
   ClipboardCheck,
   FileEdit,
   Handshake,
@@ -178,23 +179,23 @@ export function ObjetoContratoSection({
             ) : null}
 
             {object.fieldValues.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {missingCount > 0 ? (
                   <p className="text-xs font-bold text-amber-800">
                     ⚠ Faltam {missingCount} {missingCount === 1 ? "informação" : "informações"} para gerar o
                     Objeto
                   </p>
                 ) : null}
-                {/* Lista única e com ordem estável: o campo NUNCA muda de posição/container ao
-                    ser preenchido — só muda de estilo (borda âmbar → neutro). Antes disso, o
-                    campo ficava numa lista "faltando" separada de uma lista "preenchidos", e ao
-                    digitar 1 caractere ele pulava de uma pra outra, o que desmontava o input e
-                    tirava o foco/cursor do usuário no meio da digitação. */}
-                {object.fieldValues.map((field) => (
-                  <ObjectFieldInput
-                    key={`${field.scopeEntryId ?? "g"}:${field.key}`}
-                    field={field}
-                    scopeLabel={field.scopeEntryId ? scopeLabelByEntryId.get(field.scopeEntryId) : undefined}
+                {/* Agrupado por escopo (mesmo padrão de Cláusulas Adicionais), recolhível.
+                    A chave de agrupamento (scopeEntryId) é estável — não muda ao digitar em
+                    nenhum campo — então o grupo/posição de cada input nunca muda entre
+                    renders; só o estilo do card individual muda (âmbar → neutro). Isso
+                    preserva a correção do bug de foco: reagrupar por um valor que MUDA ao
+                    digitar (ex.: preenchido/faltando) reintroduziria o mesmo problema. */}
+                {groupObjectFieldsByScope(object.fieldValues, scopeLabelByEntryId).map((group) => (
+                  <ObjectFieldGroupBlock
+                    key={group.scopeLabel}
+                    group={group}
                     disabled={disabled}
                     onChange={onFieldChange}
                   />
@@ -225,21 +226,105 @@ export function ObjetoContratoSection({
   );
 }
 
+// ─── Agrupamento dos campos do Objeto por escopo ─────────────────────────────
+
+type ObjectFieldGroup = {
+  scopeLabel: string;
+  fields: ContractObjectFieldValue[];
+  missingCount: number;
+};
+
+function groupObjectFieldsByScope(
+  fieldValues: ContractObjectFieldValue[],
+  scopeLabelByEntryId: Map<string, string>,
+): ObjectFieldGroup[] {
+  const bySccope = new Map<string, ContractObjectFieldValue[]>();
+  const order: string[] = [];
+  for (const field of fieldValues) {
+    const label = (field.scopeEntryId && scopeLabelByEntryId.get(field.scopeEntryId)) || "Geral";
+    if (!bySccope.has(label)) {
+      bySccope.set(label, []);
+      order.push(label);
+    }
+    bySccope.get(label)!.push(field);
+  }
+  return order.map((scopeLabel) => {
+    const fields = bySccope.get(scopeLabel)!;
+    return {
+      scopeLabel,
+      fields,
+      missingCount: fields.filter((f) => f.required && !f.value.trim()).length,
+    };
+  });
+}
+
+/** Bloco recolhível dos campos de um escopo (ex.: "Cível — Contencioso Cível
+ * (+1 processo)") — mesmo padrão visual de `ClauseGroupBlock` no builder. */
+function ObjectFieldGroupBlock({
+  group,
+  disabled,
+  onChange,
+}: {
+  group: ObjectFieldGroup;
+  disabled?: boolean;
+  onChange: (key: string, value: string) => void;
+}) {
+  const [open, setOpen] = useState(group.missingCount > 0);
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/70">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+      >
+        <ChevronRight
+          className={cn("size-3.5 shrink-0 text-slate-400 transition-transform duration-150", open && "rotate-90")}
+          aria-hidden
+        />
+        <span className="flex-1 truncate text-[11px] font-bold uppercase tracking-[0.1em] text-slate-600">
+          {group.scopeLabel}
+        </span>
+        {group.missingCount > 0 ? (
+          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+            {group.missingCount} pendente{group.missingCount > 1 ? "s" : ""}
+          </span>
+        ) : (
+          <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+            Completo
+          </span>
+        )}
+      </button>
+      {open ? (
+        <div className="space-y-2 border-t border-slate-200 px-3 pb-3 pt-2.5">
+          {group.fields.map((field) => (
+            <ObjectFieldInput
+              key={`${field.scopeEntryId ?? "g"}:${field.key}`}
+              field={field}
+              disabled={disabled}
+              onChange={onChange}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ObjectFieldInput({
   field,
-  scopeLabel,
   disabled,
   onChange,
 }: {
   field: ContractObjectFieldValue;
-  /** Área/escopo dono do campo (ex.: "Trabalhista — Contencioso") — evita confundir campos com o mesmo nome de escopos diferentes. */
-  scopeLabel?: string;
   disabled?: boolean;
   onChange: (key: string, value: string) => void;
 }) {
   const isProcesso = field.key === "numero_processo" || field.key === "numero_processo_civel";
   const value = isProcesso ? maskNumeroProcessoCNJ(field.value) : field.value;
   const isMissing = field.required && !field.value.trim();
+  const inputId = `object-field-${field.scopeEntryId ?? "g"}-${field.key}`;
   return (
     <div
       className={cn(
@@ -247,16 +332,12 @@ function ObjectFieldInput({
         isMissing ? "border-amber-200 bg-amber-50/40" : "border-transparent bg-transparent",
       )}
     >
-      {scopeLabel ? (
-        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-primary-dark/45">
-          {scopeLabel}
-        </p>
-      ) : null}
-      <Label className="text-xs font-semibold text-primary-dark">
+      <Label htmlFor={inputId} className="text-xs font-semibold text-primary-dark">
         {field.label}
         {field.required ? <span className="text-rose-500"> *</span> : ""}
       </Label>
       <Input
+        id={inputId}
         value={value}
         disabled={disabled}
         onChange={(e) =>
@@ -338,18 +419,40 @@ function ObjectBlockPreview({
   onOverride: (blockStableKey: string, content: string, reason: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [text, setText] = useState(line.content);
   const [reason, setReason] = useState("");
 
   return (
     <div className="rounded-lg border border-white bg-white p-3 shadow-sm">
-      <p className="text-xs font-bold text-primary-dark">
-        {line.number}.{line.title ? ` ${line.title}.` : ""}
-      </p>
-      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-primary-dark/90">{line.content}</p>
-      <p className="mt-2 text-[10px] text-muted-foreground">
-        Origem: perfil contratual · {line.sourceLabel} · v{line.version}
-      </p>
+      <div className="flex items-center gap-2">
+        <p className="min-w-0 flex-1 truncate text-xs font-bold text-primary-dark">
+          {line.number}.{line.title ? ` ${line.title}.` : ""}
+        </p>
+        {override ? (
+          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+            Ajustado
+          </span>
+        ) : null}
+        {/* O texto completo já aparece ao vivo no preview do contrato (painel direito) —
+            aqui fica escondido por padrão pra não duplicar; abre só quem quer conferir
+            antes de decidir se vale ajustar. */}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="shrink-0 text-[11px] font-semibold text-accent-teal hover:underline"
+        >
+          {expanded ? "Ocultar texto" : "Ver texto"}
+        </button>
+      </div>
+      {expanded ? (
+        <>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-primary-dark/90">{line.content}</p>
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            Origem: perfil contratual · {line.sourceLabel} · v{line.version}
+          </p>
+        </>
+      ) : null}
       {override ? (
         <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
           <p className="font-semibold">Override específico deste contrato</p>

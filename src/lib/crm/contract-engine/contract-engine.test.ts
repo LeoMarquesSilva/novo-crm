@@ -424,6 +424,27 @@ describe("preview legado não gera cláusulas numeradas vazias", () => {
     expect(titles).not.toContain("PREÇO E FORMA DE PAGAMENTO");
   });
 
+  it("sub-itens de Objetos Excluídos não repetem 'Exclusão —' no título (já redundante com o cabeçalho da seção)", () => {
+    const result = buildCanonicalContract({
+      snapshot: snapshot({
+        Trabalhista: [entry(SCOPE_IDS.auditoria)],
+        [INVESTIMENTO_DOCUMENTO_KEY]: {
+          tipoId: "honorarios_contratuais",
+          subtipoId: "spot",
+          placeholders: { VALORSPOT: "20000,00", PRIMEIROVENCIMENTO: "10/04/2026" },
+        },
+      }),
+    });
+    const page = previewFromCanonical(result.data);
+    expect(page.objetosExcluidos).not.toBeNull();
+    const itemTitles = page.objetosExcluidos?.items?.map((i) => i.title) ?? [];
+    expect(itemTitles.length).toBeGreaterThan(0);
+    expect(itemTitles.some((t) => /^exclus(ã|a)o\s*[—-]/i.test(t))).toBe(false);
+    // Continua identificável pelo conteúdo específico, só sem o prefixo redundante.
+    expect(itemTitles).toContain("Diagnóstico NR-1");
+    expect(itemTitles).toContain("Canal de Denúncias");
+  });
+
   it("descarta fragmentos numéricos órfãos do Objeto salvos como 'cláusula extra' antiga", () => {
     const result = buildCanonicalContract({
       snapshot: snapshot({
@@ -450,6 +471,148 @@ describe("preview legado não gera cláusulas numeradas vazias", () => {
     expect(titles).not.toContain("1.1. Objeto");
     expect(titles).not.toContain("1.2. Consultivo Trabalhista");
     expect(titles).toContain("Cláusula extra de verdade");
+  });
+
+  it("cláusula 'adicional' de exclusão escolhida manualmente entra como sub-item de Objetos Excluídos, não vira clásula solta duplicada", () => {
+    // Regressão real: um usuário tinha adicionado manualmente "Exclusão — Diagnóstico
+    // NR-1" como cláusula extra (antes de a seção automática de exclusões existir).
+    // Isso renderizava como "12. EXCLUSÃO — DIAGNÓSTICO NR-1", uma cláusula solta com
+    // número próprio, repetindo "Exclusão" no título e deslocada de "2. OBJETOS
+    // EXCLUÍDOS DO CONTRATO", onde semanticamente deveria estar.
+    const result = buildCanonicalContract({
+      snapshot: snapshot({
+        Trabalhista: [entry(SCOPE_IDS.auditoria)],
+        [INVESTIMENTO_DOCUMENTO_KEY]: {
+          tipoId: "honorarios_contratuais",
+          subtipoId: "spot",
+          placeholders: { VALORSPOT: "20000,00", PRIMEIROVENCIMENTO: "10/04/2026" },
+        },
+      }),
+    });
+    const page = buildCanonicalContratoPage({
+      canonicalData: result.data,
+      userExtras: [
+        { title: "Exclusão — Cliente Muito Específico", content: "Texto exclusivo deste cliente." },
+      ],
+    });
+    // Não aparece como cláusula solta.
+    expect(page.clausulasAdicionais.map((c) => c.title)).not.toContain(
+      "Exclusão — Cliente Muito Específico",
+    );
+    // Aparece dentro de Objetos Excluídos, sem repetir "Exclusão" no título do item.
+    expect(page.objetosExcluidos).not.toBeNull();
+    const itemTitles = page.objetosExcluidos?.items?.map((i) => i.title) ?? [];
+    expect(itemTitles).toContain("Cliente Muito Específico");
+    const itemContents = page.objetosExcluidos?.items?.map((i) => i.content) ?? [];
+    expect(itemContents).toContain("Texto exclusivo deste cliente.");
+  });
+
+  it("cláusula extra com o MESMO título de uma que o motor já gera, mas com texto desatualizado, é descartada — não duplicada dentro da própria seção", () => {
+    // Achado real (mesmo lead da Diagnóstico NR-1): a cláusula extra salva
+    // "Exclusão — Diagnóstico NR-1" tinha o texto CURTO/antigo, de antes de o
+    // catálogo ser ampliado (ver legalReviewNote de exclusion_trabalhista_diagnostico).
+    // O motor já gera a versão atual/completa automaticamente para esse escopo —
+    // mesclar a versão antiga como MAIS um item teria criado duas entradas
+    // "Diagnóstico NR-1" lado a lado dentro da mesma seção, uma contradizendo a
+    // outra. A antiga precisa ser descartada, não mesclada.
+    const result = buildCanonicalContract({
+      snapshot: snapshot({
+        Trabalhista: [entry(SCOPE_IDS.auditoria)],
+        [INVESTIMENTO_DOCUMENTO_KEY]: {
+          tipoId: "honorarios_contratuais",
+          subtipoId: "spot",
+          placeholders: { VALORSPOT: "20000,00", PRIMEIROVENCIMENTO: "10/04/2026" },
+        },
+      }),
+    });
+    const page = buildCanonicalContratoPage({
+      canonicalData: result.data,
+      userExtras: [
+        {
+          title: "Exclusão — Diagnóstico NR-1",
+          content:
+            "Não está incluído o mapeamento para diagnóstico de riscos psicossociais nos termos da NR-1, salvo contratação expressa.",
+        },
+      ],
+    });
+    const itemTitles = page.objetosExcluidos?.items?.map((i) => i.title) ?? [];
+    // Só UMA entrada "Diagnóstico NR-1" — a atual do motor, não a duplicata antiga.
+    expect(itemTitles.filter((t) => t === "Diagnóstico NR-1").length).toBe(1);
+    const itemContents = page.objetosExcluidos?.items?.map((i) => i.content) ?? [];
+    // O texto curto/antigo não sobrevive — só o texto atual e completo do catálogo.
+    expect(itemContents.some((c) => c.includes("condução de programas contínuos de treinamentos"))).toBe(
+      true,
+    );
+    expect(
+      itemContents.some(
+        (c) =>
+          c === "Não está incluído o mapeamento para diagnóstico de riscos psicossociais nos termos da NR-1, salvo contratação expressa.",
+      ),
+    ).toBe(false);
+  });
+
+  it("cláusula extra 'Atraso no pagamento' com nota interna de revisão jurídica desatualizada é descartada — não vaza pro contrato de verdade", () => {
+    // Achado real: a cláusula extra continha uma frase de revisão interna
+    // ("REQUIRES LEGAL DECISION quanto à manutenção desta multa como padrão.")
+    // que NÃO existe na versão atual/aprovada do catálogo. Como "Atraso no
+    // pagamento" é cláusula padrão (isRequired) sempre gerada pelo motor dentro
+    // de "INADIMPLEMENTO", a versão antiga precisa ser descartada — nunca
+    // mesclada, sob risco de a nota de revisão interna ir parar no contrato
+    // real enviado ao cliente.
+    const result = buildCanonicalContract({
+      snapshot: snapshot({
+        Trabalhista: [entry(SCOPE_IDS.auditoria)],
+        [INVESTIMENTO_DOCUMENTO_KEY]: {
+          tipoId: "honorarios_contratuais",
+          subtipoId: "spot",
+          placeholders: { VALORSPOT: "20000,00", PRIMEIROVENCIMENTO: "10/04/2026" },
+        },
+      }),
+    });
+    const page = buildCanonicalContratoPage({
+      canonicalData: result.data,
+      userExtras: [
+        {
+          title: "Atraso no pagamento",
+          content:
+            "O atraso no pagamento facultará à Contratada cobrar multa equivalente a 20% (vinte por cento) do valor em mora, acrescida de juros de 1% (um por cento) ao mês, pro rata die, com atualização pela variação positiva do IPCA-E. REQUIRES LEGAL DECISION quanto à manutenção desta multa como padrão.",
+        },
+      ],
+    });
+    expect(page.clausulasAdicionais.map((c) => c.title)).not.toContain("Atraso no pagamento");
+    const inadimplemento = page.clausulasAdicionais.find((c) => c.title === "INADIMPLEMENTO");
+    expect(inadimplemento).toBeDefined();
+    const itemTitles = inadimplemento?.items?.map((i) => i.title) ?? [];
+    expect(itemTitles.filter((t) => t === "Atraso no pagamento").length).toBe(1);
+    const itemContents = inadimplemento?.items?.map((i) => i.content) ?? [];
+    expect(itemContents.some((c) => c.includes("REQUIRES LEGAL DECISION"))).toBe(false);
+  });
+
+  it("cláusula extra 'Despesas' com nota de revisão interna desatualizada é descartada — não duplica a seção Despesas do motor", () => {
+    const result = buildCanonicalContract({
+      snapshot: snapshot({
+        Trabalhista: [entry(SCOPE_IDS.auditoria)],
+        [INVESTIMENTO_DOCUMENTO_KEY]: {
+          tipoId: "honorarios_contratuais",
+          subtipoId: "spot",
+          placeholders: { VALORSPOT: "20000,00", PRIMEIROVENCIMENTO: "10/04/2026" },
+        },
+      }),
+    });
+    const page = buildCanonicalContratoPage({
+      canonicalData: result.data,
+      userExtras: [
+        {
+          title: "Despesas",
+          content:
+            "A remuneração avençada não abrange despesas extraordinárias necessárias à execução dos Serviços. Os modelos mencionam R$ 2,00 por quilômetro — REQUIRES LEGAL DECISION se esse valor é padrão institucional.",
+        },
+      ],
+    });
+    const titles = page.clausulasAdicionais.map((c) => c.title);
+    expect(titles.filter((t) => t === "DESPESAS").length).toBe(1);
+    const despesas = page.clausulasAdicionais.find((c) => c.title === "DESPESAS");
+    expect(despesas?.content ?? "").not.toContain("REQUIRES LEGAL DECISION se esse valor é padrão institucional");
   });
 
   it("buildCanonicalContratoPage é a mesma fonte usada por preview, Gerar DOCX e envio ao D4Sign", () => {

@@ -183,7 +183,10 @@ function fillPlaceholders(
   return text;
 }
 
-const SECTION_ORDER: Array<{ title: string; roles: ResolvedContractClause["role"][] }> = [
+/** Ordem/agrupamento oficial das seções do contrato por `role` de cláusula — única
+ * fonte de verdade tanto para a numeração do documento final quanto para agrupar
+ * a biblioteca de cláusulas no builder pela mesma estrutura (ver `ClausulasSection`). */
+export const SECTION_ORDER: Array<{ title: string; roles: ResolvedContractClause["role"][] }> = [
   { title: "OBJETO DO CONTRATO", roles: ["object", "scope", "limitation", "nature"] },
   { title: "OBJETOS EXCLUÍDOS DO CONTRATO", roles: ["exclusion"] },
   { title: "PREÇO E FORMA DE PAGAMENTO", roles: ["payment", "special"] },

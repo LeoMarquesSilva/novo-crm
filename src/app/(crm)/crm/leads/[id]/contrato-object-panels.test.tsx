@@ -23,10 +23,24 @@ const DEMO_SCOPE: ContractScope = {
   missingProfile: false,
 };
 
+const DEMO_SCOPE_2: ContractScope = {
+  entryId: "scope-2",
+  areaLabel: "Trabalhista",
+  typeId: "contencioso",
+  subtypeId: "contencioso_acompanhamento_de_acao_judicial",
+  label: "Contencioso",
+  placeholders: {},
+  profile: null,
+  missingProfile: false,
+};
+
 /** Monta um `CanonicalContractBuildResult` mínimo — só o suficiente pra `ObjetoContratoSection`
  * renderizar de verdade. Os campos de `CanonicalContractData` fora de `contractObject`/`scopes`
  * não são lidos pelo componente sob teste, então ficam com valores neutros. */
-function fixtureBuild(fieldValues: ContractObjectFieldValue[]): CanonicalContractBuildResult {
+function fixtureBuild(
+  fieldValues: ContractObjectFieldValue[],
+  scopes: ContractScope[] = [DEMO_SCOPE],
+): CanonicalContractBuildResult {
   const contractObject: CanonicalContractObject = {
     blocks: [],
     numberedLines: [
@@ -40,7 +54,7 @@ function fixtureBuild(fieldValues: ContractObjectFieldValue[]): CanonicalContrac
         version: 1,
       },
     ],
-    representedScopeIds: [DEMO_SCOPE.entryId],
+    representedScopeIds: scopes.map((s) => s.entryId),
     missingScopeIds: [],
     unexpectedScopeIds: [],
     status: "incomplete",
@@ -56,7 +70,7 @@ function fixtureBuild(fieldValues: ContractObjectFieldValue[]): CanonicalContrac
       proposalSnapshotId: "snap-1",
       contractingParties: [],
       contractedFirm: {} as CanonicalContractBuildResult["data"]["contractedFirm"],
-      scopes: [DEMO_SCOPE],
+      scopes,
       investment: { items: [], totalAmount: null, totalExtenso: "", tributacao: "" },
       payment: {
         method: "indefinido",
@@ -86,9 +100,15 @@ function fixtureBuild(fieldValues: ContractObjectFieldValue[]): CanonicalContrac
 /** Reproduz o round-trip real do builder: o pai guarda `fieldValues` em estado e
  * recalcula `build` a cada digitação — exatamente como `ContratoBuilderDialog`
  * recalcula `liveBuild` a partir de `objectFields` a cada tecla. */
-function ObjetoContratoHarness({ initialFieldValues }: { initialFieldValues: ContractObjectFieldValue[] }) {
+function ObjetoContratoHarness({
+  initialFieldValues,
+  scopes,
+}: {
+  initialFieldValues: ContractObjectFieldValue[];
+  scopes?: ContractScope[];
+}) {
   const [fieldValues, setFieldValues] = useState(initialFieldValues);
-  const build = useMemo(() => fixtureBuild(fieldValues), [fieldValues]);
+  const build = useMemo(() => fixtureBuild(fieldValues, scopes), [fieldValues, scopes]);
   return (
     <ObjetoContratoSection
       num={1}
@@ -147,5 +167,45 @@ describe("ObjetoContratoSection — campo obrigatório digitado ao vivo", () => 
     expect(screen.getByDisplayValue("1ª Vara Cível")).toBeInTheDocument();
     expect(screen.getAllByText("Número do processo").length).toBe(1);
     expect(screen.getAllByText("Vara / Tribunal").length).toBe(1);
+  });
+});
+
+describe("ObjetoContratoSection — campos agrupados por escopo (recolhível)", () => {
+  it("agrupa campos de escopos diferentes em blocos separados, cada um com seu próprio título e contador", () => {
+    render(
+      <ObjetoContratoHarness
+        scopes={[DEMO_SCOPE, DEMO_SCOPE_2]}
+        initialFieldValues={[
+          { key: "numero_processo_civel", label: "Número do processo", value: "", required: true, source: "unresolved", scopeEntryId: "scope-1" },
+          { key: "numero_processo", label: "Número do processo", value: "", required: true, source: "unresolved", scopeEntryId: "scope-2" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Cível — Mais de um processo")).toBeInTheDocument();
+    expect(screen.getByText("Trabalhista — Contencioso")).toBeInTheDocument();
+    // Um "1 pendente" por grupo — dois grupos, dois campos vazios, um em cada.
+    expect(screen.getAllByText("1 pendente").length).toBe(2);
+  });
+
+  it("recolher um grupo esconde só os campos dele, sem afetar o outro grupo", () => {
+    render(
+      <ObjetoContratoHarness
+        scopes={[DEMO_SCOPE, DEMO_SCOPE_2]}
+        initialFieldValues={[
+          { key: "numero_processo_civel", label: "Número do processo cível", value: "", required: true, source: "unresolved", scopeEntryId: "scope-1" },
+          { key: "numero_processo", label: "Número do processo trabalhista", value: "", required: true, source: "unresolved", scopeEntryId: "scope-2" },
+        ]}
+      />,
+    );
+
+    // Os dois grupos começam abertos (têm pendência) — os dois campos estão visíveis.
+    expect(screen.getByLabelText(/Número do processo cível/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Número do processo trabalhista/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Cível — Mais de um processo"));
+
+    expect(screen.queryByLabelText(/Número do processo cível/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Número do processo trabalhista/)).toBeInTheDocument();
   });
 });

@@ -1,4 +1,6 @@
 import type { ClausulaAdicional, ContratoDocumentPagePreview } from "@/lib/crm/contrato-docx-data";
+import { CONTRACT_CLAUSE_CATALOG } from "./clause-catalog";
+import { SECTION_ORDER } from "./clause-engine";
 import { renderContractObjectPlainText } from "./object-engine";
 import type { CanonicalContractData } from "./types";
 
@@ -8,6 +10,21 @@ const OBJETO_SECTION_TITLE = "OBJETO DO CONTRATO";
 const OBJETOS_EXCLUIDOS_SECTION_TITLE = "OBJETOS EXCLUÍDOS DO CONTRATO";
 /** Conteúdo já coberto pela cláusula fixa 3 "Honorários Contratuais" (renderizada à parte). */
 const PAGAMENTO_SECTION_TITLE = "PREÇO E FORMA DE PAGAMENTO";
+
+/** "Exclusão — Auditoria Trabalhista" → "Auditoria Trabalhista": redundante quando o
+ * item já está listado dentro da seção "OBJETOS EXCLUÍDOS DO CONTRATO" (o cabeçalho
+ * da seção já deixa claro que é uma exclusão; repetir em cada sub-item polui). */
+const REDUNDANT_TITLE_PREFIX_RE = /^exclus(ã|a)o\s*[—-]\s*/i;
+
+function stripSubItemTitlePrefix(title: string): string {
+  return title
+    .replace(/^\d+\.\d+\.\s*/, "")
+    .replace(REDUNDANT_TITLE_PREFIX_RE, "");
+}
+
+function normalizeTitleForCompare(title: string): string {
+  return stripSubItemTitlePrefix(title.trim()).toLowerCase();
+}
 
 function sectionToClausula(section: {
   title: string;
@@ -19,7 +36,7 @@ function sectionToClausula(section: {
     items:
       section.clauses.length > 1
         ? section.clauses.map((c) => ({
-            title: c.title.replace(/^\d+\.\d+\.\s*/, ""),
+            title: stripSubItemTitlePrefix(c.title),
             content: c.content,
           }))
         : undefined,
@@ -105,6 +122,86 @@ export function previewFromCanonical(data: CanonicalContractData): ContratoDocum
  * extra de verdade escolhida por alguém. */
 const STALE_OBJECT_FRAGMENT_RE = /^\d+\.\d+\.\s/;
 
+/** título (normalizado) → seção do documento onde esse título do catálogo pertence.
+ * Aproximação: usa o catálogo estático de fallback, não a biblioteca do banco
+ * (que um admin pode ter customizado) — suficiente para essa heurística de
+ * "essa cláusula extra corresponde a que seção", não para resolver conteúdo. */
+const CATALOG_TITLE_TO_SECTION = new Map<string, string>(
+  CONTRACT_CLAUSE_CATALOG.map((c): [string, string] => {
+    const spec = SECTION_ORDER.find((s) => (s.roles as readonly string[]).includes(c.role));
+    return [c.title.trim().toLowerCase(), spec?.title ?? ""];
+  }).filter(([, title]) => title),
+);
+
+/** "OBJETO DO CONTRATO" e "PREÇO E FORMA DE PAGAMENTO" não vêm de `data.sections`
+ * (são montados por `contractObject.numberedLines` / `data.payment` — mecanismos
+ * próprios), então não há como posicionar um item extra dentro deles aqui. */
+const NON_MERGEABLE_SECTION_TITLES = new Set([OBJETO_SECTION_TITLE, PAGAMENTO_SECTION_TITLE]);
+
+/** A que seção do documento uma cláusula "adicional" pertence — `null` se não bate
+ * com nada (cláusula genuinamente bespoke, sem correspondência) ou se a seção não
+ * é mesclável (ver `NON_MERGEABLE_SECTION_TITLES`).
+ *
+ * Duas formas de identificar: (1) título bate exatamente com um título conhecido
+ * do catálogo — cobre o caso comum (escolhida na biblioteca) e permite detectar
+ * duplicata desatualizada por título, não só por conteúdo; (2) título começa com
+ * "Exclusão — " mesmo sem bater com o catálogo — cobre exclusão genuinamente nova,
+ * digitada à mão, que não existe como template. */
+function resolveExtraTargetSection(title: string): string | null {
+  const catalogSection = CATALOG_TITLE_TO_SECTION.get(title.trim().toLowerCase());
+  if (catalogSection) {
+    return NON_MERGEABLE_SECTION_TITLES.has(catalogSection) ? null : catalogSection;
+  }
+  if (REDUNDANT_TITLE_PREFIX_RE.test(title.trim())) return OBJETOS_EXCLUIDOS_SECTION_TITLE;
+  return null;
+}
+
+/**
+ * Junta (ou descarta) cláusulas "adicionais" cujo título bate com um título do
+ * catálogo dentro da seção certa do documento — em vez de virarem cláusula solta
+ * com número próprio, repetindo o nome da seção no título (ex.: "12. EXCLUSÃO —
+ * DIAGNÓSTICO NR-1" quando já existe "2. OBJETOS EXCLUÍDOS DO CONTRATO").
+ *
+ * Se a seção já tem um item com o MESMO título (comparado sem prefixo/caixa) —
+ * ou, em seção de item único, se o próprio título da seção já cobre o tema —, o
+ * extra é uma versão desatualizada de algo que o motor já gera corretamente
+ * (o catálogo evoluiu; o texto salvo manualmente ficou para trás) e é descartado,
+ * não duplicado. Caso real que motivou isso: uma cláusula extra salva como
+ * "Atraso no pagamento" carregava uma nota interna de revisão jurídica
+ * ("REQUIRES LEGAL DECISION...") que vazaria para o contrato de verdade se
+ * fosse mesclada ao lado da versão atual e correta da mesma cláusula.
+ */
+function mergeOrDropExtrasIntoClausula(
+  base: ClausulaAdicional | null,
+  extras: ClausulaAdicional[],
+  sectionTitle: string,
+): ClausulaAdicional | null {
+  if (extras.length === 0) return base;
+
+  const existingTitles = base
+    ? base.items && base.items.length > 0
+      ? new Set(base.items.map((i) => normalizeTitleForCompare(i.title)))
+      : new Set([normalizeTitleForCompare(base.title)])
+    : new Set<string>();
+
+  const genuinelyNew = extras.filter((c) => !existingTitles.has(normalizeTitleForCompare(c.title)));
+  if (genuinelyNew.length === 0) return base;
+
+  const extraItems = genuinelyNew.map((c) => ({
+    title: stripSubItemTitlePrefix(c.title),
+    content: c.content,
+  }));
+  if (!base) {
+    return {
+      title: sectionTitle,
+      content: extraItems.length === 1 ? extraItems[0].content : "",
+      items: extraItems.length > 1 ? extraItems : undefined,
+    };
+  }
+  const baseItems = base.items ?? (base.content.trim() ? [{ title: "Geral", content: base.content }] : []);
+  return { title: base.title, content: "", items: [...baseItems, ...extraItems] };
+}
+
 export function buildCanonicalContratoPage(params: {
   canonicalData: CanonicalContractData;
   userExtras?: ClausulaAdicional[];
@@ -114,8 +211,46 @@ export function buildCanonicalContratoPage(params: {
   const extras = (params.userExtras ?? []).filter(
     (c) => !engineContents.has(c.content.trim()) && !STALE_OBJECT_FRAGMENT_RE.test(c.title.trim()),
   );
+
+  const objetosExcluidosExtras: ClausulaAdicional[] = [];
+  const extrasBySection = new Map<string, ClausulaAdicional[]>();
+  const looseExtras: ClausulaAdicional[] = [];
+
+  for (const extra of extras) {
+    const target = resolveExtraTargetSection(extra.title);
+    if (!target) {
+      looseExtras.push(extra);
+    } else if (target === OBJETOS_EXCLUIDOS_SECTION_TITLE) {
+      objetosExcluidosExtras.push(extra);
+    } else {
+      const arr = extrasBySection.get(target) ?? [];
+      arr.push(extra);
+      extrasBySection.set(target, arr);
+    }
+  }
+
+  const objetosExcluidos = mergeOrDropExtrasIntoClausula(
+    page.objetosExcluidos,
+    objetosExcluidosExtras,
+    OBJETOS_EXCLUIDOS_SECTION_TITLE,
+  );
+
+  const clausulasAdicionais = page.clausulasAdicionais.map((c) => {
+    const toMerge = extrasBySection.get(c.title);
+    if (!toMerge) return c;
+    extrasBySection.delete(c.title);
+    return mergeOrDropExtrasIntoClausula(c, toMerge, c.title) ?? c;
+  });
+  // Seções que o motor não gerou pra este contrato, mas que têm extra correspondente
+  // (ex.: nenhuma cláusula de "Vigência" foi gerada, só a extra manual) — cria do zero.
+  for (const [title, items] of extrasBySection) {
+    const merged = mergeOrDropExtrasIntoClausula(null, items, title);
+    if (merged) clausulasAdicionais.push(merged);
+  }
+
   return {
     ...page,
-    clausulasAdicionais: [...page.clausulasAdicionais, ...extras],
+    objetosExcluidos,
+    clausulasAdicionais: [...clausulasAdicionais, ...looseExtras],
   };
 }

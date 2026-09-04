@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   AlertCircle,
-  ArrowDown,
-  ArrowUp,
   Bell,
   BookText,
   Building2,
@@ -83,6 +81,7 @@ import {
   mergeInheritedContractAreaToggles,
 } from "@/lib/crm/contract-engine/inherit-areas";
 import { buildCanonicalContract } from "@/lib/crm/contract-engine/build-canonical";
+import { SECTION_ORDER } from "@/lib/crm/contract-engine/clause-engine";
 import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
 import { applyObjectOverride } from "@/lib/crm/contract-engine/object-engine";
 import { appendContractEngineEvent } from "@/lib/crm/contract-engine/object-events";
@@ -130,6 +129,8 @@ type ClauseTemplate = {
   content: string;
   category: string;
   sort_order: number;
+  /** `ClauseRole` bruto do banco — usado só p/ agrupar por seção do contrato no builder. */
+  role?: string | null;
 };
 
 /** Cláusula selecionada + editada para este contrato específico */
@@ -502,7 +503,12 @@ function ContratoBuilderDialog({
 
   const [draftValues, setDraftValues] = useState<Record<string, string>>(initDraft);
   const [savedValues, setSavedValues] = useState<Record<string, string>>(initDraft);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(
+  // Sem seletor visível: "modelo" não afeta o conteúdo gerado (o Word é montado
+  // programaticamente a partir dos dados, não de um arquivo de template — os 4
+  // arquivos que essas linhas antigas apontavam nem existem mais no repo). Mantém
+  // só o id do template padrão, exigido internamente pelas chamadas de
+  // salvar/gerar.
+  const [selectedTemplateId] = useState(
     contratoState.template?.id ?? (contratoState.templates[0]?.id ?? ""),
   );
   const [savedTemplateId, setSavedTemplateId] = useState(
@@ -581,10 +587,6 @@ function ContratoBuilderDialog({
     JSON.stringify(objectFields) !== JSON.stringify(savedObjectFields) ||
     JSON.stringify(objectOverrides) !== JSON.stringify(savedObjectOverrides) ||
     JSON.stringify(scopeAdjustment) !== JSON.stringify(savedScopeAdjustment);
-
-  const templates = contratoState.templates;
-  const selectedTemplateName =
-    templates.find((t) => t.id === selectedTemplateId)?.name ?? "Selecione um modelo";
 
   const fieldByCode = Object.fromEntries(
     contratoState.ccFieldDefs.map((f) => [f.fieldCode, f]),
@@ -889,28 +891,7 @@ function ContratoBuilderDialog({
               </div>
             </div>
 
-            {/* Template selector */}
             <div className="flex flex-wrap items-center gap-2">
-              <Select
-                value={selectedTemplateId}
-                onValueChange={(v) => {
-                  if (v) setSelectedTemplateId(v);
-                  setSaveFeedback(null);
-                }}
-                disabled={templates.length === 0}
-              >
-                <SelectTrigger className="h-9 min-w-[14rem] max-w-[22rem] border-white/25 bg-white/15 text-sm text-white shadow-sm backdrop-blur">
-                  <span className="min-w-0 truncate text-left">{selectedTemplateName}</span>
-                </SelectTrigger>
-                <CrmSelectContent className="max-h-[min(280px,50dvh)]">
-                  {templates.map((t) => (
-                    <CrmSelectItem key={t.id} value={t.id}>
-                      {t.name} v{t.version}
-                    </CrmSelectItem>
-                  ))}
-                </CrmSelectContent>
-              </Select>
-
               <Button
                 type="button"
                 size="sm"
@@ -2175,6 +2156,91 @@ function ReviewTaskCard({
 
 // ─── Seção de cláusulas adicionais ───────────────────────────────────────────
 
+// ─── Agrupamento de cláusulas pela estrutura do contrato ─────────────────────
+
+/** Sem `role` reconhecido (ou cláusula legada sem template correspondente na
+ * biblioteca atual — ex.: fragmento salvo antes do motor de Objeto existir). */
+const CLAUSE_FALLBACK_SECTION_TITLE = "OUTRAS / SEM VÍNCULO COM A BIBLIOTECA ATUAL";
+
+/** "Objeto" e "Preço/Pagamento" são gerados automaticamente pelo motor a partir
+ * do escopo contratado (`data.sections`) — cláusula adicionada manualmente aqui
+ * NÃO se funde com esse texto; vira um bloco redundante à parte. Diferente de
+ * "Objetos Excluídos" (ver `EXCLUSION_MERGE_SECTION_TITLE` abaixo), que se junta
+ * automaticamente. */
+const ENGINE_CONTROLLED_SECTION_TITLES = new Set([
+  "OBJETO DO CONTRATO",
+  "PREÇO E FORMA DE PAGAMENTO",
+]);
+
+/** Cláusula adicionada manualmente aqui se junta como sub-item dentro da seção
+ * "OBJETOS EXCLUÍDOS DO CONTRATO" do documento final (não vira cláusula solta) —
+ * ver `mergeExclusionExtrasIntoObjetosExcluidos` em legacy-preview.ts. */
+const EXCLUSION_MERGE_SECTION_TITLE = "OBJETOS EXCLUÍDOS DO CONTRATO";
+
+function resolveClauseSectionTitle(role: string | null | undefined): string {
+  if (!role) return CLAUSE_FALLBACK_SECTION_TITLE;
+  const spec = SECTION_ORDER.find((s) => (s.roles as readonly string[]).includes(role));
+  return spec?.title ?? CLAUSE_FALLBACK_SECTION_TITLE;
+}
+
+type ClauseRow = {
+  id: string;
+  title: string;
+  /** Conteúdo do template (biblioteca) — referência para quem ainda vai adicionar. */
+  templateContent: string;
+  isAdded: boolean;
+  selectedClause: SelectedClause | null;
+};
+
+type ClauseGroup = {
+  title: string;
+  rows: ClauseRow[];
+  addedCount: number;
+};
+
+function groupClausesBySection(available: ClauseTemplate[], selected: SelectedClause[]): ClauseGroup[] {
+  const selectedById = new Map(selected.map((c) => [c.id, c]));
+  const availableIds = new Set(available.map((t) => t.id));
+  const bySection = new Map<string, ClauseRow[]>();
+
+  const pushRow = (sectionTitle: string, row: ClauseRow) => {
+    const arr = bySection.get(sectionTitle) ?? [];
+    arr.push(row);
+    bySection.set(sectionTitle, arr);
+  };
+
+  for (const tpl of available) {
+    const sel = selectedById.get(tpl.id) ?? null;
+    pushRow(resolveClauseSectionTitle(tpl.role), {
+      id: tpl.id,
+      title: tpl.title,
+      templateContent: tpl.content,
+      isAdded: Boolean(sel),
+      selectedClause: sel,
+    });
+  }
+  // Cláusulas adicionadas cujo template não existe mais na biblioteca ativa
+  // (removido/desativado no admin) — ainda precisam aparecer, com opção de remover.
+  for (const sel of selected) {
+    if (availableIds.has(sel.id)) continue;
+    pushRow(CLAUSE_FALLBACK_SECTION_TITLE, {
+      id: sel.id,
+      title: sel.title,
+      templateContent: sel.content,
+      isAdded: true,
+      selectedClause: sel,
+    });
+  }
+
+  const orderedTitles = [...SECTION_ORDER.map((s) => s.title), CLAUSE_FALLBACK_SECTION_TITLE];
+  return orderedTitles
+    .filter((title) => bySection.has(title))
+    .map((title) => {
+      const rows = bySection.get(title)!;
+      return { title, rows, addedCount: rows.filter((r) => r.isAdded).length };
+    });
+}
+
 function ClausulasSection({
   available,
   selected,
@@ -2186,21 +2252,13 @@ function ClausulasSection({
   onChange: (clauses: SelectedClause[]) => void;
   disabled?: boolean;
 }) {
-  const selectedIds = new Set(selected.map((c) => c.id));
+  const groups = useMemo(() => groupClausesBySection(available, selected), [available, selected]);
 
-  // Agrupa disponíveis por categoria
-  const byCategory: Record<string, ClauseTemplate[]> = {};
-  for (const c of available) {
-    const cat = c.category || "Geral";
-    (byCategory[cat] ??= []).push(c);
-  }
-  const categories = Object.keys(byCategory).sort();
-
-  function addClause(tpl: ClauseTemplate) {
+  function addClause(row: ClauseRow) {
     const next: SelectedClause = {
-      id: tpl.id,
-      title: tpl.title,
-      content: tpl.content,
+      id: row.id,
+      title: row.title,
+      content: row.templateContent,
       order: selected.length,
     };
     onChange([...selected, next]);
@@ -2208,14 +2266,6 @@ function ClausulasSection({
 
   function removeClause(id: string) {
     onChange(selected.filter((c) => c.id !== id).map((c, i) => ({ ...c, order: i })));
-  }
-
-  function moveClause(idx: number, dir: -1 | 1) {
-    const arr = [...selected];
-    const target = idx + dir;
-    if (target < 0 || target >= arr.length) return;
-    [arr[idx], arr[target]] = [arr[target], arr[idx]];
-    onChange(arr.map((c, i) => ({ ...c, order: i })));
   }
 
   function updateContent(id: string, content: string) {
@@ -2243,114 +2293,183 @@ function ClausulasSection({
         )}
       </div>
 
-      <div className="ml-10 space-y-4">
-        {/* Biblioteca de cláusulas */}
-        {available.length === 0 ? (
+      <div className="ml-10 space-y-2.5">
+        {available.length === 0 && selected.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nenhuma cláusula cadastrada. Acesse{" "}
             <span className="font-semibold">Admin → Cláusulas</span> para criar modelos.
           </p>
         ) : (
-          <div className="rounded-xl border border-slate-200 bg-slate-50">
-            <p className="border-b border-slate-200 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-              Biblioteca
-            </p>
-            <div className="divide-y divide-slate-100">
-              {categories.map((cat) =>
-                (byCategory[cat] ?? []).map((tpl) => {
-                  const isAdded = selectedIds.has(tpl.id);
-                  return (
-                    <div
-                      key={tpl.id}
-                      className="flex items-center gap-2 px-3 py-2"
-                    >
-                      <span className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          {cat}
-                        </span>
-                        <p className="truncate text-xs font-medium text-primary-dark">
-                          {tpl.title}
-                        </p>
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className={cn(
-                          "h-7 shrink-0 gap-1 px-2 text-[11px]",
-                          isAdded && "opacity-40 cursor-not-allowed",
-                        )}
-                        disabled={disabled || isAdded}
-                        onClick={() => addClause(tpl)}
-                      >
-                        <Plus className="size-3" aria-hidden />
-                        {isAdded ? "Adicionada" : "Adicionar"}
-                      </Button>
-                    </div>
-                  );
-                }),
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Cláusulas adicionadas */}
-        {selected.length > 0 && (
-          <div className="space-y-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-              Adicionadas ao contrato
-            </p>
-            {selected.map((clause, idx) => (
-              <div
-                key={clause.id}
-                className="rounded-xl border border-teal-200/70 bg-white p-3 shadow-sm"
-              >
-                <div className="mb-2 flex items-center gap-1.5">
-                  {/* Reordenar */}
-                  <button
-                    type="button"
-                    onClick={() => moveClause(idx, -1)}
-                    disabled={disabled || idx === 0}
-                    className="flex size-6 items-center justify-center rounded border border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600 disabled:opacity-30"
-                    aria-label="Mover para cima"
-                  >
-                    <ArrowUp className="size-3" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveClause(idx, 1)}
-                    disabled={disabled || idx === selected.length - 1}
-                    className="flex size-6 items-center justify-center rounded border border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600 disabled:opacity-30"
-                    aria-label="Mover para baixo"
-                  >
-                    <ArrowDown className="size-3" aria-hidden />
-                  </button>
-                  <span className="flex-1 truncate text-xs font-semibold text-primary-dark">
-                    {clause.title}
-                  </span>
-                  {/* Remover */}
-                  <button
-                    type="button"
-                    onClick={() => removeClause(clause.id)}
-                    disabled={disabled}
-                    className="flex size-6 items-center justify-center rounded border border-rose-200 text-rose-400 hover:border-rose-300 hover:text-rose-600 disabled:opacity-30"
-                    aria-label="Remover cláusula"
-                  >
-                    <X className="size-3" aria-hidden />
-                  </button>
-                </div>
-                <Textarea
-                  value={clause.content}
-                  onChange={(e) => updateContent(clause.id, e.target.value)}
-                  disabled={disabled}
-                  placeholder="Conteúdo da cláusula…"
-                  className="min-h-[90px] resize-y border-slate-200 bg-slate-50 text-xs leading-relaxed"
-                />
-              </div>
-            ))}
-          </div>
+          groups.map((group) => (
+            <ClauseGroupBlock
+              key={group.title}
+              group={group}
+              disabled={disabled}
+              onAdd={addClause}
+              onRemove={removeClause}
+              onUpdateContent={updateContent}
+            />
+          ))
         )}
       </div>
+    </div>
+  );
+}
+
+/** Bloco recolhível de uma seção do contrato (ex.: "OBJETOS EXCLUÍDOS DO CONTRATO"),
+ * com todas as cláusulas da biblioteca que pertencem a ela — adicionadas ou não. */
+function ClauseGroupBlock({
+  group,
+  disabled,
+  onAdd,
+  onRemove,
+  onUpdateContent,
+}: {
+  group: ClauseGroup;
+  disabled?: boolean;
+  onAdd: (row: ClauseRow) => void;
+  onRemove: (id: string) => void;
+  onUpdateContent: (id: string, content: string) => void;
+}) {
+  const [open, setOpen] = useState(group.addedCount > 0);
+  const isEngineControlled = ENGINE_CONTROLLED_SECTION_TITLES.has(group.title);
+  const isExclusionMerge = group.title === EXCLUSION_MERGE_SECTION_TITLE;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/70">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+      >
+        <ChevronRight
+          className={cn("size-3.5 shrink-0 text-slate-400 transition-transform duration-150", open && "rotate-90")}
+          aria-hidden
+        />
+        <span className="flex-1 truncate text-[11px] font-bold uppercase tracking-[0.1em] text-slate-600">
+          {group.title}
+        </span>
+        {group.addedCount > 0 ? (
+          <span className="shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+            {group.addedCount} adicionada{group.addedCount > 1 ? "s" : ""}
+          </span>
+        ) : null}
+        <span className="shrink-0 text-[10px] font-semibold text-slate-400">{group.rows.length}</span>
+      </button>
+      {open ? (
+        <div className="space-y-2 border-t border-slate-200 px-3 pb-3 pt-2.5">
+          {isEngineControlled ? (
+            <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-800">
+              <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
+              Esta seção já é gerada automaticamente pelo motor a partir do escopo contratado.
+              Cláusulas adicionadas aqui viram um bloco separado no contrato — normalmente não é
+              necessário adicionar nada nesta seção manualmente.
+            </p>
+          ) : null}
+          {isExclusionMerge ? (
+            <p className="flex items-start gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] leading-relaxed text-sky-800">
+              <Check className="mt-0.5 size-3 shrink-0" aria-hidden />
+              Cláusulas adicionadas aqui se juntam automaticamente à seção &ldquo;2. Objetos
+              Excluídos do Contrato&rdquo; no documento final, sem repetir &ldquo;Exclusão&rdquo;
+              no título.
+            </p>
+          ) : null}
+          {group.rows.map((row) => (
+            <ClauseRowItem
+              key={row.id}
+              row={row}
+              disabled={disabled}
+              onAdd={() => onAdd(row)}
+              onRemove={() => onRemove(row.id)}
+              onUpdateContent={(content) => onUpdateContent(row.id, content)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Uma cláusula dentro de um grupo: estado adicionada/não-adicionada, com
+ * adicionar/remover, e edição de conteúdo escondida atrás de um toggle
+ * (evita que a lista fique gigante quando há muitas cláusulas adicionadas). */
+function ClauseRowItem({
+  row,
+  disabled,
+  onAdd,
+  onRemove,
+  onUpdateContent,
+}: {
+  row: ClauseRow;
+  disabled?: boolean;
+  onAdd: () => void;
+  onRemove: () => void;
+  onUpdateContent: (content: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border bg-white p-2.5",
+        row.isAdded ? "border-teal-200/70 shadow-sm" : "border-slate-200",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        {row.isAdded ? (
+          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-teal-500 text-white">
+            <Check className="size-2.5" aria-hidden />
+          </span>
+        ) : (
+          <span className="size-4 shrink-0 rounded-full border-2 border-slate-300" aria-hidden />
+        )}
+        <span className="flex-1 truncate text-xs font-semibold text-primary-dark">{row.title}</span>
+        {row.isAdded ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 shrink-0 px-2 text-[11px]"
+              disabled={disabled}
+              onClick={() => setEditing((v) => !v)}
+            >
+              {editing ? "Ocultar" : "Editar"}
+            </Button>
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={disabled}
+              className="flex size-6 shrink-0 items-center justify-center rounded border border-rose-200 text-rose-400 hover:border-rose-300 hover:text-rose-600 disabled:opacity-30"
+              aria-label="Remover cláusula"
+            >
+              <X className="size-3" aria-hidden />
+            </button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 shrink-0 gap-1 px-2 text-[11px]"
+            disabled={disabled}
+            onClick={onAdd}
+          >
+            <Plus className="size-3" aria-hidden />
+            Adicionar
+          </Button>
+        )}
+      </div>
+      {row.isAdded && editing ? (
+        <Textarea
+          value={row.selectedClause?.content ?? ""}
+          onChange={(e) => onUpdateContent(e.target.value)}
+          disabled={disabled}
+          placeholder="Conteúdo da cláusula…"
+          className="mt-2 min-h-[90px] resize-y border-slate-200 bg-slate-50 text-xs leading-relaxed"
+        />
+      ) : null}
     </div>
   );
 }
