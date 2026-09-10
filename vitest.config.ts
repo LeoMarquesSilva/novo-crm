@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    exclude: ["src/scripts/verify-leads-vs-sheet.test.ts"],
     coverage: {
       enabled: false,
     },

@@ -4,7 +4,7 @@ import { useEffect, useEffectEvent } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
-const DEBOUNCE_MS = 300;
+const DEBOUNCE_MS = 900;
 
 type PostgresChangeConfig = {
   table: string;
@@ -53,8 +53,6 @@ export function useLeadDetailRealtime(
       { table: "contract_review_tasks", filter: oppFilter },
       { table: "proposta_escopo_solicitacao", filter: oppFilter },
       { table: "lead_notes", filter: oppFilter },
-      { table: "field_values", filter: `entity_record_id=eq.${oportunidadeId}` },
-      { table: "lead_intakes", filter: oppFilter },
     ];
 
     const topic = `lead-detail-${oportunidadeId}`;

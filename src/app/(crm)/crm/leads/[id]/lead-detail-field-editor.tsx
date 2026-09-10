@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Check, Pencil, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -199,13 +198,17 @@ export function LeadDetailFieldEditor({
   className,
   onAfterSave,
 }: LeadDetailFieldEditorProps) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [committedValue, setCommittedValue] = useState(value);
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [appUsers, setAppUsers] = useState<AppUserOption[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
+
+  useEffect(() => {
+    setCommittedValue(value);
+  }, [value]);
 
   const msOptions = multiselectOptionsForKind(kind, selectOptions);
 
@@ -269,14 +272,14 @@ export function LeadDetailFieldEditor({
   }
 
   const startEdit = () => {
-    setDraft(value);
+    setDraft(committedValue);
     setEditing(true);
     setError(null);
   };
 
   const cancel = () => {
     setEditing(false);
-    setDraft(value);
+    setDraft(committedValue);
     setError(null);
   };
 
@@ -304,8 +307,8 @@ export function LeadDetailFieldEditor({
       if (!res.ok || !data.ok) {
         throw new Error(data.error ?? "Não foi possível salvar.");
       }
+      setCommittedValue(nextValue);
       setEditing(false);
-      router.refresh();
       onAfterSave?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao salvar.");
@@ -372,7 +375,7 @@ export function LeadDetailFieldEditor({
       </div>
 
       {!editing ? (
-        resolvedUser && value ? (
+        resolvedUser && committedValue ? (
           <div className="mt-1 flex items-center gap-2.5">
             <Avatar className="size-8 shrink-0 border border-border bg-muted/40">
               {resolvedUser.avatarUrl ? (
@@ -384,12 +387,12 @@ export function LeadDetailFieldEditor({
             </Avatar>
             <span className="text-sm font-medium text-primary-dark">{resolvedUser.fullName}</span>
           </div>
-        ) : kind === "yesno" && value ? (
-          <p className="mt-1 text-sm font-medium text-primary-dark">{normalizeYesNoLabel(value)}</p>
+        ) : kind === "yesno" && committedValue ? (
+          <p className="mt-1 text-sm font-medium text-primary-dark">{normalizeYesNoLabel(committedValue)}</p>
         ) : kind === "multiselect" || kind === "areas" ? (
-          parseMultiselectStored(value).length > 0 ? (
+          parseMultiselectStored(committedValue).length > 0 ? (
             <div className="mt-1 flex flex-wrap gap-1.5">
-              {parseMultiselectStored(value).map((p) => (
+              {parseMultiselectStored(committedValue).map((p) => (
                 <span
                   key={p}
                   className="rounded-full border border-white/60 bg-white/40 px-2.5 py-0.5 text-xs font-medium text-primary-dark"
@@ -401,11 +404,11 @@ export function LeadDetailFieldEditor({
           ) : (
             <p className="mt-1 text-sm text-primary-dark">—</p>
           )
-        ) : kind === "select" && value ? (
+        ) : kind === "select" && committedValue ? (
           <p className="mt-1 text-sm text-primary-dark break-words">
-            {looksLikeUuid(value) ? "Valor técnico não resolvido" : value}
+            {looksLikeUuid(committedValue) ? "Valor técnico não resolvido" : committedValue}
           </p>
-        ) : kind === "user" && value && !resolvedUser ? (
+        ) : kind === "user" && committedValue && !resolvedUser ? (
           <p
             className={
               userIdentityMode === "email"
@@ -413,20 +416,20 @@ export function LeadDetailFieldEditor({
                 : "mt-1 font-mono text-xs text-muted-foreground break-all"
             }
           >
-            {looksLikeUuid(value) ? "Usuário não localizado" : value}
+            {looksLikeUuid(committedValue) ? "Usuário não localizado" : committedValue}
           </p>
         ) : (
           <p className="mt-1 text-sm text-primary-dark break-words whitespace-pre-wrap">
-            {value
+            {committedValue
               ? kind === "date"
-                ? formatDateYmdBr(value.slice(0, 10)) || value
+                ? formatDateYmdBr(committedValue.slice(0, 10)) || committedValue
                 : kind === "time"
-                  ? normalizeTimeToHm(value) || value
+                  ? normalizeTimeToHm(committedValue) || committedValue
                   : scope === "rd"
-                    ? formatMaybeDateLikeBr(value)
-                    : looksLikeJsonObject(value)
+                    ? formatMaybeDateLikeBr(committedValue)
+                    : looksLikeJsonObject(committedValue)
                       ? "Dados estruturados salvos"
-                      : value
+                      : committedValue
               : "—"}
           </p>
         )

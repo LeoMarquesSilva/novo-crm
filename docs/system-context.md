@@ -110,9 +110,10 @@ Regras:
 - bloqueia pulo e retrocesso no serviço atual;
 - valida pré-condições por etapa:
   - `proposta_enviada` exige `linkProposta`;
-  - `contrato_elaborado` e `contrato_assinado` exigem `linkContrato`.
+  - `contrato_elaborado` e `contrato_assinado` exigem `linkContrato`;
+  - `reuniao` confirma local/data/horário já gravados no intake ou na transição para `due_diligence_finalizada` (pré-preenchidos; editáveis).
 
-No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e permite arrastar negociações entre colunas com atualização imediata na UI (estado local do board).
+No front de leads, o kanban renderiza as 12 etapas em colunas dedicadas. Ao arrastar, o card vai imediatamente para a coluna de destino (estado local) e o modal de dados obrigatórios abre na hora (esqueleto até a API responder). `GET /api/crm/leads/transition-requirements` busca oportunidade, intake, campos e valores em paralelo. Cancelar ou falhar a validação devolve o card à origem. Edições na ficha gravam via PATCH sem `router.refresh()` da página inteira; o Realtime não recarrega a ficha só por `field_values`/`lead_intakes`. APIs autenticadas (`requireAuthApi`) não esperam a API de fotos oficiais.
 
 ## 6) Contratos de API atuais
 
@@ -285,7 +286,7 @@ Testes ativos incluem workflow/autorizações do CRM, suítes de contratos (dinh
 
 Comandos padrão:
 - `npm run lint`
-- `npm run test`
+- `npm run test` (exclui `verify-leads-vs-sheet`, que exige Supabase; use `npm run verify:sheet` localmente)
 - `npm run build`
 
 ## 11) Cutover e rollback

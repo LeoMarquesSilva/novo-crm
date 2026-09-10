@@ -21,7 +21,7 @@ function trimStr(v: unknown): string {
   return "";
 }
 
-function valueJsonToFormValue(raw: unknown): string | string[] | undefined {
+export function valueJsonToFormValue(raw: unknown): string | string[] | undefined {
   if (raw === undefined || raw === null) return undefined;
   if (Array.isArray(raw)) return raw.map((x) => String(x));
   if (typeof raw === "object") return JSON.stringify(raw);
@@ -215,6 +215,120 @@ export interface LeadIntakeSnapshot {
   horario_reuniao: string;
 }
 
+export type MeetingFieldKind = "local" | "data" | "horario";
+
+function normalizeMeetingToken(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+export function classifyMeetingField(fieldCode: string, label: string): MeetingFieldKind | null {
+  const codeNorm = normalizeMeetingToken(fieldCode);
+  const labelNorm = normalizeMeetingToken(label);
+  if (
+    codeNorm.includes("local_reuniao") ||
+    (labelNorm.includes("local") && labelNorm.includes("reuniao"))
+  ) {
+    return "local";
+  }
+  if (
+    codeNorm.includes("data_reuniao") ||
+    (labelNorm.includes("data") && labelNorm.includes("reuniao"))
+  ) {
+    return "data";
+  }
+  if (
+    codeNorm.includes("horario_reuniao") ||
+    (labelNorm.includes("horario") && labelNorm.includes("reuniao"))
+  ) {
+    return "horario";
+  }
+  return null;
+}
+
+export type MeetingValues = {
+  local_reuniao: string;
+  data_reuniao: string;
+  horario_reuniao: string;
+};
+
+export function extractMeetingValuesFromFields(
+  fields: Array<{
+    field_code: string;
+    label: string;
+    value?: string | string[] | null;
+  }>,
+): MeetingValues {
+  const out: MeetingValues = { local_reuniao: "", data_reuniao: "", horario_reuniao: "" };
+  for (const field of fields) {
+    const kind = classifyMeetingField(field.field_code, field.label);
+    const raw = Array.isArray(field.value) ? field.value[0] : field.value;
+    const value = trimStr(raw);
+    if (!kind || !value) continue;
+    if (kind === "local") out.local_reuniao = value;
+    if (kind === "data") out.data_reuniao = value.slice(0, 10);
+    if (kind === "horario") out.horario_reuniao = value.slice(0, 5);
+  }
+  return out;
+}
+
+export function mergeMeetingValues(
+  ...sources: Array<Partial<MeetingValues> | null | undefined>
+): MeetingValues {
+  const out: MeetingValues = { local_reuniao: "", data_reuniao: "", horario_reuniao: "" };
+  for (const source of sources) {
+    if (!source) continue;
+    const local = trimStr(source.local_reuniao);
+    const data = source.data_reuniao ? String(source.data_reuniao).slice(0, 10) : "";
+    const hora = source.horario_reuniao ? String(source.horario_reuniao).slice(0, 5) : "";
+    if (local) out.local_reuniao = local;
+    if (data) out.data_reuniao = data;
+    if (hora) out.horario_reuniao = hora;
+  }
+  return out;
+}
+
+export function collectPriorMeetingValues(params: {
+  intake: {
+    local_reuniao?: string | null;
+    data_reuniao?: string | null;
+    horario_reuniao?: string | null;
+  } | null;
+  fields: Array<{
+    field_code: string;
+    label: string;
+    stage_code?: string | null;
+    value?: string | string[] | null;
+  }>;
+}): MeetingValues {
+  const dueDd = params.fields.filter((field) => field.stage_code === "due_diligence_finalizada");
+  const others = params.fields.filter((field) => field.stage_code !== "due_diligence_finalizada");
+  return mergeMeetingValues(
+    params.intake
+      ? {
+          local_reuniao: params.intake.local_reuniao ?? "",
+          data_reuniao: params.intake.data_reuniao ?? "",
+          horario_reuniao: params.intake.horario_reuniao ?? "",
+        }
+      : null,
+    extractMeetingValuesFromFields(others),
+    extractMeetingValuesFromFields(dueDd),
+  );
+}
+
+/** Campos de reunião já têm bloco dedicado no modal; não repetir no formulário genérico. */
+export function filterReuniaoDuplicateMeetingFields(
+  defs: FieldDefinition[],
+  params: { pipeline: PipelineCode; nextStage: string },
+): FieldDefinition[] {
+  if (params.pipeline !== "vendas" || params.nextStage !== "reuniao") {
+    return defs;
+  }
+  return defs.filter((field) => classifyMeetingField(field.field_code, field.label) == null);
+}
+
 export function computeLeadIntakeRequirement(params: {
   nextStage: OpportunityStage;
   intakeRow: {
@@ -222,6 +336,7 @@ export function computeLeadIntakeRequirement(params: {
     data_reuniao: string | null;
     horario_reuniao: string | null;
   } | null;
+  priorMeetingValues?: Partial<MeetingValues> | null;
 }): { snapshot: LeadIntakeSnapshot | null; blockingReason: string | null } {
   if (params.nextStage !== "reuniao") {
     return { snapshot: null, blockingReason: null };
@@ -235,22 +350,26 @@ export function computeLeadIntakeRequirement(params: {
     };
   }
 
-  const local = trimStr(params.intakeRow.local_reuniao);
-  const data = params.intakeRow.data_reuniao
-    ? String(params.intakeRow.data_reuniao).slice(0, 10)
-    : "";
-  const hora = params.intakeRow.horario_reuniao
-    ? String(params.intakeRow.horario_reuniao).slice(0, 5)
-    : "";
+  const merged = mergeMeetingValues(
+    {
+      local_reuniao: trimStr(params.intakeRow.local_reuniao),
+      data_reuniao: params.intakeRow.data_reuniao
+        ? String(params.intakeRow.data_reuniao).slice(0, 10)
+        : "",
+      horario_reuniao: params.intakeRow.horario_reuniao
+        ? String(params.intakeRow.horario_reuniao).slice(0, 5)
+        : "",
+    },
+    params.priorMeetingValues,
+  );
 
-  const incomplete = !local || !data || !hora;
   return {
     snapshot: {
-      needed: incomplete,
+      needed: true,
       showFields: true,
-      local_reuniao: local,
-      data_reuniao: data,
-      horario_reuniao: hora,
+      local_reuniao: merged.local_reuniao,
+      data_reuniao: merged.data_reuniao,
+      horario_reuniao: merged.horario_reuniao,
     },
     blockingReason: null,
   };
