@@ -7,12 +7,14 @@ import {
   notifyDueReviewAreas,
   syncDueAreaReviewTasksForOpportunity,
 } from "@/lib/crm/due-area-tasks";
+import { isHttpUrl } from "@/lib/crm/is-http-url";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const bodySchema = z.object({
   taskIds: z.array(z.string().uuid()).min(1),
   evidenceKind: z.enum(["link", "file"]),
+  evidenceLink: z.string().max(4000).optional().nullable(),
   completionNote: z.string().max(8000).optional().nullable(),
 });
 
@@ -44,7 +46,7 @@ export async function PATCH(
 
   const { data: opportunity, error: opportunityError } = await supabase
     .from("oportunidades")
-    .select("id, etapa, due_revision_cycle, link_proposta, updated_at")
+    .select("id, etapa, due_revision_cycle")
     .eq("id", opportunityId)
     .maybeSingle();
   if (opportunityError) {
@@ -113,25 +115,28 @@ export async function PATCH(
   let evidenceValue: string | null = null;
 
   if (parsed.data.evidenceKind === "link") {
-    const link = String(opportunity.link_proposta ?? "").trim();
-    const updatedAtMs = Date.parse(String(opportunity.updated_at ?? ""));
-    if (!link) {
+    const submittedLink = String(parsed.data.evidenceLink ?? "").trim();
+    if (!submittedLink) {
       return NextResponse.json(
-        { ok: false, error: "Para evidência por link, informe um link atualizado da proposta." },
+        { ok: false, error: "Para evidência por link, informe o link novo da proposta." },
         { status: 422 },
       );
     }
-    if (!Number.isFinite(updatedAtMs) || updatedAtMs <= minAdjustmentsRequestedAt) {
+    if (!isHttpUrl(submittedLink)) {
       return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "O link da proposta ainda não foi atualizado após a solicitação de ajustes desta rodada.",
-        },
+        { ok: false, error: "Informe um link válido (http ou https)." },
         { status: 422 },
       );
     }
-    evidenceValue = link;
+
+    const { error: linkUpdateError } = await supabase
+      .from("oportunidades")
+      .update({ link_proposta: submittedLink, updated_at: now })
+      .eq("id", opportunityId);
+    if (linkUpdateError) {
+      return NextResponse.json({ ok: false, error: linkUpdateError.message }, { status: 500 });
+    }
+    evidenceValue = submittedLink;
   } else {
     const { data: doc, error: docError } = await supabase
       .from("due_documents")

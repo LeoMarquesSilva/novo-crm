@@ -29,7 +29,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isHttpUrl } from "@/lib/crm/is-http-url";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { getStageIcon } from "@/lib/crm/stage-icons";
 import {
@@ -872,8 +874,11 @@ function DueCompilacaoSection({
   const [adjustmentsDialogOpen, setAdjustmentsDialogOpen] = useState(false);
   const [selectedAdjustmentTaskIds, setSelectedAdjustmentTaskIds] = useState<string[]>([]);
   const [adjustmentEvidenceKind, setAdjustmentEvidenceKind] = useState<"link" | "file">("file");
+  const [adjustmentEvidenceFile, setAdjustmentEvidenceFile] = useState<File | null>(null);
+  const [adjustmentEvidenceLink, setAdjustmentEvidenceLink] = useState("");
   const [adjustmentCompletionNote, setAdjustmentCompletionNote] = useState("");
   const [adjustmentModalError, setAdjustmentModalError] = useState<string | null>(null);
+  const [adjustmentFileInputKey, setAdjustmentFileInputKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canManage = viewer?.role === "admin" || viewer?.role === "comercial";
   const pptDocs = lead.dueDocuments.filter((d) => d.documentKind === "ppt_compilacao");
@@ -953,14 +958,49 @@ function DueCompilacaoSection({
     );
   }
 
+  function resetAdjustmentEvidenceFields() {
+    setAdjustmentEvidenceFile(null);
+    setAdjustmentEvidenceLink("");
+    setAdjustmentModalError(null);
+    setAdjustmentFileInputKey((current) => current + 1);
+  }
+
   async function concludeSelectedAdjustments() {
     if (selectedAdjustmentTaskIds.length < 1) {
       setAdjustmentModalError("Selecione ao menos uma área para concluir os ajustes.");
       return;
     }
+    if (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile) {
+      setAdjustmentModalError("Selecione um arquivo PPT novo para concluir.");
+      return;
+    }
+    const submittedLink = adjustmentEvidenceLink.trim();
+    if (adjustmentEvidenceKind === "link") {
+      if (!submittedLink) {
+        setAdjustmentModalError("Informe o link novo para concluir.");
+        return;
+      }
+      if (!isHttpUrl(submittedLink)) {
+        setAdjustmentModalError("Informe um link válido (http ou https).");
+        return;
+      }
+    }
     setAdjustmentModalError(null);
     setConcludingAdjustments(true);
     try {
+      if (adjustmentEvidenceKind === "file" && adjustmentEvidenceFile) {
+        const fd = new FormData();
+        fd.append("file", adjustmentEvidenceFile);
+        const uploadRes = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/due-documents`, {
+          method: "POST",
+          body: fd,
+        });
+        const uploadPayload = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok) {
+          throw new Error(uploadPayload.error ?? "Falha no envio do PPT.");
+        }
+      }
+
       const res = await fetch(
         `/api/crm/leads/${encodeURIComponent(lead.id)}/due-area-review-adjustments`,
         {
@@ -969,6 +1009,7 @@ function DueCompilacaoSection({
           body: JSON.stringify({
             taskIds: selectedAdjustmentTaskIds,
             evidenceKind: adjustmentEvidenceKind,
+            evidenceLink: adjustmentEvidenceKind === "link" ? submittedLink : null,
             completionNote: adjustmentCompletionNote.trim() || null,
           }),
         },
@@ -980,7 +1021,7 @@ function DueCompilacaoSection({
       setAdjustmentsDialogOpen(false);
       setSelectedAdjustmentTaskIds([]);
       setAdjustmentCompletionNote("");
-      setAdjustmentModalError(null);
+      resetAdjustmentEvidenceFields();
       onUpdated();
     } catch (error) {
       setAdjustmentModalError(
@@ -1147,7 +1188,7 @@ function DueCompilacaoSection({
         onOpenChange={(open) => {
           setAdjustmentsDialogOpen(open);
           if (!open) {
-            setAdjustmentModalError(null);
+            resetAdjustmentEvidenceFields();
           }
         }}
       >
@@ -1155,7 +1196,7 @@ function DueCompilacaoSection({
           <DialogHeader>
             <DialogTitle>Concluir ajustes selecionados</DialogTitle>
             <DialogDescription>
-              Selecione uma evidência da rodada para concluir os ajustes das áreas marcadas.
+              Informe a evidência nova desta rodada para concluir os ajustes das áreas marcadas.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-1">
@@ -1174,6 +1215,7 @@ function DueCompilacaoSection({
                     checked={adjustmentEvidenceKind === "file"}
                     onChange={() => {
                       setAdjustmentEvidenceKind("file");
+                      setAdjustmentEvidenceLink("");
                       setAdjustmentModalError(null);
                     }}
                   />
@@ -1186,15 +1228,58 @@ function DueCompilacaoSection({
                     checked={adjustmentEvidenceKind === "link"}
                     onChange={() => {
                       setAdjustmentEvidenceKind("link");
+                      setAdjustmentEvidenceFile(null);
                       setAdjustmentModalError(null);
+                      setAdjustmentFileInputKey((current) => current + 1);
                     }}
                   />
                   Novo link
                 </label>
               </div>
-              <p className="text-xs text-slate-500">
-                A validação confirma evidência nova após a solicitação de ajustes das áreas selecionadas.
-              </p>
+              {adjustmentEvidenceKind === "file" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="due-adjustment-file">Arquivo PPT novo</Label>
+                  <input
+                    key={adjustmentFileInputKey}
+                    id="due-adjustment-file"
+                    type="file"
+                    accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    disabled={!canManage || concludingAdjustments}
+                    className="block h-9 w-full rounded-xl border border-[#dfe5ee] bg-white px-2.5 py-1 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-sm file:font-medium"
+                    onChange={(event) => {
+                      setAdjustmentEvidenceFile(event.target.files?.[0] ?? null);
+                      setAdjustmentModalError(null);
+                    }}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Envie um .ppt ou .pptx atualizado após a solicitação de ajustes.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="due-adjustment-link">Link novo</Label>
+                  <Input
+                    id="due-adjustment-link"
+                    type="url"
+                    value={adjustmentEvidenceLink}
+                    onChange={(event) => {
+                      setAdjustmentEvidenceLink(event.target.value);
+                      setAdjustmentModalError(null);
+                    }}
+                    placeholder="https://…"
+                    disabled={!canManage || concludingAdjustments}
+                  />
+                  {lead.linkProposta ? (
+                    <p className="text-xs text-slate-500">
+                      Link atual: {lead.linkProposta}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      Cole o URL atualizado da proposta ou do material desta rodada.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -1214,7 +1299,12 @@ function DueCompilacaoSection({
             </Button>
             <Button
               type="button"
-              disabled={concludingAdjustments || selectedAdjustmentTaskIds.length < 1}
+              disabled={
+                concludingAdjustments ||
+                selectedAdjustmentTaskIds.length < 1 ||
+                (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile) ||
+                (adjustmentEvidenceKind === "link" && !adjustmentEvidenceLink.trim())
+              }
               onClick={() => void concludeSelectedAdjustments()}
             >
               {concludingAdjustments ? "Concluindo…" : "Confirmar conclusão"}

@@ -152,6 +152,7 @@ No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e 
 ### 6.2 Workflow
 
 - **`POST /api/crm/leads/transition`** — transição autenticada de etapa (uso atual do kanban e da ficha).
+- **`PATCH /api/crm/leads/[id]/due-area-review-adjustments`** — conclui tarefas com ajustes solicitados na Compilação. Body: `{ taskIds, evidenceKind: "file" | "link", evidenceLink?, completionNote? }`. `link` exige `evidenceLink` (http/https) e grava `oportunidades.link_proposta`; `file` exige um PPT em `due_documents` enviado após a solicitação de ajustes (o modal da ficha coleta o arquivo e faz o upload antes de concluir).
 - **`POST /api/workflow/validate`** e **`POST /api/workflow/transition`** — **descontinuados (410)**; substituídos pelo endpoint CRM acima.
 
 ### 6.3 Integrações
