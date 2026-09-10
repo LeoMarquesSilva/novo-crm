@@ -275,7 +275,11 @@ export function extractMeetingValuesFromFields(
 }
 
 export function mergeMeetingValues(
-  ...sources: Array<Partial<MeetingValues> | null | undefined>
+  ...sources: Array<{
+    local_reuniao?: string | null;
+    data_reuniao?: string | null;
+    horario_reuniao?: string | null;
+  } | null | undefined>
 ): MeetingValues {
   const out: MeetingValues = { local_reuniao: "", data_reuniao: "", horario_reuniao: "" };
   for (const source of sources) {

@@ -763,6 +763,7 @@ export function PipelineBoard({
           missingLinkContrato?: boolean;
           leadIntake?: {
             needed?: boolean;
+            showFields?: boolean;
             local_reuniao?: string;
             data_reuniao?: string;
             horario_reuniao?: string;
