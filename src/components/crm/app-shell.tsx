@@ -383,6 +383,10 @@ export function AppShell({
   const favoriteItems = favorites
     .map((href) => allItems.find((item) => item.href === href))
     .filter((item): item is SidebarItem => Boolean(item));
+  const onAdminRoute =
+    showAdminNav && pathname
+      ? adminItems.some((item) => isNavLinkActive(pathname, item.href))
+      : false;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -394,13 +398,6 @@ export function AppShell({
 
     return () => window.clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    if (!showAdminNav || !pathname) return;
-    const onAdminRoute = adminItems.some((item) => isNavLinkActive(pathname, item.href));
-    if (!onAdminRoute) return;
-    setOpenGroups((current) => (current.admin ? current : { ...current, admin: true }));
-  }, [pathname, showAdminNav]);
 
   useEffect(() => {
     if (!hydratedStorage) return;
@@ -551,7 +548,7 @@ export function AppShell({
                       collapsed={false}
                       favorites={favorites}
                       search={search}
-                      open={openGroups[group.id] ?? true}
+                      open={group.id === "admin" && onAdminRoute ? true : (openGroups[group.id] ?? true)}
                       onToggleOpen={toggleGroup}
                       onToggleFavorite={toggleFavorite}
                     />
@@ -648,7 +645,7 @@ export function AppShell({
                   compact={navCompact}
                   favorites={favorites}
                   search={search}
-                  open={openGroups[group.id] ?? true}
+                  open={group.id === "admin" && onAdminRoute ? true : (openGroups[group.id] ?? true)}
                   onToggleOpen={toggleGroup}
                   onToggleFavorite={toggleFavorite}
                 />
