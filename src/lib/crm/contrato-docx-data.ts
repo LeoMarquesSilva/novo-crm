@@ -39,7 +39,12 @@ export type AreaSection = {
 };
 
 export type ContratoDocumentPagePreview = {
-  qualificacao: string;
+  /**
+   * Uma sentença de qualificação por CONTRATANTE (pode ser mais de uma — ver
+   * teste "duas contratantes usam linguagem no plural" em
+   * contract-engine.test.ts). Sempre tem ao menos 1 elemento.
+   */
+  qualificacoesPartes: string[];
   objeto: string;
   valores: string;
   investimento: string;
@@ -191,7 +196,9 @@ export function buildContratoDocumentPagePreview(
   const cep = g("CEP") || ELLIPSIS;
 
   return {
-    qualificacao: `${empresa}, pessoa jurídica de direito privado, inscrita no CNPJ nº ${documento}, com sede na ${logradouro}, nº ${numero}, ${bairro}, ${cidade}/${uf}, CEP ${cep}.`,
+    qualificacoesPartes: [
+      `${empresa}, pessoa jurídica de direito privado, inscrita no CNPJ nº ${documento}, com sede na ${logradouro}, nº ${numero}, ${bairro}, ${cidade}/${uf}, CEP ${cep}.`,
+    ],
     objeto: g("OBJETO_CONTRATO") || ELLIPSIS,
     valores: g("VALORES") || ELLIPSIS,
     investimento: g("INVESTIMENTO"),

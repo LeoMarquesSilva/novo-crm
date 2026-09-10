@@ -39,12 +39,14 @@ import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { cn } from "@/lib/utils";
 import { LeadDetailFieldEditor, pipelineFieldToEditorProps } from "./lead-detail-field-editor";
-import { buildCanonicalProposalData } from "@/lib/crm/proposta-docx-data";
+import {
+  buildCanonicalProposalData, buildPropostaPreviewPage, type CanonicalProposalData,
+} from "@/lib/crm/proposta-docx-data";
 import { listProposalPendingFields, type ProposalRequiredField } from "@/lib/crm/proposta-document-validation";
 import {
-  createProposalPdfPreviewController, persistProposalDraft, readProposalDocxResponse,
-  readProposalPdfResponse, selectProposalDraftValues, type ProposalPdfPreviewState,
+  persistProposalDraft, readProposalDocxResponse, readProposalPdfResponse, selectProposalDraftValues,
 } from "@/lib/crm/proposta-document-client";
+import { PropostaBodyPages } from "./proposta-preview";
 import { PropostaEscopoAreaCoordenacao } from "./proposta-escopo-area-coordenacao";
 import { PropostaEscopoPorArea } from "./proposta-escopo-por-area";
 import { PropostaInvestimentoConsolidadoForm } from "@/components/crm/proposta-investimento-consolidado-form";
@@ -380,19 +382,6 @@ function PropostaBuilderDialog({
   const [generatedAt] = useState(() => new Date().toISOString());
   const [previewing, setPreviewing] = useState(false);
   const [scopeSaving, setScopeSaving] = useState(false);
-  const [pdfPreview, setPdfPreview] = useState<ProposalPdfPreviewState>({
-    url: null, sourceSha256: null, updating: false, error: null,
-  });
-  const [previewRetry, setPreviewRetry] = useState(0);
-  const pdfPreviewController = useMemo(() => createProposalPdfPreviewController({ onState: setPdfPreview }), []);
-  useEffect(() => {
-    if (!open || !selectedTemplateId) return;
-    pdfPreviewController.schedule(`/api/crm/leads/${encodeURIComponent(lead.id)}/document/preview`, {
-      templateId: selectedTemplateId, draftValues: selectProposalDraftValues(draftValues), responsavel, generatedAt,
-    });
-    return () => pdfPreviewController.cancelPending();
-  }, [pdfPreviewController, open, selectedTemplateId, lead.id, draftValues, responsavel, generatedAt, previewRetry]);
-  useEffect(() => () => pdfPreviewController.dispose(), [pdfPreviewController]);
   const operationRef = useRef(false);
   const downloadUrls = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   useEffect(() => {
@@ -496,9 +485,13 @@ function PropostaBuilderDialog({
     [draftValues.cp_areas_objeto, areasField?.value, investmentCatalog],
   );
 
-  const currentValidation = useMemo(() => {
+  // Canônico do rascunho atual, computado só no cliente (mesmos dados que já
+  // estão carregados: draftValues inicializa do snapshot do servidor e é
+  // editado localmente) — alimenta tanto a validação de pendências quanto a
+  // prévia HTML ao vivo (ver PropostaBodyPages), sem round-trip nenhum.
+  const previewCanonical = useMemo<CanonicalProposalData | null>(() => {
     try {
-      const { templateData } = buildCanonicalProposalData({
+      return buildCanonicalProposalData({
         empresasIntake: lead.empresasIntake ?? [],
         cpPropostaEmpresasJson: draftValues.cp_proposta_empresas_json,
         fieldByCode: draftValues,
@@ -508,11 +501,24 @@ function PropostaBuilderDialog({
         scopeCatalog,
         investmentCatalog,
       });
+    } catch {
+      return null;
+    }
+  }, [draftValues, generatedAt, responsavel, lead.empresasIntake, scopeCatalog, investmentCatalog]);
+
+  const previewPage = useMemo(
+    () => (previewCanonical ? buildPropostaPreviewPage(previewCanonical) : null),
+    [previewCanonical],
+  );
+
+  const currentValidation = useMemo(() => {
+    if (!previewCanonical) return ["Não foi possível validar o rascunho atual. Revise os campos da proposta."];
+    try {
       const template = templates.find((item) => item.id === selectedTemplateId) ?? docState.template;
       return listProposalPendingFields({
         templateFields: template.fields ?? [],
         fieldByCode: draftValues,
-        templateData,
+        templateData: previewCanonical.templateData,
         scopeCatalog,
         investmentCatalog,
         responsavel,
@@ -520,7 +526,7 @@ function PropostaBuilderDialog({
     } catch {
       return ["Não foi possível validar o rascunho atual. Revise os campos da proposta."];
     }
-  }, [draftValues, generatedAt, responsavel, lead.empresasIntake, scopeCatalog, investmentCatalog, templates, selectedTemplateId, docState.template]);
+  }, [previewCanonical, draftValues, responsavel, scopeCatalog, investmentCatalog, templates, selectedTemplateId, docState.template]);
   const pending = currentValidation;
 
   function fieldChange(code: string, value: string) {
@@ -895,9 +901,8 @@ function PropostaBuilderDialog({
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
                 <div>
                   <h3 className="text-sm font-bold text-primary-dark">Prévia da proposta</h3>
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500" role="status">
-                    {pdfPreview.updating ? <><Loader2 className="size-3.5 animate-spin" aria-hidden /> Atualizando…</> :
-                      pdfPreview.error ? "A atualização não foi concluída." : pdfPreview.url ? "Atualizada com o rascunho atual." : "Preparando a prévia…"}
+                  <p className="mt-1 text-xs text-slate-500" role="status">
+                    {previewPage ? "Atualizada com o rascunho atual." : "Não foi possível montar a prévia com o rascunho atual."}
                   </p>
                 </div>
                 <Button type="button" variant="outline" size="sm" className="gap-2"
@@ -906,22 +911,14 @@ function PropostaBuilderDialog({
                   Baixar prévia Word
                 </Button>
               </div>
-              {pdfPreview.error ? (
-                <div className="shrink-0 space-y-2 border-b border-rose-200 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
-                  <p className="whitespace-pre-wrap break-words">{pdfPreview.error}</p>
-                  {pdfPreview.url ? <p className="text-xs">A última prévia permanece visível abaixo.</p> : null}
-                  <Button type="button" variant="outline" size="sm" onClick={() => setPreviewRetry((value) => value + 1)}>
-                    Tentar novamente
-                  </Button>
+              {previewPage ? (
+                <div className="min-h-0 flex-1 overflow-y-auto p-6">
+                  <PropostaBodyPages page={previewPage} />
                 </div>
-              ) : null}
-              {pdfPreview.url ? (
-                <iframe title="Prévia PDF da proposta" className="min-h-0 w-full flex-1 border-0"
-                  src={pdfPreview.url + "#toolbar=0&navpanes=0&view=FitH"} data-source-sha256={pdfPreview.sourceSha256 ?? undefined} />
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-slate-500">
-                  {pdfPreview.updating ? <Loader2 className="size-9 animate-spin" aria-hidden /> : <FileText className="size-9" aria-hidden />}
-                  <p className="text-sm">{pdfPreview.updating ? "Preparando o documento para leitura…" : "A prévia será exibida aqui."}</p>
+                  <FileText className="size-9" aria-hidden />
+                  <p className="text-sm">A prévia será exibida aqui.</p>
                 </div>
               )}
               <p className="shrink-0 border-t border-slate-200 bg-white px-4 py-2 text-xs text-slate-500">

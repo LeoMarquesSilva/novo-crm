@@ -433,6 +433,37 @@ export function buildCanonicalProposalData(input: PropostaDocxTemplateInput): Ca
   return { ...buildPropostaDocxPayload(input), generatedAt: input.generatedAt.toISOString() };
 }
 
+/**
+ * Página estruturada pra prévia HTML da proposta (ver `PropostaBodyPages` em
+ * proposta-preview.tsx) — reaproveita os campos já resolvidos por
+ * `buildCanonicalProposalData`, sem recalcular nenhuma regra de negócio.
+ * Distinto de `PropostaDocumentPagePreview` (tipo legado/depreciado, mantido
+ * só pros testes de regressão do preview antigo).
+ */
+export type PropostaPreviewPage = {
+  capa: { empresa: string; responsavel: string; dataProposta: string };
+  escopoInvestimento: { areas: EscopoPreviewSection[]; investimentoText: string };
+  fechamento: { dataVigencia: string };
+};
+
+export function buildPropostaPreviewPage(canonical: CanonicalProposalData): PropostaPreviewPage {
+  const { templateData, escopoSections } = canonical;
+  return {
+    capa: {
+      empresa: templateData.EMPRESA ?? "",
+      responsavel: templateData.RESPONSAVEL ?? "",
+      dataProposta: templateData.DATA_PROPOSTA ?? "",
+    },
+    escopoInvestimento: {
+      areas: escopoSections,
+      investimentoText: templateData.INVESTIMENTO ?? "",
+    },
+    fechamento: {
+      dataVigencia: templateData.DATA_VIGENCIA ?? "",
+    },
+  };
+}
+
 /** Template Word + preview estruturado (seções por área ou por escopo). */
 /** @deprecated Legacy DTO for regression tests; never use as the official document preview. */
 export function buildPropostaLivePreview(input: PropostaDocxTemplateInput): {

@@ -17,6 +17,7 @@ import {
 } from "docx";
 
 import type { ContratoDocumentPagePreview } from "./contrato-docx-data";
+import { contractPartyGrammar } from "./contract-engine/party-language";
 
 // ─── Constantes tipográficas ──────────────────────────────────────────────────
 
@@ -114,11 +115,20 @@ export async function generateContratoDocxBuffer(
   const standaloneBranding = options?.standaloneBranding ?? true;
   const ELLIPSIS = "…";
 
-  // Separa o nome da empresa (negrito) do restante da qualificação
-  const qualRaw = (page.qualificacao || "").replace(/\.\s*$/, ""); // remove ponto final
-  const comma = qualRaw.indexOf(",");
-  const companyName = comma >= 0 ? qualRaw.slice(0, comma).trim() : qualRaw;
-  const companyDetail = comma >= 0 ? qualRaw.slice(comma) : ""; // começa com ","
+  // Separa o nome (negrito) do restante de cada CONTRATANTE — uma sentença por
+  // empresa (ver "qualificacoesPartes"; pode ser mais de uma quando duas
+  // empresas do mesmo grupo contratam juntas — ver contractPartyGrammar).
+  const qualificacoesPartes =
+    page.qualificacoesPartes && page.qualificacoesPartes.length > 0 ? page.qualificacoesPartes : [ELLIPSIS];
+  const contratanteGrammar = contractPartyGrammar(qualificacoesPartes.length);
+  const qualParties = qualificacoesPartes.map((raw) => {
+    const qualRaw = raw.replace(/\.\s*$/, ""); // remove ponto final
+    const comma = qualRaw.indexOf(",");
+    return {
+      name: comma >= 0 ? qualRaw.slice(0, comma).trim() : qualRaw,
+      detail: comma >= 0 ? qualRaw.slice(comma) : "", // começa com ","
+    };
+  });
 
   const hasLimitacoes = !!(page.limiteProcessos || page.limiteHoras);
   const hasExito = !!page.exitoAreas && !(page.areas?.some((a) => a.key === "exito"));
@@ -164,18 +174,28 @@ export async function generateContratoDocxBuffer(
     ),
   );
 
-  // ── Qualificação do CONTRATANTE ────────────────────────────────────────────
-  children.push(
-    para(
-      [
-        run(companyName || ELLIPSIS, true),
-        run(`${companyDetail}, doravante denominada `),
-        run('"CONTRATANTE"', true),
-        run("."),
-      ],
-      { after: 220 },
-    ),
-  );
+  // ── Qualificação do(s) CONTRATANTE(S) ──────────────────────────────────────
+  // Uma sentença por empresa; só a última leva o "doravante denominada(s)",
+  // já no singular/plural certo (contractPartyGrammar — mesmo utilitário que
+  // já pluraliza o resto do contrato quando há mais de uma CONTRATANTE).
+  qualParties.forEach(({ name, detail }, i) => {
+    const isLast = i === qualParties.length - 1;
+    children.push(
+      para(
+        isLast
+          ? [
+              run(name || ELLIPSIS, true),
+              run(
+                `${detail}, doravante ${contratanteGrammar.plural ? "denominadas, em conjunto," : "denominada"} `,
+              ),
+              run(`"${contratanteGrammar.noun}"`, true),
+              run("."),
+            ]
+          : [run(name || ELLIPSIS, true), run(`${detail}; e`)],
+        { after: 220 },
+      ),
+    );
+  });
 
   // ── Qualificação da CONTRATADA (Bismarchi | Pires — fixo) ─────────────────
   children.push(
@@ -200,7 +220,7 @@ export async function generateContratoDocxBuffer(
   children.push(
     para(
       [
-        run("CONTRATANTE", true),
+        run(contratanteGrammar.noun, true),
         run(" e "),
         run("CONTRATADA", true),
         run(", quando em conjunto, doravante denominadas "),
@@ -421,7 +441,7 @@ export async function generateContratoDocxBuffer(
       rows: [
         new TableRow({
           children: [
-            sigCell("CONTRATANTE"),
+            sigCell(contratanteGrammar.noun),
             spacerCell,
             sigCell("CONTRATADA", "Bismarchi | Pires – Sociedade de Advogados", [
               "Gustavo Bismarchi Motta",

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -56,6 +56,7 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { evaluateCondition, type FieldCondition } from "@/lib/crm/field-condition";
+import { usePaginatedBlocks, type PreviewBlock } from "@/lib/crm/document-pagination";
 import {
   buildContratoDocumentPagePreview,
   type ContratoDocumentPagePreview,
@@ -88,6 +89,7 @@ import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-pre
 import { applyObjectOverride } from "@/lib/crm/contract-engine/object-engine";
 import { appendContractEngineEvent } from "@/lib/crm/contract-engine/object-events";
 import { resolveContractScopes } from "@/lib/crm/contract-engine/proposal-snapshot";
+import { contractPartyGrammar } from "@/lib/crm/contract-engine/party-language";
 import type { ContractObjectDraft } from "@/lib/crm/contract-engine/persist";
 import type {
   CanonicalContractBuildResult,
@@ -3171,8 +3173,6 @@ const PAGE_TOP_SAFE_ZONE = 112; // pt-28
 const PAGE_BOTTOM_SAFE_ZONE = 64; // pb-16
 const PAGE_CONTENT_HEIGHT = D4SIGN_A4_HEIGHT - PAGE_TOP_SAFE_ZONE - PAGE_BOTTOM_SAFE_ZONE;
 
-type PreviewBlock = { key: string; node: React.ReactNode; forceBreakBefore?: boolean };
-
 /**
  * Corta os blocos do corpo do contrato em páginas de verdade — mede a altura
  * real de cada bloco (renderizado escondido, mesma largura da página) e
@@ -3180,55 +3180,12 @@ type PreviewBlock = { key: string; node: React.ReactNode; forceBreakBefore?: boo
  * estouro. Sem isso, a imagem do cabeçalho/rodapé do papel timbrado repetia a
  * cada "altura de página" num fluxo contínuo, sem relação nenhuma com onde o
  * conteúdo realmente cabia — cortava o timbrado no meio de qualquer jeito.
+ * Motor de medição/paginação compartilhado com a prévia da proposta — ver
+ * `usePaginatedBlocks` em `@/lib/crm/document-pagination`.
  */
 function ContratoBodyPages({ page }: { page: ContratoDocumentPagePreview }) {
   const blocks = useMemo(() => buildContratoBodyBlocks(page), [page]);
-  const measureHostRef = useRef<HTMLDivElement | null>(null);
-  const [pages, setPages] = useState<PreviewBlock[][]>(() => [blocks]);
-
-  useLayoutEffect(() => {
-    const host = measureHostRef.current;
-    if (!host) return;
-    // Mede pela POSIÇÃO real de cada bloco (topo em relação ao host), não
-    // pela altura isolada de cada `<div>` — somar alturas individuais é
-    // sujeito a erro por causa do colapso de margem do CSS (a margin-bottom
-    // de um parágrafo "escapa" do próprio elemento e não entra no
-    // getBoundingClientRect() dele, mas ainda desloca o próximo elemento).
-    // Medindo a diferença entre o topo de um bloco e o do próximo, o efeito
-    // do colapso de margem já vem embutido automaticamente — é exatamente
-    // o espaço real que aquele bloco ocupa no fluxo, sem precisar adivinhar.
-    // `children` inclui o sentinela final (ver JSX abaixo) — usado só pra
-    // capturar a posição real do fim do último bloco, já que a própria altura
-    // do host não inclui a margin-bottom do último filho quando ela colapsa
-    // "através" do host (o host não tem padding/borda pra conter a margem).
-    const hostTop = host.getBoundingClientRect().top;
-    const children = Array.from(host.children);
-    const tops = children.map((el) => el.getBoundingClientRect().top - hostTop);
-    const heights = blocks.map((_, i) => (tops[i + 1] ?? 0) - tops[i]);
-
-    const result: PreviewBlock[][] = [];
-    let current: PreviewBlock[] = [];
-    let currentHeight = 0;
-    blocks.forEach((block, i) => {
-      const h = heights[i] ?? 0;
-      const mustBreak = Boolean(block.forceBreakBefore) && current.length > 0;
-      const overflows = current.length > 0 && currentHeight + h > PAGE_CONTENT_HEIGHT;
-      if (mustBreak || overflows) {
-        result.push(current);
-        current = [];
-        currentHeight = 0;
-      }
-      current.push(block);
-      currentHeight += h;
-    });
-    if (current.length > 0) result.push(current);
-    // Paginação depende da altura real renderizada (fonte, largura, quebra de
-    // linha) — não dá pra calcular isso durante o render, só depois que o DOM
-    // de medição existe. Mesmo padrão de "measure then setState" documentado
-    // pelo React para useLayoutEffect (react.dev/learn/you-might-not-need-an-effect).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPages(result.length > 0 ? result : [[]]);
-  }, [blocks]);
+  const { pages, measureHostRef } = usePaginatedBlocks(blocks, PAGE_CONTENT_HEIGHT);
 
   return (
     <>
@@ -3255,21 +3212,27 @@ function ContratoBodyPages({ page }: { page: ContratoDocumentPagePreview }) {
         </div>
       </div>
 
-      {pages.map((pageBlocks, i) => (
-        <div key={i}>
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-            Folha {i + 1} — Corpo do contrato
-          </p>
-          <div
-            className={cn(A4_PAGE_CLASS, "pt-28 pb-16")}
-            style={{ ...CONTRACT_BODY_STYLE, ...CONTRACT_LETTERHEAD_STYLE, minHeight: D4SIGN_A4_HEIGHT }}
-          >
-            {pageBlocks.map((b) => (
-              <div key={b.key}>{b.node}</div>
-            ))}
+      {/* Nunca renderiza uma folha sem bloco nenhum — `usePaginatedBlocks` pode
+          devolver `[[]]` momentaneamente (ex.: antes da medição terminar, com
+          `blocks` ainda vazio), o que sem esse filtro desenhava uma folha A4
+          inteira em branco (só o rótulo "Folha N", sem conteúdo). */}
+      {pages
+        .filter((pageBlocks) => pageBlocks.length > 0)
+        .map((pageBlocks, i) => (
+          <div key={i}>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              Folha {i + 1} — Corpo do contrato
+            </p>
+            <div
+              className={cn(A4_PAGE_CLASS, "pt-28 pb-16")}
+              style={{ ...CONTRACT_BODY_STYLE, ...CONTRACT_LETTERHEAD_STYLE, minHeight: D4SIGN_A4_HEIGHT }}
+            >
+              {pageBlocks.map((b) => (
+                <div key={b.key}>{b.node}</div>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
     </>
   );
 }
@@ -3277,12 +3240,22 @@ function ContratoBodyPages({ page }: { page: ContratoDocumentPagePreview }) {
 function buildContratoBodyBlocks(page: ContratoDocumentPagePreview): PreviewBlock[] {
   const ELLIPSIS = "…";
 
-  // Separar o nome da empresa (bold) do restante da qualificação
-  const qualRaw = page.qualificacao || "";
-  const qualNoPoint = qualRaw.replace(/\.\s*$/, ""); // remove ponto final
-  const firstComma = qualNoPoint.indexOf(",");
-  const companyName = firstComma >= 0 ? qualNoPoint.slice(0, firstComma).trim() : qualNoPoint;
-  const companyDetail = firstComma >= 0 ? qualNoPoint.slice(firstComma) : ""; // já começa com ","
+  // Separa o nome de cada CONTRATANTE (bold) do restante da sua qualificação —
+  // uma sentença por empresa (ver "qualificacoesPartes"; pode ser mais de uma,
+  // ex.: duas empresas do mesmo grupo contratando juntas).
+  const qualificacoesPartes =
+    page.qualificacoesPartes && page.qualificacoesPartes.length > 0
+      ? page.qualificacoesPartes
+      : [ELLIPSIS];
+  const contratanteGrammar = contractPartyGrammar(qualificacoesPartes.length);
+  const qualParties = qualificacoesPartes.map((qualRaw) => {
+    const qualNoPoint = qualRaw.replace(/\.\s*$/, ""); // remove ponto final
+    const firstComma = qualNoPoint.indexOf(",");
+    return {
+      name: firstComma >= 0 ? qualNoPoint.slice(0, firstComma).trim() : qualNoPoint,
+      detail: firstComma >= 0 ? qualNoPoint.slice(firstComma) : "", // já começa com ","
+    };
+  });
 
   // Numeração dinâmica de cláusulas
   const hasAreas  = page.areas && page.areas.length > 0;
@@ -3347,15 +3320,29 @@ function buildContratoBodyBlocks(page: ContratoDocumentPagePreview): PreviewBloc
     ),
   });
 
-  blocks.push({
-    key: "qual-contratante",
-    node: (
-      <p className="mb-4">
-        <strong>{companyName || ELLIPSIS}</strong>
-        {companyDetail}, doravante denominada{" "}
-        <strong>&ldquo;CONTRATANTE&rdquo;</strong>.
-      </p>
-    ),
+  // Uma sentença por CONTRATANTE — quando há mais de uma, cada uma vira seu
+  // próprio parágrafo/bloco (pagina bem se a lista crescer) e só a última leva
+  // o "doravante denominada(s)", já no singular/plural certo (ver
+  // contractPartyGrammar — mesmo utilitário que já plura o resto do contrato).
+  qualParties.forEach(({ name, detail }, i) => {
+    const isLast = i === qualParties.length - 1;
+    blocks.push({
+      key: `qual-contratante-${i}`,
+      node: (
+        <p className="mb-4">
+          <strong>{name || ELLIPSIS}</strong>
+          {detail}
+          {isLast ? (
+            <>
+              , doravante {contratanteGrammar.plural ? "denominadas, em conjunto," : "denominada"}{" "}
+              <strong>&ldquo;{contratanteGrammar.noun}&rdquo;</strong>.
+            </>
+          ) : (
+            "; e"
+          )}
+        </p>
+      ),
+    });
   });
 
   blocks.push({
@@ -3377,10 +3364,10 @@ function buildContratoBodyBlocks(page: ContratoDocumentPagePreview): PreviewBloc
     key: "conjuncao",
     node: (
       <p className="mb-7">
-        <strong>CONTRATANTE</strong> e <strong>CONTRATADA</strong>, quando em conjunto, doravante
-        denominadas <strong>&ldquo;Partes&rdquo;</strong> e, individual e indiscriminadamente,{" "}
-        <strong>&ldquo;Parte&rdquo;</strong>, têm entre si, justo e acordado os termos do presente
-        Contrato de Prestação de Serviços Advocatícios (
+        <strong>{contratanteGrammar.noun}</strong> e <strong>CONTRATADA</strong>, quando em
+        conjunto, doravante denominadas <strong>&ldquo;Partes&rdquo;</strong> e, individual e
+        indiscriminadamente, <strong>&ldquo;Parte&rdquo;</strong>, têm entre si, justo e acordado
+        os termos do presente Contrato de Prestação de Serviços Advocatícios (
         <strong>&ldquo;Contrato&rdquo;</strong>), o qual reger-se-á pelas seguintes cláusulas e
         condições.
       </p>
@@ -3567,6 +3554,7 @@ function buildClauseBlocks(
 /** Folha dedicada de assinaturas — sempre a última página do PDF enviado à D4Sign. */
 function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePreview }) {
   const ELLIPSIS = "…";
+  const contratanteNoun = contractPartyGrammar(page.qualificacoesPartes?.length || 1).noun;
 
   return (
     <div
@@ -3589,7 +3577,7 @@ function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePre
       <div className="grid grid-cols-2 gap-10">
         <div className="flex flex-col items-center text-center">
           <div className="mb-1 w-full" style={{ borderTop: "1px solid #333" }} />
-          <p className="font-bold">CONTRATANTE</p>
+          <p className="font-bold">{contratanteNoun}</p>
         </div>
         <div className="flex flex-col items-center text-center">
           <div className="mb-1 w-full" style={{ borderTop: "1px solid #333" }} />

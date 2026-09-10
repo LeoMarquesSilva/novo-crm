@@ -60,7 +60,7 @@ export function previewFromCanonical(data: CanonicalContractData): ContratoDocum
         .join("\n\n");
 
   return {
-    qualificacao: qualificacoes.join(" ") || "…",
+    qualificacoesPartes: qualificacoes.length > 0 ? qualificacoes : ["…"],
     objeto: objeto || "…",
     valores: data.payment.clauseText || "…",
     investimento: data.investment.totalExtenso,
