@@ -1,4 +1,5 @@
 import type { ClauseRole, ContractClauseTemplate } from "./types";
+import { toTitleCasePt } from "./title-case";
 
 const LEGAL =
   "REQUIRES LEGAL DECISION — texto extraído dos modelos Word para revisão da equipe Societário. Não é cláusula oficial BP.";
@@ -12,7 +13,7 @@ function clause(
 ): ContractClauseTemplate {
   return {
     stableKey,
-    title,
+    title: toTitleCasePt(title),
     content,
     role,
     category: extra.category ?? role,

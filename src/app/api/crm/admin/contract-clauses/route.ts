@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { toTitleCasePt } from "@/lib/crm/contract-engine/title-case";
 
 const createSchema = z.object({
   title:      z.string().min(1).max(200),
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("contract_clause_templates")
-      .insert({ ...body.data, created_by: auth.profile.id })
+      .insert({ ...body.data, title: toTitleCasePt(body.data.title), created_by: auth.profile.id })
       .select("id, title, content, category, sort_order, is_active, created_at, updated_at, stable_key, version, status, role, is_required, placeholders, legal_review_note, area_key, scope_subtype_key")
       .single();
 

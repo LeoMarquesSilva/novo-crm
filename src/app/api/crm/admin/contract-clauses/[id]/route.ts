@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { toTitleCasePt } from "@/lib/crm/contract-engine/title-case";
 
 const patchSchema = z.object({
   title:      z.string().min(1).max(200).optional(),
@@ -46,9 +47,11 @@ export async function PATCH(
     }
 
     const supabase = createSupabaseAdminClient();
+    const updateData = { ...body.data };
+    if (updateData.title !== undefined) updateData.title = toTitleCasePt(updateData.title);
     const { data, error } = await supabase
       .from("contract_clause_templates")
-      .update(body.data)
+      .update(updateData)
       .eq("id", id)
       .select("id, title, content, category, sort_order, is_active, created_at, updated_at, stable_key, version, status, role, is_required, placeholders, legal_review_note, area_key, scope_subtype_key")
       .single();

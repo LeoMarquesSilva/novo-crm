@@ -1,4 +1,5 @@
 import { CONTRACT_CLAUSE_CATALOG } from "./clause-catalog";
+import { toTitleCasePt } from "./title-case";
 import type { ClauseCatalogStatus, ClauseRole, ContractClauseTemplate } from "./types";
 import type { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -63,7 +64,7 @@ export function rowToClauseTemplate(row: ClauseLibraryRow): ContractClauseTempla
   if (!row.stable_key) return null;
   return {
     stableKey: row.stable_key,
-    title: row.title,
+    title: toTitleCasePt(row.title),
     content: row.content,
     role: asClauseRole(row.role),
     category: row.category,

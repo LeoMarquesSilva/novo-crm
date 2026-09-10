@@ -3,6 +3,7 @@ import type {
   ContractObjectBlockKind,
   ContractObjectListStyle,
 } from "./types";
+import { toTitleCasePt } from "./title-case";
 
 const LEGAL =
   "REQUIRES LEGAL DECISION — texto extraído dos modelos/contratos reais para revisão da equipe Societário. Não é cláusula oficial BP.";
@@ -32,7 +33,7 @@ function objectTemplate(
 ): ContractObjectTemplate {
   return {
     stableKey,
-    title,
+    title: toTitleCasePt(title),
     kind,
     content,
     requiredPlaceholders: extra.requiredPlaceholders ?? [],

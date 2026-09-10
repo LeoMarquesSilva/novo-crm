@@ -583,7 +583,7 @@ describe("preview legado não gera cláusulas numeradas vazias", () => {
     const inadimplemento = page.clausulasAdicionais.find((c) => c.title === "INADIMPLEMENTO");
     expect(inadimplemento).toBeDefined();
     const itemTitles = inadimplemento?.items?.map((i) => i.title) ?? [];
-    expect(itemTitles.filter((t) => t === "Atraso no pagamento").length).toBe(1);
+    expect(itemTitles.filter((t) => t === "Atraso no Pagamento").length).toBe(1);
     const itemContents = inadimplemento?.items?.map((i) => i.content) ?? [];
     expect(itemContents.some((c) => c.includes("REQUIRES LEGAL DECISION"))).toBe(false);
   });
