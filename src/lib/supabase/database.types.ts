@@ -182,37 +182,67 @@ export type Database = {
       }
       contract_clause_templates: {
         Row: {
+          area_key: string | null
           category: string
+          conflicts_json: Json
           content: string
           created_at: string
           created_by: string | null
           id: string
           is_active: boolean
+          is_required: boolean
+          legal_review_note: string | null
+          placeholders: string[]
+          role: string | null
+          scope_subtype_key: string | null
           sort_order: number
+          stable_key: string | null
+          status: string
           title: string
           updated_at: string
+          version: number
         }
         Insert: {
+          area_key?: string | null
           category?: string
+          conflicts_json?: Json
           content?: string
           created_at?: string
           created_by?: string | null
           id?: string
           is_active?: boolean
+          is_required?: boolean
+          legal_review_note?: string | null
+          placeholders?: string[]
+          role?: string | null
+          scope_subtype_key?: string | null
           sort_order?: number
+          stable_key?: string | null
+          status?: string
           title: string
           updated_at?: string
+          version?: number
         }
         Update: {
+          area_key?: string | null
           category?: string
+          conflicts_json?: Json
           content?: string
           created_at?: string
           created_by?: string | null
           id?: string
           is_active?: boolean
+          is_required?: boolean
+          legal_review_note?: string | null
+          placeholders?: string[]
+          role?: string | null
+          scope_subtype_key?: string | null
           sort_order?: number
+          stable_key?: string | null
+          status?: string
           title?: string
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {

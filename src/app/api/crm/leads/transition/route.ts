@@ -9,6 +9,7 @@ import {
   computeLeadIntakeRequirement,
   dedupeConfeccaoPropostaDefinitionsByNormalizedLabel,
   extractMeetingValuesFromFields,
+  filterConfeccaoContratoTransitionDefinitions,
   filterConfeccaoPropostaTransitionDefinitions,
   filterPropostaEnviadaDuplicateLinkFields,
   filterReuniaoDuplicateMeetingFields,
@@ -425,11 +426,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: defErr.message }, { status: 500 });
     }
 
-    const defs = filterReuniaoDuplicateMeetingFields(
-      dedupeConfeccaoPropostaDefinitionsByNormalizedLabel(
-        filterPropostaEnviadaDuplicateLinkFields(
-          filterConfeccaoPropostaTransitionDefinitions(
-            (defRows ?? []).map((r) => mapDbFieldToDefinition(r as Record<string, unknown>)),
+    const defs = filterConfeccaoContratoTransitionDefinitions(
+      filterReuniaoDuplicateMeetingFields(
+        dedupeConfeccaoPropostaDefinitionsByNormalizedLabel(
+          filterPropostaEnviadaDuplicateLinkFields(
+            filterConfeccaoPropostaTransitionDefinitions(
+              (defRows ?? []).map((r) => mapDbFieldToDefinition(r as Record<string, unknown>)),
+              { pipeline, nextStage },
+            ),
             { pipeline, nextStage },
           ),
           { pipeline, nextStage },

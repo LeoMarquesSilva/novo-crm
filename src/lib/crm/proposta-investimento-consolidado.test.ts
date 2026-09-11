@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildInvestimentoDocumentoText,
   deriveInvestimentoDocumentoFromAreas,
+  documentoFromItems,
+  getInvestimentoDocumentoItems,
   getPrimarySumKeyForSubtipo,
+  isInvestimentoDocumentoComplete,
   resolveInvestimentoDocumento,
   sumInvestimentoAreas,
 } from "./proposta-investimento-consolidado";
@@ -100,5 +104,116 @@ describe("resolveInvestimentoDocumento", () => {
     const derived = deriveInvestimentoDocumentoFromAreas(escopo, ["Cível", "Trabalhista"]);
     expect(derived?.tipoId).toBe("honorarios_contratuais");
     expect(derived?.subtipoId).toBe("mensal_fixo");
+  });
+});
+
+describe("várias formas de pagamento", () => {
+  it("junta o texto de dois itens no documento", () => {
+    const doc = documentoFromItems([
+      {
+        id: "a",
+        tipoId: "honorarios_contratuais",
+        subtipoId: "mensal_fixo",
+        placeholders: { VALORMENSAL: "1.000,00" },
+      },
+      {
+        id: "b",
+        tipoId: "honorarios_exito",
+        subtipoId: "exito_percentual",
+        placeholders: { PORCENTAGEMHONORARIOS: "10", BASECALCULO: "o êxito da demanda" },
+      },
+    ]);
+    const text = buildInvestimentoDocumentoText(doc);
+    expect(text).toContain("pagamento mensal de R$ 1.000,00");
+    expect(text).toContain("êxito no percentual de 10%");
+    expect(getInvestimentoDocumentoItems(doc)).toHaveLength(2);
+  });
+
+  it("aplica a soma automática só no primeiro item elegível", () => {
+    const saved = documentoFromItems([
+      {
+        id: "a",
+        tipoId: "honorarios_contratuais",
+        subtipoId: "mensal_fixo",
+        placeholders: { VALORMENSAL: "1,00" },
+      },
+      {
+        id: "b",
+        tipoId: "honorarios_contratuais",
+        subtipoId: "spot",
+        placeholders: { VALORSPOT: "9.999,00" },
+        autoSum: false,
+      },
+    ]);
+    const resolved = resolveInvestimentoDocumento(
+      {
+        Cível: [
+          {
+            id: "1",
+            tipoId: "contencioso",
+            subtipoId: "um_processo",
+            investimento: {
+              tipoId: "honorarios_contratuais",
+              subtipoId: "mensal_fixo",
+              placeholders: { VALORMENSAL: "1000" },
+            },
+          },
+        ],
+        Trabalhista: [
+          {
+            id: "2",
+            tipoId: "trabalhista",
+            subtipoId: "assessoria",
+            investimento: {
+              tipoId: "honorarios_contratuais",
+              subtipoId: "mensal_fixo",
+              placeholders: { VALORMENSAL: "2000" },
+            },
+          },
+        ],
+      },
+      ["Cível", "Trabalhista"],
+      saved,
+    );
+    const items = getInvestimentoDocumentoItems(resolved);
+    expect(items).toHaveLength(2);
+    expect(items[0]?.placeholders.VALORMENSAL).toBe("3.000,00");
+    expect(items[1]?.placeholders.VALORSPOT).toBe("9.999,00");
+  });
+
+  it("item extra vazio não impede completar o investimento", () => {
+    const doc = documentoFromItems([
+      {
+        id: "a",
+        tipoId: "honorarios_contratuais",
+        subtipoId: "mensal_fixo",
+        placeholders: { VALORMENSAL: "1.000,00" },
+      },
+      {
+        id: "b",
+        tipoId: "",
+        subtipoId: "",
+        placeholders: {},
+      },
+    ]);
+    expect(isInvestimentoDocumentoComplete(doc)).toBe(true);
+  });
+
+  it("tipo sem subtipo deixa o investimento incompleto", () => {
+    const doc = documentoFromItems([
+      {
+        id: "a",
+        tipoId: "honorarios_contratuais",
+        subtipoId: "mensal_fixo",
+        placeholders: { VALORMENSAL: "1.000,00" },
+      },
+      {
+        id: "b",
+        tipoId: "honorarios_exito",
+        subtipoId: "",
+        placeholders: {},
+      },
+    ]);
+    expect(isInvestimentoDocumentoComplete(doc)).toBe(false);
   });
 });

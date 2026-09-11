@@ -6,7 +6,17 @@ import {
   buildPropostaPlainTextPreview,
   formatDataVigenciaProposta,
   splitEscopoTextForDocx,
+  stripInvestimentoSectionHeading,
+  withInvestimentoSectionHeading,
 } from "./proposta-docx-data";
+
+describe("withInvestimentoSectionHeading", () => {
+  it("coloca Investimento acima do texto, sem duplicar", () => {
+    expect(withInvestimentoSectionHeading("pagamento mensal")).toBe("Investimento\n\npagamento mensal");
+    expect(withInvestimentoSectionHeading("Investimento\n\njá tem")).toBe("Investimento\n\njá tem");
+    expect(stripInvestimentoSectionHeading("Investimento\n\npagamento mensal")).toBe("pagamento mensal");
+  });
+});
 
 describe("splitEscopoTextForDocx", () => {
   it("separa texto após o marcador «Síntese da demanda:»", () => {
@@ -79,8 +89,11 @@ describe("splitEscopoTextForDocx", () => {
     });
 
     expect(d.AREAS).toBe("Cível, Recuperação de Créditos");
-    expect(d.ESCOPO_AREA).toContain("Cível");
+    expect(d.AREA).toBe("Cível");
+    expect(d.ESCOPO_AREA).toMatch(/^1 processo:/);
     expect(d.ESCOPO_AREA).toContain("Recuperação de Créditos");
+    expect(d.ESCOPO_AREA).toContain("Ajuizamento de ações de recuperação de crédito:");
+    expect(d.INVESTIMENTO).toMatch(/^Investimento\n\n/);
     expect(d.INVESTIMENTO).toContain("3.000,00");
     expect(d.INVESTIMENTO).not.toContain("Cível");
     expect(d.INVESTIMENTO).not.toContain("Recuperação de Créditos");
@@ -131,7 +144,7 @@ describe("buildPropostaDocxTemplateData", () => {
     expect(d.RESUMO).toBe(d.RESUMO_SINTESE);
   });
 
-  it("RESUMO vem do placeholder do CRM, sem repetir «Síntese da demanda» no escopo", () => {
+  it("não exporta RESUMO enquanto a síntese estiver desligada", () => {
     const cpEscopoDetalheJson = JSON.stringify({
       Cível: {
         tipoId: "contencioso",
@@ -166,7 +179,8 @@ describe("buildPropostaDocxTemplateData", () => {
       cpEscopoDetalheJson,
       generatedAt: new Date("2026-04-16T12:00:00"),
     });
-    expect(d.RESUMO).toBe("Só o texto da síntese");
+    expect(d.RESUMO).toBe("");
+    expect(d.RESUMO_SINTESE).toBe("");
     expect(d.ESCOPO_AREA).not.toContain("Síntese da demanda");
     expect(d.ESCOPO_AREA).not.toContain("Só o texto da síntese");
   });
@@ -214,6 +228,115 @@ describe("buildPropostaDocxTemplateData", () => {
     expect(d.INVESTIMENTO).toContain("1.500,50");
     expect(d.INVESTIMENTO.toLowerCase()).toContain("quinhentos");
     expect(d.INVESTIMENTO).toContain("pagamento mensal de R$");
+    expect(d.INVESTIMENTO).toContain("já incluídos os tributos incidentes");
+  });
+
+  it("INVESTIMENTO usa «não incluídos os tributos» quando a tributação é líquida", () => {
+    const cpEscopoDetalheJson = JSON.stringify({
+      Cível: {
+        tipoId: "contencioso",
+        subtipoId: "um_processo",
+        placeholders: {
+          [PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO]: "Resumo",
+          "NOME EMPRESA": "ACME",
+          "TIPO DA AÇÃO": "Ação X",
+          "NUM. DO PROCESSO": "0000000-00.0000.0.00.0000",
+          PARTE_CONTRÁRIA: "Autor",
+          VALOR_CAUSA: "1000",
+        },
+        investimento: {
+          tipoId: "honorarios_contratuais",
+          subtipoId: "mensal_fixo",
+          placeholders: { VALORMENSAL: "1500,50" },
+        },
+      },
+    });
+    const d = buildPropostaDocxTemplateData({
+      empresasIntake: [
+        {
+          index: 1,
+          razao_social: "ACME Ltda",
+          tipo_documento: "CNPJ",
+          documento: "12345678000199",
+        },
+      ],
+      cpPropostaEmpresasJson: JSON.stringify({ primaryIndex: 1, extras: [] }),
+      fieldByCode: {
+        cp_areas_objeto: "Cível",
+        cp_cliente_cidade: "São Paulo",
+        cp_cliente_uf: "SP",
+        cp_cliente_cep: "01310100",
+        cp_cliente_numero: "100",
+        cp_tributacao: "Valor Líquido de Tributos",
+      },
+      cpEscopoDetalheJson,
+      generatedAt: new Date("2026-04-16T12:00:00"),
+    });
+    expect(d.INVESTIMENTO).toContain("não incluídos os tributos incidentes");
+    expect(d.INVESTIMENTO).not.toContain("já incluídos os tributos incidentes");
+  });
+
+  it("INVESTIMENTO junta várias formas de pagamento do documento consolidado", () => {
+    const cpEscopoDetalheJson = JSON.stringify({
+      Cível: {
+        tipoId: "contencioso",
+        subtipoId: "um_processo",
+        placeholders: {
+          [PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO]: "Resumo",
+          "NOME EMPRESA": "ACME",
+          "TIPO DA AÇÃO": "Ação X",
+          "NUM. DO PROCESSO": "0000000-00.0000.0.00.0000",
+          PARTE_CONTRÁRIA: "Autor",
+          VALOR_CAUSA: "1000",
+        },
+      },
+      __investimentoDocumento__: {
+        tipoId: "honorarios_contratuais",
+        subtipoId: "mensal_fixo",
+        placeholders: { VALORMENSAL: "1.000,00" },
+        autoSum: false,
+        items: [
+          {
+            id: "a",
+            tipoId: "honorarios_contratuais",
+            subtipoId: "mensal_fixo",
+            placeholders: { VALORMENSAL: "1.000,00" },
+            autoSum: false,
+          },
+          {
+            id: "b",
+            tipoId: "honorarios_exito",
+            subtipoId: "exito_percentual",
+            placeholders: {
+              PORCENTAGEMHONORARIOS: "10",
+              BASECALCULO: "o benefício econômico obtido",
+            },
+          },
+        ],
+      },
+    });
+    const d = buildPropostaDocxTemplateData({
+      empresasIntake: [
+        {
+          index: 1,
+          razao_social: "ACME Ltda",
+          tipo_documento: "CNPJ",
+          documento: "12345678000199",
+        },
+      ],
+      cpPropostaEmpresasJson: JSON.stringify({ primaryIndex: 1, extras: [] }),
+      fieldByCode: {
+        cp_areas_objeto: "Cível",
+        cp_cliente_cidade: "São Paulo",
+        cp_cliente_uf: "SP",
+        cp_cliente_cep: "01310100",
+        cp_cliente_numero: "100",
+      },
+      cpEscopoDetalheJson,
+      generatedAt: new Date("2026-04-16T12:00:00"),
+    });
+    expect(d.INVESTIMENTO).toContain("pagamento mensal de R$ 1.000,00");
+    expect(d.INVESTIMENTO).toContain("êxito no percentual de 10%");
   });
 
   it("dois escopos na mesma área usam nome do subtipo como cabeçalho", () => {
@@ -267,11 +390,14 @@ describe("buildPropostaDocxTemplateData", () => {
 
     expect(page.escopoSections).toHaveLength(2);
     expect(page.escopoSections[0]?.areaLabel).toBe("Cível");
-    expect(page.escopoSections[0]?.scopeTypeLabel).toBe("Contencioso - 1 processo");
+    expect(page.escopoSections[0]?.scopeTypeLabel).toBe("1 processo");
     expect(page.escopoSections[1]?.areaLabel).toBe("Cível");
-    expect(page.escopoSections[1]?.scopeTypeLabel).toBe("Contencioso - +1 processo");
-    expect(templateData.ESCOPO_AREA).toContain("Cível\nContencioso - 1 processo\n");
-    expect(templateData.ESCOPO_AREA).toContain("Cível\nContencioso - +1 processo\n");
+    expect(page.escopoSections[1]?.scopeTypeLabel).toBe("+1 processo");
+    expect(templateData.AREA).toBe("Cível");
+    expect(page.resumo).toBe("");
+    expect(templateData.ESCOPO_AREA).toMatch(/^1 processo:/);
+    expect(templateData.ESCOPO_AREA).toContain("+1 processo:");
+    expect(templateData.ESCOPO_AREA).not.toMatch(/^Cível\n/);
   });
 });
 
@@ -294,7 +420,9 @@ describe("buildPropostaPlainTextPreview", () => {
     expect(t).toContain("Objeto da Proposta");
     expect(t).toContain("Cível");
     expect(t).toContain("Escopo livre");
-    expect(t).toContain("Síntese da demanda: Resumo X");
+    expect(t).not.toContain("Síntese da demanda");
+    expect(t).not.toContain("Resumo X");
+    expect(t).toContain("Investimento");
     expect(t).toContain("R$ 1,00");
     expect(t).toContain("Data de vigência proposta: 23/04/2026");
     expect(t).toContain("Cordialmente,");

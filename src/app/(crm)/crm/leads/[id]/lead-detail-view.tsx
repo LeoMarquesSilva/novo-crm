@@ -94,7 +94,12 @@ export function LeadDetailView({
   const etapaLabel = OPPORTUNITY_STAGE_LABELS[lead.etapa] ?? lead.etapa;
   const ddSimNao = lead.haveraDueDiligence ? "Sim" : "Não";
   const isProposalStage = lead.etapa === "confeccao_proposta";
-  const isContractStage = lead.etapa === "confeccao_contrato";
+  const isContractStage = [
+    "confeccao_contrato",
+    "contrato_elaborado",
+    "contrato_enviado",
+    "contrato_assinado",
+  ].includes(lead.etapa);
   const showBillingTab = ["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(lead.etapa);
   const isRdLead = Boolean(lead.rdDealId || lead.rdDealUrl || lead.filledFields.length > 0);
   const intakeLeadType = lead.intakeFields.find((field) => field.key === "tipo_lead")?.value?.trim();

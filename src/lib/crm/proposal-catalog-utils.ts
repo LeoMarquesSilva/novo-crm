@@ -8,16 +8,13 @@ import {
 } from "@/data/proposta-tipos-catalog";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 
+/** Rótulo do documento: só o subtipo, nunca o tipo do escopo. */
 export function formatScopeTypeLabel(
-  tipo: TipoDef | undefined,
+  _tipo: TipoDef | undefined,
   sub: SubtipoDef | undefined,
 ): string | null {
-  if (!sub?.label?.trim()) return null;
-  const subLabel = sub.label.trim();
-  const tipoLabel = tipo?.label?.trim();
-  if (!tipoLabel) return subLabel;
-  if (subLabel.toLowerCase().includes(tipoLabel.toLowerCase())) return subLabel;
-  return `${tipoLabel} - ${subLabel}`;
+  const subLabel = sub?.label?.trim();
+  return subLabel || null;
 }
 
 export function findScopeTipo(

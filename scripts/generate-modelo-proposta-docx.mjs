@@ -1,7 +1,8 @@
 /**
  * Gera `public/MODELO-PROPOSTA-1.docx` com placeholders alinhados ao motor docxtemplater.
- * Corpo: Aptos 12 pt, justificado. No Word pode deixar «Síntese da demanda:» fixo (ex. negrito)
- * e só `[RESUMO]` como variável — ver `splitEscopoTextForDocx` em `proposta-docx-data.ts`.
+ * Corpo: Aptos 12 pt, justificado.
+ * A síntese da demanda está desligada (`PROPOSTA_INCLUDE_SINTESE_DEMANDA`); o motor
+ * também remove o parágrafo no .docx se o modelo ainda tiver o rótulo + `[RESUMO]`.
  * Uso: node scripts/generate-modelo-proposta-docx.mjs
  */
 import fs from "fs";
@@ -60,18 +61,6 @@ const doc = new Document({
         p("[AREA]"),
         p(""),
         p("[ESCOPO_ANTES_SINTESE]"),
-        new Paragraph({
-          alignment: AlignmentType.JUSTIFIED,
-          children: [
-            new TextRun({
-              ...BODY,
-              bold: true,
-              boldComplexScript: true,
-              text: "Síntese da demanda: ",
-            }),
-            new TextRun({ ...BODY, text: "[RESUMO]" }),
-          ],
-        }),
         p(""),
         p("[INVESTIMENTO]"),
         p(""),

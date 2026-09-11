@@ -55,7 +55,14 @@ type CrmSelectValueProps = {
   className?: string;
 };
 
-/** Evita exibir valor interno (`all`, `todos`, uuid) no trigger — mostra o rótulo em português. */
+function isInternalSelectValue(key: string): boolean {
+  const k = key.trim().toLowerCase();
+  if (!k) return true;
+  if (k === "all" || k === "todos") return true;
+  return k.startsWith("__") && k.endsWith("__");
+}
+
+/** Evita exibir valor interno (`all`, `todos`, `__empty__`) no trigger — mostra o rótulo em português. */
 export function CrmSelectValue({
   value,
   labels,
@@ -63,15 +70,14 @@ export function CrmSelectValue({
   className,
 }: CrmSelectValueProps) {
   const key = value != null ? String(value).trim() : "";
-  let display: string | null = null;
-  if (key) {
-    if (labels) {
-      const label = labels[key];
-      display = label != null && String(label).trim() !== "" ? label : null;
-    } else {
-      display = key;
-    }
-  }
+  const fromLabels = key && labels ? String(labels[key] ?? "").trim() : "";
+  const display = fromLabels
+    ? fromLabels
+    : !key || isInternalSelectValue(key)
+      ? placeholder
+      : labels
+        ? placeholder
+        : key;
 
   return (
     <SelectValue placeholder={placeholder} className={className}>

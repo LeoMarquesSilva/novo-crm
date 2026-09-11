@@ -2,8 +2,15 @@
  * Sincronização unificada do cofre D4Sign → d4sign_documents.
  * Substitui import + sync separados (1 fluxo, menos reqs duplicadas).
  *
- * Budget típico: folders(1) + listing(1–N) + client-walk( até 6) + enrich(0–2)
+ * Budget típico: folders(1) + listing(1–N) + client-walk(até 6) + enrich(0–4)
  * Area-walks REMOVIDOS (confirmado: não retornam docs filhos — economiza 6 req/run).
+ *
+ * `enrich` sobe conforme sobra de quota (nunca fixo) — `cronEnrichBudget` sempre
+ * limita a `Math.min(teto, quota.remaining)`, então elevar o teto default não
+ * corre risco de estourar as 10 req/h; só evita deixar cota sobrando ociosa
+ * enquanto há documentos sem signatários enriquecidos (cada enrich já busca o
+ * máximo de informação por requisição via GET /documents/{uuid}/list — signers +
+ * status + nome numa chamada só, não há chamada redundante aí).
  */
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { safeD4SignIso } from "@/lib/d4sign/api-usage";
@@ -33,7 +40,8 @@ const STATUSID_TO_STATUS: Record<number, string> = {
 const MAX_PAGES = 5;
 /** Sem area-walks, podemos caminhar mais pastas-cliente por run. */
 const MAX_FOLDER_WALK = 6;
-const POST_SYNC_ENRICH_MAX = 2;
+/** Teto — `cronEnrichBudget` ainda limita ao que sobrou de quota de verdade. */
+const POST_SYNC_ENRICH_MAX = 4;
 
 const AREA_FOLDER_UUIDS = new Set([
   "3cb77b83-2b9b-494c-88ae-4345f0baabfe",

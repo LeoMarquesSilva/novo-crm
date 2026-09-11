@@ -17,6 +17,7 @@ import {
 } from "docx";
 
 import type { ContratoDocumentPagePreview } from "./contrato-docx-data";
+import { contractPartyGrammar } from "./contract-engine/party-language";
 
 // ─── Constantes tipográficas ──────────────────────────────────────────────────
 
@@ -75,18 +76,59 @@ function textParagraphs(text: string, after = 200): Paragraph[] {
   );
 }
 
+/**
+ * Corpo de uma cláusula que agrupa sub-itens (ex.: Objetos Excluídos, Disposições
+ * Gerais): texto único quando não há `items`, ou N.1, N.2... numerados com o N
+ * já atribuído ao título-pai (`parentNum`) — nunca um número próprio.
+ */
+function clausulaBodyParagraphs(
+  clausula: { content: string; items?: Array<{ title: string; content: string }> },
+  parentNum: number,
+  fallback: string,
+): Paragraph[] {
+  if (clausula.items && clausula.items.length > 0) {
+    return clausula.items.map((item, j) =>
+      para([run(`${parentNum}.${j + 1}. ${item.title}. `, true), run(item.content)], { after: 80 }),
+    );
+  }
+  return textParagraphs(clausula.content || fallback, 200);
+}
+
 // ─── Gerador principal ────────────────────────────────────────────────────────
 
 export async function generateContratoDocxBuffer(
   page: ContratoDocumentPagePreview,
+  options?: {
+    /**
+     * `false` omite o cabeçalho de texto ("BISMARCHI | PIRES"), o título e o
+     * rodapé de endereço gerados aqui — usado quando o corpo produzido por
+     * esta função vai ser inserido dentro do modelo Word oficial
+     * (`render-contrato-docx.ts`), que já traz essa marca gráfica real (logo +
+     * endereço) impressa no cabeçalho/rodapé do próprio arquivo. Sem isso, o
+     * .docx final duplicaria a marca — uma vez como imagem do modelo, outra
+     * como texto gerado aqui. Default `true` preserva o comportamento
+     * standalone (sem modelo) para qualquer chamador que não passe a opção.
+     */
+    standaloneBranding?: boolean;
+  },
 ): Promise<Buffer> {
+  const standaloneBranding = options?.standaloneBranding ?? true;
   const ELLIPSIS = "…";
 
-  // Separa o nome da empresa (negrito) do restante da qualificação
-  const qualRaw = (page.qualificacao || "").replace(/\.\s*$/, ""); // remove ponto final
-  const comma = qualRaw.indexOf(",");
-  const companyName = comma >= 0 ? qualRaw.slice(0, comma).trim() : qualRaw;
-  const companyDetail = comma >= 0 ? qualRaw.slice(comma) : ""; // começa com ","
+  // Separa o nome (negrito) do restante de cada CONTRATANTE — uma sentença por
+  // empresa (ver "qualificacoesPartes"; pode ser mais de uma quando duas
+  // empresas do mesmo grupo contratam juntas — ver contractPartyGrammar).
+  const qualificacoesPartes =
+    page.qualificacoesPartes && page.qualificacoesPartes.length > 0 ? page.qualificacoesPartes : [ELLIPSIS];
+  const contratanteGrammar = contractPartyGrammar(qualificacoesPartes.length);
+  const qualParties = qualificacoesPartes.map((raw) => {
+    const qualRaw = raw.replace(/\.\s*$/, ""); // remove ponto final
+    const comma = qualRaw.indexOf(",");
+    return {
+      name: comma >= 0 ? qualRaw.slice(0, comma).trim() : qualRaw,
+      detail: comma >= 0 ? qualRaw.slice(comma) : "", // começa com ","
+    };
+  });
 
   const hasLimitacoes = !!(page.limiteProcessos || page.limiteHoras);
   const hasExito = !!page.exitoAreas && !(page.areas?.some((a) => a.key === "exito"));
@@ -97,30 +139,32 @@ export async function generateContratoDocxBuffer(
 
   const children: (Paragraph | Table)[] = [];
 
-  // ── Cabeçalho / Logomarca ───────────────────────────────────────────────────
-  children.push(
-    para([run("BISMARCHI  |  PIRES", true, PT13)], {
-      align: AlignmentType.CENTER,
-      after: 20,
-    }),
-  );
-  children.push(
-    para([run("SOCIEDADE DE ADVOGADOS", false, PT8)], {
-      align: AlignmentType.CENTER,
-      after: 220,
-      borderBottom: true,
-    }),
-  );
+  if (standaloneBranding) {
+    // ── Cabeçalho / Logomarca ─────────────────────────────────────────────────
+    children.push(
+      para([run("BISMARCHI  |  PIRES", true, PT13)], {
+        align: AlignmentType.CENTER,
+        after: 20,
+      }),
+    );
+    children.push(
+      para([run("SOCIEDADE DE ADVOGADOS", false, PT8)], {
+        align: AlignmentType.CENTER,
+        after: 220,
+        borderBottom: true,
+      }),
+    );
 
-  // ── Título ──────────────────────────────────────────────────────────────────
-  children.push(
-    para([run("CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS", true)], {
-      align: AlignmentType.CENTER,
-      after: 0,
-      borderBottom: true,
-    }),
-  );
-  children.push(para([], { after: 220 }));
+    // ── Título ────────────────────────────────────────────────────────────────
+    children.push(
+      para([run("CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS", true)], {
+        align: AlignmentType.CENTER,
+        after: 0,
+        borderBottom: true,
+      }),
+    );
+    children.push(para([], { after: 220 }));
+  }
 
   // ── Abertura ────────────────────────────────────────────────────────────────
   children.push(
@@ -130,18 +174,28 @@ export async function generateContratoDocxBuffer(
     ),
   );
 
-  // ── Qualificação do CONTRATANTE ────────────────────────────────────────────
-  children.push(
-    para(
-      [
-        run(companyName || ELLIPSIS, true),
-        run(`${companyDetail}, doravante denominada `),
-        run('"CONTRATANTE"', true),
-        run("."),
-      ],
-      { after: 220 },
-    ),
-  );
+  // ── Qualificação do(s) CONTRATANTE(S) ──────────────────────────────────────
+  // Uma sentença por empresa; só a última leva o "doravante denominada(s)",
+  // já no singular/plural certo (contractPartyGrammar — mesmo utilitário que
+  // já pluraliza o resto do contrato quando há mais de uma CONTRATANTE).
+  qualParties.forEach(({ name, detail }, i) => {
+    const isLast = i === qualParties.length - 1;
+    children.push(
+      para(
+        isLast
+          ? [
+              run(name || ELLIPSIS, true),
+              run(
+                `${detail}, doravante ${contratanteGrammar.plural ? "denominadas, em conjunto," : "denominada"} `,
+              ),
+              run(`"${contratanteGrammar.noun}"`, true),
+              run("."),
+            ]
+          : [run(name || ELLIPSIS, true), run(`${detail}; e`)],
+        { after: 220 },
+      ),
+    );
+  });
 
   // ── Qualificação da CONTRATADA (Bismarchi | Pires — fixo) ─────────────────
   children.push(
@@ -166,7 +220,7 @@ export async function generateContratoDocxBuffer(
   children.push(
     para(
       [
-        run("CONTRATANTE", true),
+        run(contratanteGrammar.noun, true),
         run(" e "),
         run("CONTRATADA", true),
         run(", quando em conjunto, doravante denominadas "),
@@ -189,7 +243,18 @@ export async function generateContratoDocxBuffer(
   );
   children.push(...textParagraphs(page.objeto || ELLIPSIS));
 
-  // ── 2. DOS HONORÁRIOS CONTRATUAIS ─────────────────────────────────────────
+  // ── 2. OBJETOS EXCLUÍDOS DO CONTRATO ──────────────────────────────────────
+  if (page.objetosExcluidos) {
+    children.push(
+      para([run(`${N()}  ${page.objetosExcluidos.title.toUpperCase()}`, true)], {
+        before: 240,
+        after: 100,
+      }),
+    );
+    children.push(...clausulaBodyParagraphs(page.objetosExcluidos, cn, ELLIPSIS));
+  }
+
+  // ── 3. DOS HONORÁRIOS CONTRATUAIS ─────────────────────────────────────────
   children.push(
     para([run(`${N()}  DOS HONORÁRIOS CONTRATUAIS`, true)], { before: 240, after: 100 }),
   );
@@ -282,7 +347,7 @@ export async function generateContratoDocxBuffer(
     children.push(
       para([run(`${N()}  ${c.title.toUpperCase()}`, true)], { before: 240, after: 100 }),
     );
-    children.push(...textParagraphs(c.content || "…", 200));
+    children.push(...clausulaBodyParagraphs(c, cn, "…"));
   }
 
   // ── Quebra de página → folha dedicada de assinaturas (última página do PDF) ──
@@ -376,7 +441,7 @@ export async function generateContratoDocxBuffer(
       rows: [
         new TableRow({
           children: [
-            sigCell("CONTRATANTE"),
+            sigCell(contratanteGrammar.noun),
             spacerCell,
             sigCell("CONTRATADA", "Bismarchi | Pires – Sociedade de Advogados", [
               "Gustavo Bismarchi Motta",
@@ -388,20 +453,22 @@ export async function generateContratoDocxBuffer(
     }),
   );
 
-  // ── Rodapé ─────────────────────────────────────────────────────────────────
-  children.push(para([], { before: 280, after: 80, borderTop: true }));
-  children.push(
-    para(
-      [
-        run(
-          "Rua Coronel Quirino, 1.266  —  Cambuí  —  Campinas/SP   ·   (19) 3254-6446   ·   contato@bismarchipires.com.br",
-          false,
-          PT8,
-        ),
-      ],
-      { align: AlignmentType.CENTER, after: 0 },
-    ),
-  );
+  if (standaloneBranding) {
+    // ── Rodapé ───────────────────────────────────────────────────────────────
+    children.push(para([], { before: 280, after: 80, borderTop: true }));
+    children.push(
+      para(
+        [
+          run(
+            "Rua Coronel Quirino, 1.266  —  Cambuí  —  Campinas/SP   ·   (19) 3254-6446   ·   contato@bismarchipires.com.br",
+            false,
+            PT8,
+          ),
+        ],
+        { align: AlignmentType.CENTER, after: 0 },
+      ),
+    );
+  }
 
   // ── Documento final ─────────────────────────────────────────────────────────
   const doc = new Document({

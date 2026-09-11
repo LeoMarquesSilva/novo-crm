@@ -29,7 +29,7 @@ describe("transitionOpportunity", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("validates required fields for proposta and contrato stages", () => {
+  it("allows moving to proposta enviada without a proposal link", () => {
     const result = transitionOpportunity({
       opportunityId: "opp_1",
       currentStage: "confeccao_proposta",
@@ -39,8 +39,21 @@ describe("transitionOpportunity", () => {
       payload: {},
     });
 
+    expect(result.ok).toBe(true);
+  });
+
+  it("requires a contract link when entering contrato elaborado", () => {
+    const result = transitionOpportunity({
+      opportunityId: "opp_1",
+      currentStage: "confeccao_contrato",
+      nextStage: "contrato_elaborado",
+      hasDueDiligence: false,
+      changedBy: "user_1",
+      payload: {},
+    });
+
     expect(result.ok).toBe(false);
-    expect(result.errors[0]).toContain("linkProposta");
+    expect(result.errors[0]).toContain("linkContrato");
   });
 
   it("returns audit record for valid transition", () => {

@@ -21,6 +21,13 @@ export type ContratoDocxTemplateInput = {
 export type ClausulaAdicional = {
   title: string;
   content: string;
+  /**
+   * Sub-cláusulas de uma cláusula que agrupa várias (ex.: "Disposições Gerais"
+   * com Irrevogabilidade, Foro, Tributos...). Quando presente, os renderizadores
+   * numeram cada item como N.1, N.2... usando o N já atribuído à cláusula-pai —
+   * nunca um número próprio, para não duplicar a numeração de topo.
+   */
+  items?: Array<{ title: string; content: string }>;
 };
 
 /** Seção de área de atuação renderizada no contrato */
@@ -32,7 +39,12 @@ export type AreaSection = {
 };
 
 export type ContratoDocumentPagePreview = {
-  qualificacao: string;
+  /**
+   * Uma sentença de qualificação por CONTRATANTE (pode ser mais de uma — ver
+   * teste "duas contratantes usam linguagem no plural" em
+   * contract-engine.test.ts). Sempre tem ao menos 1 elemento.
+   */
+  qualificacoesPartes: string[];
   objeto: string;
   valores: string;
   investimento: string;
@@ -46,6 +58,12 @@ export type ContratoDocumentPagePreview = {
   prazoRevisao: string;
   /** Áreas de atuação selecionadas (toggles ativos) */
   areas: AreaSection[];
+  /**
+   * "Objetos Excluídos do Contrato" — cláusula própria de posição fixa (2, logo
+   * após o Objeto e antes de Honorários), igual ao padrão
+   * `contrato_honorarios_template_1.md`. `null` quando não há motor canônico.
+   */
+  objetosExcluidos: ClausulaAdicional | null;
   /** Cláusulas adicionais escolhidas/editadas no builder (podem ser 0). */
   clausulasAdicionais: ClausulaAdicional[];
 };
@@ -178,7 +196,9 @@ export function buildContratoDocumentPagePreview(
   const cep = g("CEP") || ELLIPSIS;
 
   return {
-    qualificacao: `${empresa}, pessoa jurídica de direito privado, inscrita no CNPJ nº ${documento}, com sede na ${logradouro}, nº ${numero}, ${bairro}, ${cidade}/${uf}, CEP ${cep}.`,
+    qualificacoesPartes: [
+      `${empresa}, pessoa jurídica de direito privado, inscrita no CNPJ nº ${documento}, com sede na ${logradouro}, nº ${numero}, ${bairro}, ${cidade}/${uf}, CEP ${cep}.`,
+    ],
     objeto: g("OBJETO_CONTRATO") || ELLIPSIS,
     valores: g("VALORES") || ELLIPSIS,
     investimento: g("INVESTIMENTO"),
@@ -190,9 +210,32 @@ export function buildContratoDocumentPagePreview(
     prazoConfeccao: g("PRAZO_CONFECCAO"),
     prazoRevisao: g("PRAZO_REVISAO"),
     areas: buildAreaSections(data),
+    objetosExcluidos: null,
     clausulasAdicionais,
   };
 }
+
+/**
+ * Ids das seções do builder de contrato (`contrato-document-builder.tsx`), na
+ * mesma grafia usada como `id` de cada `<div>`/`<FormSection>`. Única fonte de
+ * verdade para "qual seção resolve esta pendência" — evita o cliente ter que
+ * adivinhar por conteúdo de string (frágil: quebra silenciosamente se o texto
+ * do label mudar aqui sem avisar quem faz o matching do outro lado).
+ */
+export type ContratoBuilderSectionId =
+  | "section-partes"
+  | "section-escopos"
+  | "section-objeto"
+  | "section-condicoes"
+  | "section-vigencia"
+  | "section-clausulas"
+  | "section-assinaturas";
+
+export type ContratoPendingField = {
+  label: string;
+  /** Seção do builder que resolve esta pendência; `null` quando não há uma (caso legado). */
+  sectionId: ContratoBuilderSectionId | null;
+};
 
 /**
  * Lista campos CC obrigatórios que ainda estão vazios.
@@ -201,19 +244,47 @@ export function buildContratoDocumentPagePreview(
 export function listContratoPendingFields(
   fieldByCode: Record<string, string>,
   empresa: string,
-): string[] {
-  const pending: string[] = [];
+  engine?: {
+    scopes: Array<{ label: string; missingProfile: boolean }>;
+    contractObject?: {
+      missingScopeIds: string[];
+      missingRequiredFields: string[];
+      fieldValues: Array<{ key: string; label: string; value: string; required: boolean }>;
+    };
+  } | null,
+): ContratoPendingField[] {
+  const pending: ContratoPendingField[] = [];
+  const push = (label: string, sectionId: ContratoBuilderSectionId | null) =>
+    pending.push({ label, sectionId });
 
-  if (!empresa.trim()) pending.push("Empresa (dados da proposta)");
+  if (!empresa.trim()) push("Empresa (dados da proposta)", "section-partes");
 
-  const always: Array<[string, string]> = [
-    ["cc_tipo_instrumento", "Tipo de Instrumento"],
-    ["cc_objeto", "Objeto do Contrato"],
-    ["cc_tipo_pagamento", "Tipo de pagamento"],
-  ];
+  const hasEngineObject = Boolean(engine?.contractObject);
+  // Com o motor canônico ativo, "Tipo de Instrumento" e "Objeto do Contrato" (campos
+  // legados) não têm mais input no builder (seção "Avançado/legado" removida) — o
+  // objeto real vem do perfil contratual. Não checar como obrigatório nesse modo,
+  // senão vira uma pendência permanente sem forma de resolver pela UI.
+  const always: Array<[string, string, ContratoBuilderSectionId | null]> = hasEngineObject
+    ? [["cc_tipo_pagamento", "Tipo de pagamento", "section-condicoes"]]
+    : [
+        ["cc_tipo_instrumento", "Tipo de Instrumento", null],
+        ["cc_objeto", "Objeto do Contrato", null],
+        ["cc_tipo_pagamento", "Tipo de pagamento", "section-condicoes"],
+      ];
 
-  for (const [code, label] of always) {
-    if (!String(fieldByCode[code] ?? "").trim()) pending.push(label);
+  for (const [code, label, sectionId] of always) {
+    if (!String(fieldByCode[code] ?? "").trim()) push(label, sectionId);
+  }
+
+  if (engine?.contractObject) {
+    if (engine.scopes.some((s) => s.missingProfile) || engine.contractObject.missingScopeIds.length > 0) {
+      push("Objeto do Contrato incompleto — há escopo sem redação contratual", "section-objeto");
+    }
+    for (const field of engine.contractObject.fieldValues) {
+      if (field.required && !field.value.trim()) {
+        push(`${field.label} *`, "section-objeto");
+      }
+    }
   }
 
   const tipoPagamento = String(fieldByCode["cc_tipo_pagamento"] ?? "").trim();
@@ -221,7 +292,7 @@ export function listContratoPendingFields(
   // cc_valores é obrigatório para qualquer pagamento exceto Êxito puro
   if (tipoPagamento && tipoPagamento !== "Êxito") {
     if (!String(fieldByCode["cc_valores"] ?? "").trim()) {
-      pending.push("Valores e vencimento");
+      push("Valores e vencimento", "section-condicoes");
     }
   }
 
@@ -231,12 +302,24 @@ export function listContratoPendingFields(
     "cc_incluir_civel",
     "cc_incluir_contratual",
     "cc_incluir_tributario",
-    "cc_incluir_exito",
   ];
   const hasArea = areaToggles.some(
     (code) => String(fieldByCode[code] ?? "").trim() === "Sim",
   );
-  if (!hasArea) pending.push("Áreas de atuação (selecione ao menos uma)");
+  if (!hasArea && !hasEngineObject) push("Áreas de atuação (selecione ao menos uma)", null);
+  if (!hasArea && hasEngineObject && (engine?.scopes.length ?? 0) === 0) {
+    push("Escopos contratados (nenhum escopo herdado da proposta)", "section-escopos");
+  }
 
-  return pending;
+  // Dois escopos diferentes (ex.: Trabalhista + Cível) podem pedir um campo com
+  // o mesmo rótulo (ex.: "Vara / Tribunal *", cada um com sua própria chave) —
+  // sem isso, essa lista compacta repetia o mesmo texto e quebrava a key React
+  // de quem a renderiza. A visão detalhada (com a área de cada campo) já fica
+  // na seção Objeto do Contrato.
+  const seen = new Set<string>();
+  return pending.filter((p) => {
+    if (seen.has(p.label)) return false;
+    seen.add(p.label);
+    return true;
+  });
 }

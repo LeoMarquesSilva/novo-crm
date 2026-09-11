@@ -7,6 +7,12 @@ import type { Oportunidade } from "@/modules/crm/domain/entities";
 const DEV_POLL_MS = 5 * 60_000;
 const DEV_POLL_MS_AFTER_QUOTA = 30 * 60_000;
 
+const syncGate = {
+  lastStartedAt: 0,
+  quotaUntil: 0,
+  inFlight: false,
+};
+
 /**
  * Polling opcional apenas para desenvolvimento (webhook não alcança localhost).
  * Em produção fica desligado: assinaturas chegam via POSTBack D4Sign → oportunidades → Realtime.
@@ -26,27 +32,37 @@ export function usePipelineContractSignersSync(
 
   const pollingEnabled = isKanbanSignersPollingEnabled();
 
-  const pendingIds = useMemo(
+  const pendingKey = useMemo(
     () =>
       pollingEnabled
         ? opportunities
             .filter((o) => o.etapa === "contrato_enviado" && o.d4signUpdatedAt)
             .map((o) => o.id)
-        : [],
+            .join(",")
+        : "",
     [opportunities, pollingEnabled],
   );
 
-  const pendingKey = pendingIds.join(",");
-
   useEffect(() => {
     if (!pollingEnabled || !pendingKey) return;
+    const pendingIds = pendingKey.split(",").filter(Boolean);
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let nextDelayMs = DEV_POLL_MS;
+
+    const waitMs = () => {
+      const now = Date.now();
+      if (now < syncGate.quotaUntil) return syncGate.quotaUntil - now;
+      if (syncGate.lastStartedAt === 0) return 0;
+      return Math.max(0, DEV_POLL_MS - (now - syncGate.lastStartedAt));
+    };
 
     const sync = async () => {
       if (cancelled || document.visibilityState === "hidden") return;
+      if (syncGate.inFlight || waitMs() > 0) return;
+
+      syncGate.inFlight = true;
+      syncGate.lastStartedAt = Date.now();
       try {
         const response = await fetch("/api/crm/leads/sync-contract-signers", {
           method: "POST",
@@ -56,20 +72,20 @@ export function usePipelineContractSignersSync(
         const payload = (await response.json()) as {
           ok?: boolean;
           synced?: number;
-          quota?: { resetAt?: string | null };
         };
 
         if (response.status === 429) {
-          nextDelayMs = DEV_POLL_MS_AFTER_QUOTA;
+          syncGate.quotaUntil = Date.now() + DEV_POLL_MS_AFTER_QUOTA;
           return;
         }
 
-        nextDelayMs = DEV_POLL_MS;
         if (response.ok && payload.ok && (payload.synced ?? 0) > 0) {
           notifySynced();
         }
       } catch {
         // silencioso — próximo ciclo tenta de novo
+      } finally {
+        syncGate.inFlight = false;
       }
     };
 
@@ -80,7 +96,7 @@ export function usePipelineContractSignersSync(
         void sync().finally(() => {
           if (!cancelled) schedule();
         });
-      }, nextDelayMs);
+      }, Math.max(waitMs(), DEV_POLL_MS));
     };
 
     void sync();
@@ -96,5 +112,5 @@ export function usePipelineContractSignersSync(
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [pollingEnabled, pendingKey, pendingIds]);
+  }, [pollingEnabled, pendingKey]);
 }

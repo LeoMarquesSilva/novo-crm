@@ -71,12 +71,26 @@ export function filterConfeccaoPropostaTransitionDefinitions(
 }
 
 /**
+ * Cliente, escopo, investimento e pagamento já vêm da proposta e entram no builder
+ * de elaboração. Não exibir nem validar `cc_*` / `*_cc` no modal de transição.
+ */
+export function filterConfeccaoContratoTransitionDefinitions(
+  defs: FieldDefinition[],
+  params: { pipeline: PipelineCode; nextStage: string },
+): FieldDefinition[] {
+  if (params.pipeline !== "vendas" || params.nextStage !== "confeccao_contrato") {
+    return defs;
+  }
+  return [];
+}
+
+/**
  * Mantém um campo por label normalizado na transição para confecção de proposta,
  * priorizando códigos canónicos `cp_*` e `sort_order` menor.
  */
 /**
- * Em `proposta_enviada` o URL oficial é `oportunidades.link_proposta` (bloco "Link da proposta" do modal).
- * Remove `field_definitions` que repetem o mesmo pedido (evita dois inputs iguais).
+ * Em `proposta_enviada` o link da proposta não é exigido na transição.
+ * Remove `field_definitions` que voltariam a pedir o mesmo URL no modal.
  */
 export function filterPropostaEnviadaDuplicateLinkFields(
   defs: FieldDefinition[],

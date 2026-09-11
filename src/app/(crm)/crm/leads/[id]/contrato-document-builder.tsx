@@ -6,13 +6,12 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   AlertCircle,
-  ArrowDown,
-  ArrowUp,
   Bell,
   BookText,
   Building2,
   Check,
   CheckCircle2,
+  ChevronRight,
   ClipboardList,
   ExternalLink,
   Eye,
@@ -20,6 +19,7 @@ import {
   FileText,
   History,
   Loader2,
+  Lock,
   MapPin,
   PenLine,
   Plus,
@@ -43,6 +43,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -50,13 +51,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
-import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { DateInputBr } from "@/components/ui/date-input-br";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { evaluateCondition, type FieldCondition } from "@/lib/crm/field-condition";
+import { usePaginatedBlocks, type PreviewBlock } from "@/lib/crm/document-pagination";
 import {
   buildContratoDocumentPagePreview,
   type ContratoDocumentPagePreview,
+  type ContratoPendingField,
 } from "@/lib/crm/contrato-docx-data";
 import {
   buildDefaultSignaturePins,
@@ -75,6 +79,32 @@ import {
 } from "@/lib/crm/contract-send-gate";
 import { useOportunidadeRealtime } from "@/lib/crm/use-d4sign-realtime";
 import { D4SignViewDialog } from "@/components/crm/d4sign-view-dialog";
+import {
+  contractAreaTogglesFromProposal,
+  mergeInheritedContractAreaToggles,
+} from "@/lib/crm/contract-engine/inherit-areas";
+import { buildCanonicalContract } from "@/lib/crm/contract-engine/build-canonical";
+import { SECTION_ORDER } from "@/lib/crm/contract-engine/clause-engine";
+import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
+import { applyObjectOverride } from "@/lib/crm/contract-engine/object-engine";
+import { appendContractEngineEvent } from "@/lib/crm/contract-engine/object-events";
+import { resolveContractScopes } from "@/lib/crm/contract-engine/proposal-snapshot";
+import { contractPartyGrammar } from "@/lib/crm/contract-engine/party-language";
+import type { ContractObjectDraft } from "@/lib/crm/contract-engine/persist";
+import type {
+  CanonicalContractBuildResult,
+  ContractClauseTemplate,
+  ContractEngineEvent,
+  ContractObjectOverride,
+  ContractScopeAdjustment,
+} from "@/lib/crm/contract-engine/types";
+import type { ProposalContractSnapshot } from "@/lib/crm/contract-engine/proposal-snapshot";
+import {
+  AlterarEscoposDialog,
+  EscoposContratadosSection,
+  ObjetoContratoSection,
+  SectionHeading,
+} from "./contrato-object-panels";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,6 +123,7 @@ type CcFieldDef = {
   fieldOptions: string[] | null;
   conditionJson: unknown;
   value: string;
+  required: boolean;
 };
 
 /** Template de cláusula da biblioteca (admin gerencia) */
@@ -102,6 +133,15 @@ type ClauseTemplate = {
   content: string;
   category: string;
   sort_order: number;
+  /** `ClauseRole` bruto do banco — usado só p/ agrupar por seção do contrato no builder. */
+  role?: string | null;
+  /** Cláusula obrigatória — o motor sempre a inclui, independente de "seleção
+   * manual" aqui; não pode ser adicionada/removida por este picker. */
+  is_required?: boolean | null;
+  /** Chave estável (`ResolvedContractClause.stableKey`) — usada pra checar se
+   * o motor canônico já está gerando esta cláusula sozinho (ver `liveBuild`
+   * em `ContratoBuilderDialog`), mesmo quando `is_required` está `false`. */
+  stable_key?: string | null;
 };
 
 /** Cláusula selecionada + editada para este contrato específico */
@@ -147,7 +187,7 @@ type ContratoState = {
     generated_file_path: string | null;
     generated_at: string;
   }>;
-  pending: string[];
+  pending: ContratoPendingField[];
   snapshot: {
     fieldByCode: Record<string, string>;
     empresa: {
@@ -157,6 +197,8 @@ type ContratoState = {
   };
   ccFieldDefs: CcFieldDef[];
   availableClauses: ClauseTemplate[];
+  /** Biblioteca de cláusulas ativa (banco > catálogo fixo) usada no preview ao vivo. */
+  clauseLibrary?: ContractClauseTemplate[];
   selectedClauses: SelectedClause[];
   signaturePins: SignaturePin[];
   reviewTask: {
@@ -168,46 +210,32 @@ type ContratoState = {
     concluido_em: string | null;
     created_at: string;
   } | null;
+  engine: CanonicalContractBuildResult | null;
+  proposalSnapshot: ProposalContractSnapshot | null;
+  objectDraft?: ContractObjectDraft;
+  proposalChanged?: boolean;
 };
 
 // ─── Seções e códigos dos campos ─────────────────────────────────────────────
 
 /** Campos agrupados por seção do formulário do builder. */
-const SECTION_INSTRUMENTO = ["cc_tipo_instrumento", "cc_objeto"] as const;
 const SECTION_VALORES = [
   "cc_tipo_pagamento",
   "cc_valores",
 ] as const;
 const SECTION_PRAZO = ["cc_prazo_revisao"] as const;
 
-/** Áreas de atuação — cada área tem um toggle "cc_incluir_X" e campos condicionais */
-const AREAS_CONFIG = [
-  {
-    toggleCode: "cc_incluir_trabalhista",
-    label: "Assessoria Trabalhista",
-    detailCodes: ["cc_trabalhista_limite_acoes", "cc_trabalhista_horas_consultivas"],
-  },
-  {
-    toggleCode: "cc_incluir_civel",
-    label: "Assessoria Cível",
-    detailCodes: ["cc_civel_limite_processos", "cc_civel_horas_consultivas"],
-  },
-  {
-    toggleCode: "cc_incluir_contratual",
-    label: "Assessoria Contratual/Societária",
-    detailCodes: ["cc_contratual_horas_mensais"],
-  },
-  {
-    toggleCode: "cc_incluir_tributario",
-    label: "Assessoria Tributária",
-    detailCodes: ["cc_tributario_limite_acoes"],
-  },
-  {
-    toggleCode: "cc_incluir_exito",
-    label: "Honorários de Êxito",
-    detailCodes: ["cc_exito_percentual"],
-  },
-] as const;
+type InclusionToggle = {
+  toggleCode: string;
+  label: string;
+  detailCodes: readonly string[];
+};
+
+const EXITO_CONFIG: InclusionToggle = {
+  toggleCode: "cc_incluir_exito",
+  label: "Honorários de êxito",
+  detailCodes: ["cc_exito_percentual"],
+};
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -266,6 +294,15 @@ export function ContratoDocumentBuilder({
     ["cp_cliente_cidade", "cp_cliente_uf", "cp_investimento_resumo"].includes(f.fieldCode),
   );
 
+  function goToPendingItem(item: ContratoPendingField) {
+    setBuilderOpen(true);
+    if (!item.sectionId) return;
+    const sectionId = item.sectionId;
+    window.setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  }
+
   return (
     <section className="overflow-hidden rounded-[28px] border border-crm-border-warm-strong bg-crm-surface-warm shadow-[0_28px_80px_rgba(16,31,46,0.12)]">
       {/* Header */}
@@ -284,7 +321,7 @@ export function ContratoDocumentBuilder({
             </h2>
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-100/85">
               {hasInstance
-                ? "Rascunho em andamento. Clique em &ldquo;Continuar Elaboração&rdquo; para editar."
+                ? "Rascunho em andamento. Clique em “Continuar Elaboração” para editar."
                 : "Selecione o modelo, preencha os dados e visualize o preview ao vivo."}
             </p>
           </div>
@@ -363,12 +400,25 @@ export function ContratoDocumentBuilder({
                   Todos os campos obrigatórios estão preenchidos.
                 </p>
               ) : (
-                <ul className="space-y-1 text-sm text-primary-dark/80">
+                <ul className="space-y-1">
                   {pending.slice(0, 6).map((item) => (
-                    <li key={item}>· {item}</li>
+                    <li key={item.label}>
+                      <button
+                        type="button"
+                        onClick={() => goToPendingItem(item)}
+                        className="group flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-sm text-primary-dark/80 transition-colors hover:bg-amber-100/60"
+                      >
+                        <TriangleAlert className="size-3.5 shrink-0 text-amber-500" aria-hidden />
+                        <span className="flex-1">{item.label}</span>
+                        <ChevronRight
+                          className="size-3.5 shrink-0 text-amber-400 opacity-0 transition-opacity group-hover:opacity-100"
+                          aria-hidden
+                        />
+                      </button>
+                    </li>
                   ))}
                   {pending.length > 6 ? (
-                    <li className="text-xs text-muted-foreground">
+                    <li className="px-1.5 text-xs text-muted-foreground">
                       + {pending.length - 6} pendências
                     </li>
                   ) : null}
@@ -457,11 +507,19 @@ function ContratoBuilderDialog({
 
   // ── State ──────────────────────────────────────────────────────────────────
   const initDraft = () =>
-    Object.fromEntries(contratoState.ccFieldDefs.map((f) => [f.fieldCode, f.value]));
+    mergeInheritedContractAreaToggles(
+      Object.fromEntries(contratoState.ccFieldDefs.map((f) => [f.fieldCode, f.value])),
+      contractAreaTogglesFromProposal(contratoState.snapshot.fieldByCode),
+    );
 
   const [draftValues, setDraftValues] = useState<Record<string, string>>(initDraft);
   const [savedValues, setSavedValues] = useState<Record<string, string>>(initDraft);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(
+  // Sem seletor visível: "modelo" não afeta o conteúdo gerado (o Word é montado
+  // programaticamente a partir dos dados, não de um arquivo de template — os 4
+  // arquivos que essas linhas antigas apontavam nem existem mais no repo). Mantém
+  // só o id do template padrão, exigido internamente pelas chamadas de
+  // salvar/gerar.
+  const [selectedTemplateId] = useState(
     contratoState.template?.id ?? (contratoState.templates[0]?.id ?? ""),
   );
   const [savedTemplateId, setSavedTemplateId] = useState(
@@ -500,17 +558,46 @@ function ContratoBuilderDialog({
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
 
   const [confirmClose, setConfirmClose] = useState(false);
+  const [alterarEscoposOpen, setAlterarEscoposOpen] = useState(false);
+
+  const initialObjectDraft = contratoState.objectDraft ?? {
+    objectFieldValues: {},
+    objectOverrides: [] as ContractObjectOverride[],
+    scopeAdjustment: null as ContractScopeAdjustment | null,
+    engineEvents: [] as ContractEngineEvent[],
+    explicitCompositionKey: null as string | null,
+  };
+  const [objectFields, setObjectFields] = useState<Record<string, string>>(
+    initialObjectDraft.objectFieldValues,
+  );
+  const [savedObjectFields, setSavedObjectFields] = useState<Record<string, string>>(
+    initialObjectDraft.objectFieldValues,
+  );
+  const [objectOverrides, setObjectOverrides] = useState<ContractObjectOverride[]>(
+    initialObjectDraft.objectOverrides,
+  );
+  const [savedObjectOverrides, setSavedObjectOverrides] = useState<ContractObjectOverride[]>(
+    initialObjectDraft.objectOverrides,
+  );
+  const [scopeAdjustment, setScopeAdjustment] = useState<ContractScopeAdjustment | null>(
+    initialObjectDraft.scopeAdjustment,
+  );
+  const [savedScopeAdjustment, setSavedScopeAdjustment] = useState<ContractScopeAdjustment | null>(
+    initialObjectDraft.scopeAdjustment,
+  );
+  const [engineEvents, setEngineEvents] = useState<ContractEngineEvent[]>(
+    initialObjectDraft.engineEvents,
+  );
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const isDirty =
     JSON.stringify(draftValues) !== JSON.stringify(savedValues) ||
     selectedTemplateId !== savedTemplateId ||
     JSON.stringify(draftSelectedClauses) !== JSON.stringify(savedSelectedClauses) ||
-    JSON.stringify(draftPins) !== JSON.stringify(savedPins);
-
-  const templates = contratoState.templates;
-  const selectedTemplateName =
-    templates.find((t) => t.id === selectedTemplateId)?.name ?? "Selecione um modelo";
+    JSON.stringify(draftPins) !== JSON.stringify(savedPins) ||
+    JSON.stringify(objectFields) !== JSON.stringify(savedObjectFields) ||
+    JSON.stringify(objectOverrides) !== JSON.stringify(savedObjectOverrides) ||
+    JSON.stringify(scopeAdjustment) !== JSON.stringify(savedScopeAdjustment);
 
   const fieldByCode = Object.fromEntries(
     contratoState.ccFieldDefs.map((f) => [f.fieldCode, f]),
@@ -522,6 +609,50 @@ function ContratoBuilderDialog({
     if (!f) return false;
     return evaluateCondition(f.conditionJson as FieldCondition, draftValues);
   }
+
+  const clauseLibrary = useMemo(() => {
+    if (!contratoState.clauseLibrary) return undefined;
+    return new Map(contratoState.clauseLibrary.map((clause) => [clause.stableKey, clause]));
+  }, [contratoState.clauseLibrary]);
+
+  const liveBuild = useMemo((): CanonicalContractBuildResult | null => {
+    if (!contratoState.proposalSnapshot) return contratoState.engine;
+    return buildCanonicalContract({
+      snapshot: contratoState.proposalSnapshot,
+      fieldByCode: { ...contratoState.snapshot.fieldByCode, ...draftValues },
+      objectFieldValues: objectFields,
+      objectOverrides,
+      scopeAdjustment,
+      explicitCompositionKey: initialObjectDraft.explicitCompositionKey,
+      engineEvents,
+      clauseLibrary,
+    });
+  }, [
+    clauseLibrary,
+    contratoState.engine,
+    contratoState.proposalSnapshot,
+    contratoState.snapshot.fieldByCode,
+    draftValues,
+    engineEvents,
+    initialObjectDraft.explicitCompositionKey,
+    objectFields,
+    objectOverrides,
+    scopeAdjustment,
+  ]);
+
+  // Texto de verdade (placeholders resolvidos) de tudo que o motor já está
+  // gerando pra este contrato AGORA (escopo contratado, reavaliado a cada
+  // mudança de draft), por chave estável — usado pra travar essas linhas na
+  // barra lateral de Cláusulas Adicionais (mesmo quando o catálogo não marca
+  // a cláusula como `is_required` — ex.: exclusões específicas de área, que
+  // só existem quando aquele escopo foi contratado) e pro "Visualizar".
+  const engineClauseContent = useMemo(
+    () =>
+      liveBuild
+        ? new Map(liveBuild.data.clauses.map((c) => [c.stableKey, c.content]))
+        : undefined,
+    [liveBuild],
+  );
 
   // ── Preview client-side (instantâneo, sem API) ────────────────────────────
   const livePreview = useMemo((): ContratoDocumentPagePreview => {
@@ -551,7 +682,6 @@ function ContratoBuilderDialog({
       TIPO_PAGAMENTO: f("cc_tipo_pagamento"),
       PRAZO_CONFECCAO: f("cc_prazo_confeccao"),
       PRAZO_REVISAO: f("cc_prazo_revisao"),
-      // Áreas de atuação
       INCLUIR_TRABALHISTA: f("cc_incluir_trabalhista"),
       TRABALHISTA_LIMITE_ACOES: f("cc_trabalhista_limite_acoes"),
       TRABALHISTA_HORAS_CONSULTIVAS: f("cc_trabalhista_horas_consultivas"),
@@ -568,19 +698,27 @@ function ContratoBuilderDialog({
       P: "1",
       F: "1",
     };
-    return buildContratoDocumentPagePreview(data, draftSelectedClauses);
-  }, [contratoState, draftValues, draftSelectedClauses]);
+    const base = buildContratoDocumentPagePreview(data, draftSelectedClauses);
+    if (!liveBuild) return base;
+    // Motor canônico ativo: usa a mesma função (buildCanonicalContratoPage) que
+    // o botão "Gerar DOCX" e o envio ao D4Sign, para os três nunca divergirem.
+    return buildCanonicalContratoPage({
+      canonicalData: liveBuild.data,
+      userExtras: draftSelectedClauses,
+    });
+  }, [contratoState, draftValues, draftSelectedClauses, liveBuild]);
 
-  /** Campos que obrigatoriamente precisam de valor dado o tipo de pagamento. */
-  const instrComplete =
-    Boolean(draftValues.cc_tipo_instrumento?.trim()) &&
-    Boolean(draftValues.cc_objeto?.trim());
+  const objectComplete = Boolean(
+    liveBuild &&
+      liveBuild.data.contractObject.missingScopeIds.length === 0 &&
+      liveBuild.data.contractObject.missingRequiredFields.length === 0 &&
+      liveBuild.data.scopes.every((s) => !s.missingProfile),
+  );
+  const scopesComplete = Boolean(
+    liveBuild && liveBuild.data.scopes.length > 0 && liveBuild.data.scopes.every((s) => !s.missingProfile),
+  );
   const valsComplete = Boolean(draftValues.cc_tipo_pagamento?.trim());
   const prazComplete = Boolean(draftValues.cc_prazo_revisao?.trim());
-  /** Pelo menos uma área de atuação selecionada */
-  const areasComplete = AREAS_CONFIG.some(
-    (a) => draftValues[a.toggleCode]?.trim() === "Sim",
-  );
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   function fieldChange(code: string, value: string) {
@@ -603,35 +741,69 @@ function ContratoBuilderDialog({
       }),
     );
     await Promise.all(patches);
+    const completedFields = Object.entries(objectFields).filter(
+      ([key, value]) => value.trim() && !String(savedObjectFields[key] ?? "").trim(),
+    );
+    const nextEvents = completedFields.reduce(
+      (events, [key]) =>
+        appendContractEngineEvent(events, {
+          type: "contract_object_field_completed",
+          payload: { key },
+        }),
+      engineEvents,
+    );
+    if (nextEvents !== engineEvents) setEngineEvents(nextEvents);
     // Salvar seleção de template + cláusulas adicionais + pins
-    await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato`, {
+    const persistRes = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         templateId: selectedTemplateId,
         status: "draft",
+        expectedUpdatedAt: contratoState.instance?.updated_at,
         data: {
           clausulas_selecionadas: draftSelectedClauses,
           pins_signatarios: draftPins,
+          contract_object_fields: objectFields,
+          contract_object_overrides: objectOverrides,
+          contract_scope_adjustments: scopeAdjustment,
+          contract_engine_events: nextEvents,
+          explicit_composition_key: initialObjectDraft.explicitCompositionKey,
         },
       }),
     });
+    if (!persistRes.ok) {
+      const json = (await persistRes.json().catch(() => ({}))) as { error?: string };
+      throw new Error(json.error ?? "Falha ao salvar o rascunho do contrato.");
+    }
 
     // Se prazo de revisão foi definido ou alterado, notificar Societário e Contratos
     const prazoRevisao = draftValues.cc_prazo_revisao?.trim() ?? "";
     const savedPrazoRevisao = savedValues.cc_prazo_revisao?.trim() ?? "";
     if (prazoRevisao && prazoRevisao !== savedPrazoRevisao) {
-      await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/review-task`, {
+      if (!objectComplete) {
+        throw new Error(
+          "Não é possível enviar o contrato para revisão. Complete o Objeto do Contrato e os escopos sem perfil.",
+        );
+      }
+      const reviewRes = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/review-task`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prazoRevisao }),
       });
+      if (!reviewRes.ok) {
+        const json = (await reviewRes.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error ?? "Não foi possível enviar o contrato para revisão.");
+      }
     }
 
     setSavedValues({ ...draftValues });
     setSavedTemplateId(selectedTemplateId);
     setSavedSelectedClauses([...draftSelectedClauses]);
     setSavedPins([...draftPins]);
+    setSavedObjectFields({ ...objectFields });
+    setSavedObjectOverrides([...objectOverrides]);
+    setSavedScopeAdjustment(scopeAdjustment);
   }
 
   async function handleSave() {
@@ -733,6 +905,9 @@ function ContratoBuilderDialog({
                 <DialogTitle className="text-base font-extrabold tracking-[-0.02em] text-white">
                   Elaborar Contrato
                 </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Edição do contrato herdado automaticamente da proposta aprovada.
+                </DialogDescription>
                 {isDirty ? (
                   <span className="rounded-full bg-amber-500/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">
                     Não salvo
@@ -741,28 +916,7 @@ function ContratoBuilderDialog({
               </div>
             </div>
 
-            {/* Template selector */}
             <div className="flex flex-wrap items-center gap-2">
-              <Select
-                value={selectedTemplateId}
-                onValueChange={(v) => {
-                  if (v) setSelectedTemplateId(v);
-                  setSaveFeedback(null);
-                }}
-                disabled={templates.length === 0}
-              >
-                <SelectTrigger className="h-9 min-w-[14rem] max-w-[22rem] border-white/25 bg-white/15 text-sm text-white shadow-sm backdrop-blur">
-                  <span className="min-w-0 truncate text-left">{selectedTemplateName}</span>
-                </SelectTrigger>
-                <CrmSelectContent className="max-h-[min(280px,50dvh)]">
-                  {templates.map((t) => (
-                    <CrmSelectItem key={t.id} value={t.id}>
-                      {t.name} v{t.version}
-                    </CrmSelectItem>
-                  ))}
-                </CrmSelectContent>
-              </Select>
-
               <Button
                 type="button"
                 size="sm"
@@ -823,10 +977,21 @@ function ContratoBuilderDialog({
           {/* ── Body split-pane ── */}
           <div className="flex min-h-0 flex-1 overflow-hidden">
             {/* Painel esquerdo — Formulário */}
-            <aside className="crm-scrollbar w-[46%] shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-5 py-6 sm:px-6">
-              <div className="space-y-8">
+            <aside className="crm-scrollbar w-[46%] shrink-0 overflow-y-auto border-r border-slate-200 bg-white">
+              <SectionNav
+                sections={[
+                  { id: "section-partes", num: 1, label: "Partes", state: propostaEmpresaPrincipalNome ? "complete" : "pending" },
+                  { id: "section-escopos", num: 2, label: "Escopos", state: scopesComplete ? "complete" : "pending" },
+                  { id: "section-objeto", num: 3, label: "Objeto", state: objectComplete ? "complete" : "pending" },
+                  { id: "section-condicoes", num: 4, label: "Condições", state: valsComplete ? "complete" : "pending" },
+                  { id: "section-vigencia", num: 5, label: "Vigência", state: prazComplete || Boolean(liveBuild) ? "complete" : "pending" },
+                  { id: "section-clausulas", num: 6, label: "Cláusulas", state: "neutral" },
+                  { id: "section-assinaturas", num: 7, label: "Assinaturas", state: "neutral" },
+                ]}
+              />
+              <div className="space-y-8 px-5 py-6 sm:px-6">
                 {/* Seção: Partes (read-only) */}
-                <FormSection num={1} title="Partes" isComplete={Boolean(propostaEmpresaPrincipalNome)}>
+                <FormSection id="section-partes" num={1} title="Partes" isComplete={Boolean(propostaEmpresaPrincipalNome)}>
                   {propostaEmpresaPrincipalNome ? (
                     <div className="rounded-xl border border-teal-200/60 bg-teal-50/50 p-3">
                       <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent-teal/80">
@@ -843,48 +1008,76 @@ function ContratoBuilderDialog({
                   )}
                 </FormSection>
 
-                {/* Seção: Instrumento e Objeto */}
-                <FormSection
-                  num={2}
-                  title="Instrumento e Objeto"
-                  isComplete={instrComplete}
-                >
-                  {(SECTION_INSTRUMENTO as readonly string[]).map((code) => {
-                    const f = fieldByCode[code];
-                    if (!f) return null;
-                    return (
-                      <CcFieldInput
-                        key={code}
-                        field={f}
-                        value={draftValues[code] ?? ""}
-                        onChange={(v) => fieldChange(code, v)}
-                        disabled={saving || generating}
-                      />
-                    );
-                  })}
-                </FormSection>
+                <div id="section-escopos" className="scroll-mt-16">
+                  <EscoposContratadosSection
+                    num={2}
+                    scopes={liveBuild?.data.scopes ?? []}
+                    proposalAligned={!scopeAdjustment}
+                    disabled={saving || generating}
+                    onRequestChange={() => setAlterarEscoposOpen(true)}
+                  />
+                </div>
 
-                {/* Seção 3: Áreas de Atuação */}
-                <AreasSection
-                  num={3}
-                  areasConfig={AREAS_CONFIG}
-                  fieldByCode={fieldByCode}
-                  draftValues={draftValues}
-                  onChange={fieldChange}
-                  isComplete={areasComplete}
-                  disabled={saving || generating}
-                />
+                <div id="section-objeto" className="scroll-mt-16">
+                  <ObjetoContratoSection
+                    num={3}
+                    build={liveBuild}
+                    disabled={saving || generating}
+                    onFieldChange={(key, value) => {
+                      setObjectFields((prev) => ({ ...prev, [key]: value }));
+                      setSaveFeedback(null);
+                    }}
+                    onOverride={(blockStableKey, content, reason) => {
+                      if (!liveBuild) return;
+                      const next = applyObjectOverride({
+                        object: liveBuild.data.contractObject,
+                        blockStableKey,
+                        overrideContent: content,
+                        reason,
+                        changedBy: "comercial",
+                      });
+                      setObjectOverrides(next.overrides);
+                      setEngineEvents((prev) =>
+                        appendContractEngineEvent(prev, {
+                          type: "contract_object_overridden",
+                          payload: { blockStableKey, reason, invalidatesReview: true },
+                        }),
+                      );
+                      if (contratoState.reviewTask && contratoState.reviewTask.status !== "pendente") {
+                        void fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/review-task`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            status: "pendente",
+                            observacao: "Revisão invalidada: objeto do contrato foi ajustado.",
+                          }),
+                        });
+                      }
+                      setSaveFeedback(null);
+                    }}
+                  />
+                </div>
 
-                {/* Seção: Valores e Pagamento */}
+                {/* Seção: Condições comerciais */}
                 <FormSection
+                  id="section-condicoes"
                   num={4}
-                  title="Valores e Pagamento"
+                  title="Condições Comerciais"
                   isComplete={valsComplete}
                 >
                   {(SECTION_VALORES as readonly string[]).map((code) => {
                     if (!isVisible(code)) return null;
                     const f = fieldByCode[code];
                     if (!f) return null;
+                    // cc_valores é obrigatório sempre que há forma de pagamento definida e
+                    // ela não é "Êxito" puro (mesma regra de listContratoPendingFields) —
+                    // is_required no banco é false porque a obrigatoriedade é condicional,
+                    // então o asterisco precisa desse override pontual pra não ficar errado.
+                    const requiredOverride =
+                      code === "cc_valores"
+                        ? Boolean(draftValues.cc_tipo_pagamento?.trim()) &&
+                          draftValues.cc_tipo_pagamento?.trim() !== "Êxito"
+                        : undefined;
                     return (
                       <CcFieldInput
                         key={code}
@@ -892,13 +1085,40 @@ function ContratoBuilderDialog({
                         value={draftValues[code] ?? ""}
                         onChange={(v) => fieldChange(code, v)}
                         disabled={saving || generating}
+                        requiredOverride={requiredOverride}
                       />
                     );
                   })}
+                  <InclusionToggleCard
+                    item={EXITO_CONFIG}
+                    fieldByCode={fieldByCode}
+                    draftValues={draftValues}
+                    onChange={fieldChange}
+                    disabled={saving || generating}
+                  />
                 </FormSection>
 
-                {/* Seção 5: Prazo para Revisão */}
-                <FormSection num={5} title="Prazo para Revisão" isComplete={prazComplete}>
+                {/* Seção 5: Vigência e início */}
+                <FormSection id="section-vigencia" num={5} title="Vigência e Início" isComplete={prazComplete || Boolean(liveBuild)}>
+                  {liveBuild ? (
+                    <div className="rounded-xl border border-teal-200/60 bg-teal-50/40 p-3 text-xs text-primary-dark">
+                      <p>
+                        <span className="font-bold">Vigência: </span>
+                        {liveBuild.data.term.kind === "indefinite"
+                          ? "Prazo indeterminado"
+                          : liveBuild.data.term.estimateLabel || liveBuild.data.term.kind}
+                      </p>
+                      <p className="mt-1">
+                        <span className="font-bold">Início: </span>
+                        {liveBuild.data.startRule.kind === "on_signature"
+                          ? "Na assinatura"
+                          : liveBuild.data.startRule.kind === "on_first_payment"
+                            ? "No primeiro pagamento"
+                            : liveBuild.data.startRule.date || "Data definida"}
+                      </p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">Resolvida pelo perfil contratual ✓</p>
+                    </div>
+                  ) : null}
                   {(SECTION_PRAZO as readonly string[]).map((code) => {
                     const f = fieldByCode[code];
                     if (!f) return null;
@@ -928,21 +1148,27 @@ function ContratoBuilderDialog({
                 </FormSection>
 
                 {/* Seção 6: Cláusulas Adicionais */}
-                <ClausulasSection
-                  available={contratoState.availableClauses ?? []}
-                  selected={draftSelectedClauses}
-                  onChange={setDraftSelectedClauses}
-                  disabled={saving || generating}
-                />
+                <div id="section-clausulas" className="scroll-mt-16">
+                  <ClausulasSection
+                    available={contratoState.availableClauses ?? []}
+                    selected={draftSelectedClauses}
+                    onChange={setDraftSelectedClauses}
+                    disabled={saving || generating}
+                    engineClauseContent={engineClauseContent}
+                  />
+                </div>
 
                 {/* Seção 7: Posicionar Assinaturas (rubrica/pin) */}
-                <PinsSection
-                  pins={draftPins}
-                  onChange={setDraftPins}
-                  pinMode={pinMode}
-                  onPinModeChange={setPinMode}
-                  disabled={saving || generating}
-                />
+                <div id="section-assinaturas" className="scroll-mt-16">
+                  <PinsSection
+                    pins={draftPins}
+                    onChange={setDraftPins}
+                    pinMode={pinMode}
+                    onPinModeChange={setPinMode}
+                    disabled={saving || generating}
+                  />
+                </div>
+
               </div>
             </aside>
 
@@ -1016,6 +1242,41 @@ function ContratoBuilderDialog({
         </DialogContent>
       </Dialog>
 
+      <AlterarEscoposDialog
+        open={alterarEscoposOpen}
+        onOpenChange={setAlterarEscoposOpen}
+        scopes={
+          contratoState.proposalSnapshot
+            ? resolveContractScopes(contratoState.proposalSnapshot.escopoJson)
+            : (contratoState.engine?.data.scopes ?? [])
+        }
+        current={scopeAdjustment}
+        onConfirm={(adjustment) => {
+          const removed = new Set(adjustment.removedEntryIds);
+          const prevRemoved = new Set(scopeAdjustment?.removedEntryIds ?? []);
+          let events = engineEvents;
+          for (const id of removed) {
+            if (!prevRemoved.has(id)) {
+              events = appendContractEngineEvent(events, {
+                type: "contract_scope_removed_from_object",
+                payload: { entryId: id, reason: adjustment.reason },
+              });
+            }
+          }
+          for (const id of prevRemoved) {
+            if (!removed.has(id)) {
+              events = appendContractEngineEvent(events, {
+                type: "contract_scope_added_to_object",
+                payload: { entryId: id, reason: adjustment.reason },
+              });
+            }
+          }
+          setEngineEvents(events);
+          setScopeAdjustment(adjustment);
+          setSaveFeedback(null);
+        }}
+      />
+
       {/* Confirmação de descarte — z acima do builder (z-[110]) */}
       <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
         <AlertDialogContent overlayClassName="z-[120]" className="z-[130]">
@@ -1080,7 +1341,7 @@ function D4SignSendSection({
   appUsersByEmail = {},
 }: {
   lead: LeadDetailData;
-  pending: string[];
+  pending: ContratoPendingField[];
   reviewTask: ContratoState["reviewTask"];
   onRefresh: () => Promise<void>;
   appUsersByEmail?: Record<string, { avatarUrl: string | null; fullName: string }>;
@@ -1345,7 +1606,12 @@ function D4SignSendSection({
               Preencha os campos pendentes no builder antes de enviar:
             </p>
             <ul className="mt-1 space-y-0.5 text-xs text-amber-600">
-              {pending.slice(0, 4).map((p) => <li key={p}>· {p}</li>)}
+              {pending.slice(0, 4).map((p) => (
+                <li key={p.label} className="flex items-center gap-1.5">
+                  <TriangleAlert className="size-3 shrink-0" aria-hidden />
+                  {p.label}
+                </li>
+              ))}
               {pending.length > 4 && <li>+ {pending.length - 4} campos</li>}
             </ul>
           </div>
@@ -1695,102 +1961,77 @@ function SignerRow({
 
 // ─── Seção: Áreas de Atuação ─────────────────────────────────────────────────
 
-function AreasSection({
-  num,
-  areasConfig,
+function InclusionToggleCard({
+  item,
   fieldByCode,
   draftValues,
   onChange,
-  isComplete,
   disabled,
 }: {
-  num: number;
-  areasConfig: typeof AREAS_CONFIG;
+  item: InclusionToggle;
   fieldByCode: Record<string, CcFieldDef>;
   draftValues: Record<string, string>;
   onChange: (code: string, value: string) => void;
-  isComplete: boolean;
   disabled?: boolean;
 }) {
+  const isIncluded = draftValues[item.toggleCode]?.trim() === "Sim";
   return (
-    <FormSection num={num} title="Áreas de Atuação" isComplete={isComplete}>
-      <p className="text-xs text-muted-foreground">
-        Selecione quais áreas fazem parte deste contrato e preencha os limites correspondentes.
-      </p>
-      <div className="space-y-3">
-        {areasConfig.map((area) => {
-          const isIncluded = draftValues[area.toggleCode]?.trim() === "Sim";
-          return (
-            <div
-              key={area.toggleCode}
-              className={cn(
-                "rounded-xl border transition-colors",
-                isIncluded
-                  ? "border-teal-200 bg-teal-50/50"
-                  : "border-slate-200 bg-white",
-              )}
-            >
-              {/* Toggle header */}
-              <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={isIncluded}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      onChange(area.toggleCode, e.target.checked ? "Sim" : "Não")
-                    }
-                  />
-                  <div
-                    className={cn(
-                      "flex size-5 items-center justify-center rounded-md border-2 transition-colors",
-                      isIncluded
-                        ? "border-teal-500 bg-teal-500"
-                        : "border-slate-300 bg-white",
-                    )}
-                  >
-                    {isIncluded && <Check className="size-3 text-white" aria-hidden />}
-                  </div>
-                </div>
-                <span
-                  className={cn(
-                    "flex-1 text-sm font-semibold",
-                    isIncluded ? "text-teal-900" : "text-slate-600",
-                  )}
-                >
-                  {area.label}
-                </span>
-                {isIncluded && (
-                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
-                    Incluído
-                  </span>
-                )}
-              </label>
-
-              {/* Detail fields (conditionally shown) */}
-              {isIncluded && area.detailCodes.length > 0 && (
-                <div className="border-t border-teal-100 px-4 pb-4 pt-3 space-y-3">
-                  {(area.detailCodes as readonly string[]).map((code) => {
-                    const f = fieldByCode[code];
-                    if (!f) return null;
-                    return (
-                      <CcFieldInput
-                        key={code}
-                        field={f}
-                        value={draftValues[code] ?? ""}
-                        onChange={(v) => onChange(code, v)}
-                        disabled={disabled}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </FormSection>
+    <div
+      className={cn(
+        "rounded-xl border transition-colors",
+        isIncluded ? "border-teal-200 bg-teal-50/50" : "border-slate-200 bg-white",
+      )}
+    >
+      <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
+        <div className="relative">
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={isIncluded}
+            disabled={disabled}
+            onChange={(e) => onChange(item.toggleCode, e.target.checked ? "Sim" : "Não")}
+          />
+          <div
+            className={cn(
+              "flex size-5 items-center justify-center rounded-md border-2 transition-colors",
+              isIncluded ? "border-teal-500 bg-teal-500" : "border-slate-300 bg-white",
+            )}
+          >
+            {isIncluded && <Check className="size-3 text-white" aria-hidden />}
+          </div>
+        </div>
+        <span
+          className={cn(
+            "flex-1 text-sm font-semibold",
+            isIncluded ? "text-teal-900" : "text-slate-600",
+          )}
+        >
+          {item.label}
+        </span>
+        {isIncluded ? (
+          <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+            Incluído
+          </span>
+        ) : null}
+      </label>
+      {isIncluded && item.detailCodes.length > 0 ? (
+        <div className="space-y-3 border-t border-teal-100 px-4 pb-4 pt-3">
+          {item.detailCodes.map((code) => {
+            const f = fieldByCode[code];
+            if (!f) return null;
+            return (
+              <CcFieldInput
+                key={code}
+                field={f}
+                value={draftValues[code] ?? ""}
+                onChange={(v) => onChange(code, v)}
+                disabled={disabled}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -1941,32 +2182,150 @@ function ReviewTaskCard({
 
 // ─── Seção de cláusulas adicionais ───────────────────────────────────────────
 
+// ─── Agrupamento de cláusulas pela estrutura do contrato ─────────────────────
+
+/** Sem `role` reconhecido (ou cláusula legada sem template correspondente na
+ * biblioteca atual — ex.: fragmento salvo antes do motor de Objeto existir). */
+const CLAUSE_FALLBACK_SECTION_TITLE = "OUTRAS / SEM VÍNCULO COM A BIBLIOTECA ATUAL";
+
+/** "Objeto" e "Preço/Pagamento" são gerados automaticamente pelo motor a partir
+ * do escopo contratado (`data.sections`) — cláusula adicionada manualmente aqui
+ * NÃO se funde com esse texto; vira um bloco redundante à parte. Diferente de
+ * "Objetos Excluídos" (ver `EXCLUSION_MERGE_SECTION_TITLE` abaixo), que se junta
+ * automaticamente. */
+const ENGINE_CONTROLLED_SECTION_TITLES = new Set([
+  "OBJETO DO CONTRATO",
+  "PREÇO E FORMA DE PAGAMENTO",
+]);
+
+/** Cláusula adicionada manualmente aqui se junta como sub-item dentro da seção
+ * "OBJETOS EXCLUÍDOS DO CONTRATO" do documento final (não vira cláusula solta) —
+ * ver `mergeExclusionExtrasIntoObjetosExcluidos` em legacy-preview.ts. */
+const EXCLUSION_MERGE_SECTION_TITLE = "OBJETOS EXCLUÍDOS DO CONTRATO";
+
+function resolveClauseSectionTitle(role: string | null | undefined): string {
+  if (!role) return CLAUSE_FALLBACK_SECTION_TITLE;
+  const spec = SECTION_ORDER.find((s) => (s.roles as readonly string[]).includes(role));
+  return spec?.title ?? CLAUSE_FALLBACK_SECTION_TITLE;
+}
+
+type ClauseRow = {
+  id: string;
+  title: string;
+  /** Conteúdo do template (biblioteca) — referência para quem ainda vai adicionar. */
+  templateContent: string;
+  isAdded: boolean;
+  selectedClause: SelectedClause | null;
+  /** Motor gera esta cláusula sozinho — adicionar/remover aqui não tem efeito
+   * nenhum sobre o contrato real. Cobre tanto cláusulas marcadas obrigatórias
+   * no catálogo (`is_required`) quanto cláusulas que o motor já está gerando
+   * pra este contrato específico a partir do escopo contratado (mesmo com
+   * `is_required: false` — ex.: exclusões específicas de área). */
+  isEngineControlled: boolean;
+  /** Texto de verdade que o motor gerou pra esta cláusula NESTE contrato
+   * (placeholders já resolvidos) — só presente quando `isEngineControlled` via
+   * geração ativa; usado pro "Visualizar" somente-leitura na barra lateral.
+   * `null` quando travada só pela flag `is_required` sem geração ativa agora. */
+  engineContent: string | null;
+  /** `isAdded` (extra manual de verdade) OU o motor já gerou esta cláusula
+   * pra este contrato agora — usado pra contar/abrir o grupo por padrão.
+   * Sem isso, um grupo cheio de cláusulas travadas (geradas pelo motor)
+   * aparecia como "vazio" e ficava fechado, escondendo tudo. */
+  isIncludedInContract: boolean;
+};
+
+type ClauseGroup = {
+  title: string;
+  rows: ClauseRow[];
+  addedCount: number;
+};
+
+function groupClausesBySection(
+  available: ClauseTemplate[],
+  selected: SelectedClause[],
+  engineClauseContent?: ReadonlyMap<string, string>,
+): ClauseGroup[] {
+  const selectedById = new Map(selected.map((c) => [c.id, c]));
+  const availableIds = new Set(available.map((t) => t.id));
+  const bySection = new Map<string, ClauseRow[]>();
+
+  const pushRow = (sectionTitle: string, row: ClauseRow) => {
+    const arr = bySection.get(sectionTitle) ?? [];
+    arr.push(row);
+    bySection.set(sectionTitle, arr);
+  };
+
+  for (const tpl of available) {
+    const sel = selectedById.get(tpl.id) ?? null;
+    const engineContent = tpl.stable_key ? engineClauseContent?.get(tpl.stable_key) ?? null : null;
+    const isAdded = Boolean(sel);
+    pushRow(resolveClauseSectionTitle(tpl.role), {
+      id: tpl.id,
+      title: tpl.title,
+      templateContent: tpl.content,
+      isAdded,
+      selectedClause: sel,
+      isEngineControlled: Boolean(tpl.is_required) || engineContent !== null,
+      engineContent,
+      isIncludedInContract: isAdded || engineContent !== null,
+    });
+  }
+  // Cláusulas adicionadas cujo template não existe mais na biblioteca ativa
+  // (removido/desativado no admin) — ainda precisam aparecer, com opção de remover.
+  for (const sel of selected) {
+    if (availableIds.has(sel.id)) continue;
+    pushRow(CLAUSE_FALLBACK_SECTION_TITLE, {
+      id: sel.id,
+      title: sel.title,
+      templateContent: sel.content,
+      isAdded: true,
+      selectedClause: sel,
+      isEngineControlled: false,
+      engineContent: null,
+      isIncludedInContract: true,
+    });
+  }
+
+  const orderedTitles = [...SECTION_ORDER.map((s) => s.title), CLAUSE_FALLBACK_SECTION_TITLE];
+  const groups = orderedTitles
+    .filter((title) => bySection.has(title))
+    .map((title) => {
+      const rows = bySection.get(title)!;
+      return { title, rows, addedCount: rows.filter((r) => r.isIncludedInContract).length };
+    });
+  // Grupos com cláusula(s) já adicionada(s) primeiro — mais relevante pra quem
+  // está revisando o que já foi incluído do que a ordem em que a seção aparece
+  // no documento final. `.sort` é estável, então a ordem de documento é mantida
+  // dentro de cada bucket (com added / sem added).
+  return groups.sort((a, b) => Number(b.addedCount > 0) - Number(a.addedCount > 0));
+}
+
 function ClausulasSection({
   available,
   selected,
   onChange,
   disabled,
+  engineClauseContent,
 }: {
   available: ClauseTemplate[];
   selected: SelectedClause[];
   onChange: (clauses: SelectedClause[]) => void;
   disabled?: boolean;
+  /** Texto de verdade (placeholders resolvidos) que o motor canônico já está
+   * gerando pra este contrato agora, por chave estável — ver `liveBuild` no
+   * dialog pai. Usado tanto pra travar a linha quanto pro "Visualizar". */
+  engineClauseContent?: ReadonlyMap<string, string>;
 }) {
-  const selectedIds = new Set(selected.map((c) => c.id));
+  const groups = useMemo(
+    () => groupClausesBySection(available, selected, engineClauseContent),
+    [available, selected, engineClauseContent],
+  );
 
-  // Agrupa disponíveis por categoria
-  const byCategory: Record<string, ClauseTemplate[]> = {};
-  for (const c of available) {
-    const cat = c.category || "Geral";
-    (byCategory[cat] ??= []).push(c);
-  }
-  const categories = Object.keys(byCategory).sort();
-
-  function addClause(tpl: ClauseTemplate) {
+  function addClause(row: ClauseRow) {
     const next: SelectedClause = {
-      id: tpl.id,
-      title: tpl.title,
-      content: tpl.content,
+      id: row.id,
+      title: row.title,
+      content: row.templateContent,
       order: selected.length,
     };
     onChange([...selected, next]);
@@ -1974,14 +2333,6 @@ function ClausulasSection({
 
   function removeClause(id: string) {
     onChange(selected.filter((c) => c.id !== id).map((c, i) => ({ ...c, order: i })));
-  }
-
-  function moveClause(idx: number, dir: -1 | 1) {
-    const arr = [...selected];
-    const target = idx + dir;
-    if (target < 0 || target >= arr.length) return;
-    [arr[idx], arr[target]] = [arr[target], arr[idx]];
-    onChange(arr.map((c, i) => ({ ...c, order: i })));
   }
 
   function updateContent(id: string, content: string) {
@@ -2009,114 +2360,250 @@ function ClausulasSection({
         )}
       </div>
 
-      <div className="ml-10 space-y-4">
-        {/* Biblioteca de cláusulas */}
-        {available.length === 0 ? (
+      <div className="ml-10 space-y-2.5">
+        {available.length === 0 && selected.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nenhuma cláusula cadastrada. Acesse{" "}
             <span className="font-semibold">Admin → Cláusulas</span> para criar modelos.
           </p>
         ) : (
-          <div className="rounded-xl border border-slate-200 bg-slate-50">
-            <p className="border-b border-slate-200 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-              Biblioteca
-            </p>
-            <div className="divide-y divide-slate-100">
-              {categories.map((cat) =>
-                (byCategory[cat] ?? []).map((tpl) => {
-                  const isAdded = selectedIds.has(tpl.id);
-                  return (
-                    <div
-                      key={tpl.id}
-                      className="flex items-center gap-2 px-3 py-2"
-                    >
-                      <span className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          {cat}
-                        </span>
-                        <p className="truncate text-xs font-medium text-primary-dark">
-                          {tpl.title}
-                        </p>
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className={cn(
-                          "h-7 shrink-0 gap-1 px-2 text-[11px]",
-                          isAdded && "opacity-40 cursor-not-allowed",
-                        )}
-                        disabled={disabled || isAdded}
-                        onClick={() => addClause(tpl)}
-                      >
-                        <Plus className="size-3" aria-hidden />
-                        {isAdded ? "Adicionada" : "Adicionar"}
-                      </Button>
-                    </div>
-                  );
-                }),
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Cláusulas adicionadas */}
-        {selected.length > 0 && (
-          <div className="space-y-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-              Adicionadas ao contrato
-            </p>
-            {selected.map((clause, idx) => (
-              <div
-                key={clause.id}
-                className="rounded-xl border border-teal-200/70 bg-white p-3 shadow-sm"
-              >
-                <div className="mb-2 flex items-center gap-1.5">
-                  {/* Reordenar */}
-                  <button
-                    type="button"
-                    onClick={() => moveClause(idx, -1)}
-                    disabled={disabled || idx === 0}
-                    className="flex size-6 items-center justify-center rounded border border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600 disabled:opacity-30"
-                    aria-label="Mover para cima"
-                  >
-                    <ArrowUp className="size-3" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveClause(idx, 1)}
-                    disabled={disabled || idx === selected.length - 1}
-                    className="flex size-6 items-center justify-center rounded border border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600 disabled:opacity-30"
-                    aria-label="Mover para baixo"
-                  >
-                    <ArrowDown className="size-3" aria-hidden />
-                  </button>
-                  <span className="flex-1 truncate text-xs font-semibold text-primary-dark">
-                    {clause.title}
-                  </span>
-                  {/* Remover */}
-                  <button
-                    type="button"
-                    onClick={() => removeClause(clause.id)}
-                    disabled={disabled}
-                    className="flex size-6 items-center justify-center rounded border border-rose-200 text-rose-400 hover:border-rose-300 hover:text-rose-600 disabled:opacity-30"
-                    aria-label="Remover cláusula"
-                  >
-                    <X className="size-3" aria-hidden />
-                  </button>
-                </div>
-                <Textarea
-                  value={clause.content}
-                  onChange={(e) => updateContent(clause.id, e.target.value)}
-                  disabled={disabled}
-                  placeholder="Conteúdo da cláusula…"
-                  className="min-h-[90px] resize-y border-slate-200 bg-slate-50 text-xs leading-relaxed"
-                />
-              </div>
-            ))}
-          </div>
+          groups.map((group) => (
+            <ClauseGroupBlock
+              key={group.title}
+              group={group}
+              disabled={disabled}
+              onAdd={addClause}
+              onRemove={removeClause}
+              onUpdateContent={updateContent}
+            />
+          ))
         )}
       </div>
+    </div>
+  );
+}
+
+/** Bloco recolhível de uma seção do contrato (ex.: "OBJETOS EXCLUÍDOS DO CONTRATO"),
+ * com todas as cláusulas da biblioteca que pertencem a ela — adicionadas ou não. */
+function ClauseGroupBlock({
+  group,
+  disabled,
+  onAdd,
+  onRemove,
+  onUpdateContent,
+}: {
+  group: ClauseGroup;
+  disabled?: boolean;
+  onAdd: (row: ClauseRow) => void;
+  onRemove: (id: string) => void;
+  onUpdateContent: (id: string, content: string) => void;
+}) {
+  const [open, setOpen] = useState(group.addedCount > 0);
+  const isEngineControlled = ENGINE_CONTROLLED_SECTION_TITLES.has(group.title);
+  const isExclusionMerge = group.title === EXCLUSION_MERGE_SECTION_TITLE;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/70">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+      >
+        <ChevronRight
+          className={cn("size-3.5 shrink-0 text-slate-400 transition-transform duration-150", open && "rotate-90")}
+          aria-hidden
+        />
+        <span className="flex-1 truncate text-[11px] font-bold uppercase tracking-[0.1em] text-slate-600">
+          {group.title}
+        </span>
+        {group.addedCount > 0 ? (
+          <span className="shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+            {group.addedCount} no contrato
+          </span>
+        ) : null}
+        <span className="shrink-0 text-[10px] font-semibold text-slate-400">{group.rows.length}</span>
+      </button>
+      {open ? (
+        <div className="space-y-2 border-t border-slate-200 px-3 pb-3 pt-2.5">
+          {isEngineControlled ? (
+            <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-800">
+              <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
+              Esta seção já é gerada automaticamente pelo motor a partir do escopo contratado.
+              Cláusulas adicionadas aqui viram um bloco separado no contrato — normalmente não é
+              necessário adicionar nada nesta seção manualmente.
+            </p>
+          ) : null}
+          {isExclusionMerge ? (
+            <p className="flex items-start gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] leading-relaxed text-sky-800">
+              <Check className="mt-0.5 size-3 shrink-0" aria-hidden />
+              Cláusulas adicionadas aqui se juntam automaticamente à seção &ldquo;2. Objetos
+              Excluídos do Contrato&rdquo; no documento final, sem repetir &ldquo;Exclusão&rdquo;
+              no título.
+            </p>
+          ) : null}
+          {group.rows.map((row) => (
+            <ClauseRowItem
+              key={row.id}
+              row={row}
+              disabled={disabled}
+              onAdd={() => onAdd(row)}
+              onRemove={() => onRemove(row.id)}
+              onUpdateContent={(content) => onUpdateContent(row.id, content)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Uma cláusula dentro de um grupo: estado adicionada/não-adicionada, com
+ * adicionar/remover, e edição de conteúdo escondida atrás de um toggle
+ * (evita que a lista fique gigante quando há muitas cláusulas adicionadas). */
+function ClauseRowItem({
+  row,
+  disabled,
+  onAdd,
+  onRemove,
+  onUpdateContent,
+}: {
+  row: ClauseRow;
+  disabled?: boolean;
+  onAdd: () => void;
+  onRemove: () => void;
+  onUpdateContent: (content: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  if (row.isEngineControlled) {
+    // Presente de verdade no contrato AGORA (o motor já resolveu essa chave
+    // pro escopo contratado) vs. só marcada obrigatória no catálogo mas sem
+    // geração ativa no momento (raro — ex.: escopo ainda incompleto).
+    const inContractNow = row.engineContent !== null;
+    const viewContent = row.engineContent ?? row.templateContent;
+    return (
+      <div
+        className={cn(
+          "rounded-lg border p-2.5",
+          inContractNow ? "border-teal-200/70 bg-teal-50/40" : "border-amber-200/70 bg-amber-50/50",
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "flex size-4 shrink-0 items-center justify-center rounded-full text-white",
+              inContractNow ? "bg-teal-500" : "bg-amber-400",
+            )}
+          >
+            {inContractNow ? <Check className="size-2.5" aria-hidden /> : <Lock className="size-2.5" aria-hidden />}
+          </span>
+          <span className="flex-1 truncate text-xs font-semibold text-primary-dark">{row.title}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className={cn(
+                  "flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                  inContractNow
+                    ? "border-teal-300 bg-teal-100 text-teal-800"
+                    : "border-amber-300 bg-amber-100 text-amber-800",
+                )}
+              >
+                <Lock className="size-2.5" aria-hidden />
+                {inContractNow ? "No contrato atual" : "Obrigatória"}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[240px] text-center">
+              {inContractNow
+                ? "O motor já gerou e incluiu esta cláusula no contrato atual, a partir do escopo contratado. Não pode ser removida por aqui."
+                : "Cláusula obrigatória no catálogo, mas o motor ainda não a gerou pra este contrato (escopo pode estar incompleto). Não pode ser adicionada por aqui."}
+            </TooltipContent>
+          </Tooltip>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 shrink-0 px-2 text-[11px]"
+            onClick={() => setEditing((v) => !v)}
+          >
+            {editing ? "Ocultar" : "Visualizar"}
+          </Button>
+        </div>
+        {editing ? (
+          <p
+            className={cn(
+              "mt-2 whitespace-pre-wrap rounded-md border bg-white p-2 text-xs leading-relaxed text-slate-600",
+              inContractNow ? "border-teal-200/70" : "border-amber-200/70",
+            )}
+          >
+            {viewContent || "—"}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border bg-white p-2.5",
+        row.isAdded ? "border-teal-200/70 shadow-sm" : "border-slate-200",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        {row.isAdded ? (
+          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-teal-500 text-white">
+            <Check className="size-2.5" aria-hidden />
+          </span>
+        ) : (
+          <span className="size-4 shrink-0 rounded-full border-2 border-slate-300" aria-hidden />
+        )}
+        <span className="flex-1 truncate text-xs font-semibold text-primary-dark">{row.title}</span>
+        {row.isAdded ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 shrink-0 px-2 text-[11px]"
+              disabled={disabled}
+              onClick={() => setEditing((v) => !v)}
+            >
+              {editing ? "Ocultar" : "Editar"}
+            </Button>
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={disabled}
+              className="flex size-6 shrink-0 items-center justify-center rounded border border-rose-200 text-rose-400 hover:border-rose-300 hover:text-rose-600 disabled:opacity-30"
+              aria-label="Remover cláusula"
+            >
+              <X className="size-3" aria-hidden />
+            </button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 shrink-0 gap-1 px-2 text-[11px]"
+            disabled={disabled}
+            onClick={onAdd}
+          >
+            <Plus className="size-3" aria-hidden />
+            Adicionar
+          </Button>
+        )}
+      </div>
+      {row.isAdded && editing ? (
+        <Textarea
+          value={row.selectedClause?.content ?? ""}
+          onChange={(e) => onUpdateContent(e.target.value)}
+          disabled={disabled}
+          placeholder="Conteúdo da cláusula…"
+          className="mt-2 min-h-[90px] resize-y border-slate-200 bg-slate-50 text-xs leading-relaxed"
+        />
+      ) : null}
     </div>
   );
 }
@@ -2367,13 +2854,8 @@ function ClickablePreview({
 
   return (
     <div className="mx-auto max-w-[794px] space-y-4">
-      {/* Folha 1 — corpo do contrato (somente leitura) */}
-      <div>
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-          Folha 1 — Corpo do contrato
-        </p>
-        <ContratoBodyDocument page={page} />
-      </div>
+      {/* Corpo do contrato — paginado por altura medida (somente leitura) */}
+      <ContratoBodyPages page={page} />
 
       {/* Folha de assinaturas — pins D4Sign */}
       <div>
@@ -2441,41 +2923,71 @@ function ClickablePreview({
 
 // ─── Seção do formulário ──────────────────────────────────────────────────────
 
+// ─── Índice fixo de seções (navegação rápida no painel esquerdo) ─────────────
+
+type NavSectionState = "complete" | "pending" | "neutral";
+
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function SectionNav({
+  sections,
+}: {
+  sections: Array<{ id: string; num: number; label: string; state: NavSectionState }>;
+}) {
+  return (
+    <div className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white/95 px-5 py-2 backdrop-blur sm:px-6">
+      {sections.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          title={s.label}
+          onClick={() => scrollToSection(s.id)}
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors",
+            s.state === "complete"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              : s.state === "pending"
+                ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100",
+          )}
+        >
+          <span
+            className={cn(
+              "flex size-4 shrink-0 items-center justify-center rounded-full text-[9px]",
+              s.state === "complete"
+                ? "bg-emerald-600 text-white"
+                : s.state === "pending"
+                  ? "bg-amber-500 text-white"
+                  : "bg-slate-300 text-white",
+            )}
+          >
+            {s.state === "complete" ? <Check className="size-2.5" aria-hidden /> : s.num}
+          </span>
+          <span className="hidden md:inline">{s.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function FormSection({
+  id,
   num,
   title,
   isComplete,
   children,
 }: {
+  id?: string;
   num: number;
   title: string;
   isComplete: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <span
-          className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-black",
-            isComplete
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-slate-100 text-slate-500",
-          )}
-        >
-          {isComplete ? <Check className="size-3.5" aria-hidden /> : num}
-        </span>
-        <h3 className="text-sm font-bold tracking-[-0.01em] text-primary-dark">{title}</h3>
-        {!isComplete ? (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-            Pendente
-          </span>
-        ) : (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-            Completo
-          </span>
-        )}
-      </div>
+    <div id={id} className="scroll-mt-16 space-y-3">
+      <SectionHeading num={num} title={title} complete={isComplete} />
       <div className="ml-10 space-y-4">{children}</div>
     </div>
   );
@@ -2483,28 +2995,58 @@ function FormSection({
 
 // ─── Input de campo cc_* ──────────────────────────────────────────────────────
 
+/** Dicas de preenchimento por código de campo — evita repetir a própria label como placeholder. */
+const CC_FIELD_PLACEHOLDER_HINTS: Record<string, string> = {
+  cc_valores: "Ex.: R$ 2.000,00/mês",
+  cc_tipo_pagamento: "Ex.: Boleto mensal, dia 10",
+  cc_prazo_revisao: "Data limite para o Societário revisar",
+  cc_prazo_confeccao: "Prazo para elaboração do contrato",
+  cc_exito_percentual: "Ex.: 10% sobre o proveito econômico",
+  cc_exito_areas: "Áreas em que o êxito se aplica",
+  cc_trabalhista_limite_acoes: "Quantidade de ações inclusas no pacote",
+  cc_trabalhista_horas_consultivas: "Ex.: 10 horas/mês",
+  cc_civel_limite_processos: "Quantidade de processos inclusos no pacote",
+  cc_civel_horas_consultivas: "Ex.: 10 horas/mês",
+  cc_contratual_horas_mensais: "Ex.: 10 horas/mês",
+  cc_tributario_limite_acoes: "Quantidade de ações inclusas no pacote",
+  cc_objeto: "Descrição livre do objeto contratado",
+};
+
+function ccFieldPlaceholder(field: CcFieldDef, label: string): string {
+  return CC_FIELD_PLACEHOLDER_HINTS[field.fieldCode] ?? `Preencha: ${label.toLowerCase()}`;
+}
+
 function CcFieldInput({
   field,
   value,
   onChange,
   disabled,
+  requiredOverride,
 }: {
   field: CcFieldDef;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  /** Sobrepõe `field.required` quando a obrigatoriedade é condicional (não fixa no banco). */
+  requiredOverride?: boolean;
 }) {
   const label = field.label.replace(" [CC]", "");
+  const isRequired = requiredOverride ?? field.required;
+  const labelNode = (
+    <Label className="flex items-center gap-1 text-xs font-medium text-primary-dark">
+      {label}
+      {isRequired ? <span className="text-rose-500" aria-hidden>*</span> : null}
+      {isRequired ? <span className="sr-only"> (obrigatório)</span> : null}
+    </Label>
+  );
 
   if (field.fieldType === "select" && Array.isArray(field.fieldOptions)) {
     return (
       <div className="space-y-1.5">
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+        {labelNode}
         <Select value={value} onValueChange={(v) => { if (v) onChange(v); }} disabled={disabled}>
           <SelectTrigger className="h-10 border-slate-200 bg-white text-sm">
-            <span className={cn("text-left", !value && "text-muted-foreground")}>
-              {value || "Selecionar..."}
-            </span>
+            <CrmSelectValue value={value} placeholder="Selecionar..." />
           </SelectTrigger>
           <CrmSelectContent className="max-h-[min(280px,50dvh)]">
             {field.fieldOptions.map((opt) => (
@@ -2521,7 +3063,7 @@ function CcFieldInput({
   if (field.fieldType === "date") {
     return (
       <div className="space-y-1.5">
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+        {labelNode}
         <DateInputBr
           value={value}
           onChange={onChange}
@@ -2535,12 +3077,12 @@ function CcFieldInput({
   if (field.fieldType === "textarea") {
     return (
       <div className="space-y-1.5">
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+        {labelNode}
         <Textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          placeholder={`${label}…`}
+          placeholder={ccFieldPlaceholder(field, label)}
           className="min-h-[110px] resize-y border-slate-200 bg-white text-sm leading-relaxed"
         />
       </div>
@@ -2549,12 +3091,12 @@ function CcFieldInput({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+      {labelNode}
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        placeholder={`${label}…`}
+        placeholder={ccFieldPlaceholder(field, label)}
         className="h-10 border-slate-200 bg-white text-sm"
       />
     </div>
@@ -2605,17 +3147,115 @@ const CONTRACT_BODY_STYLE: React.CSSProperties = {
 };
 
 const A4_PAGE_CLASS =
-  "mx-auto w-full max-w-[794px] bg-white px-[11%] py-10 shadow-[0_24px_70px_rgba(16,31,46,0.22)] ring-1 ring-black/5";
+  "mx-auto w-full max-w-[794px] bg-white px-[11%] shadow-[0_24px_70px_rgba(16,31,46,0.22)] ring-1 ring-black/5";
 
-function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
+/**
+ * Cabeçalho/rodapé reais do modelo Word oficial (`templates/contrato/
+ * MODELO_CONTRATO_RODAPE.docx`) — uma única imagem do tamanho de uma página A4
+ * inteira (logo no topo, endereço no rodapé, miolo transparente), extraída de
+ * `word/media/image2.png` do modelo e salva em `public/contrato-assets/`.
+ * `backgroundSize` usa a proporção exata de A4 (794×1123, mesma referência já
+ * usada para a folha de assinaturas do D4Sign). Aplicada uma vez por página
+ * real (ver `ContratoBodyPages`), sem repetição — o conteúdo é cortado por
+ * altura medida antes de renderizar, então o timbrado nunca é cortado no meio.
+ */
+const CONTRACT_LETTERHEAD_STYLE: React.CSSProperties = {
+  backgroundImage: "url(/contrato-assets/letterhead.png)",
+  backgroundSize: `${D4SIGN_A4_WIDTH}px ${D4SIGN_A4_HEIGHT}px`,
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "top center",
+};
+
+/** Espaço reservado no topo/base de cada página pro cabeçalho/rodapé do papel
+ * timbrado (mesmo valor de `pt-28`/`pb-16` usado no container da página) —
+ * usado pra calcular quanto de conteúdo cabe por página na paginação real. */
+const PAGE_TOP_SAFE_ZONE = 112; // pt-28
+const PAGE_BOTTOM_SAFE_ZONE = 64; // pb-16
+const PAGE_CONTENT_HEIGHT = D4SIGN_A4_HEIGHT - PAGE_TOP_SAFE_ZONE - PAGE_BOTTOM_SAFE_ZONE;
+
+/**
+ * Corta os blocos do corpo do contrato em páginas de verdade — mede a altura
+ * real de cada bloco (renderizado escondido, mesma largura da página) e
+ * agrupa até estourar `PAGE_CONTENT_HEIGHT`, começando página nova a cada
+ * estouro. Sem isso, a imagem do cabeçalho/rodapé do papel timbrado repetia a
+ * cada "altura de página" num fluxo contínuo, sem relação nenhuma com onde o
+ * conteúdo realmente cabia — cortava o timbrado no meio de qualquer jeito.
+ * Motor de medição/paginação compartilhado com a prévia da proposta — ver
+ * `usePaginatedBlocks` em `@/lib/crm/document-pagination`.
+ */
+function ContratoBodyPages({ page }: { page: ContratoDocumentPagePreview }) {
+  const blocks = useMemo(() => buildContratoBodyBlocks(page), [page]);
+  const { pages, measureHostRef } = usePaginatedBlocks(blocks, PAGE_CONTENT_HEIGHT);
+
+  return (
+    <>
+      {/* Medição escondida: mesma largura/padding da página real, pra cada
+          bloco quebrar linha igualzinho ao que vai aparecer de verdade. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          visibility: "hidden",
+          pointerEvents: "none",
+          top: 0,
+          left: -99999,
+          width: D4SIGN_A4_WIDTH,
+        }}
+      >
+        <div ref={measureHostRef} className={cn(A4_PAGE_CLASS, "space-y-0")} style={CONTRACT_BODY_STYLE}>
+          {blocks.map((b) => (
+            <div key={b.key}>{b.node}</div>
+          ))}
+          {/* Sentinela: marca o fim real do último bloco (ver comentário no
+              useLayoutEffect acima) — não é um bloco de conteúdo. */}
+          <div key="__end-sentinel__" />
+        </div>
+      </div>
+
+      {/* Nunca renderiza uma folha sem bloco nenhum — `usePaginatedBlocks` pode
+          devolver `[[]]` momentaneamente (ex.: antes da medição terminar, com
+          `blocks` ainda vazio), o que sem esse filtro desenhava uma folha A4
+          inteira em branco (só o rótulo "Folha N", sem conteúdo). */}
+      {pages
+        .filter((pageBlocks) => pageBlocks.length > 0)
+        .map((pageBlocks, i) => (
+          <div key={i}>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              Folha {i + 1} — Corpo do contrato
+            </p>
+            <div
+              className={cn(A4_PAGE_CLASS, "pt-28 pb-16")}
+              style={{ ...CONTRACT_BODY_STYLE, ...CONTRACT_LETTERHEAD_STYLE, minHeight: D4SIGN_A4_HEIGHT }}
+            >
+              {pageBlocks.map((b) => (
+                <div key={b.key}>{b.node}</div>
+              ))}
+            </div>
+          </div>
+        ))}
+    </>
+  );
+}
+
+function buildContratoBodyBlocks(page: ContratoDocumentPagePreview): PreviewBlock[] {
   const ELLIPSIS = "…";
 
-  // Separar o nome da empresa (bold) do restante da qualificação
-  const qualRaw = page.qualificacao || "";
-  const qualNoPoint = qualRaw.replace(/\.\s*$/, ""); // remove ponto final
-  const firstComma = qualNoPoint.indexOf(",");
-  const companyName = firstComma >= 0 ? qualNoPoint.slice(0, firstComma).trim() : qualNoPoint;
-  const companyDetail = firstComma >= 0 ? qualNoPoint.slice(firstComma) : ""; // já começa com ","
+  // Separa o nome de cada CONTRATANTE (bold) do restante da sua qualificação —
+  // uma sentença por empresa (ver "qualificacoesPartes"; pode ser mais de uma,
+  // ex.: duas empresas do mesmo grupo contratando juntas).
+  const qualificacoesPartes =
+    page.qualificacoesPartes && page.qualificacoesPartes.length > 0
+      ? page.qualificacoesPartes
+      : [ELLIPSIS];
+  const contratanteGrammar = contractPartyGrammar(qualificacoesPartes.length);
+  const qualParties = qualificacoesPartes.map((qualRaw) => {
+    const qualNoPoint = qualRaw.replace(/\.\s*$/, ""); // remove ponto final
+    const firstComma = qualNoPoint.indexOf(",");
+    return {
+      name: firstComma >= 0 ? qualNoPoint.slice(0, firstComma).trim() : qualNoPoint,
+      detail: firstComma >= 0 ? qualNoPoint.slice(firstComma) : "", // já começa com ","
+    };
+  });
 
   // Numeração dinâmica de cláusulas
   const hasAreas  = page.areas && page.areas.length > 0;
@@ -2634,9 +3274,10 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
     ? (page.areas ?? []).find((a) => a.key === "exito")
     : null;
 
-  let clauseCounter = 2; // 1=objeto, 2=honorários
+  let clauseCounter = 3; // 1=objeto, 2=objetos excluídos, 3=honorários
   const nObjeto    = 1;
-  const nHonorarios = 2;
+  const nObjetosExcluidos = 2;
+  const nHonorarios = 3;
 
   // Áreas não-êxito: cada uma recebe um número
   const areaClauseNums = areasClauses.map(() => ++clauseCounter);
@@ -2652,19 +3293,11 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
   const nPrazo = hasPrazoConfeccao ? ++clauseCounter : 0;
   const nBaseAdicionais = clauseCounter;
 
-  return (
-    <div className={cn(A4_PAGE_CLASS, "min-h-[600px]")} style={CONTRACT_BODY_STYLE}>
-      {/* ── Cabeçalho / Logomarca ── */}
-      <div className="mb-5 flex flex-col items-center gap-0.5" style={{ fontFamily: "inherit" }}>
-        <p className="text-[13pt] font-extrabold tracking-[0.07em]" style={{ color: "#0b1724" }}>
-          BISMARCHI<span className="mx-1.5 font-black" style={{ color: "#2dc8b7" }}>|</span>PIRES
-        </p>
-        <p className="text-[7.5pt] uppercase tracking-[0.35em]" style={{ color: "#6b7280" }}>
-          Sociedade de Advogados
-        </p>
-      </div>
+  const blocks: PreviewBlock[] = [];
 
-      {/* ── Título do documento ── */}
+  blocks.push({
+    key: "titulo",
+    node: (
       <div className="mb-6">
         <div style={{ borderTop: "1px solid rgba(0,0,0,0.55)" }} />
         <p
@@ -2675,20 +3308,46 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
         </p>
         <div style={{ borderTop: "1px solid rgba(0,0,0,0.55)" }} />
       </div>
+    ),
+  });
 
-      {/* ── Abertura ── */}
+  blocks.push({
+    key: "abertura",
+    node: (
       <p className="mb-4">
         Pelo presente instrumento particular, as partes a seguir identificadas e qualificadas:
       </p>
+    ),
+  });
 
-      {/* ── Qualificação do CONTRATANTE ── */}
-      <p className="mb-4">
-        <strong>{companyName || ELLIPSIS}</strong>
-        {companyDetail}, doravante denominada{" "}
-        <strong>&ldquo;CONTRATANTE&rdquo;</strong>.
-      </p>
+  // Uma sentença por CONTRATANTE — quando há mais de uma, cada uma vira seu
+  // próprio parágrafo/bloco (pagina bem se a lista crescer) e só a última leva
+  // o "doravante denominada(s)", já no singular/plural certo (ver
+  // contractPartyGrammar — mesmo utilitário que já plura o resto do contrato).
+  qualParties.forEach(({ name, detail }, i) => {
+    const isLast = i === qualParties.length - 1;
+    blocks.push({
+      key: `qual-contratante-${i}`,
+      node: (
+        <p className="mb-4">
+          <strong>{name || ELLIPSIS}</strong>
+          {detail}
+          {isLast ? (
+            <>
+              , doravante {contratanteGrammar.plural ? "denominadas, em conjunto," : "denominada"}{" "}
+              <strong>&ldquo;{contratanteGrammar.noun}&rdquo;</strong>.
+            </>
+          ) : (
+            "; e"
+          )}
+        </p>
+      ),
+    });
+  });
 
-      {/* ── Qualificação da CONTRATADA (Bismarchi | Pires — fixo) ── */}
+  blocks.push({
+    key: "qual-contratada",
+    node: (
       <p className="mb-4">
         <strong>BISMARCHI | PIRES – SOCIEDADE DE ADVOGADOS</strong>, pessoa jurídica de direito
         privado, inscrita no CNPJ sob o n° 26.080.152/0001-35, com sede na Rua Coronel Quirino,
@@ -2698,23 +3357,40 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
         <strong>RICARDO VISCARDI PIRES</strong>, inscrito na OAB/SP sob o n° 353.389, doravante
         denominada <strong>&ldquo;CONTRATADA&rdquo;</strong>.
       </p>
+    ),
+  });
 
-      {/* ── Parágrafo de conjunção ── */}
+  blocks.push({
+    key: "conjuncao",
+    node: (
       <p className="mb-7">
-        <strong>CONTRATANTE</strong> e <strong>CONTRATADA</strong>, quando em conjunto, doravante
-        denominadas <strong>&ldquo;Partes&rdquo;</strong> e, individual e indiscriminadamente,{" "}
-        <strong>&ldquo;Parte&rdquo;</strong>, têm entre si, justo e acordado os termos do presente
-        Contrato de Prestação de Serviços Advocatícios (
+        <strong>{contratanteGrammar.noun}</strong> e <strong>CONTRATADA</strong>, quando em
+        conjunto, doravante denominadas <strong>&ldquo;Partes&rdquo;</strong> e, individual e
+        indiscriminadamente, <strong>&ldquo;Parte&rdquo;</strong>, têm entre si, justo e acordado
+        os termos do presente Contrato de Prestação de Serviços Advocatícios (
         <strong>&ldquo;Contrato&rdquo;</strong>), o qual reger-se-á pelas seguintes cláusulas e
         condições.
       </p>
+    ),
+  });
 
-      {/* ── 1. OBJETO DO CONTRATO ── */}
-      <ContratoClause num={nObjeto} title="OBJETO DO CONTRATO">
-        <p className="whitespace-pre-wrap">{page.objeto || ELLIPSIS}</p>
-      </ContratoClause>
+  blocks.push(...buildClauseBlocks("clausula-objeto", nObjeto, "OBJETO DO CONTRATO", { content: page.objeto }, ELLIPSIS));
 
-      {/* ── 2. DOS HONORÁRIOS ── */}
+  if (page.objetosExcluidos) {
+    blocks.push(
+      ...buildClauseBlocks(
+        "clausula-objetos-excluidos",
+        nObjetosExcluidos,
+        page.objetosExcluidos.title.toUpperCase(),
+        page.objetosExcluidos,
+        ELLIPSIS,
+      ),
+    );
+  }
+
+  blocks.push({
+    key: "clausula-honorarios",
+    node: (
       <ContratoClause num={nHonorarios} title="DOS HONORÁRIOS CONTRATUAIS">
         <p className="whitespace-pre-wrap">{page.valores || ELLIPSIS}</p>
         {page.tipoPagamento ? (
@@ -2728,14 +3404,14 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
           </p>
         ) : null}
       </ContratoClause>
+    ),
+  });
 
-      {/* ── N. ÁREAS DE ATUAÇÃO (novo sistema) ── */}
-      {areasClauses.map((area, i) => (
-        <ContratoClause
-          key={area.key}
-          num={areaClauseNums[i] ?? i + 3}
-          title={area.label.toUpperCase()}
-        >
+  areasClauses.forEach((area, i) => {
+    blocks.push({
+      key: `area-${area.key}`,
+      node: (
+        <ContratoClause num={areaClauseNums[i] ?? i + 3} title={area.label.toUpperCase()}>
           {area.details.length > 0 ? (
             <ul className="mt-1 space-y-1">
               {area.details.map((det) => (
@@ -2746,25 +3422,33 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
             </ul>
           ) : null}
         </ContratoClause>
-      ))}
+      ),
+    });
+  });
 
-      {/* ── N. HONORÁRIOS DE ÊXITO (área especial, novo sistema) ── */}
-      {exitoArea && nExitoArea > 0 ? (
+  if (exitoArea && nExitoArea > 0) {
+    blocks.push({
+      key: "clausula-exito-area",
+      node: (
         <ContratoClause num={nExitoArea} title="DOS HONORÁRIOS DE ÊXITO">
-          {exitoArea.details.map((det) => (
+          {exitoArea.details.map((det) =>
             det.label === "Detalhamento" ? (
               <p key="det" className="whitespace-pre-wrap">{det.value}</p>
             ) : (
               <p key={det.label} className="mt-1">
                 <strong>{det.label}:</strong> {det.value}.
               </p>
-            )
-          ))}
+            ),
+          )}
         </ContratoClause>
-      ) : null}
+      ),
+    });
+  }
 
-      {/* ── N. DAS LIMITAÇÕES (legado — sem novas áreas) ── */}
-      {hasLimitacoes && nLimitacoes > 0 ? (
+  if (hasLimitacoes && nLimitacoes > 0) {
+    blocks.push({
+      key: "clausula-limitacoes-legado",
+      node: (
         <ContratoClause num={nLimitacoes} title="DAS LIMITAÇÕES DE SERVIÇOS">
           {page.limiteProcessos ? (
             <p><strong>Limite de processos:</strong> {page.limiteProcessos}.</p>
@@ -2773,40 +3457,109 @@ function ContratoBodyDocument({ page }: { page: ContratoDocumentPagePreview }) {
             <p className="mt-2"><strong>Limite de horas mensais:</strong> {page.limiteHoras}.</p>
           ) : null}
         </ContratoClause>
-      ) : null}
+      ),
+    });
+  }
 
-      {/* ── N. DOS HONORÁRIOS DE ÊXITO (legado) ── */}
-      {hasExitoLegado && nExitoLegado > 0 ? (
+  if (hasExitoLegado && nExitoLegado > 0) {
+    blocks.push({
+      key: "clausula-exito-legado",
+      node: (
         <ContratoClause num={nExitoLegado} title="DOS HONORÁRIOS DE ÊXITO">
           <p className="whitespace-pre-wrap">{page.exitoAreas}</p>
         </ContratoClause>
-      ) : null}
+      ),
+    });
+  }
 
-      {/* ── N. DO PRAZO PARA CONFECÇÃO (legado — cc_prazo_confeccao desativado) ── */}
-      {hasPrazoConfeccao && nPrazo > 0 ? (
+  if (hasPrazoConfeccao && nPrazo > 0) {
+    blocks.push({
+      key: "clausula-prazo-legado",
+      node: (
         <ContratoClause num={nPrazo} title="DO PRAZO PARA CONFECÇÃO DO CONTRATO DEFINITIVO">
           <p>{page.prazoConfeccao}.</p>
         </ContratoClause>
-      ) : null}
+      ),
+    });
+  }
 
-      {/* ── Cláusulas adicionais (biblioteca) ── */}
-      {page.clausulasAdicionais.map((c, i) => (
-        <ContratoClause key={i} num={nBaseAdicionais + i + 1} title={c.title.toUpperCase()}>
-          <p className="whitespace-pre-wrap">{c.content || ELLIPSIS}</p>
-        </ContratoClause>
-      ))}
-    </div>
-  );
+  page.clausulasAdicionais.forEach((c, i) => {
+    const num = nBaseAdicionais + i + 1;
+    blocks.push(...buildClauseBlocks(`adicional-${i}`, num, c.title.toUpperCase(), c, ELLIPSIS));
+  });
+
+  return blocks;
+}
+
+/**
+ * Constrói os blocos medíveis de uma cláusula. Cláusulas com sub-itens (N.1,
+ * N.2...) — como "Disposições Gerais", que pode ter 10+ itens — viram UM
+ * bloco por item, não um bloco gigante só. Sem isso, uma cláusula longa não
+ * cabia inteira no espaço restante da página e o paginador (que só decide
+ * onde cortar ENTRE blocos, nunca dentro de um) deixava o bloco inteiro
+ * estourar pro fundo da página, sobrepondo o rodapé do papel timbrado.
+ */
+function buildClauseBlocks(
+  baseKey: string,
+  num: number,
+  title: string,
+  clausula: { content: string; items?: Array<{ title: string; content: string }> },
+  ellipsis: string,
+): PreviewBlock[] {
+  if (!clausula.items || clausula.items.length === 0) {
+    // Conteúdo de parágrafo único também pode ser longo o bastante pra não
+    // caber no espaço restante de uma página (ex.: Objeto de um Full Service,
+    // que junta Contencioso + Consultivo em várias linhas numeradas separadas
+    // por linha em branco) — separa em um bloco por parágrafo, mesma lógica
+    // usada abaixo pros sub-itens, senão o bloco inteiro pula pra próxima
+    // página e deixa a atual com metade do espaço vazio.
+    const paragraphs = (clausula.content || ellipsis).split(/\n{2,}/).filter((p) => p.trim());
+    const paras = paragraphs.length > 0 ? paragraphs : [ellipsis];
+    return paras.map((paragraph, j) => ({
+      key: `${baseKey}-p-${j}`,
+      node: (
+        <div className={j === paras.length - 1 ? "mb-5" : "mb-2"}>
+          {j === 0 ? (
+            <p className="mb-1.5 font-bold" style={{ fontSize: "11pt" }}>
+              {num}.&emsp;{title}
+            </p>
+          ) : null}
+          <p className="whitespace-pre-wrap">{paragraph}</p>
+        </div>
+      ),
+    }));
+  }
+
+  const items = clausula.items;
+  return items.map((item, j) => ({
+    key: `${baseKey}-item-${j}`,
+    node: (
+      <div className={cn(j === items.length - 1 ? "mb-5" : "mb-2")}>
+        {j === 0 ? (
+          <p className="mb-1.5 font-bold" style={{ fontSize: "11pt" }}>
+            {num}.&emsp;{title}
+          </p>
+        ) : null}
+        <p className="whitespace-pre-wrap">
+          <strong>
+            {num}.{j + 1}. {item.title}.
+          </strong>{" "}
+          {item.content}
+        </p>
+      </div>
+    ),
+  }));
 }
 
 /** Folha dedicada de assinaturas — sempre a última página do PDF enviado à D4Sign. */
 function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePreview }) {
   const ELLIPSIS = "…";
+  const contratanteNoun = contractPartyGrammar(page.qualificacoesPartes?.length || 1).noun;
 
   return (
     <div
-      className={A4_PAGE_CLASS}
-      style={{ ...CONTRACT_BODY_STYLE, minHeight: D4SIGN_A4_HEIGHT }}
+      className={cn(A4_PAGE_CLASS, "pt-28 pb-16")}
+      style={{ ...CONTRACT_BODY_STYLE, ...CONTRACT_LETTERHEAD_STYLE, minHeight: D4SIGN_A4_HEIGHT }}
     >
       <p
         className="mb-2 text-center text-[10pt] font-bold uppercase tracking-[0.12em]"
@@ -2824,7 +3577,7 @@ function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePre
       <div className="grid grid-cols-2 gap-10">
         <div className="flex flex-col items-center text-center">
           <div className="mb-1 w-full" style={{ borderTop: "1px solid #333" }} />
-          <p className="font-bold">CONTRATANTE</p>
+          <p className="font-bold">{contratanteNoun}</p>
         </div>
         <div className="flex flex-col items-center text-center">
           <div className="mb-1 w-full" style={{ borderTop: "1px solid #333" }} />
@@ -2835,16 +3588,6 @@ function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePre
           <p className="mt-4 w-full" style={{ borderTop: "1px solid #333" }} />
           <p className="mt-1 text-[9pt] text-slate-500">Ricardo Viscardi Pires</p>
         </div>
-      </div>
-
-      <div className="mt-auto pt-16" style={{ borderTop: "1px solid rgba(0,0,0,0.2)" }}>
-        <p
-          className="mt-2 text-center"
-          style={{ fontSize: "8pt", color: "#6b7280", letterSpacing: "0.02em" }}
-        >
-          Rua Coronel Quirino, 1.266 — Cambuí — Campinas/SP &nbsp;·&nbsp; (19) 3254-6446
-          &nbsp;·&nbsp; contato@bismarchipires.com.br
-        </p>
       </div>
     </div>
   );

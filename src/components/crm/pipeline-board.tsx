@@ -115,37 +115,6 @@ const REUNIAO_CONFECCAO_MANAGED_CODES = new Set([
   "cp_objeto_proposta",
 ]);
 
-/**
- * Campos cc_* preenchidos exclusivamente no builder (não no modal de transição).
- * O modal mostra apenas cc_tipo_instrumento e cc_tipo_pagamento — o resto fica no builder.
- * Campos desativados (cc_prazo_confeccao, cc_limite_processos, cc_limite_horas, cc_exito_areas)
- * não retornam da API (is_active = false) mas ficam listados aqui como segurança extra.
- */
-const CONFECCAO_CONTRATO_BUILDER_ONLY_CODES = new Set([
-  // Campos do builder (preenchimento no dialog de elaboração)
-  "cc_objeto",
-  "cc_valores",
-  "cc_prazo_revisao",       // deadline interno para Societário e Contratos
-  // Campos de área (toggles + sub-campos — exclusivos do builder)
-  "cc_incluir_trabalhista",
-  "cc_trabalhista_limite_acoes",
-  "cc_trabalhista_horas_consultivas",
-  "cc_incluir_civel",
-  "cc_civel_limite_processos",
-  "cc_civel_horas_consultivas",
-  "cc_incluir_contratual",
-  "cc_contratual_horas_mensais",
-  "cc_incluir_tributario",
-  "cc_tributario_limite_acoes",
-  "cc_incluir_exito",
-  "cc_exito_percentual",
-  // Campos desativados (is_active = false) — listados apenas como garantia
-  "cc_prazo_confeccao",
-  "cc_limite_processos",
-  "cc_limite_horas",
-  "cc_exito_areas",
-]);
-
 /** Ocultos neste modal (preenchimento no detalhe do lead ou fora deste passo). */
 const REUNIAO_CONFECCAO_HIDDEN_FROM_GENERIC = new Set([
   "cp_nome_focal",
@@ -613,8 +582,9 @@ export function PipelineBoard({
         evaluateCondition(f.condition_json as FieldCondition, transitionModal.customValues),
       )
       .filter((f) => {
+        // Herdados da proposta / preenchidos no builder — não pedir no modal.
         if (transitionModal.nextStage === "confeccao_contrato") {
-          return !CONFECCAO_CONTRATO_BUILDER_ONLY_CODES.has(f.field_code);
+          return false;
         }
         if (!isReuniaoConfeccaoModal) return true;
         if (REUNIAO_CONFECCAO_MANAGED_CODES.has(f.field_code)) return false;
@@ -934,6 +904,9 @@ export function PipelineBoard({
     }
 
     let blocking = listBlockingCustomFields(m.customFields, mergedValues);
+    if (m.nextStage === "confeccao_contrato") {
+      blocking = [];
+    }
     if (isReuniaoConf) {
       blocking = blocking.filter(
         (f) =>

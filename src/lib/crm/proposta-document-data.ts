@@ -10,12 +10,12 @@ import { loadProposalCatalog } from "@/lib/crm/proposal-catalog-db";
 import { findInvestmentSubtype, findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
 import { getEscopoEntriesForArea, isEscopoEntryCompleteWithCatalog } from "@/lib/crm/proposta-escopo-entry";
 import { mergeEscopoTemplate, mergeInvestimentoTemplate } from "@/lib/crm/proposta-escopo-preview";
-import { parseAreasList, parseEscopoJson, parseEscopoJsonWithMeta } from "@/lib/crm/proposta-escopo-json";
+import { parseAreasList, parseEscopoJson } from "@/lib/crm/proposta-escopo-json";
 import {
-  isInvestimentoDocumentoComplete,
-  resolveInvestimentoDocumento,
-} from "@/lib/crm/proposta-investimento-consolidado";
-import { buildPropostaDocxTemplateData } from "@/lib/crm/proposta-docx-data";
+  buildCanonicalProposalData,
+  type CanonicalProposalData,
+} from "@/lib/crm/proposta-docx-data";
+import { listProposalPendingFields } from "@/lib/crm/proposta-document-validation";
 import { valueJsonToDisplayString } from "@/lib/crm/pipeline-field-values";
 
 export type PropostaDocumentTemplate = {
@@ -44,6 +44,8 @@ export type PropostaDocumentSnapshot = {
   templateData: Record<string, string>;
   fieldByCode: Record<string, string>;
   pending: string[];
+  canonical: CanonicalProposalData;
+  responsavel: string;
   areas: Array<{
     key: string;
     label: string;
@@ -200,14 +202,24 @@ export async function buildPropostaDocumentSnapshot(params: {
   oportunidadeId: string;
   template: PropostaDocumentTemplate;
   generatedAt: Date;
+  draftValues?: Record<string, string>;
+  responsavel?: string;
 }): Promise<PropostaDocumentSnapshot> {
   const { supabase, oportunidadeId, template, generatedAt } = params;
-  const [{ data: intake, error: intakeErr }, fieldByCode, catalog] = await Promise.all([
+  const [{ data: intake, error: intakeErr }, savedFields, catalog, instanceResult] = await Promise.all([
     supabase.from("lead_intakes").select("*").eq("oportunidade_id", oportunidadeId).maybeSingle(),
     loadPipelineFieldByCode(supabase, oportunidadeId),
     loadProposalCatalog(supabase),
+    supabase.from("document_instances").select("data_json").eq("oportunidade_id", oportunidadeId).eq("template_id", template.id).maybeSingle(),
   ]);
   if (intakeErr) throw intakeErr;
+  if (instanceResult.error) throw instanceResult.error;
+  const instanceData = instanceResult.data?.data_json;
+  const savedResponsavel = instanceData && typeof instanceData === "object" && !Array.isArray(instanceData)
+    ? String(instanceData.responsavel ?? "") : "";
+  const responsavel = params.responsavel ?? savedResponsavel;
+  // Merge field codes BEFORE resolving company, catalog, scope and investment.
+  const fieldByCode = { ...savedFields, ...params.draftValues };
 
   const empresasIntake =
     intake && typeof intake === "object"
@@ -215,7 +227,7 @@ export async function buildPropostaDocumentSnapshot(params: {
       : [];
 
   const cpEscopoDetalheJson = fieldByCode.cp_escopo_detalhe_json ?? "";
-  const templateData = buildPropostaDocxTemplateData({
+  const canonical = buildCanonicalProposalData({
     empresasIntake,
     cpPropostaEmpresasJson: fieldByCode.cp_proposta_empresas_json,
     fieldByCode,
@@ -223,7 +235,9 @@ export async function buildPropostaDocumentSnapshot(params: {
     generatedAt,
     scopeCatalog: catalog.scope,
     investmentCatalog: catalog.investment,
+    responsavel,
   });
+  const { templateData } = canonical;
 
   const areas = buildAreaPreview(
     fieldByCode,
@@ -232,15 +246,16 @@ export async function buildPropostaDocumentSnapshot(params: {
     catalog.scope,
     catalog.investment,
   );
-  const pending = listPendingFields({
-    template,
+  const pending = listProposalPendingFields({
+    templateFields: template.fields,
     fieldByCode,
     templateData,
-    areas,
+    scopeCatalog: catalog.scope,
     investmentCatalog: catalog.investment,
+    responsavel,
   });
 
-  return { templateData, fieldByCode, pending, areas };
+  return { templateData, fieldByCode, pending, areas, canonical, responsavel };
 }
 
 function buildAreaPreview(
@@ -303,43 +318,6 @@ function buildAreaPreview(
   });
 }
 
-function listPendingFields(params: {
-  template: PropostaDocumentTemplate;
-  fieldByCode: Record<string, string>;
-  templateData: Record<string, string>;
-  areas: PropostaDocumentSnapshot["areas"];
-  investmentCatalog: InvestimentoTipoDef[];
-}): string[] {
-  const pending = new Set<string>();
-  for (const f of params.template.fields) {
-    if (!f.isRequired) continue;
-    if (f.fieldCode === "cp_escopo_detalhe_json") {
-      if (params.areas.length === 0 || params.areas.some((a) => !a.complete)) pending.add(f.label);
-      continue;
-    }
-    const value = params.fieldByCode[f.fieldCode] ?? params.templateData[f.fieldCode] ?? "";
-    if (!String(value).trim()) pending.add(f.label);
-  }
-
-  const cpEscopoDetalheJson = params.fieldByCode.cp_escopo_detalhe_json ?? "";
-  const areasList = parseAreasList(params.fieldByCode.cp_areas_objeto ?? "");
-  const { escopo, investimentoDocumento } = parseEscopoJsonWithMeta(cpEscopoDetalheJson);
-  const invDoc = resolveInvestimentoDocumento(
-    escopo,
-    areasList,
-    investimentoDocumento,
-    params.investmentCatalog,
-  );
-  if (areasList.length > 0 && !isInvestimentoDocumentoComplete(invDoc, params.investmentCatalog)) {
-    pending.add("Investimento da proposta");
-  }
-
-  for (const key of ["EMPRESA", "DOCUMENTO", "ESCOPO_AREA", "INVESTIMENTO"]) {
-    if (!String(params.templateData[key] ?? "").trim()) pending.add(`Placeholder [${key}]`);
-  }
-  return [...pending];
-}
-
 export async function loadContratoDocumentTemplates(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
 ): Promise<PropostaDocumentTemplate[]> {
@@ -399,10 +377,20 @@ export function buildGeneratedDocxFilePath(params: {
   versionNumber: number;
   generatedAt: Date;
   baseName: string;
+  fileStamp?: string;
 }): string {
   const base = sanitizeFilenamePart(params.baseName);
-  return `documentos/propostas/${params.oportunidadeId}/v${params.versionNumber}-${base}-${format(
+  return `documentos/propostas/${params.oportunidadeId}/v${params.versionNumber}-${base}-${params.fileStamp ?? format(
     params.generatedAt,
     "yyyy-MM-dd-HHmm",
   )}.docx`;
+}
+
+export function buildGeneratedPdfFilePath(params: {
+  oportunidadeId: string;
+  versionNumber: number;
+  generatedAt: Date;
+  baseName: string;
+}): string {
+  return buildGeneratedDocxFilePath(params).replace(/\.docx$/i, ".pdf");
 }

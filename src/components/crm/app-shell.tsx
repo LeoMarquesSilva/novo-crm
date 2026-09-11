@@ -400,6 +400,19 @@ export function AppShell({
   }, []);
 
   useEffect(() => {
+    if (!showAdminNav || !pathname) return;
+    const onAdminRoute = adminItems.some((item) => isNavLinkActive(pathname, item.href));
+    if (!onAdminRoute) return;
+    // setState roda num callback assíncrono (não sincronamente no corpo do
+    // effect) para evitar o cascading-render que o lint acusa — mesmo padrão
+    // já usado no effect de hidratação do localStorage logo acima.
+    const timer = window.setTimeout(() => {
+      setOpenGroups((current) => (current.admin ? current : { ...current, admin: true }));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [pathname, showAdminNav]);
+
+  useEffect(() => {
     if (!hydratedStorage) return;
     window.localStorage.setItem(STORAGE_KEYS.favorites, JSON.stringify(favorites));
   }, [favorites, hydratedStorage]);

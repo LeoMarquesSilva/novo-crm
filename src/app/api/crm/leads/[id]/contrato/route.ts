@@ -9,6 +9,20 @@ import {
 } from "@/lib/crm/proposta-document-data";
 import { listContratoPendingFields } from "@/lib/crm/contrato-docx-data";
 import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-principal";
+import { applyInheritedContractAreaToggles } from "@/lib/crm/contract-engine/inherit-areas";
+import { buildCanonicalContract } from "@/lib/crm/contract-engine/build-canonical";
+import { initializeContractFromProposal } from "@/lib/crm/contract-engine/initialize-from-proposal";
+import {
+  buildClauseLibrary,
+  CLAUSE_LIBRARY_SELECT,
+  type ClauseLibraryRow,
+} from "@/lib/crm/contract-engine/clause-library";
+import {
+  engineToDataJsonPatch,
+  hasStructuredContractObject,
+  readObjectDraft,
+  readStoredEngine,
+} from "@/lib/crm/contract-engine/persist";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -16,6 +30,7 @@ const patchSchema = z.object({
   templateId: z.string().uuid().optional(),
   status: z.string().min(1).max(40).optional(),
   data: z.record(z.string(), z.unknown()).optional(),
+  expectedUpdatedAt: z.string().optional(),
 });
 
 async function ensureInstance(params: {
@@ -79,12 +94,38 @@ export async function GET(
       return NextResponse.json({ ok: true, data: { templates, instance: null, versions: [], pending: [], snapshot: null } });
     }
 
-    const instance = await ensureInstance({
+    const { data: clauseRows, error: clauseRowsErr } = await supabase
+      .from("contract_clause_templates")
+      .select(CLAUSE_LIBRARY_SELECT)
+      .eq("is_active", true)
+      .order("category")
+      .order("sort_order")
+      .order("created_at");
+    if (clauseRowsErr) throw clauseRowsErr;
+    const clausulaRows = (clauseRows ?? []) as ClauseLibraryRow[];
+    const clauseLibrary = buildClauseLibrary(clausulaRows);
+
+    let instance = await ensureInstance({
       supabase,
       oportunidadeId,
       templateId: defaultTemplate.id,
       appUserId: auth.profile?.id ?? null,
     });
+
+    const existingEngine = readStoredEngine(
+      instance.data_json && typeof instance.data_json === "object" && !Array.isArray(instance.data_json)
+        ? (instance.data_json as Record<string, unknown>)
+        : {},
+    );
+    if (!existingEngine.build || !hasStructuredContractObject(existingEngine.build)) {
+      const initialized = await initializeContractFromProposal({
+        supabase,
+        oportunidadeId,
+        createdBy: auth.profile?.id ?? null,
+        clauseLibrary,
+      });
+      instance = initialized.instance as typeof instance;
+    }
 
     const { data: versions, error: versionsErr } = await supabase
       .from("document_versions")
@@ -93,7 +134,7 @@ export async function GET(
       .order("version_number", { ascending: false });
     if (versionsErr) throw versionsErr;
 
-    const [{ fieldByCode, empresasIntake }, { data: ccDefRows }, { data: clausulaRows }] = await Promise.all([
+    const [{ fieldByCode: loadedFields, empresasIntake }, { data: ccDefRows }] = await Promise.all([
       buildContratoDocumentSnapshot({
         supabase,
         oportunidadeId,
@@ -102,26 +143,33 @@ export async function GET(
       }),
       supabase
         .from("field_definitions")
-        .select("id, field_code, label, field_type, field_options, condition_json, sort_order")
+        .select("id, field_code, label, field_type, field_options, condition_json, sort_order, is_required")
         .eq("entity_name", "oportunidade")
         .eq("stage_code", "confeccao_contrato")
         .eq("is_active", true)
         .order("sort_order", { ascending: true }),
-      supabase
-        .from("contract_clause_templates")
-        .select("id, title, content, category, sort_order")
-        .eq("is_active", true)
-        .order("category")
-        .order("sort_order")
-        .order("created_at"),
     ]);
+
+    const fieldByCode = await applyInheritedContractAreaToggles({
+      supabase,
+      oportunidadeId,
+      fieldByCode: loadedFields,
+      updatedBy: auth.profile?.id ?? null,
+    });
 
     const empresa = resolvePropostaEmpresaPrincipal({
       empresasIntake,
       cpPropostaEmpresasJson: fieldByCode.cp_proposta_empresas_json,
     });
 
-    const pending = listContratoPendingFields(fieldByCode, empresa.razaoSocial ?? "");
+    const dataJson = instance.data_json as Record<string, unknown> | null ?? {};
+    const storedEngine = readStoredEngine(dataJson);
+    const objectDraft = readObjectDraft(dataJson);
+    const pending = listContratoPendingFields(
+      fieldByCode,
+      empresa.razaoSocial ?? "",
+      storedEngine.build?.data ?? null,
+    );
 
     const ccFieldDefs = (ccDefRows ?? []).map((d) => ({
       definitionId: String(d.id),
@@ -131,10 +179,10 @@ export async function GET(
       fieldOptions: Array.isArray(d.field_options) ? (d.field_options as string[]) : null,
       conditionJson: d.condition_json ?? null,
       value: String(fieldByCode[d.field_code] ?? ""),
+      required: Boolean(d.is_required),
     }));
 
     // Cláusulas selecionadas + pins de assinatura para este contrato
-    const dataJson = instance.data_json as Record<string, unknown> | null ?? {};
     const rawSelected = Array.isArray(dataJson.clausulas_selecionadas)
       ? (dataJson.clausulas_selecionadas as Array<{ id: string; title: string; content: string; order: number }>)
       : [];
@@ -173,10 +221,18 @@ export async function GET(
           },
         },
         ccFieldDefs,
-        availableClauses: clausulaRows ?? [],
+        availableClauses: clausulaRows,
+        clauseLibrary: [...clauseLibrary.values()],
         selectedClauses: rawSelected,
         signaturePins: rawPins,
         reviewTask: reviewTask ?? null,
+        engine: storedEngine.build,
+        proposalSnapshot: storedEngine.snapshot,
+        objectDraft,
+        proposalChanged: Boolean(
+          storedEngine.snapshot &&
+            storedEngine.snapshot.escopoJson !== String(fieldByCode.cp_escopo_detalhe_json ?? ""),
+        ),
       },
     });
   } catch (error) {
@@ -217,17 +273,72 @@ export async function PATCH(
       appUserId: auth.profile.id,
     });
 
+    if (
+      parsed.expectedUpdatedAt &&
+      instance.updated_at &&
+      instance.updated_at !== parsed.expectedUpdatedAt
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "O rascunho do contrato foi alterado por outro usuário.",
+          code: "CONTRACT_DRAFT_CHANGED",
+        },
+        { status: 409 },
+      );
+    }
+
     const currentData: Record<string, Json> =
       instance.data_json && typeof instance.data_json === "object" && !Array.isArray(instance.data_json)
         ? (instance.data_json as Record<string, Json>)
         : {};
     const patchData = (parsed.data ?? {}) as Record<string, Json>;
+    const mergedJson = { ...currentData, ...patchData } as Record<string, unknown>;
+    const stored = readStoredEngine(mergedJson);
+    let nextJson: Record<string, Json> = mergedJson as Record<string, Json>;
+    if (stored.snapshot) {
+      const draft = readObjectDraft(mergedJson);
+      const { data: clauseRows, error: clauseRowsErr } = await supabase
+        .from("contract_clause_templates")
+        .select(CLAUSE_LIBRARY_SELECT)
+        .eq("is_active", true);
+      if (clauseRowsErr) throw clauseRowsErr;
+      const clauseLibrary = buildClauseLibrary((clauseRows ?? []) as ClauseLibraryRow[]);
+      const rebuilt = buildCanonicalContract({
+        snapshot: stored.snapshot,
+        fieldByCode: Object.fromEntries(
+          Object.entries(mergedJson).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+        ),
+        objectFieldValues: draft.objectFieldValues,
+        objectOverrides: draft.objectOverrides,
+        scopeAdjustment: draft.scopeAdjustment,
+        explicitCompositionKey: draft.explicitCompositionKey,
+        engineEvents: draft.engineEvents,
+        clauseLibrary,
+      });
+      const rebuiltPatch = engineToDataJsonPatch(rebuilt, stored.snapshot, draft);
+      // `rebuiltPatch.clausulas_selecionadas` é um retrato das cláusulas que o
+      // MOTOR já gera sozinho — nunca deve virar a "seleção manual" do usuário
+      // (campo usado pela barra lateral de Cláusulas Adicionais e como
+      // `userExtras` na geração do Word). Antes, quando esse campo ainda não
+      // existia, ele "adotava" esse retrato como se fosse escolha manual — daí
+      // pra frente a barra lateral mostrava dezenas de cláusulas fantasma como
+      // "adicionadas" (nenhuma bate com um id da biblioteca), e se o texto de
+      // alguma cláusula do catálogo mudasse depois, a cópia antiga parava de
+      // ser reconhecida como redundante e virava duplicata de verdade no
+      // contrato gerado. Ver achado real no lead Ingevity, corrigido nesta sessão.
+      nextJson = {
+        ...mergedJson,
+        ...rebuiltPatch,
+        clausulas_selecionadas: mergedJson.clausulas_selecionadas ?? [],
+      } as unknown as Record<string, Json>;
+    }
 
     const { data, error } = await supabase
       .from("document_instances")
       .update({
         status: parsed.status ?? instance.status ?? "draft",
-        data_json: { ...currentData, ...patchData },
+        data_json: nextJson,
       })
       .eq("id", instance.id)
       .select("*")

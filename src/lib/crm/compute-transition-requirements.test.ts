@@ -5,9 +5,11 @@ import {
   computeLeadIntakeRequirement,
   countBusinessDaysFromTomorrowInclusive,
   dedupeConfeccaoPropostaDefinitionsByNormalizedLabel,
+  filterConfeccaoContratoTransitionDefinitions,
   filterConfeccaoPropostaTransitionDefinitions,
   filterPropostaEnviadaDuplicateLinkFields,
   filterReuniaoDuplicateMeetingFields,
+  linkFieldsMissing,
   listBlockingCustomFields,
 } from "./compute-transition-requirements";
 
@@ -53,6 +55,32 @@ describe("filterConfeccaoPropostaTransitionDefinitions", () => {
   });
 });
 
+describe("filterConfeccaoContratoTransitionDefinitions", () => {
+  it("remove todos os campos da etapa ao entrar em elaboração do contrato", () => {
+    const defs = [
+      def({ field_code: "cc_tipo_instrumento", stage_code: "confeccao_contrato" }),
+      def({ field_code: "cc_tipo_pagamento", stage_code: "confeccao_contrato" }),
+      def({ field_code: "tipo_instrumento_cc", stage_code: "confeccao_contrato" }),
+      def({ field_code: "valores_cc", stage_code: "confeccao_contrato" }),
+      def({ field_code: "prazo_confeccao_cc", stage_code: "confeccao_contrato" }),
+    ];
+    const filtered = filterConfeccaoContratoTransitionDefinitions(defs, {
+      pipeline: "vendas",
+      nextStage: "confeccao_contrato",
+    });
+    expect(filtered).toEqual([]);
+  });
+
+  it("não filtra outras etapas", () => {
+    const defs = [def({ field_code: "cc_tipo_instrumento", stage_code: "proposta_enviada" })];
+    const filtered = filterConfeccaoContratoTransitionDefinitions(defs, {
+      pipeline: "vendas",
+      nextStage: "proposta_enviada",
+    });
+    expect(filtered).toHaveLength(1);
+  });
+});
+
 describe("dedupeConfeccaoPropostaDefinitionsByNormalizedLabel", () => {
   it("prefere field_code cp_* quando o label normalizado coincide", () => {
     const defs = [
@@ -84,6 +112,28 @@ describe("dedupeConfeccaoPropostaDefinitionsByNormalizedLabel", () => {
       nextStage: "reuniao",
     });
     expect(out).toHaveLength(2);
+  });
+});
+
+describe("linkFieldsMissing", () => {
+  it("does not require a proposal link when entering proposta_enviada", () => {
+    expect(
+      linkFieldsMissing({
+        nextStage: "proposta_enviada",
+        linkProposta: null,
+        linkContrato: null,
+      }),
+    ).toEqual({ linkProposta: false, linkContrato: false });
+  });
+
+  it("requires a contract link when entering contrato_elaborado", () => {
+    expect(
+      linkFieldsMissing({
+        nextStage: "contrato_elaborado",
+        linkProposta: null,
+        linkContrato: null,
+      }),
+    ).toEqual({ linkProposta: false, linkContrato: true });
   });
 });
 

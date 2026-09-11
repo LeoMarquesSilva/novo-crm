@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Loader2, Pencil, Plus, Save, Send } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -47,6 +47,7 @@ import {
   stringifyEscopoJsonWithMeta,
   syncEscopoToAreas,
 } from "@/lib/crm/proposta-escopo-json";
+import { applyProposalScopeSave, isProposalScopeAreaDirty } from "@/lib/crm/proposta-escopo-draft";
 import { PropostaEscopoEntryForm } from "@/components/crm/proposta-escopo-entry-form";
 import { JustifiedDocumentText } from "@/components/crm/justified-document-text";
 import { createSupabaseClient } from "@/lib/supabase/client";
@@ -79,7 +80,10 @@ function mergeEscopoEntryPatch(
 type Props = {
   leadId: string;
   fieldDefinitionId: string;
+  /** Current draft, including parent normalization; does not imply persistence. */
   initialValue: string;
+  /** Last value confirmed by a successful save. */
+  savedValue: string;
   areasDisplay: string;
   /** Razão social da empresa principal na proposta (cadastro + `cp_proposta_empresas_json`). */
   defaultNomeEmpresa: string | null;
@@ -89,12 +93,14 @@ type Props = {
   viewerRole?: string | null;
   solicitacoes?: EscopoAreaSolicitacao[];
   className?: string;
+  disabled?: boolean;
+  onSavingChange?: (saving: boolean) => void;
   /**
    * Disparado a cada salvamento bem-sucedido com o JSON do escopo atualizado.
-   * Usado pelo builder de proposta para atualizar o live preview sem buscar do DB.
+   * Usado pelo builder para sincronizar o rascunho sem buscar do DB.
    */
   onSaved?: (escopoJson: string) => void;
-  /** Rascunho local (antes do PATCH) — alimenta preview ao vivo no builder. */
+  /** Rascunho local propagado antes da próxima interação de salvar ou gerar. */
   onEscopoDraftChange?: (escopoJson: string) => void;
 };
 
@@ -112,6 +118,7 @@ export function PropostaEscopoPorArea({
   leadId,
   fieldDefinitionId,
   initialValue,
+  savedValue,
   areasDisplay,
   defaultNomeEmpresa,
   viewerProfileArea = null,
@@ -120,8 +127,11 @@ export function PropostaEscopoPorArea({
   className,
   onSaved,
   onEscopoDraftChange,
+  disabled = false,
+  onSavingChange,
 }: Props) {
   const router = useRouter();
+  const savingRef = useRef(false);
   const [escopo, setEscopo] = useState<PropostaEscopoDetalhe>(() => parseEscopoJson(initialValue));
   const [error, setError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
@@ -136,8 +146,7 @@ export function PropostaEscopoPorArea({
   const [investmentCatalog, setInvestmentCatalog] = useState<InvestimentoTipoDef[]>(
     PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
   );
-  const lastPersisted = useRef<string>(initialValue.trim());
-  const lastSavedSnapshot = useRef<PropostaEscopoDetalhe>(parseEscopoJson(initialValue));
+  const [savedEscopoJson, setSavedEscopoJson] = useState(savedValue);
   const investimentoMetaRef = useRef(
     parseEscopoJsonWithMeta(initialValue).investimentoDocumento,
   );
@@ -190,9 +199,11 @@ export function PropostaEscopoPorArea({
       }
       return parsed;
     });
-    lastPersisted.current = initialValue.trim();
-    lastSavedSnapshot.current = parsed;
   }, [areasDisplay, initialValue]);
+
+  useEffect(() => {
+    setSavedEscopoJson(savedValue);
+  }, [savedValue]);
 
   useEffect(() => {
     const supabase = createSupabaseClient();
@@ -255,7 +266,7 @@ export function PropostaEscopoPorArea({
       const payloadBody = options?.restrictToArea
         ? JSON.stringify(payloadEscopo)
         : body;
-      if (!options?.restrictToArea && body === lastPersisted.current) return;
+      if (!options?.restrictToArea && body === savedEscopoJson) return;
       setError(null);
       try {
         const res = await fetch(`/api/crm/leads/${encodeURIComponent(leadId)}`, {
@@ -269,22 +280,23 @@ export function PropostaEscopoPorArea({
         if (!res.ok || !data.ok) {
           throw new Error(data.error ?? "Não foi possível salvar o escopo.");
         }
-        lastPersisted.current = body;
-        lastSavedSnapshot.current = normalizedNext;
+        const confirmedJson = applyProposalScopeSave(savedEscopoJson, body, options?.restrictToArea);
+        setSavedEscopoJson(confirmedJson);
         lastDraftSentRef.current = body;
         setEscopo(normalizedNext);
         collapseCompleteEditableAreas(normalizedNext);
         setLastSavedAt(
           new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
         );
-        // Notifica o parent (builder de proposta) com o JSON salvo, para atualizar live preview.
-        onSaved?.(body);
+        // Acknowledge only what this PATCH saved; retain other local draft edits.
+        onSaved?.(confirmedJson);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erro ao salvar.");
+        throw e;
       }
     },
-    [areasDisplay, collapseCompleteEditableAreas, fieldDefinitionId, leadId, router, onSaved],
+    [areasDisplay, collapseCompleteEditableAreas, fieldDefinitionId, leadId, router, onSaved, savedEscopoJson],
   );
 
   useEffect(() => {
@@ -296,23 +308,18 @@ export function PropostaEscopoPorArea({
     });
   }, [areasDisplay]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!onEscopoDraftChange) return;
-    const timer = setTimeout(() => {
-      const normalized = syncEscopoToAreas(escopo, parseAreasList(areasDisplay));
-      const json = stringifyEscopoJsonWithMeta(normalized, investimentoMetaRef.current);
-      if (json === lastDraftSentRef.current) return;
-      lastDraftSentRef.current = json;
-      onEscopoDraftChange(json);
-    }, 280);
-    return () => clearTimeout(timer);
+    const normalized = syncEscopoToAreas(escopo, parseAreasList(areasDisplay));
+    const json = stringifyEscopoJsonWithMeta(normalized, investimentoMetaRef.current);
+    if (json === lastDraftSentRef.current) return;
+    lastDraftSentRef.current = json;
+    onEscopoDraftChange(json);
   }, [escopo, areasDisplay, onEscopoDraftChange]);
 
   const isAreaDirty = useCallback((areaKey: string): boolean => {
-    const a = getEscopoEntriesForArea(escopo, areaKey);
-    const b = getEscopoEntriesForArea(lastSavedSnapshot.current, areaKey);
-    return JSON.stringify(a) !== JSON.stringify(b);
-  }, [escopo]);
+    return isProposalScopeAreaDirty(escopo, savedEscopoJson, areaKey);
+  }, [escopo, savedEscopoJson]);
 
   const notifyOtherAreas = useCallback(async () => {
     const res = await fetch(
@@ -327,10 +334,11 @@ export function PropostaEscopoPorArea({
 
   const saveArea = useCallback(
     async (areaKey: string, options?: { notifyAfter?: boolean }) => {
-      if (!canEditEscopoArea(viewerRole, viewerProfileArea, areaKey)) return;
+      if (disabled || savingRef.current || !canEditEscopoArea(viewerRole, viewerProfileArea, areaKey)) return;
+      savingRef.current = true;
+      onSavingChange?.(true);
       const normalizedEscopo = syncEscopoToAreas(escopo, parseAreasList(areasDisplay));
-      const body = JSON.stringify(normalizedEscopo);
-      const shouldPersist = body !== lastPersisted.current && isAreaDirty(areaKey);
+      const shouldPersist = isAreaDirty(areaKey);
       const shouldRestrictToArea = viewerRole !== "admin" && Boolean(viewerProfileArea?.trim());
       setSavingAreaKey(areaKey);
       if (options?.notifyAfter) setNotifyingAreaKey(areaKey);
@@ -344,7 +352,11 @@ export function PropostaEscopoPorArea({
           await notifyOtherAreas();
           router.refresh();
         }
+      } catch (error) {
+        setError(error instanceof Error ? error.message : "Erro ao salvar a área.");
       } finally {
+        savingRef.current = false;
+        onSavingChange?.(false);
         setSavingAreaKey(null);
         setNotifyingAreaKey(null);
       }
@@ -359,6 +371,8 @@ export function PropostaEscopoPorArea({
       isAreaDirty,
       areasDisplay,
       notifyOtherAreas,
+      disabled,
+      onSavingChange,
     ],
   );
 
@@ -531,6 +545,7 @@ export function PropostaEscopoPorArea({
               onAddEntry={() => addAreaEntry(area)}
               onRemoveEntry={(entryId) => removeAreaEntry(area, entryId)}
               areaDirty={dirty}
+              disabled={disabled || savingAreaKey !== null}
               savingThisArea={savingAreaKey === area}
               notifyingThisArea={notifyingAreaKey === area}
               canNotifyOthersAfterSave={Boolean(
@@ -872,6 +887,7 @@ function EscopoAreaBlock({
   onAddEntry,
   onRemoveEntry,
   areaDirty,
+  disabled,
   savingThisArea,
   notifyingThisArea,
   canNotifyOthersAfterSave,
@@ -891,6 +907,7 @@ function EscopoAreaBlock({
   onAddEntry: () => void;
   onRemoveEntry: (entryId: string) => void;
   areaDirty: boolean;
+  disabled: boolean;
   savingThisArea: boolean;
   notifyingThisArea: boolean;
   canNotifyOthersAfterSave: boolean;
@@ -955,6 +972,7 @@ function EscopoAreaBlock({
         if (open !== panelOpen) onTogglePanel();
       }}>
         <DialogContent
+          inert={disabled}
           // z-[130] no content + z-[120] no backdrop garantem que este sub-dialog
           // fique acima do dialog pai "Elaborar Proposta" (z-[110]/z-[100]).
           className="z-[130] flex max-h-[min(92dvh,900px)] w-[calc(100vw-1rem)] max-w-[min(1220px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[30px] border-[#dfe5ee] bg-[#f6f8fb] p-0 text-primary-dark shadow-[0_40px_120px_rgba(16,31,46,0.26)] [&>button]:right-5 [&>button]:top-5 [&>button]:rounded-full [&>button]:bg-white/85 [&>button]:p-2 [&>button]:text-[#102033] [&>button]:shadow-sm [&>button]:hover:bg-white"
@@ -1255,8 +1273,8 @@ function PreviewGrid({ escopo, investimento }: { escopo: string; investimento: s
       <div className="min-w-0 rounded-[22px] border border-white bg-white p-4 shadow-[0_18px_50px_rgba(16,31,46,0.08)] sm:p-5">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-[#edf0f4] pb-3">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#24615b]">Preview da proposta</p>
-            <p className="mt-1 text-xs text-slate-500">Leitura aproximada do que entrará no documento.</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#24615b]">Texto do escopo</p>
+            <p className="mt-1 text-xs text-slate-500">Conteúdo de referência; confira a diagramação na prévia Word.</p>
           </div>
           <span className="shrink-0 rounded-full border border-[#dfe5ee] bg-[#f8fafc] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
             Word

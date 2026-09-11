@@ -1,100 +1,53 @@
+import { convertProposalDocxToPdf, ProposalPdfError } from "@/lib/crm/convert-proposta-pdf";
+import { createHash } from "node:crypto";
+import { proposalDocxStream } from "@/lib/crm/proposta-docx-stream";
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
-import {
-  buildPropostaDocumentSnapshot,
-  loadDefaultDocumentTemplate,
-  loadDocumentTemplateById,
-} from "@/lib/crm/proposta-document-data";
-import { buildPropostaDocumentPagePreview } from "@/lib/crm/proposta-docx-data";
+import { buildPropostaDocumentSnapshot, loadDefaultDocumentTemplate, loadDocumentTemplateById } from "@/lib/crm/proposta-document-data";
+import { proposalDraftRequestSchema, PROPOSAL_DOCX_MIME } from "@/lib/crm/proposta-render-request";
+import { readModeloPropostaTemplateBuffer, renderCanonicalProposalDocx } from "@/lib/crm/render-proposta-docx";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-const bodySchema = z.object({
-  templateId: z.string().uuid().optional(),
-  /** Valores de rascunho (ainda não salvos no DB) para sobrescrever o snapshot. */
-  draftValues: z.record(z.string(), z.string()).optional(),
-  /**
-   * Quando `true`, retorna o preview mesmo se houver pendências.
-   * Permite live preview parcial (campos vazios viram "…").
-   */
-  allowPending: z.boolean().optional().default(false),
-});
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+/** Read-only draft: the same DOCX renderer as the official export. */
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAuthApi();
     if (!auth.ok) return auth.response;
-
-    const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
-    if (!parsed.success) {
-      return NextResponse.json({ ok: false, error: "Payload inválido." }, { status: 400 });
-    }
-
-    const { id: rawId } = await params;
-    const oportunidadeId = decodeURIComponent(rawId);
+    if (!auth.profile || !["admin", "comercial"].includes(auth.profile.role))
+      return NextResponse.json({ ok: false, error: "Apenas comercial ou admin pode gerar a proposta." }, { status: 403 });
+    const parsed = proposalDraftRequestSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ ok: false, error: "Payload inválido." }, { status: 400 });
+    const { id } = await params;
     const supabase = createSupabaseAdminClient();
-
-    const { data: op, error: opErr } = await supabase
-      .from("oportunidades")
-      .select("id")
-      .eq("id", oportunidadeId)
-      .maybeSingle();
-    if (opErr) throw opErr;
-    if (!op) {
-      return NextResponse.json({ ok: false, error: "Negociação não encontrada." }, { status: 404 });
-    }
-
+    const { data: op, error } = await supabase.from("oportunidades").select("id").eq("id", id).maybeSingle();
+    if (error) throw error;
+    if (!op) return NextResponse.json({ ok: false, error: "Negociação não encontrada." }, { status: 404 });
     const template = parsed.data.templateId
       ? await loadDocumentTemplateById(supabase, parsed.data.templateId)
       : await loadDefaultDocumentTemplate(supabase);
-    if (!template) {
-      return NextResponse.json({ ok: false, error: "Modelo não encontrado." }, { status: 404 });
-    }
-
+    if (!template || template.documentType !== "proposta" || !template.isActive)
+      return NextResponse.json({ ok: false, error: "Modelo de proposta não encontrado." }, { status: 404 });
+    const generatedAt = parsed.data.generatedAt ? new Date(parsed.data.generatedAt) : new Date();
     const snapshot = await buildPropostaDocumentSnapshot({
-      supabase,
-      oportunidadeId,
-      template,
-      generatedAt: new Date(),
+      supabase, oportunidadeId: id, template, generatedAt,
+      draftValues: parsed.data.draftValues, responsavel: parsed.data.responsavel,
     });
-
-    // Bloqueio histórico (chamadas legadas sem `allowPending`)
-    if (!parsed.data.allowPending && snapshot.pending.length > 0) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Há pendências antes do preview.",
-          pending: snapshot.pending,
-        },
-        { status: 422 },
-      );
-    }
-
-    // Aplica overrides do draft (live preview antes de salvar) — só sobrescreve
-    // chaves do `templateData` que vêm direto do fieldByCode equivalente.
-    // Para chaves complexas (EMPRESA, ESCOPO_AREA, INVESTIMENTO etc.) que dependem
-    // de catálogo, o client roda `buildPropostaDocumentPagePreview` por cima.
-    const mergedTemplateData = parsed.data.draftValues
-      ? { ...snapshot.templateData, ...parsed.data.draftValues }
-      : snapshot.templateData;
-
-    const page = buildPropostaDocumentPagePreview(mergedTemplateData);
-
-    return NextResponse.json({
-      ok: true,
-      data: {
-        page,
-        templateName: template.name,
-        generatedAt: new Date().toISOString(),
-        previewFormat: "document_page" as const,
-        pending: snapshot.pending,
-      },
-    });
+    const bytes = renderCanonicalProposalDocx(snapshot.canonical, readModeloPropostaTemplateBuffer(undefined, template.templatePath));
+    const isPdf = parsed.data.format === "pdf";
+    const output = isPdf ? await convertProposalDocxToPdf(bytes, request.signal) : bytes;
+    return new NextResponse(proposalDocxStream(output), { headers: {
+      "Content-Type": isPdf ? "application/pdf" : PROPOSAL_DOCX_MIME,
+      "Content-Disposition": isPdf ? 'inline; filename="Previa-proposta.pdf"' : 'attachment; filename="Previa-proposta.docx"',
+      "Cache-Control": "private, no-store",
+      "X-Document-SHA256": createHash("sha256").update(bytes).digest("hex"),
+      "X-Document-Pending": String(snapshot.pending.length),
+    } });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha ao gerar preview.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    if (error instanceof ProposalPdfError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    if (request.signal.aborted) return new NextResponse(null, { status: 499 });
+    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Falha ao gerar prévia Word." }, { status: 500 });
   }
 }

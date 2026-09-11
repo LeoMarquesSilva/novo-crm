@@ -27,7 +27,16 @@ async function run(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
   }
 
-  const enrichBudget = await cronEnrichBudget(2);
+  // Teto de 6 (não 2): folders(1) + listing(~1, cofre <500 docs) + folder-walk(3)
+  // já consomem ~5 das 10 req/h antes de chegar aqui. `cronEnrichBudget` sempre
+  // limita ao que sobrou de verdade (`Math.min(maxDocs, quota.remaining)`), então
+  // subir o teto não corre risco de estourar a quota — só evita deixar ~5 reqs
+  // sobrando todo dia enquanto há um backlog grande de documentos sem
+  // signatários enriquecidos (a cada rodada, cada request já traz o máximo de
+  // informação possível via GET /documents/{uuid}/list — signers + status +
+  // nome numa chamada só; o gargalo era esse teto artificial, não o custo por
+  // requisição).
+  const enrichBudget = await cronEnrichBudget(6);
   const syncResult = await runVaultSync({
     apiSource: "cron",
     maxFolderWalk: 3,

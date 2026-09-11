@@ -12,6 +12,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
+import { loadDefaultContratoTemplate } from "@/lib/crm/proposta-document-data";
 
 const upsertSchema = z.object({
   prazoRevisao: z.string().min(1).optional().nullable(),
@@ -59,6 +61,36 @@ export async function POST(
       .maybeSingle();
     if (!op) {
       return NextResponse.json({ ok: false, error: "Negociação não encontrada." }, { status: 404 });
+    }
+
+    const template = await loadDefaultContratoTemplate(supabase);
+    if (template) {
+      const { data: instance } = await supabase
+        .from("document_instances")
+        .select("data_json")
+        .eq("oportunidade_id", oportunidadeId)
+        .eq("template_id", template.id)
+        .maybeSingle();
+      const stored = readStoredEngine(
+        instance?.data_json && typeof instance.data_json === "object" && !Array.isArray(instance.data_json)
+          ? (instance.data_json as Record<string, unknown>)
+          : {},
+      );
+      const missing = stored.build?.data.contractObject?.missingScopeIds ?? [];
+      const missingProfiles = stored.build?.data.scopes.filter((s) => s.missingProfile) ?? [];
+      if (missing.length > 0 || missingProfiles.length > 0) {
+        const label =
+          missingProfiles[0]?.label ??
+          stored.build?.data.scopes.find((s) => missing.includes(s.entryId))?.label ??
+          "sem perfil";
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `Não é possível enviar o contrato para revisão. O escopo "${label}" ainda não possui redação contratual configurada.`,
+          },
+          { status: 422 },
+        );
+      }
     }
 
     const prazoIso = parsed.data.prazoRevisao

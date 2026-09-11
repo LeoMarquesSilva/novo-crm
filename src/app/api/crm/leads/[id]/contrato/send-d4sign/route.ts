@@ -1,19 +1,22 @@
-import { format } from "date-fns";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import {
   buildContratoDocumentSnapshot,
+  buildGeneratedDocxFilePath,
   loadDefaultContratoTemplate,
   loadDocumentTemplateById,
+  sanitizeFilenamePart,
 } from "@/lib/crm/proposta-document-data";
+import { formatPropostaFileStamp } from "@/lib/crm/proposta-docx-data";
+import { backupGeneratedDocument } from "@/lib/crm/generated-document-storage";
 import {
   buildContratoDocxTemplateData,
   buildContratoDocumentPagePreview,
   listContratoPendingFields,
 } from "@/lib/crm/contrato-docx-data";
 import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-principal";
-import { generateContratoDocxBuffer } from "@/lib/crm/generate-contrato-docx";
+import { renderContratoDocx } from "@/lib/crm/render-contrato-docx";
 import { normalizeLegacySignaturePins } from "@/lib/crm/contrato-signature-pins";
 import {
   getContractSendBlockReason,
@@ -22,9 +25,12 @@ import {
 } from "@/lib/crm/contract-send-gate";
 import { buildInitialD4SignSigners } from "@/lib/crm/sync-oportunidade-d4sign-signers";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
+import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
 import { enrichDocuments, pickDocumentsToEnrich } from "@/lib/d4sign/enrich-documents";
 import { assertD4SignSendEnv, getD4SignEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
+import { resolveClientFolder } from "@/lib/d4sign/resolve-client-folder";
 import { D4SignConnector } from "@/modules/crm/infrastructure/integrations/d4sign-client";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
@@ -155,13 +161,31 @@ export async function POST(
       empresasIntake,
       cpPropostaEmpresasJson: fieldByCode.cp_proposta_empresas_json,
     });
-    const pending = listContratoPendingFields(fieldByCode, empresa.razaoSocial ?? "");
+    // Única leitura de document_instances reaproveitada no resto da rota (antes
+    // eram 3 consultas separadas na mesma linha: engine, cláusulas/pins, e
+    // versão — todas liam a mesma row).
+    const { data: instanceRow } = await supabase
+      .from("document_instances")
+      .select("id, data_json, current_version")
+      .eq("oportunidade_id", oportunidadeId)
+      .eq("template_id", template.id)
+      .maybeSingle();
+    const instanceDataJson =
+      instanceRow?.data_json && typeof instanceRow.data_json === "object" && !Array.isArray(instanceRow.data_json)
+        ? (instanceRow.data_json as Record<string, unknown>)
+        : {};
+    const storedEngine = readStoredEngine(instanceDataJson);
+    const pending = listContratoPendingFields(
+      fieldByCode,
+      empresa.razaoSocial ?? "",
+      storedEngine.build?.data ?? null,
+    );
     if (pending.length > 0) {
       return NextResponse.json(
         {
           ok: false,
-          error: `Preencha os campos pendentes antes de enviar: ${pending.join(", ")}.`,
-          pending,
+          error: `Preencha os campos pendentes antes de enviar: ${pending.map((p) => p.label).join(", ")}.`,
+          pending: pending.map((p) => p.label),
         },
         { status: 422 },
       );
@@ -171,21 +195,14 @@ export async function POST(
     let clausulasAdicionais = parsed.data.clausulasAdicionais ?? [];
     let pinsToApply         = parsed.data.pins ?? [];
     if (clausulasAdicionais.length === 0 || pinsToApply.length === 0) {
-      const { data: instance } = await supabase
-        .from("document_instances")
-        .select("data_json")
-        .eq("oportunidade_id", oportunidadeId)
-        .eq("template_id", template.id)
-        .maybeSingle();
-      const dataJson = instance?.data_json as Record<string, unknown> | null ?? {};
-      if (clausulasAdicionais.length === 0 && Array.isArray(dataJson.clausulas_selecionadas)) {
+      if (clausulasAdicionais.length === 0 && Array.isArray(instanceDataJson.clausulas_selecionadas)) {
         clausulasAdicionais = (
-          dataJson.clausulas_selecionadas as Array<{ title: string; content: string }>
+          instanceDataJson.clausulas_selecionadas as Array<{ title: string; content: string }>
         ).map((c) => ({ title: c.title, content: c.content }));
       }
-      if (pinsToApply.length === 0 && Array.isArray(dataJson.pins_signatarios)) {
+      if (pinsToApply.length === 0 && Array.isArray(instanceDataJson.pins_signatarios)) {
         pinsToApply = normalizeLegacySignaturePins(
-          dataJson.pins_signatarios as Array<z.infer<typeof pinSchema>>,
+          instanceDataJson.pins_signatarios as Array<z.infer<typeof pinSchema>>,
         );
       }
     }
@@ -197,8 +214,15 @@ export async function POST(
       fieldByCode,
       generatedAt,
     });
-    const page = buildContratoDocumentPagePreview(templateData, clausulasAdicionais);
-    const docxBuffer = await generateContratoDocxBuffer(page);
+    // Achado durante auditoria: este envio ao D4Sign nunca usava o motor
+    // canônico (só o sistema legado de toggles cc_incluir_*), mesmo quando
+    // `storedEngine.build` existia — o cliente podia assinar um documento
+    // diferente do que o advogado revisou/aprovou no builder. Corrigido para
+    // usar a mesma fonte do preview ao vivo e do botão "Gerar DOCX".
+    const page = storedEngine.build
+      ? buildCanonicalContratoPage({ canonicalData: storedEngine.build.data, userExtras: clausulasAdicionais })
+      : buildContratoDocumentPagePreview(templateData, clausulasAdicionais);
+    const docxBuffer = await renderContratoDocx(page);
 
     // Enviar à D4Sign
     const d4Env = assertD4SignSendEnv();
@@ -207,7 +231,14 @@ export async function POST(
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
     const solicitanteNome = String(op.solicitante_nome ?? "contrato");
-    const filename = `Contrato-${solicitanteNome.replace(/[^a-zA-Z0-9\-_]/g, "_")}-${format(generatedAt, "yyyy-MM-dd")}.docx`;
+    // Mesma versão que vai ser gravada em document_versions logo abaixo — nome
+    // do arquivo (o que aparece na D4Sign também, via fileName do upload) e
+    // registro no banco sempre concordam. Antes, este nome não tinha versão
+    // nenhuma, usava sanitização diferente do botão "Gerar Word" (cortava
+    // espaços/acentos em "_") e usava o horário local do servidor em vez do
+    // fuso do Brasil (diferente da proposta, que já fazia certo).
+    const nextVersion = Number(instanceRow?.current_version ?? 0) + 1;
+    const filename = `Contrato-${sanitizeFilenamePart(solicitanteNome)}-v${nextVersion}-${formatPropostaFileStamp(generatedAt)}.docx`;
 
     // ── Monta a lista final de signatários ──────────────────────────────
     // 1) Sócios da firma (CONTRATADA) — sempre incluídos por padrão
@@ -266,10 +297,25 @@ export async function POST(
     const finalEmails = new Set(finalSigners.map((s) => s.email.toLowerCase()));
     const filteredPins = resolvedPins.filter((p) => finalEmails.has(p.email.toLowerCase()));
 
+    // Resolve (ou cria) a pasta do cliente no cofre — não crítico: se falhar,
+    // o documento ainda é enviado, só cai na raiz do cofre em vez de organizado.
+    let clientFolder: { uuid: string; name: string } | null = null;
+    try {
+      clientFolder = await resolveClientFolder({
+        supabase,
+        connector,
+        safeUuid: d4Env.safeUuid,
+        clientName: empresa.razaoSocial ?? solicitanteNome,
+      });
+    } catch (e) {
+      console.warn("[send-d4sign] resolveClientFolder falhou (não crítico):", e instanceof Error ? e.message : e);
+    }
+
     const result = await connector.sendDocumentForSignature({
       safeUuid: d4Env.safeUuid,
       file: blob,
       fileName: filename,
+      uuidFolder: clientFolder?.uuid,
       signers: finalSigners.map((s) => ({ email: s.email, foreign: s.foreign })),
       message: parsed.data.message || undefined,
       skipEmail: parsed.data.embedMode ? "1" : "0", // EMBED: não envia e-mail
@@ -337,16 +383,15 @@ export async function POST(
       });
     }
 
-    // Salvar versão gerada
-    const { data: instance } = await supabase
-      .from("document_instances")
-      .select("id, current_version")
-      .eq("oportunidade_id", oportunidadeId)
-      .eq("template_id", template.id)
-      .maybeSingle();
-
-    if (instance) {
-      const nextVersion = Number(instance.current_version ?? 0) + 1;
+    // Salvar versão gerada (reaproveita instanceRow/nextVersion já lidos acima
+    // — mesmo número de versão do nome do arquivo, sem reconsultar o banco)
+    if (instanceRow) {
+      const filePath = buildGeneratedDocxFilePath({
+        oportunidadeId,
+        versionNumber: nextVersion,
+        generatedAt,
+        baseName: solicitanteNome,
+      });
       const dataSnapshot: Json = {
         templateId: template.id,
         templateName: template.name,
@@ -356,15 +401,26 @@ export async function POST(
         signerEmail: parsed.data.signerEmail,
       };
       await supabase.from("document_versions").insert({
-        instance_id: instance.id,
+        instance_id: instanceRow.id,
         version_number: nextVersion,
         data_snapshot: dataSnapshot,
+        generated_file_path: filePath,
         generated_by: auth.profile.id,
       });
       await supabase
         .from("document_instances")
         .update({ current_version: nextVersion, status: "sent" })
-        .eq("id", instance.id);
+        .eq("id", instanceRow.id);
+
+      // Cópia própria no Storage — antes, o único "arquivo de registro" do
+      // contrato enviado era o que ficava só na D4Sign (e nem estava na pasta
+      // certa, ver correção da pasta abaixo).
+      await backupGeneratedDocument(
+        supabase,
+        filePath,
+        new Uint8Array(docxBuffer),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      );
     }
 
     // Inserir/atualizar em d4sign_documents (fonte de verdade)
@@ -381,6 +437,9 @@ export async function POST(
         updated_at:            nowIso,
         signers:               initialSigners as never,
         sent_by_app_user_id:   auth.profile.id,
+        folder_uuid:           clientFolder?.uuid ?? null,
+        folder_name:           clientFolder?.name ?? null,
+        folder_path:           clientFolder?.name ?? null,
       },
       { onConflict: "uuid_doc", ignoreDuplicates: false },
     );

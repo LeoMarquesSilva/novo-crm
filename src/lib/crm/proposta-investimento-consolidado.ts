@@ -5,15 +5,21 @@ import {
 import type {
   PropostaEscopoDetalhe,
   PropostaInvestimentoDocumento,
+  PropostaInvestimentoDocumentoItem,
 } from "@/data/proposta-tipos-catalog";
 import { findInvestmentSubtype } from "@/lib/crm/proposal-catalog-utils";
 import { getEscopoEntriesForArea } from "@/lib/crm/proposta-escopo-entry";
+import {
+  createEmptyInvestimentoDocumentoItem,
+  createInvestimentoDocumentoItemId,
+} from "@/lib/crm/proposta-escopo-json";
 import { mergeInvestimentoTemplate } from "@/lib/crm/proposta-escopo-preview";
 import {
   investmentSubtypeHasParcelas,
   validateParcelasPlaceholders,
 } from "@/lib/crm/proposta-investimento-parcelas";
 import { PROPOSTA_INVESTIMENTO_PLACEHOLDER_CURRENCY } from "@/lib/crm/proposta-escopo-preview";
+import { applyTributacaoPhrase } from "@/lib/crm/proposta-tributacao";
 import {
   formatNumberPtBr2,
   parseBrlUserInput,
@@ -121,6 +127,77 @@ export function collectDistinctInvestimentoSubtipos(
   return [...set];
 }
 
+export function getInvestimentoDocumentoItems(
+  doc: PropostaInvestimentoDocumento | undefined,
+): PropostaInvestimentoDocumentoItem[] {
+  if (!doc) return [];
+  if (Array.isArray(doc.items) && doc.items.length > 0) {
+    return doc.items.map((item, index) => ({
+      id: item.id || `inv-${index}`,
+      tipoId: item.tipoId ?? "",
+      subtipoId: item.subtipoId ?? "",
+      placeholders: { ...(item.placeholders ?? {}) },
+      ...(item.autoSum === false ? { autoSum: false } : {}),
+    }));
+  }
+  if (
+    doc.tipoId.trim() ||
+    doc.subtipoId.trim() ||
+    Object.values(doc.placeholders ?? {}).some((v) => v.trim())
+  ) {
+    return [
+      {
+        id: "inv-0",
+        tipoId: doc.tipoId,
+        subtipoId: doc.subtipoId,
+        placeholders: { ...(doc.placeholders ?? {}) },
+        ...(doc.autoSum === false ? { autoSum: false } : {}),
+      },
+    ];
+  }
+  return [];
+}
+
+export function documentoFromItems(
+  items: PropostaInvestimentoDocumentoItem[],
+): PropostaInvestimentoDocumento | undefined {
+  const list = items.map((item) => ({
+    ...item,
+    id: item.id || createInvestimentoDocumentoItemId(),
+    placeholders: { ...(item.placeholders ?? {}) },
+  }));
+  if (list.length === 0) return undefined;
+  const first = list[0]!;
+  return {
+    tipoId: first.tipoId,
+    subtipoId: first.subtipoId,
+    placeholders: first.placeholders,
+    autoSum: first.autoSum !== false,
+    items: list,
+  };
+}
+
+function resolveDocumentoItem(
+  item: PropostaInvestimentoDocumentoItem,
+  escopo: PropostaEscopoDetalhe,
+  areas: string[],
+  investmentCatalog: InvestimentoTipoDef[],
+  applyAreaSum: boolean,
+): PropostaInvestimentoDocumentoItem {
+  const sumKey = getPrimarySumKeyForSubtipo(item.subtipoId.trim());
+  const autoSum = item.autoSum !== false;
+  const placeholders = { ...(item.placeholders ?? {}) };
+  if (applyAreaSum && autoSum && sumKey) {
+    const total = sumInvestimentoAreas(escopo, areas, investmentCatalog);
+    if (total > 0) placeholders[sumKey] = formatNumberPtBr2(total);
+  }
+  return {
+    ...item,
+    placeholders,
+    ...(autoSum ? {} : { autoSum: false }),
+  };
+}
+
 /** Deriva bloco consolidado a partir das áreas (sem meta salva). */
 export function deriveInvestimentoDocumentoFromAreas(
   escopo: PropostaEscopoDetalhe,
@@ -147,12 +224,15 @@ export function deriveInvestimentoDocumentoFromAreas(
     placeholders[sumKey] = formatNumberPtBr2(total);
   }
 
-  return {
-    tipoId: first.tipoId,
-    subtipoId: first.subtipoId,
-    placeholders,
-    autoSum: true,
-  };
+  return documentoFromItems([
+    {
+      id: createInvestimentoDocumentoItemId(),
+      tipoId: first.tipoId,
+      subtipoId: first.subtipoId,
+      placeholders,
+      autoSum: true,
+    },
+  ]);
 }
 
 /** Resolve meta salva ou deriva; aplica soma automática quando `autoSum !== false`. */
@@ -165,41 +245,27 @@ export function resolveInvestimentoDocumento(
   const base = saved ?? deriveInvestimentoDocumentoFromAreas(escopo, areas, investmentCatalog);
   if (!base) return undefined;
 
-  const subtipoId = base.subtipoId.trim();
-  const sumKey = getPrimarySumKeyForSubtipo(subtipoId);
-  const autoSum = base.autoSum !== false;
+  const items = getInvestimentoDocumentoItems(base);
+  if (items.length === 0) return undefined;
 
-  if (!autoSum || !sumKey) {
-    return {
-      tipoId: base.tipoId,
-      subtipoId: base.subtipoId,
-      placeholders: { ...(base.placeholders ?? {}) },
-      autoSum: base.autoSum,
-    };
-  }
-
-  const total = sumInvestimentoAreas(escopo, areas, investmentCatalog);
-  const placeholders = { ...(base.placeholders ?? {}) };
-  if (total > 0) {
-    placeholders[sumKey] = formatNumberPtBr2(total);
-  }
-
-  return {
-    tipoId: base.tipoId,
-    subtipoId: base.subtipoId,
-    placeholders,
-    autoSum: true,
-  };
+  let usedAreaSum = false;
+  const resolvedItems = items.map((item) => {
+    const sumKey = getPrimarySumKeyForSubtipo(item.subtipoId.trim());
+    const applyAreaSum = !usedAreaSum && item.autoSum !== false && Boolean(sumKey);
+    if (applyAreaSum) usedAreaSum = true;
+    return resolveDocumentoItem(item, escopo, areas, investmentCatalog, applyAreaSum);
+  });
+  return documentoFromItems(resolvedItems);
 }
 
-export function isInvestimentoDocumentoComplete(
-  doc: PropostaInvestimentoDocumento | undefined,
-  investmentCatalog: InvestimentoTipoDef[] = PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
+function isDocumentoItemComplete(
+  item: PropostaInvestimentoDocumentoItem,
+  investmentCatalog: InvestimentoTipoDef[],
 ): boolean {
-  if (!doc?.tipoId?.trim() || !doc?.subtipoId?.trim()) return false;
-  const invSub = findInvestmentSubtype(investmentCatalog, doc.tipoId, doc.subtipoId);
+  if (!item.tipoId.trim() || !item.subtipoId.trim()) return false;
+  const invSub = findInvestmentSubtype(investmentCatalog, item.tipoId, item.subtipoId);
   if (!invSub) return false;
-  const invPh = doc.placeholders ?? {};
+  const invPh = item.placeholders ?? {};
   if (investmentSubtypeHasParcelas(invSub.placeholderKeys)) {
     if (!validateParcelasPlaceholders(invPh)) return false;
   }
@@ -211,13 +277,35 @@ export function isInvestimentoDocumentoComplete(
   return true;
 }
 
+export function isInvestimentoDocumentoComplete(
+  doc: PropostaInvestimentoDocumento | undefined,
+  investmentCatalog: InvestimentoTipoDef[] = PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
+): boolean {
+  const items = getInvestimentoDocumentoItems(doc).filter(
+    (item) =>
+      item.tipoId.trim() ||
+      item.subtipoId.trim() ||
+      Object.values(item.placeholders ?? {}).some((value) => value.trim()),
+  );
+  if (items.length === 0) return false;
+  return items.every((item) => isDocumentoItemComplete(item, investmentCatalog));
+}
+
 export function buildInvestimentoDocumentoText(
   doc: PropostaInvestimentoDocumento | undefined,
   investmentCatalog: InvestimentoTipoDef[] = PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
-  opts: { defaultNomeEmpresa?: string | null } = {},
+  opts: { defaultNomeEmpresa?: string | null; tributacao?: string | null } = {},
 ): string {
-  if (!doc?.tipoId?.trim() || !doc?.subtipoId?.trim()) return "";
-  const invSub = findInvestmentSubtype(investmentCatalog, doc.tipoId, doc.subtipoId);
-  if (!invSub) return "";
-  return mergeInvestimentoTemplate(invSub.template, doc.placeholders ?? {}, opts).trim();
+  const text = getInvestimentoDocumentoItems(doc)
+    .map((item) => {
+      if (!item.tipoId.trim() || !item.subtipoId.trim()) return "";
+      const invSub = findInvestmentSubtype(investmentCatalog, item.tipoId, item.subtipoId);
+      if (!invSub) return "";
+      return mergeInvestimentoTemplate(invSub.template, item.placeholders ?? {}, opts).trim();
+    })
+    .filter(Boolean)
+    .join("\n\n");
+  return applyTributacaoPhrase(text, opts.tributacao ?? "");
 }
+
+export { createEmptyInvestimentoDocumentoItem };

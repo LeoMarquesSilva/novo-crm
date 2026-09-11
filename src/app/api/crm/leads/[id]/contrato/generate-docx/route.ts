@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
@@ -9,13 +8,18 @@ import {
   loadDocumentTemplateById,
   sanitizeFilenamePart,
 } from "@/lib/crm/proposta-document-data";
+import { formatPropostaFileStamp } from "@/lib/crm/proposta-docx-data";
 import {
   buildContratoDocxTemplateData,
   buildContratoDocumentPagePreview,
   listContratoPendingFields,
 } from "@/lib/crm/contrato-docx-data";
 import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-principal";
-import { generateContratoDocxBuffer } from "@/lib/crm/generate-contrato-docx";
+import { renderContratoDocx } from "@/lib/crm/render-contrato-docx";
+import { backupGeneratedDocument } from "@/lib/crm/generated-document-storage";
+import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
+import { listForbiddenDraftTokens } from "@/lib/crm/contract-engine/placeholders";
+import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -104,16 +108,54 @@ export async function POST(
       cpPropostaEmpresasJson: fieldByCode.cp_proposta_empresas_json,
     });
 
-    const pending = listContratoPendingFields(fieldByCode, empresa.razaoSocial ?? "");
-    if (pending.length > 0) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `Preencha os campos pendentes antes de gerar: ${pending.join(", ")}.`,
-          pending,
-        },
-        { status: 422 },
+    const instance = await ensureInstance({
+      supabase,
+      oportunidadeId,
+      templateId: template.id,
+      appUserId: auth.profile.id,
+    });
+    const storedEngine = readStoredEngine(
+      instance.data_json && typeof instance.data_json === "object" && !Array.isArray(instance.data_json)
+        ? (instance.data_json as Record<string, unknown>)
+        : {},
+    );
+
+    if (storedEngine.build) {
+      const blocking = storedEngine.build.alignment.blockers;
+      const hardPendencias = storedEngine.build.pendencias.filter(
+        (p) =>
+          !p.ok &&
+          ["parties", "scopes", "profiles", "placeholders", "object_coverage", "object_fields"].includes(
+            p.code,
+          ),
       );
+      const forbidden = listForbiddenDraftTokens(storedEngine.build.data);
+      if (blocking.length > 0 || hardPendencias.length > 0 || forbidden.length > 0) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              blocking[0]?.message ??
+              (forbidden.length > 0
+                ? `O contrato ainda contém marcações de rascunho (${forbidden.slice(0, 3).join(", ")}).`
+                : `Pendências do motor: ${hardPendencias.map((p) => p.label).join(", ")}.`),
+            pending: hardPendencias.map((p) => p.label),
+          },
+          { status: 422 },
+        );
+      }
+    } else {
+      const pending = listContratoPendingFields(fieldByCode, empresa.razaoSocial ?? "");
+      if (pending.length > 0) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `Preencha os campos pendentes antes de gerar: ${pending.map((p) => p.label).join(", ")}.`,
+            pending: pending.map((p) => p.label),
+          },
+          { status: 422 },
+        );
+      }
     }
 
     const templateData = buildContratoDocxTemplateData({
@@ -123,12 +165,6 @@ export async function POST(
       generatedAt,
     });
 
-    const instance = await ensureInstance({
-      supabase,
-      oportunidadeId,
-      templateId: template.id,
-      appUserId: auth.profile.id,
-    });
     const nextVersion = Number(instance.current_version ?? 0) + 1;
     const filePath = buildGeneratedDocxFilePath({
       oportunidadeId,
@@ -143,6 +179,7 @@ export async function POST(
       templatePath: template.templatePath,
       fields: fieldByCode as unknown as Json,
       templateData: templateData as unknown as Json,
+      canonical: (storedEngine.build?.data ?? null) as unknown as Json,
     };
 
     const { error: versionErr } = await supabase.from("document_versions").insert({
@@ -162,10 +199,29 @@ export async function POST(
 
     // Gera DOCX programaticamente (sem arquivo de template) para que o Word
     // reflita exatamente os dados preenchidos no builder e no preview ao vivo.
-    const page = buildContratoDocumentPagePreview(templateData);
-    const outBuf = await generateContratoDocxBuffer(page);
+    // Inclui as cláusulas extras escolhidas manualmente no builder — sem isso,
+    // o .docx baixado divergia do que o advogado via na tela (cláusulas extras
+    // ficavam de fora quando o motor canônico estava ativo).
+    const dataJsonForExtras =
+      instance.data_json && typeof instance.data_json === "object" && !Array.isArray(instance.data_json)
+        ? (instance.data_json as Record<string, unknown>)
+        : {};
+    const userExtras = Array.isArray(dataJsonForExtras.clausulas_selecionadas)
+      ? (dataJsonForExtras.clausulas_selecionadas as Array<{ title: string; content: string }>)
+      : [];
+    const page = storedEngine.build
+      ? buildCanonicalContratoPage({ canonicalData: storedEngine.build.data, userExtras })
+      : buildContratoDocumentPagePreview(templateData, userExtras);
+    const outBuf = await renderContratoDocx(page);
     const base = sanitizeFilenamePart(String(op.solicitante_nome ?? "contrato"));
-    const filename = `Contrato-${base}-v${nextVersion}-${format(generatedAt, "yyyy-MM-dd-HHmm")}.docx`;
+    const filename = `Contrato-${base}-v${nextVersion}-${formatPropostaFileStamp(generatedAt)}.docx`;
+
+    await backupGeneratedDocument(
+      supabase,
+      filePath,
+      new Uint8Array(outBuf),
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
 
     return new NextResponse(new Uint8Array(outBuf), {
       status: 200,

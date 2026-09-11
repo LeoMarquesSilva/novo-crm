@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { toTitleCasePt } from "@/lib/crm/contract-engine/title-case";
 
 const patchSchema = z.object({
   title:      z.string().min(1).max(200).optional(),
@@ -9,6 +10,10 @@ const patchSchema = z.object({
   category:   z.string().min(1).max(100).optional(),
   sort_order: z.number().int().optional(),
   is_active:  z.boolean().optional(),
+  /** Área de CRM_PRACTICE_AREAS; null = cláusula transversal. */
+  area_key:   z.string().min(1).max(60).nullable().optional(),
+  /** subtype_key do catálogo de propostas; null = cláusula de área inteira/transversal. */
+  scope_subtype_key: z.string().min(1).max(120).nullable().optional(),
 });
 
 async function requireAdmin() {
@@ -42,11 +47,13 @@ export async function PATCH(
     }
 
     const supabase = createSupabaseAdminClient();
+    const updateData = { ...body.data };
+    if (updateData.title !== undefined) updateData.title = toTitleCasePt(updateData.title);
     const { data, error } = await supabase
       .from("contract_clause_templates")
-      .update(body.data)
+      .update(updateData)
       .eq("id", id)
-      .select("id, title, content, category, sort_order, is_active, created_at, updated_at")
+      .select("id, title, content, category, sort_order, is_active, created_at, updated_at, stable_key, version, status, role, is_required, placeholders, legal_review_note, area_key, scope_subtype_key")
       .single();
 
     if (error) throw error;
