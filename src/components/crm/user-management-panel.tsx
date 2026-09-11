@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useMemo, useState, useTransition } from "react";
 import {
+  AlertTriangle,
   Bell,
   Briefcase,
   Building2,
@@ -18,6 +19,7 @@ import {
   ShieldCheck,
   Trash2,
   UserPlus,
+  UserX,
   UsersRound,
 } from "lucide-react";
 import {
@@ -65,7 +67,14 @@ import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dial
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface AppUser {
+/**
+ * Uma pessoa nesta tela — não necessariamente um usuário do CRM. `hasAccess`
+ * distingue os dois casos; `department`/`position`/`orqestraiActive` vêm do
+ * espelho local do quadro de colaboradores (ORQESTRAI/RH) quando há
+ * correspondência por e-mail. Um único tipo pros dois: aqui é "Usuários" —
+ * o quadro real do escritório, com ou sem login no CRM, não duas telas.
+ */
+export interface MergedPerson {
   id: string;
   full_name: string;
   role: string;
@@ -73,7 +82,14 @@ interface AppUser {
   avatar_url: string | null;
   created_at: string;
   email?: string;
+  hasAccess: boolean;
+  department?: string | null;
+  position?: string | null;
+  /** `null` = sem vínculo encontrado no RH (ex.: conta de sistema/teste). */
+  orqestraiActive?: boolean | null;
 }
+
+type AppUser = MergedPerson;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -232,6 +248,7 @@ function UserFormDialog({
     area: form.area || null,
     avatar_url: form.avatar_url || null,
     created_at: new Date().toISOString(),
+    hasAccess: true,
   };
   const capability = userCapability(previewUser);
   const CapabilityIcon = capability.icon;
@@ -500,11 +517,61 @@ interface UserCardProps {
   onEdit: (user: AppUser) => void;
   onDelete: (id: string) => void;
   onRoleChange: (id: string, role: string) => void;
+  onGrantAccess: (user: AppUser) => void;
 }
 
-function UserCard({ user, onEdit, onDelete, onRoleChange }: UserCardProps) {
+/** Colaborador real do escritório (ORQESTRAI) que ainda não tem login no CRM. */
+function NoAccessUserCard({ user, onGrantAccess }: { user: AppUser; onGrantAccess: (user: AppUser) => void }) {
+  return (
+    <Card className="overflow-hidden border-dashed border-[#dfe5ee] bg-[#fbfcfd] p-0 shadow-none">
+      <CardHeader className="flex flex-row items-start gap-4 border-b border-[#eef1f5] p-5">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white bg-[#edf2f7] text-sm font-semibold text-primary-dark shadow-md shadow-slate-900/10">
+          {user.full_name.charAt(0)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <CardTitle className="truncate text-base font-extrabold tracking-[-0.025em] text-[#102033]">{user.full_name}</CardTitle>
+          <CardDescription className="mt-1 truncate text-xs font-semibold text-slate-500">
+            {user.email ?? "E-mail não cadastrado no RH"}
+          </CardDescription>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="border-slate-300 bg-white text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+              <UserX className="mr-1 h-3 w-3" />
+              Sem acesso ao CRM
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 p-5">
+        <div className="grid gap-1 text-xs text-slate-600">
+          <span>
+            <strong className="text-slate-500">Área:</strong> {user.department ?? "—"}
+          </span>
+          <span>
+            <strong className="text-slate-500">Cargo:</strong> {user.position ?? "—"}
+          </span>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full gap-2 border-[#102033]/20 text-[#102033] hover:bg-[#102033]/5"
+          onClick={() => onGrantAccess(user)}
+        >
+          <UserPlus className="h-3.5 w-3.5" />
+          Conceder acesso ao CRM
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function UserCard({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserCardProps) {
   const [isPending, startTransition] = useTransition();
   const [savedRole, setSavedRole] = useState<string | null>(null);
+
+  if (!user.hasAccess) {
+    return <NoAccessUserCard user={user} onGrantAccess={onGrantAccess} />;
+  }
 
   const areaLabel = user.area ? normalizePracticeAreaKey(user.area) : null;
   const areaMeta = AREA_META[areaLabel ?? ""] ?? AREA_META.Outro;
@@ -601,6 +668,22 @@ function UserCard({ user, onEdit, onDelete, onRoleChange }: UserCardProps) {
       </CardHeader>
 
       <CardContent className="space-y-4 p-5">
+        {user.orqestraiActive === false ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3">
+            <div className="flex items-center gap-2 text-rose-800">
+              <AlertTriangle className="h-4 w-4" />
+              <p className="text-sm font-extrabold">Ex-colaborador com acesso ativo</p>
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-rose-700">
+              Consta como inativo no RH, mas ainda tem login no CRM. Revise se o acesso deve ser removido.
+            </p>
+          </div>
+        ) : null}
+        {(user.department || user.position) ? (
+          <p className="text-xs text-slate-500">
+            {[user.department, user.position].filter(Boolean).join(" · ")}
+          </p>
+        ) : null}
         <div className={cn("rounded-2xl border p-3", capability.className)}>
           <div className="flex items-center gap-2">
             <CapabilityIcon className="h-4 w-4" />
@@ -665,8 +748,10 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
   const [roleFilter, setRoleFilter] = useState("all");
   const [areaFilter, setAreaFilter] = useState("all");
   const [managerFilter, setManagerFilter] = useState("all");
+  const [accessFilter, setAccessFilter] = useState("all");
+  const [grantAccessFor, setGrantAccessFor] = useState<AppUser | null>(null);
 
-  const roleOptions = Array.from(new Set(users.map((u) => u.role))).sort();
+  const roleOptions = Array.from(new Set(users.filter((u) => u.hasAccess).map((u) => u.role))).sort();
   const areaOptions = Array.from(
     new Set([
       ...Object.keys(AREA_META),
@@ -680,18 +765,36 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
     (u) =>
       (u.full_name.toLowerCase().includes(search.toLowerCase()) ||
         (u.email ?? "").toLowerCase().includes(search.toLowerCase()) ||
-        (u.area ? normalizePracticeAreaKey(u.area) : "").toLowerCase().includes(search.toLowerCase())) &&
+        (u.area ? normalizePracticeAreaKey(u.area) : "").toLowerCase().includes(search.toLowerCase()) ||
+        (u.department ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (u.position ?? "").toLowerCase().includes(search.toLowerCase())) &&
       (roleFilter === "all" || u.role === roleFilter) &&
       (areaFilter === "all" || normalizePracticeAreaKey(u.area ?? "Outro") === areaFilter) &&
       (managerFilter === "all" ||
         (managerFilter === "manager" && isProposalAreaManager(u)) ||
         (managerFilter === "general_comercial" && u.role === "comercial" && !isProposalAreaManager(u)) ||
         (managerFilter === "internal_area" &&
-          Boolean(u.area && PROFILE_ONLY_AREA_SET.has(normalizePracticeAreaKey(u.area))))),
+          Boolean(u.area && PROFILE_ONLY_AREA_SET.has(normalizePracticeAreaKey(u.area))))) &&
+      (accessFilter === "all" ||
+        (accessFilter === "no_access" && !u.hasAccess) ||
+        (accessFilter === "former_with_access" && u.hasAccess && u.orqestraiActive === false)),
   );
 
+  /** Vira o "usuário real" recém-criado no lugar do card "sem acesso" da mesma pessoa. */
   function handleCreated(user: AppUser) {
-    setUsers((prev) => [...prev, user].sort((a, b) => a.full_name.localeCompare(b.full_name)));
+    setUsers((prev) => {
+      const emailNorm = (user.email ?? "").trim().toLowerCase();
+      const withoutPlaceholder = prev.filter(
+        (u) => u.hasAccess || (u.email ?? "").trim().toLowerCase() !== emailNorm,
+      );
+      const placeholder = prev.find(
+        (u) => !u.hasAccess && (u.email ?? "").trim().toLowerCase() === emailNorm,
+      );
+      const merged: AppUser = placeholder
+        ? { ...user, department: placeholder.department, position: placeholder.position, orqestraiActive: placeholder.orqestraiActive }
+        : user;
+      return [...withoutPlaceholder, merged].sort((a, b) => a.full_name.localeCompare(b.full_name));
+    });
   }
 
   function handleUpdated(updated: AppUser) {
@@ -715,6 +818,8 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
   const comercialCount = users.filter((u) => u.role === "comercial").length;
   const proposalManagersCount = users.filter(isProposalAreaManager).length;
   const internalAreaCount = users.filter((u) => u.area && PROFILE_ONLY_AREA_SET.has(u.area)).length;
+  const noAccessCount = users.filter((u) => !u.hasAccess).length;
+  const formerWithAccessCount = users.filter((u) => u.hasAccess && u.orqestraiActive === false).length;
 
   const roleFilterItems = useMemo(() => {
     const m: Record<string, string> = { all: "Todas as roles" };
@@ -737,6 +842,12 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
     manager: "Gestores de proposta",
     general_comercial: "Comercial sem gestão",
     internal_area: "Áreas internas",
+  };
+
+  const accessFilterItems = {
+    all: "Todos",
+    no_access: "Sem acesso ao CRM",
+    former_with_access: "Ex-colaborador com acesso",
   };
 
   return (
@@ -772,6 +883,12 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             <UserMetricCard label="Comercial" value={comercialCount} helper="Equipe que atua nos leads e propostas" />
             <UserMetricCard label="Gestores" value={proposalManagersCount} helper="Comercial + área de prática" />
             <UserMetricCard label="Internas" value={internalAreaCount} helper="Áreas sem fila de escopo própria" />
+            <UserMetricCard label="Sem acesso" value={noAccessCount} helper="Colaboradores do RH sem login no CRM" />
+            <UserMetricCard
+              label="Ex-colaboradores"
+              value={formerWithAccessCount}
+              helper="Login ativo, mas inativo no RH — revisar"
+            />
           </div>
         </div>
       </section>
@@ -857,6 +974,24 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
               <CrmSelectItem value="internal_area">Áreas internas</CrmSelectItem>
             </CrmSelectContent>
           </Select>
+          <Select
+            items={accessFilterItems}
+            value={accessFilter}
+            onValueChange={(v) => setAccessFilter(v ?? "all")}
+          >
+            <SelectTrigger className="h-10 w-[200px] border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
+              <CrmSelectValue
+                value={accessFilter}
+                labels={accessFilterItems}
+                placeholder="Acesso"
+              />
+            </SelectTrigger>
+            <CrmSelectContent className="min-w-[220px]">
+              <CrmSelectItem value="all">Todos</CrmSelectItem>
+              <CrmSelectItem value="no_access">Sem acesso ao CRM</CrmSelectItem>
+              <CrmSelectItem value="former_with_access">Ex-colaborador com acesso</CrmSelectItem>
+            </CrmSelectContent>
+          </Select>
           <span className="hidden text-xs text-muted-foreground xl:block">
             {filtered.length} de {users.length} • {adminCount} admin • {proposalManagersCount} gestores
           </span>
@@ -880,6 +1015,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             onEdit={setEditUser}
             onDelete={handleDelete}
             onRoleChange={handleRoleChange}
+            onGrantAccess={setGrantAccessFor}
           />
         ))}
         {filtered.length === 0 && (
@@ -889,11 +1025,20 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
         )}
       </div>
 
-      {/* Dialog criação */}
+      {/* Dialog criação — também usado para "Conceder acesso" a colaborador sem login */}
       <UserFormDialog
+        key={grantAccessFor?.id ?? "create"}
         mode="create"
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        open={createOpen || !!grantAccessFor}
+        onClose={() => {
+          setCreateOpen(false);
+          setGrantAccessFor(null);
+        }}
+        initialData={
+          grantAccessFor
+            ? { full_name: grantAccessFor.full_name, email: grantAccessFor.email ?? "" }
+            : undefined
+        }
         onSuccess={handleCreated}
       />
 
