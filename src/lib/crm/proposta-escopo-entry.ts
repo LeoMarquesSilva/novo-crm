@@ -9,7 +9,12 @@ import {
   type PropostaEscopoDetalheEntry,
   type PropostaTiposCatalog,
 } from "@/data/proposta-tipos-catalog";
-import { findInvestmentSubtype, findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
+import {
+  findInvestmentSubtype,
+  findScopeSubtype,
+  investmentSubtypeFieldKeys,
+  scopeSubtypeFieldKeys,
+} from "@/lib/crm/proposal-catalog-utils";
 import {
   investmentSubtypeHasParcelas,
   validateParcelasPlaceholders,
@@ -70,7 +75,7 @@ export function isEscopoEntryCompleteWithCatalog(
   const catalogArea = normalizePracticeAreaKey(areaKeyFromRow);
   const sub = findScopeSubtype(scopeCatalog, catalogArea, entry.tipoId, entry.subtipoId);
   if (!sub) return false;
-  const keys = sub.placeholderKeys ?? [];
+  const keys = scopeSubtypeFieldKeys(sub);
   for (const k of keys) {
     const v = entry.placeholders?.[k]?.trim() ?? "";
     if (!v) return false;
@@ -81,10 +86,11 @@ export function isEscopoEntryCompleteWithCatalog(
   const invSub = findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId);
   if (!invSub) return false;
   const invPh = inv.placeholders ?? {};
-  if (investmentSubtypeHasParcelas(invSub.placeholderKeys)) {
+  const invKeys = investmentSubtypeFieldKeys(invSub);
+  if (investmentSubtypeHasParcelas(invKeys)) {
     if (!validateParcelasPlaceholders(invPh)) return false;
   }
-  for (const k of invSub.placeholderKeys) {
+  for (const k of invKeys) {
     if (k === "PARCELAS" || k === "VALORPARCELA" || k === "DETALHEPARCELAS") continue;
     const v = invPh[k]?.trim() ?? "";
     if (!v) return false;

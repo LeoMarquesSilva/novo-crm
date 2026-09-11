@@ -78,7 +78,7 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - `/crm/admin/proposta-escopo`: catálogo de escopos e investimentos (CRUD admin).
 - `/crm/admin/proposta-escopo/importacao`: wizard de importação em massa de PDF/DOCX → extração IA → consolidação → revisão/aprovação para o catálogo.
 
-**Proposta — investimento no Word:** o placeholder `[INVESTIMENTO]` recebe um único parágrafo com valor total consolidado (soma das áreas, editável manualmente e com forma de pagamento no builder). Valores por área em `cp_escopo_detalhe_json` permanecem para coordenação interna; a chave reservada `__investimentoDocumento__` no mesmo JSON guarda tipo/subtipo e placeholders do documento.
+**Proposta — investimento no Word:** o placeholder `[INVESTIMENTO]` recebe um único parágrafo com valor total consolidado (soma das áreas, editável manualmente e com forma de pagamento no builder). Valores por área em `cp_escopo_detalhe_json` permanecem para coordenação interna; a chave reservada `__investimentoDocumento__` no mesmo JSON guarda tipo/subtipo e placeholders do documento. Previews de escopo e investimento (modal da área, catálogo e página do documento) usam texto justificado (`JustifiedDocumentText`). Placeholders `[CHAVE]` no template do catálogo entram no formulário de inclusão (união com `placeholder_keys`); o modal recarrega o catálogo ao abrir e ao voltar para a aba.
 - `/crm/perfil`: edição do próprio `app_users` (nome, área, URL da foto).
 
 Observação: a navegação principal está no `AppShell` — inclui seção "Administração" com links para Usuários e Campos, e rodapé com conta (avatar, link para perfil, sair).

@@ -20,7 +20,10 @@ import {
   mergeEscopoTemplate,
   mergeInvestimentoTemplate,
 } from "@/lib/crm/proposta-escopo-preview";
-import { extractPlaceholderKeysFromText } from "@/data/proposta-tipos-catalog";
+import {
+  extractPlaceholderKeysFromText,
+  mergePlaceholderKeys,
+} from "@/data/proposta-tipos-catalog";
 import { getAreaLucideIcon } from "@/lib/crm/area-lucide-icon";
 import { CatalogDeleteButton } from "@/components/crm/scope-catalog/catalog-delete-button";
 import {
@@ -32,6 +35,7 @@ import {
   EXAMPLE_NOME_EMPRESA,
 } from "@/components/crm/scope-catalog/placeholder-examples";
 import type { ProposalCatalogAdminData } from "@/lib/crm/proposal-catalog-db";
+import { JustifiedDocumentText } from "@/components/crm/justified-document-text";
 import { cn } from "@/lib/utils";
 
 type ScopeSubtypeRow = ProposalCatalogAdminData["adminRows"]["scopeSubtypes"][number];
@@ -148,6 +152,10 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
     setFeedback(null);
     setError(null);
     try {
+      const placeholderKeys = mergePlaceholderKeys(
+        draft.placeholderKeys,
+        draft.kind === "scope" ? draft.escopoTemplate : draft.template,
+      );
       const body =
         draft.kind === "scope"
           ? {
@@ -155,7 +163,7 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
               id: mode.kind === "scope" ? mode.row.id : "",
               label: draft.label,
               escopoTemplate: draft.escopoTemplate,
-              placeholderKeys: draft.placeholderKeys,
+              placeholderKeys,
               sortOrder: draft.sortOrder,
               isActive: draft.isActive,
             }
@@ -165,7 +173,7 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
               label: draft.label,
               conceito: draft.conceito,
               template: draft.template,
-              placeholderKeys: draft.placeholderKeys,
+              placeholderKeys,
               sortOrder: draft.sortOrder,
               isActive: draft.isActive,
             };
@@ -609,7 +617,7 @@ function ScopePreview({ escopo }: { escopo: string }) {
     <div className="space-y-4 rounded-xl bg-white/92 p-4 text-[13px] leading-[1.65] text-primary-dark shadow-sm ring-1 ring-primary-dark/8">
       <PreviewSection label="Texto do escopo">
         {escopo.trim() ? (
-          <p className="whitespace-pre-wrap text-justify">{escopo}</p>
+          <JustifiedDocumentText text={escopo} />
         ) : (
           <p className="italic text-slate-400">Nenhum texto definido ainda.</p>
         )}
@@ -623,13 +631,16 @@ function InvestmentPreview({ conceito, template }: { conceito: string; template:
     <div className="space-y-4 rounded-xl bg-white/92 p-4 text-[13px] leading-[1.65] text-primary-dark shadow-sm ring-1 ring-primary-dark/8">
       {conceito.trim() ? (
         <PreviewSection label="Conceito">
-          <p className="whitespace-pre-wrap text-justify italic text-slate-600">{conceito}</p>
+          <JustifiedDocumentText
+            text={conceito}
+            paragraphClassName="italic text-slate-600"
+          />
         </PreviewSection>
       ) : null}
       <div className={cn(conceito.trim() ? "border-t border-primary-dark/8 pt-4" : "")}>
         <PreviewSection label="Texto renderizado">
           {template.trim() ? (
-            <p className="whitespace-pre-wrap text-justify">{template}</p>
+            <JustifiedDocumentText text={template} />
           ) : (
             <p className="italic text-slate-400">Nenhum texto definido ainda.</p>
           )}

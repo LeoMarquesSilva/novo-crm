@@ -1,5 +1,11 @@
-import type { InvestimentoTipoDef } from "@/data/proposta-investimento-catalog";
-import type { PropostaAreaKey, PropostaTiposCatalog, SubtipoDef, TipoDef } from "@/data/proposta-tipos-catalog";
+import type { InvestimentoTipoDef, InvestimentoSubtipoDef } from "@/data/proposta-investimento-catalog";
+import {
+  mergePlaceholderKeys,
+  type PropostaAreaKey,
+  type PropostaTiposCatalog,
+  type SubtipoDef,
+  type TipoDef,
+} from "@/data/proposta-tipos-catalog";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 
 export function formatScopeTypeLabel(
@@ -42,4 +48,15 @@ export function findInvestmentSubtype(
 ) {
   const tipo = catalog.find((item) => item.tipoId === tipoId);
   return tipo?.subtipos.find((item) => item.subtipoId === subtipoId);
+}
+
+/** Campos pedidos na inclusão: chaves declaradas + `[CHAVE]` do template. */
+export function scopeSubtypeFieldKeys(sub: SubtipoDef | undefined): string[] {
+  if (!sub) return [];
+  return mergePlaceholderKeys(sub.placeholderKeys, sub.escopoTemplate);
+}
+
+export function investmentSubtypeFieldKeys(sub: InvestimentoSubtipoDef | undefined): string[] {
+  if (!sub) return [];
+  return mergePlaceholderKeys(sub.placeholderKeys, sub.template);
 }

@@ -12,7 +12,7 @@ import {
   type InvestimentoTipoDef,
 } from "@/data/proposta-investimento-catalog";
 import type { PropostaInvestimentoDocumento } from "@/data/proposta-tipos-catalog";
-import { findInvestmentSubtype } from "@/lib/crm/proposal-catalog-utils";
+import { findInvestmentSubtype, investmentSubtypeFieldKeys } from "@/lib/crm/proposal-catalog-utils";
 import { investmentSubtypeHasParcelas } from "@/lib/crm/proposta-investimento-parcelas";
 import {
   filterInvestimentoPlaceholderKeys,
@@ -97,7 +97,7 @@ export function PropostaInvestimentoConsolidadoForm({
     doc.tipoId && doc.subtipoId
       ? findInvestmentSubtype(investmentCatalog, doc.tipoId, doc.subtipoId)
       : undefined;
-  const invPlaceholderKeys = invSubDef?.placeholderKeys ?? [];
+  const invPlaceholderKeys = investmentSubtypeFieldKeys(invSubDef);
   const invKeysGeneric = filterInvestimentoPlaceholderKeys(invPlaceholderKeys);
   const primarySumKey = doc.subtipoId ? getPrimarySumKeyForSubtipo(doc.subtipoId) : null;
   const showParcelasBlock = investmentSubtypeHasParcelas(invPlaceholderKeys);
@@ -198,8 +198,8 @@ export function PropostaInvestimentoConsolidadoForm({
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
+      <div className="grid gap-3">
+        <div className="min-w-0 space-y-1.5">
           <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</Label>
           <Select
             value={doc.tipoId ? doc.tipoId : SELECT_EMPTY}
@@ -209,7 +209,7 @@ export function PropostaInvestimentoConsolidadoForm({
               patchDoc({ tipoId, subtipoId: "", placeholders: {}, autoSum: true });
             }}
           >
-            <SelectTrigger className="h-10 border-[#dfe5ee] bg-white shadow-sm">
+            <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-white shadow-sm">
               <SelectValue placeholder="Tipo de investimento">
                 {!doc.tipoId ? "Tipo de investimento" : (invTipoSel?.label ?? doc.tipoId)}
               </SelectValue>
@@ -224,7 +224,7 @@ export function PropostaInvestimentoConsolidadoForm({
             </CrmSelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
           <Label className="text-xs uppercase tracking-wide text-muted-foreground">Subtipo</Label>
           <Select
             value={doc.subtipoId ? doc.subtipoId : SELECT_EMPTY}
@@ -234,10 +234,10 @@ export function PropostaInvestimentoConsolidadoForm({
               patchDoc({ subtipoId, placeholders: {}, autoSum: true });
             }}
           >
-            <SelectTrigger className="h-10 border-[#dfe5ee] bg-white shadow-sm">
-              <SelectValue placeholder="Subtipo">
+            <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-white shadow-sm">
+              <SelectValue placeholder="Selecione o subtipo">
                 {!doc.subtipoId
-                  ? "Subtipo"
+                  ? "Selecione o subtipo"
                   : (invTipoSel?.subtipos.find((s) => s.subtipoId === doc.subtipoId)?.label ??
                     doc.subtipoId)}
               </SelectValue>
