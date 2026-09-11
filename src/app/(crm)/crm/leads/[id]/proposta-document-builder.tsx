@@ -37,16 +37,22 @@ import { Label } from "@/components/ui/label";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
 import { cn } from "@/lib/utils";
 import { LeadDetailFieldEditor, pipelineFieldToEditorProps } from "./lead-detail-field-editor";
 import {
-  buildCanonicalProposalData, buildPropostaPreviewPage, type CanonicalProposalData,
+  buildCanonicalProposalData, type CanonicalProposalData,
 } from "@/lib/crm/proposta-docx-data";
 import { listProposalPendingFields, type ProposalRequiredField } from "@/lib/crm/proposta-document-validation";
 import {
-  persistProposalDraft, readProposalDocxResponse, readProposalPdfResponse, selectProposalDraftValues,
+  createProposalPdfPreviewController,
+  persistProposalDraft,
+  readProposalDocxResponse,
+  readProposalPdfResponse,
+  selectProposalDraftValues,
+  type ProposalPdfPreviewState,
 } from "@/lib/crm/proposta-document-client";
-import { PropostaBodyPages } from "./proposta-preview";
 import { PropostaEscopoAreaCoordenacao } from "./proposta-escopo-area-coordenacao";
 import { PropostaEscopoPorArea } from "./proposta-escopo-por-area";
 import { PropostaInvestimentoConsolidadoForm } from "@/components/crm/proposta-investimento-consolidado-form";
@@ -79,6 +85,13 @@ type Template = {
   templatePath: string;
   version: number;
   fields: ProposalRequiredField[];
+};
+
+type ProposalUserOption = {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
 };
 
 type DocumentState = {
@@ -197,7 +210,8 @@ export function PropostaDocumentBuilder({
   }, [lead.id]);
 
   useEffect(() => {
-    void refreshState();
+    const timer = window.setTimeout(() => void refreshState(), 0);
+    return () => window.clearTimeout(timer);
   }, [refreshState]);
 
   const pending = docState?.snapshot.pending ?? [];
@@ -377,10 +391,24 @@ function PropostaBuilderDialog({
 
   // O escopo local é propagado imediatamente pelo editor de áreas.
   const [escopoJson, setEscopoJson] = useState<string>(initialEscopoJson);
-  const [responsavel, setResponsavel] = useState(docState.snapshot.responsavel ?? "");
+  const leadCreatorField = lead.intakeFields.find((field) => field.key === "cadastrado_por");
+  const leadCreatorName = leadCreatorField?.resolvedUser?.fullName?.trim() ?? "";
+  const initialResponsavel = docState.snapshot.responsavel?.trim() || leadCreatorName;
+  const [responsavel, setResponsavel] = useState(initialResponsavel);
   const [savedResponsavel, setSavedResponsavel] = useState(docState.snapshot.responsavel ?? "");
+  const [proposalUsers, setProposalUsers] = useState<ProposalUserOption[]>([]);
+  const [proposalUsersLoading, setProposalUsersLoading] = useState(true);
   const [generatedAt] = useState(() => new Date().toISOString());
   const [previewing, setPreviewing] = useState(false);
+  const [pdfPreview, setPdfPreview] = useState<ProposalPdfPreviewState>({
+    url: null,
+    sourceSha256: null,
+    updating: false,
+    error: null,
+  });
+  const pdfPreviewControllerRef = useRef<ReturnType<
+    typeof createProposalPdfPreviewController
+  > | null>(null);
   const [scopeSaving, setScopeSaving] = useState(false);
   const operationRef = useRef(false);
   const downloadUrls = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -406,6 +434,50 @@ function PropostaBuilderDialog({
   const [investmentCatalog, setInvestmentCatalog] = useState<InvestimentoTipoDef[]>(
     PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
   );
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    fetch("/api/crm/lead-form-options", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const json = (await response.json()) as {
+          ok?: boolean;
+          data?: { systemUsers?: ProposalUserOption[] };
+        };
+        if (!response.ok || !json.ok) throw new Error("Falha ao carregar colaboradores.");
+        return json.data?.systemUsers ?? [];
+      })
+      .then((users) => {
+        setProposalUsers(users);
+        if (docState.snapshot.responsavel?.trim() || leadCreatorName) return;
+        const creatorReference = leadCreatorField?.value?.trim().toLocaleLowerCase("pt-BR");
+        const creator = creatorReference
+          ? users.find(
+              (user) =>
+                user.id.toLocaleLowerCase("pt-BR") === creatorReference ||
+                user.email.toLocaleLowerCase("pt-BR") === creatorReference ||
+                user.name.toLocaleLowerCase("pt-BR") === creatorReference,
+            )
+          : null;
+        if (creator) setResponsavel((current) => current.trim() || creator.name);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setProposalUsers([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setProposalUsersLoading(false);
+      });
+    return () => controller.abort();
+  }, [
+    docState.snapshot.responsavel,
+    leadCreatorField?.value,
+    leadCreatorName,
+    open,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -444,6 +516,15 @@ function PropostaBuilderDialog({
 
   const selectedTemplateName =
     templates.find((t) => t.id === selectedTemplateId)?.name ?? "Selecione um modelo";
+  const selectedProposalUser = useMemo(
+    () =>
+      proposalUsers.find(
+        (user) =>
+          user.name.trim().toLocaleLowerCase("pt-BR") ===
+          responsavel.trim().toLocaleLowerCase("pt-BR"),
+      ) ?? null,
+    [proposalUsers, responsavel],
+  );
 
   const fieldsBySection = useMemo(() => {
     const out: Record<SectionKey | "revisao", LeadDetailData["pipelineFields"]> = {
@@ -485,10 +566,9 @@ function PropostaBuilderDialog({
     [draftValues.cp_areas_objeto, areasField?.value, investmentCatalog],
   );
 
-  // Canônico do rascunho atual, computado só no cliente (mesmos dados que já
-  // estão carregados: draftValues inicializa do snapshot do servidor e é
-  // editado localmente) — alimenta tanto a validação de pendências quanto a
-  // prévia HTML ao vivo (ver PropostaBodyPages), sem round-trip nenhum.
+  // Canônico local usado para validar o rascunho antes de salvar ou gerar.
+  // A prévia visual não usa este objeto para desenhar páginas: o servidor
+  // renderiza o Word oficial e converte os bytes resultantes para PDF.
   const previewCanonical = useMemo<CanonicalProposalData | null>(() => {
     try {
       return buildCanonicalProposalData({
@@ -505,11 +585,6 @@ function PropostaBuilderDialog({
       return null;
     }
   }, [draftValues, generatedAt, responsavel, lead.empresasIntake, scopeCatalog, investmentCatalog]);
-
-  const previewPage = useMemo(
-    () => (previewCanonical ? buildPropostaPreviewPage(previewCanonical) : null),
-    [previewCanonical],
-  );
 
   const currentValidation = useMemo(() => {
     if (!previewCanonical) return ["Não foi possível validar o rascunho atual. Revise os campos da proposta."];
@@ -528,6 +603,36 @@ function PropostaBuilderDialog({
     }
   }, [previewCanonical, draftValues, responsavel, scopeCatalog, investmentCatalog, templates, selectedTemplateId, docState.template]);
   const pending = currentValidation;
+
+  const schedulePdfPreview = useCallback(() => {
+    if (!selectedTemplateId) return;
+    pdfPreviewControllerRef.current?.schedule(
+      `/api/crm/leads/${encodeURIComponent(lead.id)}/document/preview`,
+      {
+        templateId: selectedTemplateId,
+        generatedAt,
+        responsavel,
+        draftValues: selectProposalDraftValues(draftValues),
+      },
+    );
+  }, [draftValues, generatedAt, lead.id, responsavel, selectedTemplateId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = createProposalPdfPreviewController({
+      onState: setPdfPreview,
+    });
+    pdfPreviewControllerRef.current = controller;
+    return () => {
+      pdfPreviewControllerRef.current = null;
+      controller.dispose();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !selectedTemplateId) return;
+    schedulePdfPreview();
+  }, [open, schedulePdfPreview, selectedTemplateId]);
 
   function fieldChange(code: string, value: string) {
     setDraftValues((prev) => ({ ...prev, [code]: value }));
@@ -639,9 +744,11 @@ function PropostaBuilderDialog({
         <DialogContent
           hideCloseButton
           onPointerDownOutside={(event) => {
-            event.preventDefault();
+            if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
           }}
-          onFocusOutside={(event) => event.preventDefault()}
+          onFocusOutside={(event) => {
+            if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
+          }}
           onEscapeKeyDown={(e) => {
             e.preventDefault();
             handleCloseAttempt();
@@ -776,10 +883,53 @@ function PropostaBuilderDialog({
               <div className="space-y-6">
                 <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-5">
                   <Label htmlFor="proposal-responsavel" className="text-sm font-bold text-primary-dark">Enviado por</Label>
-                  <Input id="proposal-responsavel" value={responsavel} disabled={busy}
-                    onChange={(event) => { setResponsavel(event.target.value); setFeedback(null); }}
-                    placeholder="Nome do responsável pela proposta" />
-                  <p className="text-xs text-muted-foreground">Nome que aparecerá no documento oficial.</p>
+                  <Select
+                    modal={false}
+                    value={selectedProposalUser?.id}
+                    onValueChange={(userId) => {
+                      const user = proposalUsers.find((item) => item.id === userId);
+                      if (!user) return;
+                      setResponsavel(user.name);
+                      setFeedback(null);
+                    }}
+                    disabled={busy || proposalUsersLoading}
+                  >
+                    <SelectTrigger
+                      id="proposal-responsavel"
+                      className="h-auto min-h-10 w-full bg-white py-1.5 [&_[data-slot=select-value]]:w-full"
+                    >
+                      {proposalUsersLoading ? (
+                        <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                          Carregando colaboradores…
+                        </span>
+                      ) : responsavel ? (
+                        <CrmUserLabel
+                          name={responsavel}
+                          avatarUrl={selectedProposalUser?.avatarUrl}
+                          size="sm"
+                          variant="inline"
+                        />
+                      ) : (
+                        <CrmSelectValue placeholder="Selecione um colaborador…" />
+                      )}
+                    </SelectTrigger>
+                    <CrmSelectContent className="max-h-72">
+                      {proposalUsers.map((user) => (
+                        <CrmSelectItem key={user.id} value={user.id} className="py-1.5">
+                          <CrmUserLabel
+                            name={user.name}
+                            avatarUrl={user.avatarUrl}
+                            size="sm"
+                            variant="inline"
+                          />
+                        </CrmSelectItem>
+                      ))}
+                    </CrmSelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Por padrão, usamos quem cadastrou o lead. Este nome aparecerá no documento oficial.
+                  </p>
                 </div>
                 <BuilderSection
                   meta={SECTION_META.cliente}
@@ -903,29 +1053,84 @@ function PropostaBuilderDialog({
             <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
                 <div>
-                  <h3 className="text-sm font-bold text-primary-dark">Prévia da proposta</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-primary-dark">Prévia do Word oficial</h3>
+                    {pdfPreview.updating ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#24615b]">
+                        <Loader2 className="size-3 animate-spin" aria-hidden />
+                        Atualizando
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-1 text-xs text-slate-500" role="status">
-                    {previewPage ? "Atualizada com o rascunho atual." : "Não foi possível montar a prévia com o rascunho atual."}
+                    {pdfPreview.url
+                      ? "PDF convertido diretamente do mesmo Word usado na versão final."
+                      : pdfPreview.error
+                        ? "A conversão do Word não pôde ser concluída."
+                        : "Convertendo o modelo Word com o rascunho atual…"}
                   </p>
                 </div>
-                <Button type="button" variant="outline" size="sm" className="gap-2"
-                  disabled={busy || !selectedTemplateId} onClick={() => void downloadDocument("docx", true)}>
-                  {previewing ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <FileDown className="size-3.5" aria-hidden />}
-                  Baixar prévia Word
-                </Button>
+                <div className="flex items-center gap-2">
+                  {pdfPreview.error ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="gap-2"
+                      disabled={pdfPreview.updating || !selectedTemplateId}
+                      onClick={schedulePdfPreview}
+                    >
+                      <FileText className="size-3.5" aria-hidden />
+                      Tentar novamente
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    disabled={busy || !selectedTemplateId}
+                    onClick={() => void downloadDocument("docx", true)}
+                  >
+                    {previewing ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      <FileDown className="size-3.5" aria-hidden />
+                    )}
+                    Baixar prévia Word
+                  </Button>
+                </div>
               </div>
-              {previewPage ? (
-                <div className="min-h-0 flex-1 overflow-y-auto p-6">
-                  <PropostaBodyPages page={previewPage} />
+              {pdfPreview.url ? (
+                <div className="relative min-h-0 flex-1">
+                  <iframe
+                    key={pdfPreview.url}
+                    src={`${pdfPreview.url}#toolbar=0&navpanes=0&view=FitH`}
+                    title="Prévia da proposta convertida do Word oficial"
+                    className="h-full w-full border-0 bg-slate-200"
+                  />
+                  {pdfPreview.updating ? (
+                    <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-1.5 text-xs font-semibold text-primary-dark shadow-md backdrop-blur">
+                      <Loader2 className="size-3.5 animate-spin text-[#24615b]" aria-hidden />
+                      Convertendo o Word…
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-slate-500">
-                  <FileText className="size-9" aria-hidden />
-                  <p className="text-sm">A prévia será exibida aqui.</p>
+                  {pdfPreview.updating ? (
+                    <Loader2 className="size-8 animate-spin text-[#24615b]" aria-hidden />
+                  ) : (
+                    <FileText className="size-9" aria-hidden />
+                  )}
+                  <p className="max-w-md text-sm">
+                    {pdfPreview.error ??
+                      "Aguarde enquanto o Word oficial é convertido para exibição."}
+                  </p>
                 </div>
               )}
               <p className="shrink-0 border-t border-slate-200 bg-white px-4 py-2 text-xs text-slate-500">
-                Prévia do rascunho, ainda sem salvar. Preencha as pendências para gerar a versão final.
+                Esta visualização não replica o layout: ela é produzida diretamente pelo documento Word oficial.
               </p>
             </main>
           </div>
@@ -934,7 +1139,10 @@ function PropostaBuilderDialog({
 
       {/* Confirmação de descarte do modelo */}
       <AlertDialog open={confirmClose}>
-        <AlertDialogContent>
+        <AlertDialogContent
+          className="z-[130]"
+          overlayClassName="z-[120]"
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
             <AlertDialogDescription>

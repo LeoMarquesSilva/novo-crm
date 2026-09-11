@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useMemo, useState, useTransition } from "react";
 import {
   AlertTriangle,
-  Bell,
   Briefcase,
   Building2,
   CheckCircle2,
@@ -36,13 +35,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -53,6 +45,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import {
   APP_USER_AREAS,
@@ -150,51 +143,6 @@ function userCapability(user: AppUser) {
     className: "border-slate-200 bg-white text-slate-700",
     icon: ShieldCheck,
   };
-}
-
-function UserMetricCard({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string | number;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-[22px] border border-primary-dark/10 bg-white/75 p-4 shadow-sm">
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-extrabold tracking-[-0.05em] text-primary-dark">{value}</p>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{helper}</p>
-    </div>
-  );
-}
-
-// ─── Avatar ───────────────────────────────────────────────────────────────────
-
-function UserAvatar({ user, size = 12 }: { user: AppUser; size?: number }) {
-  return (
-    <div
-      className={cn(
-        "relative shrink-0 overflow-hidden rounded-full border-2 border-white bg-[#edf2f7] shadow-md shadow-slate-900/10",
-        size === 14 ? "h-14 w-14" : "h-12 w-12",
-      )}
-    >
-      {user.avatar_url ? (
-        <Image
-          src={user.avatar_url}
-          alt={user.full_name}
-          fill
-          className="object-cover"
-          unoptimized
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-primary-dark">
-          {user.full_name.charAt(0)}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── User Form Dialog ─────────────────────────────────────────────────────────
@@ -304,6 +252,9 @@ function UserFormDialog({
       <DialogContent
         className="max-h-[92vh] max-w-[min(720px,calc(100vw-2rem))] overflow-hidden rounded-[28px] border-[#dfe5ee] bg-[#f8fafc] p-0 shadow-[0_36px_100px_rgba(16,31,46,0.22)]"
         onPointerDownOutside={(event) => {
+          if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
+        }}
+        onFocusOutside={(event) => {
           if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
         }}
       >
@@ -510,9 +461,9 @@ function UserFormDialog({
   );
 }
 
-// ─── User Card ─────────────────────────────────────────────────────────────────
+// ─── Compact user row ──────────────────────────────────────────────────────────
 
-interface UserCardProps {
+interface UserRowProps {
   user: AppUser;
   onEdit: (user: AppUser) => void;
   onDelete: (id: string) => void;
@@ -520,71 +471,17 @@ interface UserCardProps {
   onGrantAccess: (user: AppUser) => void;
 }
 
-/** Colaborador real do escritório (ORQESTRAI) que ainda não tem login no CRM. */
-function NoAccessUserCard({ user, onGrantAccess }: { user: AppUser; onGrantAccess: (user: AppUser) => void }) {
-  return (
-    <Card className="overflow-hidden border-dashed border-[#dfe5ee] bg-[#fbfcfd] p-0 shadow-none">
-      <CardHeader className="flex flex-row items-start gap-4 border-b border-[#eef1f5] p-5">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white bg-[#edf2f7] text-sm font-semibold text-primary-dark shadow-md shadow-slate-900/10">
-          {user.full_name.charAt(0)}
-        </div>
-        <div className="min-w-0 flex-1">
-          <CardTitle className="truncate text-base font-extrabold tracking-[-0.025em] text-[#102033]">{user.full_name}</CardTitle>
-          <CardDescription className="mt-1 truncate text-xs font-semibold text-slate-500">
-            {user.email ?? "E-mail não cadastrado no RH"}
-          </CardDescription>
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" className="border-slate-300 bg-white text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
-              <UserX className="mr-1 h-3 w-3" />
-              Sem acesso ao CRM
-            </Badge>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 p-5">
-        <div className="grid gap-1 text-xs text-slate-600">
-          <span>
-            <strong className="text-slate-500">Área:</strong> {user.department ?? "—"}
-          </span>
-          <span>
-            <strong className="text-slate-500">Cargo:</strong> {user.position ?? "—"}
-          </span>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="w-full gap-2 border-[#102033]/20 text-[#102033] hover:bg-[#102033]/5"
-          onClick={() => onGrantAccess(user)}
-        >
-          <UserPlus className="h-3.5 w-3.5" />
-          Conceder acesso ao CRM
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function UserCard({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserCardProps) {
+function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRowProps) {
   const [isPending, startTransition] = useTransition();
   const [savedRole, setSavedRole] = useState<string | null>(null);
-
-  if (!user.hasAccess) {
-    return <NoAccessUserCard user={user} onGrantAccess={onGrantAccess} />;
-  }
-
   const areaLabel = user.area ? normalizePracticeAreaKey(user.area) : null;
   const areaMeta = AREA_META[areaLabel ?? ""] ?? AREA_META.Outro;
   const AreaIcon = areaMeta.icon;
   const capability = userCapability(user);
   const CapabilityIcon = capability.icon;
-  const roleMeta = APP_USER_ROLE_LABELS[user.role] ?? {
-    label: user.role,
-    color: "bg-gray-100 text-gray-700",
-  };
 
   async function handleRoleChange(newRole: string | null) {
-    if (!newRole) return;
+    if (!newRole || !user.hasAccess) return;
     startTransition(async () => {
       const res = await fetch(`/api/admin/users/${user.id}/role`, {
         method: "PATCH",
@@ -600,137 +497,175 @@ function UserCard({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserC
   }
 
   return (
-    <Card className="group/card overflow-hidden border-[#dfe5ee] bg-white p-0 shadow-[0_16px_40px_rgba(16,31,46,0.06)] transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(16,31,46,0.1)]">
-      <CardHeader className="relative flex flex-row items-start gap-4 border-b border-[#eef1f5] bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_70%,#eef5f3_100%)] p-5">
-        <div className="pointer-events-none absolute -right-12 -top-14 h-28 w-28 rounded-full bg-[#d8bf82]/20 blur-2xl" />
-        <UserAvatar user={user} size={14} />
-        <div className="min-w-0 flex-1">
-          <CardTitle className="truncate text-base font-extrabold tracking-[-0.025em] text-[#102033]">{user.full_name}</CardTitle>
-          <CardDescription className="mt-1 truncate text-xs font-semibold text-slate-500">
-            {user.email ?? "E-mail não carregado"}
-          </CardDescription>
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${areaMeta.color}`}
-            >
-              <AreaIcon className="mr-1 h-3 w-3" />
-              {areaLabel ?? "—"}
-            </span>
-            <span
-              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${roleMeta.color}`}
-            >
-              {roleMeta.label}
-            </span>
-          </div>
-        </div>
-        <div className="relative z-[1] flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-primary-dark"
-            onClick={() => onEdit(user)}
-            title="Editar usuário"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-red-500"
-                title="Excluir usuário"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  <strong>{user.full_name}</strong> será removido do sistema e
-                  não conseguirá mais fazer login. Esta ação não pode ser
-                  desfeita.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                  onClick={() => onDelete(user.id)}
-                >
-                  Excluir
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4 p-5">
-        {user.orqestraiActive === false ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3">
-            <div className="flex items-center gap-2 text-rose-800">
-              <AlertTriangle className="h-4 w-4" />
-              <p className="text-sm font-extrabold">Ex-colaborador com acesso ativo</p>
-            </div>
-            <p className="mt-1 text-xs leading-relaxed text-rose-700">
-              Consta como inativo no RH, mas ainda tem login no CRM. Revise se o acesso deve ser removido.
-            </p>
-          </div>
-        ) : null}
+    <div
+      className={cn(
+        "group grid gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80",
+        "xl:grid-cols-[minmax(250px,1.45fr)_minmax(150px,0.75fr)_minmax(170px,0.9fr)_minmax(165px,0.85fr)_112px] xl:items-center xl:gap-4",
+        !user.hasAccess && "bg-slate-50/50",
+        user.orqestraiActive === false && "bg-rose-50/40 hover:bg-rose-50/60",
+      )}
+    >
+      <div className="min-w-0">
+        <CrmUserLabel
+          name={user.full_name}
+          avatarUrl={user.avatar_url}
+          size="md"
+          variant="stacked"
+          sublabel={user.email ?? "E-mail não cadastrado"}
+          className="w-full"
+          nameClassName="text-[13px]"
+        />
         {(user.department || user.position) ? (
-          <p className="text-xs text-slate-500">
-            {[user.department, user.position].filter(Boolean).join(" · ")}
+          <p className="mt-1 truncate pl-[42px] text-[11px] text-slate-500">
+            {[user.position, user.department].filter(Boolean).join(" · ")}
           </p>
         ) : null}
-        <div className={cn("rounded-2xl border p-3", capability.className)}>
-          <div className="flex items-center gap-2">
-            <CapabilityIcon className="h-4 w-4" />
-            <p className="text-sm font-extrabold">{capability.label}</p>
-          </div>
-          <p className="mt-1 text-xs leading-relaxed opacity-80">{capability.description}</p>
-        </div>
+      </div>
 
-        {isProposalAreaManager(user) ? (
-          <div className="grid gap-2 rounded-2xl border border-[#dfe5ee] bg-[#f8fafc] p-3 text-xs text-slate-600">
-            <div className="flex items-center gap-2">
-              <Bell className="h-3.5 w-3.5 text-[#24615b]" />
-              Recebe notificações quando a proposta solicitar escopo de {areaLabel}.
-            </div>
-            <div className="flex items-center gap-2">
-              <FileText className="h-3.5 w-3.5 text-[#24615b]" />
-              Pode preencher e concluir a área nas propostas em elaboração.
-            </div>
+      <div className="flex min-w-0 items-center justify-between gap-2 xl:block">
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 xl:hidden">
+          Acesso
+        </span>
+        {user.hasAccess ? (
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Select
+              items={APP_USER_ROLE_SELECT_ITEMS}
+              value={user.role}
+              onValueChange={handleRoleChange}
+              disabled={isPending}
+            >
+              <SelectTrigger
+                aria-label={`Perfil de acesso de ${user.full_name}`}
+                className="h-8 w-[148px] min-w-0 border-slate-200 bg-white text-xs shadow-none xl:w-full"
+              >
+                <CrmSelectValue value={user.role} labels={APP_USER_ROLE_SELECT_ITEMS} />
+              </SelectTrigger>
+              <CrmSelectContent>
+                <CrmSelectItem value="admin">Admin</CrmSelectItem>
+                <CrmSelectItem value="comercial">Comercial</CrmSelectItem>
+                <CrmSelectItem value="controladoria">Controladoria</CrmSelectItem>
+                <CrmSelectItem value="financeiro">Financeiro</CrmSelectItem>
+              </CrmSelectContent>
+            </Select>
+            {savedRole ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-label="Salvo" />
+            ) : null}
           </div>
-        ) : null}
-
-        <div className="flex items-center gap-2">
-          <Select
-            items={APP_USER_ROLE_SELECT_ITEMS}
-            value={user.role}
-            onValueChange={handleRoleChange}
-            disabled={isPending}
+        ) : (
+          <Badge
+            variant="outline"
+            className="h-6 border-dashed border-slate-300 bg-white text-[10px] font-semibold text-slate-600"
           >
-            <SelectTrigger className="h-9 flex-1 border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
-              <CrmSelectValue value={user.role} labels={APP_USER_ROLE_SELECT_ITEMS} />
-            </SelectTrigger>
-            <CrmSelectContent>
-              <CrmSelectItem value="admin">Admin</CrmSelectItem>
-              <CrmSelectItem value="comercial">Comercial</CrmSelectItem>
-              <CrmSelectItem value="controladoria">Controladoria</CrmSelectItem>
-              <CrmSelectItem value="financeiro">Financeiro</CrmSelectItem>
-            </CrmSelectContent>
-          </Select>
+            <UserX className="mr-1 h-3 w-3" />
+            Sem acesso
+          </Badge>
+        )}
+      </div>
 
-          {savedRole ? (
-            <Badge variant="secondary" className="h-7 text-xs">
-              Salvo
-            </Badge>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
+      <div className="flex min-w-0 items-center justify-between gap-2 xl:block">
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 xl:hidden">
+          Área
+        </span>
+        <span
+          className={cn(
+            "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            user.hasAccess ? areaMeta.color : "bg-slate-100 text-slate-600",
+          )}
+          title={areaLabel ?? user.department ?? "Sem área vinculada"}
+        >
+          <AreaIcon className="h-3 w-3 shrink-0" />
+          <span className="truncate">{areaLabel ?? user.department ?? "Sem área"}</span>
+        </span>
+      </div>
+
+      <div className="flex min-w-0 items-center justify-between gap-2 xl:block">
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 xl:hidden">
+          Situação
+        </span>
+        {user.orqestraiActive === false ? (
+          <Badge
+            variant="outline"
+            className="h-6 border-rose-200 bg-rose-50 text-[10px] font-semibold text-rose-700"
+            title="Inativo no RH, mas ainda com login no CRM"
+          >
+            <AlertTriangle className="mr-1 h-3 w-3" />
+            Revisar acesso
+          </Badge>
+        ) : user.hasAccess ? (
+          <span
+            className={cn(
+              "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold",
+              capability.className,
+            )}
+            title={capability.description}
+          >
+            <CapabilityIcon className="h-3 w-3 shrink-0" />
+            <span className="truncate">{capability.label}</span>
+          </span>
+        ) : (
+          <span className="text-right text-[11px] text-slate-500 xl:text-left">
+            Disponível no quadro do RH
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center justify-end gap-1 border-t border-slate-100 pt-2 xl:border-0 xl:pt-0">
+        {!user.hasAccess ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 border-primary-dark/20 px-2.5 text-[11px] text-primary-dark"
+            onClick={() => onGrantAccess(user)}
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Conceder acesso
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-500 hover:bg-slate-100 hover:text-primary-dark"
+              onClick={() => onEdit(user)}
+              title="Editar usuário"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                  title="Excluir usuário"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    <strong>{user.full_name}</strong> será removido do sistema e não conseguirá
+                    mais fazer login. Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-red-600 text-white hover:bg-red-700"
+                    onClick={() => onDelete(user.id)}
+                  >
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -814,15 +749,22 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
     }
   }
 
-  const adminCount = users.filter((u) => u.role === "admin").length;
   const comercialCount = users.filter((u) => u.role === "comercial").length;
   const proposalManagersCount = users.filter(isProposalAreaManager).length;
-  const internalAreaCount = users.filter((u) => u.area && PROFILE_ONLY_AREA_SET.has(u.area)).length;
+  const internalAreaCount = users.filter(
+    (u) => u.area && PROFILE_ONLY_AREA_SET.has(normalizePracticeAreaKey(u.area)),
+  ).length;
   const noAccessCount = users.filter((u) => !u.hasAccess).length;
   const formerWithAccessCount = users.filter((u) => u.hasAccess && u.orqestraiActive === false).length;
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    roleFilter !== "all" ||
+    areaFilter !== "all" ||
+    managerFilter !== "all" ||
+    accessFilter !== "all";
 
   const roleFilterItems = useMemo(() => {
-    const m: Record<string, string> = { all: "Todas as roles" };
+    const m: Record<string, string> = { all: "Todos os perfis" };
     for (const role of roleOptions) {
       m[role] = APP_USER_ROLE_LABELS[role]?.label ?? role;
     }
@@ -851,58 +793,73 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
   };
 
   return (
-    <div className="space-y-5">
-      <section className="overflow-hidden rounded-[28px] border border-white/55 bg-white/70 shadow-sm shadow-primary-dark/10">
-        <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="relative overflow-hidden bg-[#0b1724] px-6 py-6 text-white md:px-8">
-            <div className="absolute inset-0 bg-crm-gradient-dark opacity-85" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(45,200,183,0.28),transparent_34%),linear-gradient(135deg,rgba(8,22,36,0.15),rgba(4,13,22,0.92))]" />
-            <div className="absolute -right-16 -top-24 h-56 w-56 rounded-full border border-white/10 bg-white/8 blur-2xl" />
-            <div className="relative flex flex-col gap-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/15 shadow-lg shadow-black/20 backdrop-blur">
-                  <UsersRound className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="inline-flex rounded-full border border-accent-green/35 bg-accent-green/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">
-                    Administração de acesso
-                  </p>
-                  <h2 className="mt-2 text-2xl font-bold leading-tight tracking-[-0.03em] text-white md:text-3xl">
-                    Usuários, áreas e gestores de proposta
-                  </h2>
-                </div>
-              </div>
-              <p className="max-w-3xl text-sm leading-6 text-slate-100/90">
-                Um usuário comercial com área de prática definida é tratado como gestor dessa área: recebe notificações,
-                preenche escopos e aparece como responsável nas propostas.
+    <div className="space-y-4">
+      <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between md:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-dark text-white shadow-sm">
+              <UsersRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#24615b]">
+                Administração de acesso
+              </p>
+              <h1 className="mt-0.5 text-xl font-bold tracking-[-0.025em] text-primary-dark">
+                Usuários do sistema
+              </h1>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
+                Gerencie acessos, funções e responsáveis por área sem sair da lista.
               </p>
             </div>
           </div>
-          <div className="grid gap-3 bg-white/55 p-5 sm:grid-cols-2">
-            <UserMetricCard label="Usuários" value={users.length} helper={`${filtered.length} visíveis no filtro atual`} />
-            <UserMetricCard label="Comercial" value={comercialCount} helper="Equipe que atua nos leads e propostas" />
-            <UserMetricCard label="Gestores" value={proposalManagersCount} helper="Comercial + área de prática" />
-            <UserMetricCard label="Internas" value={internalAreaCount} helper="Áreas sem fila de escopo própria" />
-            <UserMetricCard label="Sem acesso" value={noAccessCount} helper="Colaboradores do RH sem login no CRM" />
-            <UserMetricCard
-              label="Ex-colaboradores"
-              value={formerWithAccessCount}
-              helper="Login ativo, mas inativo no RH — revisar"
-            />
-          </div>
+          <Button
+            size="sm"
+            className="h-9 shrink-0 gap-2 rounded-xl bg-primary-dark px-4 text-white shadow-sm hover:bg-[#17324a]"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            Novo usuário
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-2 border-t border-slate-100 bg-slate-50/55 sm:grid-cols-3 xl:grid-cols-6">
+          {[
+            { label: "Pessoas", value: users.length },
+            { label: "Comercial", value: comercialCount },
+            { label: "Gestores", value: proposalManagersCount },
+            { label: "Áreas internas", value: internalAreaCount },
+            { label: "Sem acesso", value: noAccessCount },
+            { label: "Revisar acesso", value: formerWithAccessCount, alert: formerWithAccessCount > 0 },
+          ].map((metric) => (
+            <div
+              key={metric.label}
+              className="flex items-baseline justify-between gap-3 border-b border-r border-slate-100 px-4 py-3 last:border-r-0 sm:block xl:border-b-0"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-slate-400">
+                {metric.label}
+              </p>
+              <p
+                className={cn(
+                  "mt-1 text-lg font-bold tabular-nums text-primary-dark",
+                  metric.alert && "text-rose-700",
+                )}
+              >
+                {metric.value}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 
-      <section className="rounded-[24px] border border-[#dfe5ee] bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <div className="relative">
+      <section className="rounded-[20px] border border-slate-200/80 bg-white p-3 shadow-sm">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.35fr)_minmax(150px,0.72fr)_minmax(185px,0.9fr)_minmax(185px,0.9fr)_minmax(170px,0.8fr)_auto]">
+            <div className="relative sm:col-span-2 xl:col-span-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
-                placeholder="Buscar nome, e-mail ou área..."
+                placeholder="Buscar nome, e-mail, cargo ou área..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-10 w-72 border-[#dfe5ee] bg-[#fbfcfd] pl-9 text-sm shadow-sm"
+                className="h-9 w-full border-slate-200 bg-slate-50/60 pl-9 text-sm shadow-none"
               />
             </div>
           <Select
@@ -910,15 +867,15 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             value={roleFilter}
             onValueChange={(v) => setRoleFilter(v ?? "all")}
           >
-            <SelectTrigger className="h-10 w-[170px] border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
+            <SelectTrigger className="h-9 w-full border-slate-200 bg-slate-50/60 text-xs shadow-none">
               <CrmSelectValue
                 value={roleFilter}
                 labels={roleFilterItems}
-                placeholder="Filtrar role"
+                placeholder="Filtrar perfil"
               />
             </SelectTrigger>
             <CrmSelectContent className="min-w-[200px]">
-              <CrmSelectItem value="all">Todas as roles</CrmSelectItem>
+              <CrmSelectItem value="all">Todos os perfis</CrmSelectItem>
               {roleOptions.map((role) => (
                 <CrmSelectItem key={role} value={role}>
                   {APP_USER_ROLE_LABELS[role]?.label ?? role}
@@ -931,7 +888,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             value={areaFilter}
             onValueChange={(v) => setAreaFilter(v ?? "all")}
           >
-            <SelectTrigger className="h-10 w-[210px] border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
+            <SelectTrigger className="h-9 w-full border-slate-200 bg-slate-50/60 text-xs shadow-none">
               <CrmSelectValue
                 value={areaFilter}
                 labels={areaFilterItems}
@@ -960,7 +917,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             value={managerFilter}
             onValueChange={(v) => setManagerFilter(v ?? "all")}
           >
-            <SelectTrigger className="h-10 w-[210px] border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
+            <SelectTrigger className="h-9 w-full border-slate-200 bg-slate-50/60 text-xs shadow-none">
               <CrmSelectValue
                 value={managerFilter}
                 labels={managerFilterItems}
@@ -979,7 +936,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             value={accessFilter}
             onValueChange={(v) => setAccessFilter(v ?? "all")}
           >
-            <SelectTrigger className="h-10 w-[200px] border-[#dfe5ee] bg-[#fbfcfd] text-xs shadow-sm">
+            <SelectTrigger className="h-9 w-full border-slate-200 bg-slate-50/60 text-xs shadow-none">
               <CrmSelectValue
                 value={accessFilter}
                 labels={accessFilterItems}
@@ -992,38 +949,86 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
               <CrmSelectItem value="former_with_access">Ex-colaborador com acesso</CrmSelectItem>
             </CrmSelectContent>
           </Select>
-          <span className="hidden text-xs text-muted-foreground xl:block">
-            {filtered.length} de {users.length} • {adminCount} admin • {proposalManagersCount} gestores
-          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 px-3 text-xs text-slate-500"
+            disabled={!hasActiveFilters}
+            onClick={() => {
+              setSearch("");
+              setRoleFilter("all");
+              setAreaFilter("all");
+              setManagerFilter("all");
+              setAccessFilter("all");
+            }}
+          >
+            Limpar filtros
+          </Button>
         </div>
-        <Button
-          size="sm"
-          className="h-10 gap-2 rounded-2xl bg-[#102033] px-4 text-white shadow-md shadow-primary-dark/20 hover:bg-[#17324a]"
-          onClick={() => setCreateOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          Novo Usuário
-        </Button>
-      </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((user) => (
-          <UserCard
-            key={user.id}
-            user={user}
-            onEdit={setEditUser}
-            onDelete={handleDelete}
-            onRoleChange={handleRoleChange}
-            onGrantAccess={setGrantAccessFor}
-          />
-        ))}
+      <section className="overflow-hidden rounded-[20px] border border-slate-200/80 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <p className="text-sm font-semibold text-primary-dark">
+            {filtered.length} {filtered.length === 1 ? "pessoa" : "pessoas"}
+          </p>
+          <p className="text-[11px] text-slate-500">
+            {hasActiveFilters ? `de ${users.length} no total` : "Acesso e função editáveis na lista"}
+          </p>
+        </div>
+        <div className="hidden grid-cols-[minmax(250px,1.45fr)_minmax(150px,0.75fr)_minmax(170px,0.9fr)_minmax(165px,0.85fr)_112px] gap-4 border-b border-slate-100 bg-slate-50/70 px-4 py-2 xl:grid">
+          {["Pessoa", "Perfil de acesso", "Área", "Situação", "Ações"].map((label, index) => (
+            <span
+              key={label}
+              className={cn(
+                "text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400",
+                index === 4 && "text-right",
+              )}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+        <div className="divide-y divide-slate-100">
+          {filtered.map((user) => (
+            <UserRow
+              key={user.id}
+              user={user}
+              onEdit={setEditUser}
+              onDelete={handleDelete}
+              onRoleChange={handleRoleChange}
+              onGrantAccess={setGrantAccessFor}
+            />
+          ))}
+        </div>
         {filtered.length === 0 && (
-          <div className="col-span-full py-12 text-center text-muted-foreground">
-            Nenhum usuário encontrado.
+          <div className="flex flex-col items-center px-6 py-14 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <Search className="h-4 w-4" />
+            </div>
+            <p className="mt-3 text-sm font-semibold text-primary-dark">Nenhuma pessoa encontrada</p>
+            <p className="mt-1 text-xs text-slate-500">Altere a busca ou limpe os filtros aplicados.</p>
+            {hasActiveFilters ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-4 h-8 text-xs"
+                onClick={() => {
+                  setSearch("");
+                  setRoleFilter("all");
+                  setAreaFilter("all");
+                  setManagerFilter("all");
+                  setAccessFilter("all");
+                }}
+              >
+                Limpar filtros
+              </Button>
+            ) : null}
           </div>
         )}
-      </div>
+      </section>
 
       {/* Dialog criação — também usado para "Conceder acesso" a colaborador sem login */}
       <UserFormDialog
