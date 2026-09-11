@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
+import { getOrqestraiColaboradoresLocal } from "@/lib/orqestrai/client";
 
 export async function GET() {
   try {
@@ -10,19 +11,24 @@ export async function GET() {
     if (!auth.ok) return auth.response;
 
     const supabase = createSupabaseAdminClient();
-    const [{ data: users, error: usersError }, authUsersResult, { data: indicators, error: indicatorsError }] =
-      await Promise.all([
-        supabase
-          .from("app_users")
-          .select("id, full_name, auth_user_id, avatar_url")
-          .order("full_name", { ascending: true }),
-        supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-        supabase
-          .from("indicadores")
-          .select("nome")
-          .eq("status", "aprovado")
-          .order("nome", { ascending: true }),
-      ]);
+    const [
+      { data: users, error: usersError },
+      authUsersResult,
+      { data: indicators, error: indicatorsError },
+      orqestraiCollaborators,
+    ] = await Promise.all([
+      supabase
+        .from("app_users")
+        .select("id, full_name, auth_user_id, avatar_url")
+        .order("full_name", { ascending: true }),
+      supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+      supabase
+        .from("indicadores")
+        .select("nome")
+        .eq("status", "aprovado")
+        .order("nome", { ascending: true }),
+      getOrqestraiColaboradoresLocal(supabase),
+    ]);
 
     if (usersError) {
       return NextResponse.json({ ok: false, error: usersError.message }, { status: 500 });
@@ -85,11 +91,27 @@ export async function GET() {
         }
       : null;
 
+    // Quadro real de colaboradores (RH do ORQESTRAI) para o seletor de indicação
+    // "Colaborador" — inclui gente sem login no CRM, ao contrário de `systemUsers`.
+    // Só ativos: não faz sentido indicar por alguém que já saiu do escritório.
+    // Sem foto própria no RH; cai no mesmo placeholder que `systemUsers` usa.
+    const orqestraiActiveCollaborators = (orqestraiCollaborators ?? [])
+      .filter((c) => c.isActive)
+      .map((c) => ({
+        id: c.id,
+        name: c.fullName,
+        email: c.email ?? "",
+        avatarUrl: `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(c.fullName)}`,
+      }));
+
     return NextResponse.json({
       ok: true,
       data: {
         currentUser,
         systemUsers,
+        // Fallback pros usuários do próprio CRM se o banco do ORQESTRAI estiver fora do ar.
+        orqestraiCollaborators:
+          orqestraiActiveCollaborators.length > 0 ? orqestraiActiveCollaborators : systemUsers,
         approvedIndicators: (indicators ?? []).map((item) => item.nome),
       },
     });

@@ -94,6 +94,7 @@ interface ClientOption {
 interface LeadFormBootstrapPayload {
   currentUser: SystemUserOption | null;
   systemUsers: SystemUserOption[];
+  orqestraiCollaborators: SystemUserOption[];
   approvedIndicators: string[];
 }
 
@@ -318,6 +319,7 @@ function ReviewItem({
 export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps) {
   const modalPortalRef = useRef<HTMLDivElement | null>(null);
   const [systemUsers, setSystemUsers] = useState<SystemUserOption[]>([]);
+  const [orqestraiCollaborators, setOrqestraiCollaborators] = useState<SystemUserOption[]>([]);
   const [currentUser, setCurrentUser] = useState<SystemUserOption | null>(null);
   const [approvedIndicators, setApprovedIndicators] = useState<string[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -342,11 +344,12 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [horarioReuniao, setHorarioReuniao] = useState("");
   const [tipoLead, setTipoLead] = useState<(typeof leadTypes)[number]>("Indicacao");
   const [tipoIndicacao, setTipoIndicacao] = useState("");
-  const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<"existing" | "new">(
+  const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<"existing" | "new" | "colaborador">(
     "existing",
   );
   const [nomeIndicacaoExisting, setNomeIndicacaoExisting] = useState("");
   const [nomeIndicacaoNew, setNomeIndicacaoNew] = useState("");
+  const [nomeIndicacaoColaboradorId, setNomeIndicacaoColaboradorId] = useState("");
   const [tipoIndicacaoOpen, setTipoIndicacaoOpen] = useState(false);
   const [nomeIndicacaoOpen, setNomeIndicacaoOpen] = useState(false);
   const [companyTypeOpenIndex, setCompanyTypeOpenIndex] = useState<number | null>(null);
@@ -358,6 +361,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     () => systemUsers.find((user) => user.id === solicitanteUserId) ?? null,
     [systemUsers, solicitanteUserId],
   );
+  const isIndicacaoColaborador = tipoLead === "Indicacao" && tipoIndicacao === "Colaborador";
+  const nomeIndicacaoColaboradorNome =
+    orqestraiCollaborators.find((user) => user.id === nomeIndicacaoColaboradorId)?.name ?? "";
   const reuniaoMinDate = useMemo(() => {
     if (dueDiligence !== "Sim" || !prazoDue) return "";
     const minDate = new Date(`${prazoDue}T00:00:00`);
@@ -377,7 +383,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       return Boolean(
         tipoIndicacao &&
           ((nomeIndicacaoMode === "existing" && nomeIndicacaoExisting) ||
-            (nomeIndicacaoMode === "new" && nomeIndicacaoNew.trim())),
+            (nomeIndicacaoMode === "new" && nomeIndicacaoNew.trim()) ||
+            (nomeIndicacaoMode === "colaborador" && nomeIndicacaoColaboradorId)),
       );
     }
     if (isCrossSelling) {
@@ -387,6 +394,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   }, [
     aditivoClientId,
     isCrossSelling,
+    nomeIndicacaoColaboradorId,
     nomeIndicacaoExisting,
     nomeIndicacaoMode,
     nomeIndicacaoNew,
@@ -518,6 +526,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
 
         if (!cancelled) {
           setSystemUsers(payload.data.systemUsers ?? []);
+          setOrqestraiCollaborators(payload.data.orqestraiCollaborators ?? []);
           setApprovedIndicators(payload.data.approvedIndicators ?? []);
           setCurrentUser(payload.data.currentUser ?? null);
         }
@@ -529,6 +538,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               : "Falha ao carregar opções do formulário.";
           setError(message);
           setSystemUsers([]);
+          setOrqestraiCollaborators([]);
           setApprovedIndicators([]);
           setCurrentUser(null);
         }
@@ -679,6 +689,13 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       if (tipoLead === "Indicacao" && nomeIndicacaoMode === "new" && !nomeIndicacaoNew.trim()) {
         return "Informe o nome da indicação para aprovação.";
       }
+      if (
+        tipoLead === "Indicacao" &&
+        nomeIndicacaoMode === "colaborador" &&
+        !nomeIndicacaoColaboradorId
+      ) {
+        return "Selecione o colaborador que fez a indicação.";
+      }
       if (isCrossSelling && !aditivoClientId) {
         return "Selecione um cliente existente para o fluxo de cross selling.";
       }
@@ -796,7 +813,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       tipoLead === "Indicacao" &&
       (!tipoIndicacao ||
         (nomeIndicacaoMode === "existing" && !nomeIndicacaoExisting) ||
-        (nomeIndicacaoMode === "new" && !nomeIndicacaoNew.trim()))
+        (nomeIndicacaoMode === "new" && !nomeIndicacaoNew.trim()) ||
+        (nomeIndicacaoMode === "colaborador" && !nomeIndicacaoColaboradorId))
     ) {
       setError("Preencha os campos de indicação.");
       return false;
@@ -858,7 +876,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
         tipoLead === "Indicacao"
           ? nomeIndicacaoMode === "existing"
             ? nomeIndicacaoExisting
-            : nomeIndicacaoNew.trim()
+            : nomeIndicacaoMode === "colaborador"
+              ? nomeIndicacaoColaboradorNome
+              : nomeIndicacaoNew.trim()
           : null,
       contexto_comercial: null,
     };
@@ -932,7 +952,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     tipoLead === "Indicacao"
       ? nomeIndicacaoMode === "existing"
         ? nomeIndicacaoExisting || "Não informado"
-        : nomeIndicacaoNew.trim() || "Não informado"
+        : nomeIndicacaoMode === "colaborador"
+          ? nomeIndicacaoColaboradorNome || "Não informado"
+          : nomeIndicacaoNew.trim() || "Não informado"
       : "Não aplicável";
   const selectedClient = clients.find((client) => client.id === aditivoClientId);
 
@@ -1115,7 +1137,16 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         modal={false}
                         items={INDICATION_TYPE_SELECT_ITEMS}
                         value={tipoIndicacao}
-                        onValueChange={(v) => setTipoIndicacao(v ?? "")}
+                        onValueChange={(v) => {
+                          const next = v ?? "";
+                          setTipoIndicacao(next);
+                          if (next === "Colaborador") {
+                            setNomeIndicacaoMode("colaborador");
+                          } else if (nomeIndicacaoMode === "colaborador") {
+                            setNomeIndicacaoMode("existing");
+                            setNomeIndicacaoColaboradorId("");
+                          }
+                        }}
                       >
                         <SelectTrigger
                           className={cn(
@@ -1139,6 +1170,18 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       </Select>
                     </SelectField>
 
+                    {isIndicacaoColaborador ? (
+                      <UserPickerField
+                        label="Colaborador que indicou *"
+                        placeholder={
+                          loadingFormOptions ? "Carregando colaboradores..." : "Selecione o colaborador"
+                        }
+                        options={orqestraiCollaborators}
+                        value={nomeIndicacaoColaboradorId}
+                        onChange={setNomeIndicacaoColaboradorId}
+                        disabled={loadingFormOptions}
+                      />
+                    ) : (
                     <SelectField label="Nome da Indicação *" className="min-w-0">
                       <Select
                         open={nomeIndicacaoOpen}
@@ -1190,6 +1233,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         />
                       ) : null}
                     </SelectField>
+                    )}
                   </div>
                 ) : isCrossSelling ? (
                   <ClientPickerField
