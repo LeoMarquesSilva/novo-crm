@@ -16,7 +16,9 @@ export type CurrentUserProfile = {
   profile: AppUserProfile | null;
 };
 
-export async function getCurrentUserProfile(): Promise<CurrentUserProfile> {
+export async function getCurrentUserProfile(
+  options?: { officialAvatar?: boolean },
+): Promise<CurrentUserProfile> {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -33,6 +35,10 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfile> {
     .maybeSingle();
 
   if (!profile) return { user, profile: null };
+
+  if (options?.officialAvatar === false) {
+    return { user, profile };
+  }
 
   const officialUrl = (await resolveOfficialAvatarUrls([profile.id])).get(profile.id);
 
@@ -78,7 +84,7 @@ export async function requireAdminApi(): Promise<
   | { ok: true; user: User; profile: AppUserProfile }
   | { ok: false; response: NextResponse }
 > {
-  const { user, profile } = await getCurrentUserProfile();
+  const { user, profile } = await getCurrentUserProfile({ officialAvatar: false });
 
   if (!user) {
     return {
@@ -107,7 +113,7 @@ export async function requireAuthApi(): Promise<
   | { ok: true; user: User; profile: AppUserProfile }
   | { ok: false; response: NextResponse }
 > {
-  const { user, profile } = await getCurrentUserProfile();
+  const { user, profile } = await getCurrentUserProfile({ officialAvatar: false });
 
   if (!user) {
     return {

@@ -79,7 +79,7 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - `/crm/admin/proposta-escopo`: catálogo de escopos e investimentos (CRUD admin).
 - `/crm/admin/proposta-escopo/importacao`: wizard de importação em massa de PDF/DOCX → extração IA → consolidação → revisão/aprovação para o catálogo.
 
-**Proposta — investimento no Word:** o placeholder `[@INVESTIMENTO]` recebe um bloco com valor total consolidado (soma das áreas, editável manualmente e com forma de pagamento no builder). Valores por área em `cp_escopo_detalhe_json` permanecem para coordenação interna; a chave reservada `__investimentoDocumento__` no mesmo JSON guarda tipo/subtipo e placeholders do documento.
+**Proposta — investimento no Word:** o placeholder `[INVESTIMENTO]` recebe um bloco com valor total consolidado (soma das áreas, editável manualmente e com forma de pagamento no builder — mais de uma forma por documento, ver `PropostaInvestimentoDocumentoItem`). Valores por área em `cp_escopo_detalhe_json` permanecem para coordenação interna; a chave reservada `__investimentoDocumento__` no mesmo JSON guarda tipo/subtipo e placeholders do documento. Previews de escopo e investimento (modal da área, catálogo e página do documento) usam texto justificado (`JustifiedDocumentText`). Placeholders `[CHAVE]` no template do catálogo entram no formulário de inclusão (união com `placeholder_keys`); o modal recarrega o catálogo ao abrir e ao voltar para a aba.
 - `/crm/perfil`: edição do próprio `app_users` (nome, área, URL da foto).
 
 ### 4.1 Motor documental da proposta BP (02/09/2026)
@@ -123,9 +123,10 @@ Regras:
 - bloqueia pulo e retrocesso no serviço atual;
 - valida pré-condições por etapa:
   - `proposta_enviada` exige `linkProposta`;
-  - `contrato_elaborado` e `contrato_assinado` exigem `linkContrato`.
+  - `contrato_elaborado` e `contrato_assinado` exigem `linkContrato`;
+  - `reuniao` confirma local/data/horário já gravados no intake ou na transição para `due_diligence_finalizada` (pré-preenchidos; editáveis).
 
-No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e permite arrastar negociações entre colunas com atualização imediata na UI (estado local do board).
+No front de leads, o kanban renderiza as 12 etapas em colunas dedicadas. Ao arrastar, o card vai imediatamente para a coluna de destino (estado local) e o modal de dados obrigatórios abre na hora (esqueleto até a API responder). `GET /api/crm/leads/transition-requirements` busca oportunidade, intake, campos e valores em paralelo. Cancelar ou falhar a validação devolve o card à origem. Edições na ficha gravam via PATCH sem `router.refresh()` da página inteira; o Realtime não recarrega a ficha só por `field_values`/`lead_intakes`. APIs autenticadas (`requireAuthApi`) não esperam a API de fotos oficiais.
 
 ## 6) Contratos de API atuais
 
@@ -165,6 +166,7 @@ No front de leads, o kanban agora renderiza as 12 etapas em colunas dedicadas e 
 ### 6.2 Workflow
 
 - **`POST /api/crm/leads/transition`** — transição autenticada de etapa (uso atual do kanban e da ficha).
+- **`PATCH /api/crm/leads/[id]/due-area-review-adjustments`** — conclui tarefas com ajustes solicitados na Compilação. Body: `{ taskIds, evidenceKind: "file" | "link", evidenceLink?, completionNote? }`. `link` exige `evidenceLink` (http/https) e grava `oportunidades.link_proposta`; `file` exige um PPT em `due_documents` enviado após a solicitação de ajustes (o modal da ficha coleta o arquivo e faz o upload antes de concluir).
 - **`POST /api/workflow/validate`** e **`POST /api/workflow/transition`** — **descontinuados (410)**; substituídos pelo endpoint CRM acima.
 
 ### 6.3 Integrações
@@ -297,7 +299,7 @@ Testes ativos incluem workflow/autorizações do CRM, suítes de contratos (dinh
 
 Comandos padrão:
 - `npm run lint`
-- `npm run test`
+- `npm run test` (exclui `verify-leads-vs-sheet`, que exige Supabase; use `npm run verify:sheet` localmente)
 - `npm run build`
 
 ## 11) Cutover e rollback

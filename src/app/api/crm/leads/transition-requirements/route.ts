@@ -5,18 +5,20 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   applyConfeccaoPropostaDefaults,
   buildTransitionWarnings,
+  collectPriorMeetingValues,
   computeLeadIntakeRequirement,
   dedupeConfeccaoPropostaDefinitionsByNormalizedLabel,
   filterConfeccaoContratoTransitionDefinitions,
   filterConfeccaoPropostaTransitionDefinitions,
   filterPropostaEnviadaDuplicateLinkFields,
+  filterReuniaoDuplicateMeetingFields,
   linkFieldsMissing,
   listBlockingCustomFields,
   mapDbFieldToDefinition,
   mergeFieldValuesFromDb,
+  valueJsonToFormValue,
   type PipelineCode,
 } from "@/lib/crm/compute-transition-requirements";
-import { allDueReviewTasksApprovedForCycle } from "@/lib/crm/due-area-tasks";
 import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 import {
@@ -113,8 +115,19 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = createSupabaseAdminClient();
+    const loadMeetingDefs = pipeline === "vendas" && nextStage === "reuniao";
+    const loadIntake = pipeline === "vendas";
+    const loadReviewTasks = pipeline === "vendas" && nextStage === "due_diligence_finalizada";
 
-    const [{ data: row, error: fetchError }, { data: reconRow }] = await Promise.all([
+    const [
+      { data: row, error: fetchError },
+      { data: reconRow },
+      intakeResult,
+      { data: defRows, error: defError },
+      { data: valueRows },
+      meetingDefsResult,
+      reviewTasksResult,
+    ] = await Promise.all([
       supabase
         .from("oportunidades")
         .select("id, etapa, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle")
@@ -126,6 +139,38 @@ export async function GET(request: NextRequest) {
         .eq("oportunidade_id", opportunityId)
         .limit(1)
         .maybeSingle(),
+      loadIntake
+        ? supabase
+            .from("lead_intakes")
+            .select("local_reuniao, data_reuniao, horario_reuniao, empresas_json")
+            .eq("oportunidade_id", opportunityId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("field_definitions")
+        .select("*")
+        .eq("pipeline_code", pipeline as PipelineCode)
+        .eq("stage_code", nextStage)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("field_values")
+        .select("field_definition_id, value_json")
+        .eq("entity_name", "oportunidade")
+        .eq("entity_record_id", opportunityId),
+      loadMeetingDefs
+        ? supabase
+            .from("field_definitions")
+            .select("id, field_code, label, stage_code")
+            .eq("pipeline_code", "vendas")
+            .eq("is_active", true)
+        : Promise.resolve({ data: null, error: null }),
+      loadReviewTasks
+        ? supabase
+            .from("due_area_review_tasks")
+            .select("status, revision_cycle")
+            .eq("oportunidade_id", opportunityId)
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
     if (fetchError) {
@@ -184,14 +229,9 @@ export async function GET(request: NextRequest) {
     let leadIntakeBlockingReason: string | null = null;
 
     let empresasIntake: EmpresaIntakeForModal[] = [];
+    const intakeRow = intakeResult.data;
 
     if (pipeline === "vendas") {
-      const { data: intakeRow } = await supabase
-        .from("lead_intakes")
-        .select("local_reuniao, data_reuniao, horario_reuniao, empresas_json")
-        .eq("oportunidade_id", opportunityId)
-        .maybeSingle();
-
       if (nextStage === "confeccao_proposta" && intakeRow) {
         empresasIntake = parseEmpresasJson(intakeRow.empresas_json);
       }
@@ -219,11 +259,11 @@ export async function GET(request: NextRequest) {
           leadIntakeBlockingReason =
             "A negociação precisa ter passado por Revisão antes de finalizar a DUE.";
         } else {
-          const allApproved = await allDueReviewTasksApprovedForCycle(
-            supabase,
-            opportunityId,
-            cycle,
+          const cycleRows = (reviewTasksResult.data ?? []).filter(
+            (task) => (Number(task.revision_cycle) || 0) === cycle,
           );
+          const allApproved =
+            cycleRows.length > 0 && cycleRows.every((task) => task.status === "ok");
           if (!allApproved) {
             leadIntakeBlockingReason =
               "Todas as áreas devem aprovar a revisão da DUE antes de mover para Due Diligence Finalizada.";
@@ -232,23 +272,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const { data: defRows, error: defError } = await supabase
-      .from("field_definitions")
-      .select("*")
-      .eq("pipeline_code", pipeline as PipelineCode)
-      .eq("stage_code", nextStage)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true });
-
     if (defError) {
       return NextResponse.json({ ok: false, error: defError.message }, { status: 500 });
     }
 
     const defs = filterConfeccaoContratoTransitionDefinitions(
-      dedupeConfeccaoPropostaDefinitionsByNormalizedLabel(
-        filterPropostaEnviadaDuplicateLinkFields(
-          filterConfeccaoPropostaTransitionDefinitions(
-            (defRows ?? []).map((r) => mapDbFieldToDefinition(r as Record<string, unknown>)),
+      filterReuniaoDuplicateMeetingFields(
+        dedupeConfeccaoPropostaDefinitionsByNormalizedLabel(
+          filterPropostaEnviadaDuplicateLinkFields(
+            filterConfeccaoPropostaTransitionDefinitions(
+              (defRows ?? []).map((r) => mapDbFieldToDefinition(r as Record<string, unknown>)),
+              { pipeline: pipeline as PipelineCode, nextStage },
+            ),
             { pipeline: pipeline as PipelineCode, nextStage },
           ),
           { pipeline: pipeline as PipelineCode, nextStage },
@@ -258,11 +293,34 @@ export async function GET(request: NextRequest) {
       { pipeline: pipeline as PipelineCode, nextStage },
     );
 
-    const { data: valueRows } = await supabase
-      .from("field_values")
-      .select("field_definition_id, value_json")
-      .eq("entity_name", "oportunidade")
-      .eq("entity_record_id", opportunityId);
+    const meetingDefs = meetingDefsResult.data;
+
+    if (pipeline === "vendas" && nextStage === "reuniao" && leadIntake) {
+      const valueByDefId = new Map(
+        (valueRows ?? []).map((row) => [String(row.field_definition_id), row.value_json]),
+      );
+      const prior = collectPriorMeetingValues({
+        intake: {
+          local_reuniao: leadIntake.local_reuniao,
+          data_reuniao: leadIntake.data_reuniao,
+          horario_reuniao: leadIntake.horario_reuniao,
+        },
+        fields: (meetingDefs ?? []).map((row) => ({
+          field_code: String(row.field_code),
+          label: String(row.label),
+          stage_code: row.stage_code != null ? String(row.stage_code) : null,
+          value: valueJsonToFormValue(valueByDefId.get(String(row.id))),
+        })),
+      });
+      leadIntake = {
+        ...leadIntake,
+        needed: true,
+        showFields: true,
+        local_reuniao: prior.local_reuniao,
+        data_reuniao: prior.data_reuniao,
+        horario_reuniao: prior.horario_reuniao,
+      };
+    }
 
     let fieldValues = mergeFieldValuesFromDb(defs, valueRows ?? []);
     if (pipeline === "vendas" && nextStage === "reuniao" && leadIntake) {

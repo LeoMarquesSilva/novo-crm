@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-import { extractPlaceholderKeysFromText } from "@/data/proposta-tipos-catalog";
+import { mergePlaceholderKeys } from "@/data/proposta-tipos-catalog";
 import { slugifyFieldCodeFromLabel } from "@/lib/crm/field-code";
 
 type AdminClient = SupabaseClient<Database>;
@@ -10,8 +10,7 @@ export function cleanKey(value: string | undefined, label: string) {
 }
 
 export function cleanPlaceholders(explicit: string[] | undefined, ...texts: string[]) {
-  const keys = explicit?.length ? explicit : extractPlaceholderKeysFromText(...texts);
-  return [...new Set(keys.map((key) => key.trim()).filter(Boolean))];
+  return mergePlaceholderKeys(explicit, ...texts);
 }
 
 export function insertScopeType(

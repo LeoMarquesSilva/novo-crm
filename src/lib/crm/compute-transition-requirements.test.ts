@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { FieldDefinition } from "@/lib/crm/crm-field-schema";
 import {
+  collectPriorMeetingValues,
+  computeLeadIntakeRequirement,
   countBusinessDaysFromTomorrowInclusive,
   dedupeConfeccaoPropostaDefinitionsByNormalizedLabel,
   filterConfeccaoContratoTransitionDefinitions,
   filterConfeccaoPropostaTransitionDefinitions,
   filterPropostaEnviadaDuplicateLinkFields,
+  filterReuniaoDuplicateMeetingFields,
   linkFieldsMissing,
   listBlockingCustomFields,
 } from "./compute-transition-requirements";
@@ -172,6 +175,83 @@ describe("listBlockingCustomFields", () => {
     ];
     const blocking = listBlockingCustomFields(defs, { cp_nome_focal: "João Silva" });
     expect(blocking).toHaveLength(0);
+  });
+});
+
+describe("collectPriorMeetingValues", () => {
+  it("prioriza valores da DUE finalizada sobre o intake", () => {
+    const merged = collectPriorMeetingValues({
+      intake: {
+        local_reuniao: "Sala antiga",
+        data_reuniao: "2026-01-10",
+        horario_reuniao: "09:00",
+      },
+      fields: [
+        {
+          field_code: "dd_local_reuniao",
+          label: "Local da reunião",
+          stage_code: "due_diligence_finalizada",
+          value: "Sala nova",
+        },
+        {
+          field_code: "dd_data_reuniao",
+          label: "Data da reunião",
+          stage_code: "due_diligence_finalizada",
+          value: "2026-09-20",
+        },
+        {
+          field_code: "dd_horario_reuniao",
+          label: "Horário da reunião",
+          stage_code: "due_diligence_finalizada",
+          value: "14:30:00",
+        },
+      ],
+    });
+    expect(merged).toEqual({
+      local_reuniao: "Sala nova",
+      data_reuniao: "2026-09-20",
+      horario_reuniao: "14:30",
+    });
+  });
+});
+
+describe("computeLeadIntakeRequirement", () => {
+  it("traz reunião já preenchida para o usuário só confirmar", () => {
+    const result = computeLeadIntakeRequirement({
+      nextStage: "reuniao",
+      intakeRow: {
+        local_reuniao: "",
+        data_reuniao: null,
+        horario_reuniao: null,
+      },
+      priorMeetingValues: {
+        local_reuniao: "Escritório SP",
+        data_reuniao: "2026-09-22",
+        horario_reuniao: "16:30",
+      },
+    });
+    expect(result.blockingReason).toBeNull();
+    expect(result.snapshot).toMatchObject({
+      needed: true,
+      showFields: true,
+      local_reuniao: "Escritório SP",
+      data_reuniao: "2026-09-22",
+      horario_reuniao: "16:30",
+    });
+  });
+});
+
+describe("filterReuniaoDuplicateMeetingFields", () => {
+  it("remove campos de reunião duplicados na etapa reuniao", () => {
+    const defs = [
+      def({ field_code: "local_reuniao", label: "Local da reunião", stage_code: "reuniao" }),
+      def({ field_code: "obs", label: "Observação", stage_code: "reuniao" }),
+    ];
+    const out = filterReuniaoDuplicateMeetingFields(defs, {
+      pipeline: "vendas",
+      nextStage: "reuniao",
+    });
+    expect(out.map((f) => f.field_code)).toEqual(["obs"]);
   });
 });
 

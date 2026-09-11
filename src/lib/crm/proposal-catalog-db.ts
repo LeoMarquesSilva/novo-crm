@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
+  mergePlaceholderKeys,
   PROPOSTA_TIPOS_CATALOG,
   type PropostaTiposCatalog,
   type TipoDef,
@@ -252,9 +253,10 @@ function mapScopeCatalog(
         subtipoId: String(subtype.subtype_key),
         label: String(subtype.label),
         escopoTemplate: String(subtype.escopo_template ?? ""),
-        placeholderKeys: Array.isArray(subtype.placeholder_keys)
-          ? subtype.placeholder_keys.map(String)
-          : [],
+        placeholderKeys: mergePlaceholderKeys(
+          Array.isArray(subtype.placeholder_keys) ? subtype.placeholder_keys.map(String) : [],
+          String(subtype.escopo_template ?? ""),
+        ),
       })),
     };
     out[area] = [...current, type];
@@ -281,9 +283,10 @@ function mapInvestmentCatalog(
       label: String(subtype.label),
       conceito: String(subtype.conceito ?? ""),
       template: String(subtype.template ?? ""),
-      placeholderKeys: Array.isArray(subtype.placeholder_keys)
-        ? subtype.placeholder_keys.map(String)
-        : [],
+      placeholderKeys: mergePlaceholderKeys(
+        Array.isArray(subtype.placeholder_keys) ? subtype.placeholder_keys.map(String) : [],
+        String(subtype.template ?? ""),
+      ),
     })),
   }));
 }

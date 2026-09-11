@@ -289,8 +289,8 @@ function buildCatalogPatch(
       addCommonCatalogPatchFields(patch, body);
       if (body.escopoTemplate !== undefined) patch.escopo_template = body.escopoTemplate;
       patch.investimento_template = "";
-      if (body.placeholderKeys !== undefined) {
-        patch.placeholder_keys = cleanPlaceholders(body.placeholderKeys);
+      if (body.placeholderKeys !== undefined || body.escopoTemplate !== undefined) {
+        patch.placeholder_keys = cleanPlaceholders(body.placeholderKeys, body.escopoTemplate ?? "");
       }
       return patch;
     }
@@ -304,8 +304,8 @@ function buildCatalogPatch(
       addCommonCatalogPatchFields(patch, body);
       if (body.conceito !== undefined) patch.conceito = body.conceito;
       if (body.template !== undefined) patch.template = body.template;
-      if (body.placeholderKeys !== undefined) {
-        patch.placeholder_keys = cleanPlaceholders(body.placeholderKeys);
+      if (body.placeholderKeys !== undefined || body.template !== undefined) {
+        patch.placeholder_keys = cleanPlaceholders(body.placeholderKeys, body.template ?? "");
       }
       return patch;
     }

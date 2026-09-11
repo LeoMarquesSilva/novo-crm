@@ -51,35 +51,33 @@ export function CatalogTypeEditor({
   onDeleted,
   onDirtyChange,
 }: Props) {
-  const initialDraft = useMemo<Draft>(
-    () => ({
-      label: mode.row.label,
-      areaKey: mode.kind === "scope" ? mode.row.areaKey : "",
-      sortOrder: mode.row.sortOrder,
-      isActive: mode.row.isActive,
-    }),
-    [mode],
-  );
-
-  const [draft, setDraft] = useState<Draft>(initialDraft);
-  const [saved, setSaved] = useState<Draft>(initialDraft);
+  const itemKey = `${mode.kind}:${mode.row.id}`;
+  const [draft, setDraft] = useState<Draft>(() => draftFromMode(mode));
+  const [saved, setSaved] = useState<Draft>(() => draftFromMode(mode));
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset só ao trocar de item. `mode` é um objeto novo a cada render do pai
+  // (onDirtyChange → setState), e resetar por identidade apagava o que o usuário digitava.
   useEffect(() => {
-    setDraft(initialDraft);
-    setSaved(initialDraft);
+    const next = draftFromMode(mode);
+    setDraft(next);
+    setSaved(next);
     setFeedback(null);
     setError(null);
-  }, [initialDraft]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional: só itemKey
+  }, [itemKey]);
 
   const isDirty = useMemo(() => !draftsEqual(draft, saved), [draft, saved]);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
-    return () => onDirtyChange?.(false);
   }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange]);
 
   const areaName = mode.kind === "scope" ? draft.areaKey : mode.breadcrumb[0] ?? "";
   const AreaIcon = getAreaLucideIcon(areaName);
@@ -307,6 +305,15 @@ export function CatalogTypeEditor({
       </div>
     </div>
   );
+}
+
+function draftFromMode(mode: TypeEditorMode): Draft {
+  return {
+    label: mode.row.label,
+    areaKey: mode.kind === "scope" ? mode.row.areaKey : "",
+    sortOrder: mode.row.sortOrder,
+    isActive: mode.row.isActive,
+  };
 }
 
 function draftsEqual(a: Draft, b: Draft): boolean {

@@ -49,6 +49,7 @@ import {
 } from "@/lib/crm/proposta-escopo-json";
 import { applyProposalScopeSave, isProposalScopeAreaDirty } from "@/lib/crm/proposta-escopo-draft";
 import { PropostaEscopoEntryForm } from "@/components/crm/proposta-escopo-entry-form";
+import { JustifiedDocumentText } from "@/components/crm/justified-document-text";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import {
   mergeEscopoTemplate,
@@ -151,22 +152,41 @@ export function PropostaEscopoPorArea({
   );
   const lastDraftSentRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/crm/proposal-catalog")
+  const loadProposalCatalog = useCallback(() => {
+    fetch("/api/crm/proposal-catalog", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((json: { ok?: boolean; data?: { scope?: PropostaTiposCatalog; investment?: InvestimentoTipoDef[] } } | null) => {
-        if (cancelled || !json?.ok || !json.data) return;
+        if (!json?.ok || !json.data) return;
         if (json.data.scope) setScopeCatalog(json.data.scope);
         if (json.data.investment) setInvestmentCatalog(json.data.investment);
       })
       .catch(() => {
         // Fallback estático já está carregado.
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    loadProposalCatalog();
+  }, [loadProposalCatalog]);
+
+  const anyAreaPanelOpen = Object.values(areaPanelOpen).some(Boolean);
+  useEffect(() => {
+    if (!anyAreaPanelOpen) return;
+    loadProposalCatalog();
+  }, [anyAreaPanelOpen, loadProposalCatalog]);
+
+  useEffect(() => {
+    function refreshCatalog() {
+      if (document.visibilityState !== "visible") return;
+      loadProposalCatalog();
+    }
+    window.addEventListener("focus", refreshCatalog);
+    document.addEventListener("visibilitychange", refreshCatalog);
+    return () => {
+      window.removeEventListener("focus", refreshCatalog);
+      document.removeEventListener("visibilitychange", refreshCatalog);
+    };
+  }, [loadProposalCatalog]);
 
   useEffect(() => {
     investimentoMetaRef.current = parseEscopoJsonWithMeta(initialValue).investimentoDocumento;
@@ -1263,15 +1283,23 @@ function PreviewGrid({ escopo, investimento }: { escopo: string; investimento: s
         <div className="grid min-w-0 gap-4">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Escopo</p>
-            <pre className="mt-2 max-h-[min(40vh,280px)] overflow-auto break-words whitespace-pre-wrap rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 font-sans text-xs leading-relaxed text-primary-dark">
-              {escopo}
-            </pre>
+            <div className="crm-scrollbar mt-2 max-h-[min(40vh,280px)] overflow-auto rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 text-xs leading-relaxed text-primary-dark">
+              {escopo.trim() ? (
+                <JustifiedDocumentText text={escopo} />
+              ) : (
+                <p className="italic text-slate-400">—</p>
+              )}
+            </div>
           </div>
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Investimento</p>
-            <pre className="mt-2 max-h-[min(32vh,220px)] overflow-auto break-words whitespace-pre-wrap rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 font-sans text-xs leading-relaxed text-primary-dark">
-              {investimento}
-            </pre>
+            <div className="crm-scrollbar mt-2 max-h-[min(32vh,220px)] overflow-auto rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 text-xs leading-relaxed text-primary-dark">
+              {investimento.trim() ? (
+                <JustifiedDocumentText text={investimento} />
+              ) : (
+                <p className="italic text-slate-400">—</p>
+              )}
+            </div>
           </div>
         </div>
       </div>

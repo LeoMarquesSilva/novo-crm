@@ -89,6 +89,20 @@ export function extractPlaceholderKeysFromText(...texts: string[]): string[] {
   return [...set];
 }
 
+/** União das chaves declaradas com as encontradas no texto (`[CHAVE]`). */
+export function mergePlaceholderKeys(
+  explicit: string[] | undefined | null,
+  ...texts: string[]
+): string[] {
+  const keys: string[] = [];
+  for (const key of explicit ?? []) {
+    const trimmed = String(key).trim();
+    if (trimmed) keys.push(trimmed);
+  }
+  keys.push(...extractPlaceholderKeysFromText(...texts));
+  return [...new Set(keys)];
+}
+
 function st(
   subtipoId: string,
   label: string,

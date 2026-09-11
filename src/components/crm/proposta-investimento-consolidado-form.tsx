@@ -237,8 +237,8 @@ function InvestimentoFormaCard({
         ) : null}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
+      <div className="grid gap-3">
+        <div className="min-w-0 space-y-1.5">
           <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</Label>
           <Select
             value={tipoSelectValue}
@@ -248,7 +248,7 @@ function InvestimentoFormaCard({
               onPatch({ tipoId, subtipoId: "", placeholders: {}, autoSum: true });
             }}
           >
-            <SelectTrigger className="h-10 border-[#dfe5ee] bg-white shadow-sm">
+            <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-white shadow-sm">
               <CrmSelectValue
                 value={tipoSelectValue}
                 labels={tipoLabels}
@@ -265,7 +265,7 @@ function InvestimentoFormaCard({
             </CrmSelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
           <Label className="text-xs uppercase tracking-wide text-muted-foreground">Subtipo</Label>
           <Select
             value={subtipoSelectValue}
@@ -275,7 +275,7 @@ function InvestimentoFormaCard({
               onPatch({ subtipoId, placeholders: {}, autoSum: true });
             }}
           >
-            <SelectTrigger className="h-10 border-[#dfe5ee] bg-white shadow-sm">
+            <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-white shadow-sm">
               <CrmSelectValue
                 value={subtipoSelectValue}
                 labels={subtipoLabels}

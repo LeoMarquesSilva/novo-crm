@@ -77,7 +77,7 @@ import {
   SectionCard,
   StickyFooter,
 } from "@/components/crm/new-lead-modal";
-import { AlertCircle, Calendar, FileText, Link2 } from "lucide-react";
+import { AlertCircle, Calendar, FileText, Link2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -142,14 +142,75 @@ type TransitionModalState = {
   localReuniao: string;
   dataReuniao: string;
   horarioReuniao: string;
+  initialLocalReuniao: string;
+  initialDataReuniao: string;
+  initialHorarioReuniao: string;
   empresasIntake: EmpresaIntakeRow[];
   customFields: FieldDefinition[];
   customValues: Record<string, string | string[] | undefined>;
   /** Avisos não bloqueantes vindos do servidor (ex.: prazo &lt; 2 dias úteis). */
   transitionWarnings: string[];
+  requirementsLoading?: boolean;
 };
 
+function stageLikelyNeedsRequiredModal(
+  nextStage: OpportunityStage,
+  item: Oportunidade,
+): boolean {
+  if (
+    nextStage === "reuniao" ||
+    nextStage === "confeccao_proposta" ||
+    nextStage === "confeccao_contrato" ||
+    nextStage === "due_diligence_finalizada"
+  ) {
+    return true;
+  }
+  if (nextStage === "proposta_enviada" && !item.linkProposta?.trim()) return true;
+  if (
+    (nextStage === "contrato_elaborado" || nextStage === "contrato_assinado") &&
+    !item.linkContrato?.trim()
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function emptyTransitionModal(
+  item: Oportunidade,
+  sourceStage: OpportunityStage,
+  nextStage: OpportunityStage,
+): TransitionModalState {
+  return {
+    item,
+    sourceStage,
+    nextStage,
+    missing: [],
+    linkProposta: item.linkProposta ?? "",
+    linkContrato: item.linkContrato ?? "",
+    leadIntakeNeeded: false,
+    localReuniao: "",
+    dataReuniao: "",
+    horarioReuniao: "",
+    initialLocalReuniao: "",
+    initialDataReuniao: "",
+    initialHorarioReuniao: "",
+    empresasIntake: [],
+    customFields: [],
+    customValues: {},
+    transitionWarnings: [],
+    requirementsLoading: true,
+  };
+}
+
 type BoardError = { message: string; actionHref?: string };
+
+type PendingBoardMove = {
+  itemId: string;
+  sourceStage: OpportunityStage;
+  targetStage: OpportunityStage;
+  /** Persistido no servidor; mantém o card na destino até o refresh confirmar. */
+  confirmed: boolean;
+};
 
 class TransitionRequestError extends Error {
   constructor(message: string, readonly actionHref?: string) {
@@ -167,9 +228,9 @@ function transitionModalIsDirty(m: TransitionModalState): boolean {
     (m.missing.includes("linkProposta") && m.linkProposta.trim() !== "") ||
     (m.missing.includes("linkContrato") && m.linkContrato.trim() !== "") ||
     (m.leadIntakeNeeded &&
-      (m.localReuniao.trim() !== "" ||
-        m.dataReuniao.trim() !== "" ||
-        m.horarioReuniao.trim() !== "")) ||
+      (m.localReuniao.trim() !== m.initialLocalReuniao.trim() ||
+        m.dataReuniao.trim() !== m.initialDataReuniao.trim() ||
+        m.horarioReuniao.trim() !== m.initialHorarioReuniao.trim())) ||
     customDirty
   );
 }
@@ -177,13 +238,17 @@ function transitionModalIsDirty(m: TransitionModalState): boolean {
 function LeadCard({
   item,
   appUsersByEmail,
+  dragLocked,
+  pendingConfirm,
 }: {
   item: Oportunidade;
   appUsersByEmail?: SignerAppUserLookup;
+  dragLocked?: boolean;
+  pendingConfirm?: boolean;
 }) {
   const rdViewOnly = isRdKanbanViewOnlyLead(item);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: item.id, disabled: rdViewOnly });
+    useSortable({ id: item.id, disabled: rdViewOnly || Boolean(dragLocked) });
   const situacao = getLeadPipelineSituation(item);
 
   const style = {
@@ -214,6 +279,8 @@ function LeadCard({
                 "border-emerald-600/28 bg-emerald-50/80 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.22)] ring-1 ring-emerald-800/10",
               situacao === "perdidas" &&
                 "border-rose-400/35 bg-rose-50/80 shadow-[inset_0_1px_0_0_rgba(244,63,94,0.18)] ring-1 ring-rose-900/10",
+              pendingConfirm &&
+                "border-dashed border-accent-teal/45 bg-white/70 ring-1 ring-accent-teal/20",
             ),
       )}
       data-dragging={isDragging}
@@ -233,11 +300,15 @@ function Column({
   title,
   items,
   appUsersByEmail,
+  dragLocked,
+  pendingItemId,
 }: {
   stage: OpportunityStage;
   title: string;
   items: Oportunidade[];
   appUsersByEmail?: SignerAppUserLookup;
+  dragLocked?: boolean;
+  pendingItemId?: string | null;
 }) {
   const { setNodeRef } = useDroppable({ id: stage });
 
@@ -284,7 +355,13 @@ function Column({
               </div>
             ) : (
               items.map((item) => (
-                <LeadCard key={item.id} item={item} appUsersByEmail={appUsersByEmail} />
+                <LeadCard
+                  key={item.id}
+                  item={item}
+                  appUsersByEmail={appUsersByEmail}
+                  dragLocked={dragLocked}
+                  pendingConfirm={pendingItemId === item.id}
+                />
               ))
             )}
           </SortableContext>
@@ -401,6 +478,8 @@ export function PipelineBoard({
   const [transitionModal, setTransitionModal] = useState<TransitionModalState | null>(
     null,
   );
+  const [pendingMove, setPendingMove] = useState<PendingBoardMove | null>(null);
+  const pendingMoveRef = useRef<PendingBoardMove | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [transitionSubmitting, setTransitionSubmitting] = useState(false);
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
@@ -413,8 +492,61 @@ export function PipelineBoard({
   );
 
   useEffect(() => {
-    setBoardItems(opportunities);
+    const pending = pendingMoveRef.current;
+    if (!pending) {
+      setBoardItems(opportunities);
+      return;
+    }
+    const serverItem = opportunities.find((item) => item.id === pending.itemId);
+    if (serverItem?.etapa === pending.targetStage) {
+      pendingMoveRef.current = null;
+      setPendingMove(null);
+      setBoardItems(opportunities);
+      return;
+    }
+    setBoardItems(
+      opportunities.map((item) =>
+        item.id === pending.itemId ? { ...item, etapa: pending.targetStage } : item,
+      ),
+    );
   }, [opportunities]);
+
+  const applyOptimisticMove = useCallback(
+    (itemId: string, sourceStage: OpportunityStage, targetStage: OpportunityStage) => {
+      const next: PendingBoardMove = {
+        itemId,
+        sourceStage,
+        targetStage,
+        confirmed: false,
+      };
+      pendingMoveRef.current = next;
+      setPendingMove(next);
+      setBoardItems((prev) =>
+        prev.map((item) => (item.id === itemId ? { ...item, etapa: targetStage } : item)),
+      );
+    },
+    [],
+  );
+
+  const revertPendingMove = useCallback(() => {
+    const pending = pendingMoveRef.current;
+    if (!pending || pending.confirmed) return;
+    pendingMoveRef.current = null;
+    setPendingMove(null);
+    setBoardItems((prev) =>
+      prev.map((item) =>
+        item.id === pending.itemId ? { ...item, etapa: pending.sourceStage } : item,
+      ),
+    );
+  }, []);
+
+  const markPendingConfirmed = useCallback(() => {
+    const pending = pendingMoveRef.current;
+    if (!pending) return;
+    const next = { ...pending, confirmed: true };
+    pendingMoveRef.current = next;
+    setPendingMove(next);
+  }, []);
 
   const byStage = useMemo(() => {
     return stageColumns.map((column) => ({
@@ -578,6 +710,12 @@ export function PipelineBoard({
       return;
     }
 
+    applyOptimisticMove(item.id, sourceStage, targetStage);
+    if (stageLikelyNeedsRequiredModal(targetStage, item)) {
+      setModalError(null);
+      setTransitionModal(emptyTransitionModal(item, sourceStage, targetStage));
+    }
+
     void (async () => {
       try {
         const params = new URLSearchParams({
@@ -595,6 +733,7 @@ export function PipelineBoard({
           missingLinkContrato?: boolean;
           leadIntake?: {
             needed?: boolean;
+            showFields?: boolean;
             local_reuniao?: string;
             data_reuniao?: string;
             horario_reuniao?: string;
@@ -612,11 +751,15 @@ export function PipelineBoard({
         };
 
         if (!res.ok || data.ok === false) {
+          revertPendingMove();
+          setTransitionModal(null);
           setBoardError({ message: data.error ?? "Não foi possível validar a transição." });
           return;
         }
 
         if (data.transitionBlocker) {
+          revertPendingMove();
+          setTransitionModal(null);
           setBoardError({
             message: data.transitionBlocker.message,
             actionHref: data.transitionBlocker.actionHref,
@@ -625,12 +768,16 @@ export function PipelineBoard({
         }
 
         if (data.leadIntakeBlockingReason) {
+          revertPendingMove();
+          setTransitionModal(null);
           setBoardError({ message: data.leadIntakeBlockingReason });
           return;
         }
 
         if (!data.needsModal) {
+          setTransitionModal(null);
           await commitTransition(item, targetStage, {});
+          markPendingConfirmed();
           return;
         }
 
@@ -651,16 +798,22 @@ export function PipelineBoard({
           ],
           linkProposta: item.linkProposta ?? "",
           linkContrato: item.linkContrato ?? "",
-          leadIntakeNeeded: Boolean(data.leadIntake?.needed),
+          leadIntakeNeeded: Boolean(data.leadIntake?.needed || data.leadIntake?.showFields),
           localReuniao: data.leadIntake?.local_reuniao ?? "",
           dataReuniao: data.leadIntake?.data_reuniao ?? "",
           horarioReuniao: data.leadIntake?.horario_reuniao ?? "",
+          initialLocalReuniao: data.leadIntake?.local_reuniao ?? "",
+          initialDataReuniao: data.leadIntake?.data_reuniao ?? "",
+          initialHorarioReuniao: data.leadIntake?.horario_reuniao ?? "",
           empresasIntake,
           customFields: data.customFields ?? [],
           customValues: preparedValues,
           transitionWarnings: Array.isArray(data.warnings) ? data.warnings : [],
+          requirementsLoading: false,
         });
       } catch (e) {
+        revertPendingMove();
+        setTransitionModal(null);
         setBoardError({
           message: e instanceof Error ? e.message : "Falha ao validar a etapa.",
           ...(e instanceof TransitionRequestError && e.actionHref
@@ -676,16 +829,18 @@ export function PipelineBoard({
     const m = transitionModalRef.current;
     if (!m) return;
     if (!transitionModalIsDirty(m)) {
+      revertPendingMove();
       setTransitionModal(null);
       return;
     }
     setDiscardDraftOpen(true);
-  }, [transitionSubmitting]);
+  }, [revertPendingMove, transitionSubmitting]);
 
   const confirmDiscardTransitionDraft = useCallback(() => {
     setDiscardDraftOpen(false);
+    revertPendingMove();
     setTransitionModal(null);
-  }, []);
+  }, [revertPendingMove]);
 
   useEffect(() => {
     if (transitionModal === null) {
@@ -695,7 +850,7 @@ export function PipelineBoard({
   }, [transitionModal]);
 
   const handleModalSubmit = () => {
-    if (!transitionModal) return;
+    if (!transitionModal || transitionModal.requirementsLoading) return;
     const m = transitionModal;
     const { item, nextStage, missing, linkProposta, linkContrato } = m;
     if (missing.includes("linkProposta") && !linkProposta.trim()) {
@@ -811,6 +966,7 @@ export function PipelineBoard({
           fieldValuesByCode:
             Object.keys(fieldPayload).length > 0 ? fieldPayload : undefined,
         });
+        markPendingConfirmed();
         setTransitionModal(null);
         // Após avançar para elaboração de contrato, redireciona direto para o detalhe do lead.
         // A aba "Contrato" abre automaticamente pois isContractStage === true.
@@ -950,7 +1106,7 @@ export function PipelineBoard({
             <SectionCard
               icon={Calendar}
               title="Reunião (due diligence finalizada)"
-              subtitle="Local, data e horário obrigatórios para registrar o encerramento da due e a reunião."
+              subtitle="Confirme local, data e horário já informados. Altere só se precisar."
             >
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1026,7 +1182,7 @@ export function PipelineBoard({
             <SectionCard
               icon={Calendar}
               title="Reunião (due diligence finalizada)"
-              subtitle="Local, data e horário obrigatórios para concluir a DUE no funil."
+              subtitle="Confirme local, data e horário já informados. Altere só se precisar."
             >
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1200,6 +1356,10 @@ export function PipelineBoard({
               title={column.title}
               items={column.items}
               appUsersByEmail={appUsersByEmail}
+              dragLocked={pendingMove != null && !pendingMove.confirmed}
+              pendingItemId={
+                pendingMove != null && !pendingMove.confirmed ? pendingMove.itemId : null
+              }
             />
           ))}
         </motion.div>
@@ -1260,6 +1420,13 @@ export function PipelineBoard({
               />
               <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
                 <div className="mx-auto max-w-[880px] space-y-5">
+                  {transitionModal.requirementsLoading ? (
+                    <div className="flex items-center gap-3 rounded-2xl border border-[#dfe5ee] bg-white px-4 py-6 text-sm text-[#536274]">
+                      <Loader2 className="size-5 shrink-0 animate-spin text-[#101f2e]" />
+                      Carregando os dados obrigatórios desta etapa…
+                    </div>
+                  ) : (
+                    <>
                   {modalError ? (
                     <Alert variant="destructive">
                       <AlertTitle>Não foi possível validar</AlertTitle>
@@ -1267,6 +1434,8 @@ export function PipelineBoard({
                     </Alert>
                   ) : null}
                   {transitionFieldsEl}
+                    </>
+                  )}
                 </div>
               </div>
               <StickyFooter
@@ -1293,7 +1462,7 @@ export function PipelineBoard({
                     <Button
                       type="button"
                       className="w-full rounded-full border-0 bg-[#101f2e] px-8 text-white shadow-md shadow-[#101f2e]/25 transition-[transform,box-shadow,background-color] duration-180 hover:-translate-y-0.5 hover:bg-[#1b2d42] hover:shadow-lg disabled:translate-y-0 sm:w-auto"
-                      disabled={transitionSubmitting}
+                      disabled={transitionSubmitting || Boolean(transitionModal.requirementsLoading)}
                       onClick={handleModalSubmit}
                     >
                       {transitionSubmitting ? "Salvando…" : "Confirmar etapa"}
@@ -1320,7 +1489,14 @@ export function PipelineBoard({
                   , preencha os campos abaixo (links, reunião e/ou formulário da etapa).
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">{transitionFieldsEl}</div>
+              {transitionModal?.requirementsLoading ? (
+                <div className="flex items-center gap-3 rounded-xl border border-[#dfe5ee] bg-white px-3 py-4 text-sm text-slate-600">
+                  <Loader2 className="size-5 shrink-0 animate-spin" />
+                  Carregando os dados obrigatórios desta etapa…
+                </div>
+              ) : (
+                <div className="space-y-4">{transitionFieldsEl}</div>
+              )}
               {modalError ? (
                 <Alert variant="destructive">
                   <AlertDescription>{modalError}</AlertDescription>
@@ -1338,7 +1514,7 @@ export function PipelineBoard({
                 <Button
                   type="button"
                   variant="cta"
-                  disabled={transitionSubmitting}
+                  disabled={transitionSubmitting || Boolean(transitionModal?.requirementsLoading)}
                   onClick={handleModalSubmit}
                 >
                   {transitionSubmitting ? "Salvando…" : "Confirmar etapa"}
@@ -1399,7 +1575,8 @@ export function PipelineBoard({
           <AlertDialogHeader>
             <AlertDialogTitle>Descartar o que foi digitado?</AlertDialogTitle>
             <AlertDialogDescription>
-              A etapa não será alterada até você confirmar a transição com os dados completos.
+              A oportunidade volta para a etapa anterior e o que foi digitado neste modal será
+              descartado.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1418,7 +1595,7 @@ export function PipelineBoard({
         ? createPortal(
             <DragOverlay
               zIndex={10000}
-              dropAnimation={{ duration: 160, easing: "cubic-bezier(0.25, 1, 0.5, 1)" }}
+              dropAnimation={null}
             >
               {activeItem && dragOverlaySituacao ? (
                 <div

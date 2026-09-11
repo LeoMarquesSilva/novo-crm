@@ -5,15 +5,20 @@ import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import { resolvePipelineEtapaFromDbAndRd } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
 import {
   applyConfeccaoPropostaDefaults,
+  collectPriorMeetingValues,
   computeLeadIntakeRequirement,
   dedupeConfeccaoPropostaDefinitionsByNormalizedLabel,
+  extractMeetingValuesFromFields,
   filterConfeccaoContratoTransitionDefinitions,
   filterConfeccaoPropostaTransitionDefinitions,
   filterPropostaEnviadaDuplicateLinkFields,
+  filterReuniaoDuplicateMeetingFields,
   formatTransitionBlockingError,
   listBlockingCustomFields,
   mapDbFieldToDefinition,
   mergeFieldValuesFromDb,
+  mergeMeetingValues,
+  valueJsonToFormValue,
 } from "@/lib/crm/compute-transition-requirements";
 import { pipelineCodeForStage } from "@/lib/crm/pipeline-board-config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -255,11 +260,43 @@ export async function POST(request: Request) {
       | { local_reuniao: string; data_reuniao: string; horario_reuniao: string }
       | null = null;
     if (nextStage === "reuniao" && pipeline === "vendas") {
-      const { data: intakeRow } = await supabase
-        .from("lead_intakes")
-        .select("local_reuniao, data_reuniao, horario_reuniao")
-        .eq("oportunidade_id", opportunityId)
-        .maybeSingle();
+      const [{ data: intakeRow }, { data: meetingDefs }, { data: priorValueRows }] =
+        await Promise.all([
+          supabase
+            .from("lead_intakes")
+            .select("local_reuniao, data_reuniao, horario_reuniao")
+            .eq("oportunidade_id", opportunityId)
+            .maybeSingle(),
+          supabase
+            .from("field_definitions")
+            .select("id, field_code, label, stage_code")
+            .eq("pipeline_code", "vendas")
+            .eq("is_active", true),
+          supabase
+            .from("field_values")
+            .select("field_definition_id, value_json")
+            .eq("entity_name", "oportunidade")
+            .eq("entity_record_id", opportunityId),
+        ]);
+
+      const valueByDefId = new Map(
+        (priorValueRows ?? []).map((row) => [String(row.field_definition_id), row.value_json]),
+      );
+      const priorMeetingValues = collectPriorMeetingValues({
+        intake: intakeRow
+          ? {
+              local_reuniao: intakeRow.local_reuniao as string | null,
+              data_reuniao: intakeRow.data_reuniao as string | null,
+              horario_reuniao: intakeRow.horario_reuniao as string | null,
+            }
+          : null,
+        fields: (meetingDefs ?? []).map((row) => ({
+          field_code: String(row.field_code),
+          label: String(row.label),
+          stage_code: row.stage_code != null ? String(row.stage_code) : null,
+          value: valueJsonToFormValue(valueByDefId.get(String(row.id))),
+        })),
+      });
 
       const li = computeLeadIntakeRequirement({
         nextStage: nextStage as OpportunityStage,
@@ -270,6 +307,7 @@ export async function POST(request: Request) {
               horario_reuniao: intakeRow.horario_reuniao as string | null,
             }
           : null,
+        priorMeetingValues,
       });
       leadIntakeSnapshot = li.snapshot
         ? {
@@ -389,10 +427,13 @@ export async function POST(request: Request) {
     }
 
     const defs = filterConfeccaoContratoTransitionDefinitions(
-      dedupeConfeccaoPropostaDefinitionsByNormalizedLabel(
-        filterPropostaEnviadaDuplicateLinkFields(
-          filterConfeccaoPropostaTransitionDefinitions(
-            (defRows ?? []).map((r) => mapDbFieldToDefinition(r as Record<string, unknown>)),
+      filterReuniaoDuplicateMeetingFields(
+        dedupeConfeccaoPropostaDefinitionsByNormalizedLabel(
+          filterPropostaEnviadaDuplicateLinkFields(
+            filterConfeccaoPropostaTransitionDefinitions(
+              (defRows ?? []).map((r) => mapDbFieldToDefinition(r as Record<string, unknown>)),
+              { pipeline, nextStage },
+            ),
             { pipeline, nextStage },
           ),
           { pipeline, nextStage },
@@ -537,6 +578,37 @@ export async function POST(request: Request) {
         data_reuniao: leadIntake.data_reuniao.trim(),
         horario_reuniao: horaSql,
       };
+    } else if (nextStage === "due_diligence_finalizada" && pipeline === "vendas") {
+      const extracted = extractMeetingValuesFromFields(
+        defs.map((field) => ({
+          field_code: field.field_code,
+          label: field.label,
+          value: mergedFormValues[field.field_code],
+        })),
+      );
+      const { data: intakeForDue } = await supabase
+        .from("lead_intakes")
+        .select("local_reuniao, data_reuniao, horario_reuniao")
+        .eq("oportunidade_id", opportunityId)
+        .maybeSingle();
+      const mergedMeeting = mergeMeetingValues(
+        intakeForDue
+          ? {
+              local_reuniao: intakeForDue.local_reuniao as string | null,
+              data_reuniao: intakeForDue.data_reuniao as string | null,
+              horario_reuniao: intakeForDue.horario_reuniao as string | null,
+            }
+          : null,
+        extracted,
+      );
+      if (mergedMeeting.local_reuniao && mergedMeeting.data_reuniao && mergedMeeting.horario_reuniao) {
+        const hora = mergedMeeting.horario_reuniao;
+        atomicLeadIntake = {
+          local_reuniao: mergedMeeting.local_reuniao,
+          data_reuniao: mergedMeeting.data_reuniao,
+          horario_reuniao: hora.length === 5 && hora.includes(":") ? `${hora}:00` : hora,
+        };
+      }
     }
 
     const atomicFieldValues: Array<{

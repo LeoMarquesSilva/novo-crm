@@ -16,7 +16,11 @@ import {
   type PropostaEscopoDetalheEntry,
   type TipoDef,
 } from "@/data/proposta-tipos-catalog";
-import { findInvestmentSubtype } from "@/lib/crm/proposal-catalog-utils";
+import {
+  findInvestmentSubtype,
+  investmentSubtypeFieldKeys,
+  scopeSubtypeFieldKeys,
+} from "@/lib/crm/proposal-catalog-utils";
 import { investmentSubtypeHasParcelas } from "@/lib/crm/proposta-investimento-parcelas";
 import {
   filterInvestimentoPlaceholderKeys,
@@ -35,7 +39,6 @@ import {
 import { cn } from "@/lib/utils";
 
 const SELECT_EMPTY = "__crm_escopo_none__";
-const EMPTY_PLACEHOLDER_KEYS: string[] = [];
 
 type Props = {
   entryIndex: number;
@@ -65,7 +68,7 @@ export function PropostaEscopoEntryForm({
   const tipo = tipos?.find((t) => t.tipoId === entry.tipoId);
   const subtipos = tipo?.subtipos ?? [];
   const sub = subtipos.find((s) => s.subtipoId === entry.subtipoId);
-  const placeholderKeys = sub?.placeholderKeys ?? EMPTY_PLACEHOLDER_KEYS;
+  const placeholderKeys = scopeSubtypeFieldKeys(sub);
   const seedSigRef = useRef<string>("");
   const onPatchRef = useRef(onPatch);
 
@@ -100,7 +103,7 @@ export function PropostaEscopoEntryForm({
     invEntry.tipoId && invEntry.subtipoId
       ? findInvestmentSubtype(investmentCatalog, invEntry.tipoId, invEntry.subtipoId)
       : undefined;
-  const invPlaceholderKeys = invSubDef?.placeholderKeys ?? [];
+  const invPlaceholderKeys = investmentSubtypeFieldKeys(invSubDef);
   const invKeysGeneric = filterInvestimentoPlaceholderKeys(invPlaceholderKeys);
   const showParcelasBlock = investmentSubtypeHasParcelas(invPlaceholderKeys);
 

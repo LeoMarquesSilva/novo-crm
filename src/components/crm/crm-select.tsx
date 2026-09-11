@@ -8,14 +8,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/** Estilo padrão do painel dropdown no CRM (largura do trigger, altura limitada, sombra). */
+/** Painel do dropdown: no mínimo a largura do trigger (ou 16rem), cresce com o texto. */
 export const CRM_SELECT_CONTENT_CLASS =
-  "z-[400] max-h-72 min-w-[var(--anchor-width)] w-[var(--anchor-width)] max-w-[min(100vw-2rem,var(--anchor-width))] p-1.5 shadow-lg shadow-primary-dark/[0.08] ring-1 ring-border/80";
+  "z-[400] max-h-72 min-w-[max(var(--anchor-width),16rem)] w-max max-w-[min(100vw-2rem,28rem)] overflow-x-visible p-1.5 shadow-lg shadow-primary-dark/[0.08] ring-1 ring-border/80";
 
 /** Painel acima de modais do CRM (overlay z-[70]). */
 export const CRM_SELECT_MODAL_LAYER_CLASS = "z-[100]";
 
-export const CRM_SELECT_ITEM_CLASS = "rounded-lg py-2 pl-2.5 pr-8 text-sm";
+export const CRM_SELECT_ITEM_CLASS = "rounded-lg py-2.5 pl-3 pr-8 text-sm whitespace-nowrap";
 
 type CrmSelectContentProps = React.ComponentProps<typeof SelectContent> & {
   /** Portal no body com z-index acima de modais (evita corte por overflow-hidden). */

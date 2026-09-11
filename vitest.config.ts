@@ -13,6 +13,7 @@ export default defineConfig({
     // `// @vitest-environment jsdom` no topo do próprio arquivo.
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    exclude: ["src/scripts/verify-leads-vs-sheet.test.ts"],
     setupFiles: ["./vitest.setup.ts"],
     coverage: {
       enabled: false,

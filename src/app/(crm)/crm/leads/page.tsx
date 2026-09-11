@@ -275,7 +275,7 @@ export default function LeadsPage() {
       debounce = setTimeout(() => {
         debounce = null;
         void refreshLeadsSilently();
-      }, 200);
+      }, 900);
     };
 
     const channel = supabase
@@ -522,7 +522,11 @@ export default function LeadsPage() {
               stageColumns={activeStageColumns}
               pipelineCode={pipelineTab === "vendas" ? "vendas" : "pos_venda"}
               appUsersByEmail={appUsersByEmail}
-              onDataChange={() => void refreshLeadsSilently()}
+              onDataChange={() => {
+                window.setTimeout(() => {
+                  void refreshLeadsSilently();
+                }, 900);
+              }}
               onAfterTransition={({ from, to, opportunityId }) => {
                 if (from === "reuniao" && to === "confeccao_proposta") {
                   router.push(`/crm/leads/${opportunityId}`);
