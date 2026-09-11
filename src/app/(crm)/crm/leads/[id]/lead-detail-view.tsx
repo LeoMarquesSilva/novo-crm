@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isHttpUrl } from "@/lib/crm/is-http-url";
+import { uploadDuePpt } from "@/lib/crm/upload-due-ppt";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { getStageIcon } from "@/lib/crm/stage-icons";
 import {
@@ -898,16 +899,7 @@ function DueCompilacaoSection({
     if (!file) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/due-documents`, {
-        method: "POST",
-        body: fd,
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(payload.error ?? "Falha no upload.");
-      }
+      await uploadDuePpt(lead.id, file);
       onUpdated();
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Erro no upload.");
@@ -994,15 +986,10 @@ function DueCompilacaoSection({
     setConcludingAdjustments(true);
     try {
       if (adjustmentEvidenceKind === "file" && adjustmentEvidenceFile) {
-        const fd = new FormData();
-        fd.append("file", adjustmentEvidenceFile);
-        const uploadRes = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/due-documents`, {
-          method: "POST",
-          body: fd,
-        });
-        const uploadPayload = await uploadRes.json().catch(() => ({}));
-        if (!uploadRes.ok) {
-          throw new Error(uploadPayload.error ?? "Falha no envio do PPT.");
+        try {
+          await uploadDuePpt(lead.id, adjustmentEvidenceFile);
+        } catch (error) {
+          throw new Error(error instanceof Error ? error.message : "Falha no envio do PPT.");
         }
       }
 

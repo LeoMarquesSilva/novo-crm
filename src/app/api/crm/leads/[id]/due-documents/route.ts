@@ -11,6 +11,26 @@ const ALLOWED_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ]);
 
+const MAX_BYTES = 52 * 1024 * 1024;
+
+function contentTypeForExtension(extensao: string, declaredType: string): string {
+  if (declaredType && ALLOWED_TYPES.has(declaredType)) return declaredType;
+  return extensao === ".pptx"
+    ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    : "application/vnd.ms-powerpoint";
+}
+
+function validateFilename(nomeOriginalUpload: string): { extensao: string } | { error: string } {
+  if (!/\.(ppt|pptx)$/i.test(nomeOriginalUpload.trim())) {
+    return { error: "Apenas arquivos .ppt ou .pptx são aceitos." };
+  }
+  const { extensao } = montarNomesArquivoDueUpload(nomeOriginalUpload);
+  if (extensao !== ".ppt" && extensao !== ".pptx") {
+    return { error: "Apenas arquivos .ppt ou .pptx são aceitos." };
+  }
+  return { extensao };
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -73,6 +93,14 @@ export async function GET(
   }
 }
 
+/**
+ * Upload em duas etapas (URL assinada + confirmação), em vez de mandar os bytes
+ * pela própria função serverless: funções Node no Vercel têm limite de corpo de
+ * requisição de ~4,5 MB — um PPT de compilação passa disso fácil. O navegador
+ * envia o arquivo direto pro Storage; esta rota só emite a URL assinada e, depois,
+ * confirma o que realmente chegou lá (nunca confia em tamanho/tipo que o cliente
+ * diga — relê do próprio Storage antes de gravar `due_documents`).
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -99,90 +127,107 @@ export async function POST(
     if (opErr) throw opErr;
     if (!op) return NextResponse.json({ ok: false, error: "Negociação não encontrada." }, { status: 404 });
 
-    const formData = await request.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File)) {
-      return NextResponse.json({ ok: false, error: "Envie o arquivo no campo \"file\"." }, { status: 400 });
+    let json: unknown;
+    try {
+      json = await request.json();
+    } catch {
+      return NextResponse.json({ ok: false, error: "JSON inválido." }, { status: 400 });
+    }
+    const body = (json ?? {}) as Record<string, unknown>;
+    const action = typeof body.action === "string" ? body.action : "";
+
+    if (action === "create-upload-url") {
+      const filename = typeof body.filename === "string" ? body.filename.trim() : "";
+      if (!filename) {
+        return NextResponse.json({ ok: false, error: "Informe o nome do arquivo." }, { status: 400 });
+      }
+      const validated = validateFilename(filename);
+      if ("error" in validated) {
+        return NextResponse.json({ ok: false, error: validated.error }, { status: 422 });
+      }
+      const declaredType = typeof body.contentType === "string" ? body.contentType.trim() : "";
+      if (declaredType && !ALLOWED_TYPES.has(declaredType)) {
+        return NextResponse.json(
+          { ok: false, error: "Tipo de arquivo não suportado para DUE." },
+          { status: 422 },
+        );
+      }
+      const storagePath = `${oportunidadeId}/${randomUUID()}${validated.extensao}`;
+      const { data: signed, error: signErr } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUploadUrl(storagePath);
+      if (signErr || !signed) {
+        return NextResponse.json(
+          { ok: false, error: signErr?.message ?? "Não foi possível preparar o upload." },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        uploadUrl: signed.signedUrl,
+        token: signed.token,
+        storagePath,
+        contentType: contentTypeForExtension(validated.extensao, declaredType),
+      });
     }
 
-    const nomeOriginalUpload = file.name || "apresentacao.pptx";
-    if (!/\.(ppt|pptx)$/i.test(nomeOriginalUpload.trim())) {
-      return NextResponse.json(
-        { ok: false, error: "Apenas arquivos .ppt ou .pptx são aceitos." },
-        { status: 422 },
-      );
-    }
-    const quandoSalvo = new Date();
-    const { nomeExibicao, sufixoData, extensao } = montarNomesArquivoDueUpload(nomeOriginalUpload, quandoSalvo);
-    if (extensao !== ".ppt" && extensao !== ".pptx") {
-      return NextResponse.json(
-        { ok: false, error: "Apenas arquivos .ppt ou .pptx são aceitos." },
-        { status: 422 },
-      );
-    }
+    if (action === "confirm") {
+      const storagePath = typeof body.storagePath === "string" ? body.storagePath.trim() : "";
+      const originalFilename =
+        typeof body.originalFilename === "string" ? body.originalFilename.trim() : "";
+      if (!storagePath || !storagePath.startsWith(`${oportunidadeId}/`)) {
+        return NextResponse.json({ ok: false, error: "Caminho de upload inválido." }, { status: 400 });
+      }
+      if (!originalFilename) {
+        return NextResponse.json({ ok: false, error: "Informe o nome do arquivo." }, { status: 400 });
+      }
+      const validated = validateFilename(originalFilename);
+      if ("error" in validated) {
+        return NextResponse.json({ ok: false, error: validated.error }, { status: 422 });
+      }
 
-    const declaredType = (file.type || "").trim();
-    if (declaredType && !ALLOWED_TYPES.has(declaredType)) {
-      return NextResponse.json(
-        { ok: false, error: "Tipo de arquivo não suportado para DUE." },
-        { status: 422 },
-      );
-    }
+      const { data: info, error: infoErr } = await supabase.storage.from(BUCKET).info(storagePath);
+      if (infoErr || !info) {
+        return NextResponse.json(
+          { ok: false, error: "Upload não encontrado no Storage. Tente novamente." },
+          { status: 422 },
+        );
+      }
+      const byteSize = info.size ?? 0;
+      if (byteSize <= 0 || byteSize > MAX_BYTES) {
+        await supabase.storage.from(BUCKET).remove([storagePath]);
+        return NextResponse.json({ ok: false, error: "Arquivo muito grande (máx. 52 MB)." }, { status: 422 });
+      }
 
-    const maxBytes = 52 * 1024 * 1024;
-    if (file.size > maxBytes) {
-      return NextResponse.json(
-        { ok: false, error: "Arquivo muito grande (máx. 52 MB)." },
-        { status: 422 },
-      );
-    }
+      const { nomeExibicao } = montarNomesArquivoDueUpload(originalFilename);
+      const contentType = contentTypeForExtension(validated.extensao, info.contentType ?? "");
 
-    const storagePath = `${oportunidadeId}/${randomUUID()}_${sufixoData}${extensao}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
+      const { data: inserted, error: insErr } = await supabase
+        .from("due_documents")
+        .insert({
+          oportunidade_id: oportunidadeId,
+          document_kind: "ppt_compilacao",
+          storage_bucket: BUCKET,
+          storage_path: storagePath,
+          original_filename: nomeExibicao,
+          content_type: contentType,
+          byte_size: byteSize,
+          uploaded_by_app_user_id: auth.profile.id,
+        })
+        .select(
+          "id, document_kind, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id",
+        )
+        .single();
 
-    const { error: upErr } = await supabase.storage.from(BUCKET).upload(storagePath, buffer, {
-      contentType:
-        declaredType && ALLOWED_TYPES.has(declaredType)
-          ? declaredType
-          : extensao === ".pptx"
-            ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            : "application/vnd.ms-powerpoint",
-      upsert: false,
-    });
-    if (upErr) {
-      return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
-    }
+      if (insErr) {
+        await supabase.storage.from(BUCKET).remove([storagePath]);
+        return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
+      }
 
-    const contentType =
-      declaredType && ALLOWED_TYPES.has(declaredType)
-        ? declaredType
-        : extensao === ".pptx"
-          ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-          : "application/vnd.ms-powerpoint";
-
-    const { data: inserted, error: insErr } = await supabase
-      .from("due_documents")
-      .insert({
-        oportunidade_id: oportunidadeId,
-        document_kind: "ppt_compilacao",
-        storage_bucket: BUCKET,
-        storage_path: storagePath,
-        original_filename: nomeExibicao,
-        content_type: contentType,
-        byte_size: file.size,
-        uploaded_by_app_user_id: auth.profile.id,
-      })
-      .select(
-        "id, document_kind, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id",
-      )
-      .single();
-
-    if (insErr) {
-      await supabase.storage.from(BUCKET).remove([storagePath]);
-      return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
+      return NextResponse.json({ ok: true, document: inserted });
     }
 
-    return NextResponse.json({ ok: true, document: inserted });
+    return NextResponse.json({ ok: false, error: "Ação inválida." }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha no upload.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
