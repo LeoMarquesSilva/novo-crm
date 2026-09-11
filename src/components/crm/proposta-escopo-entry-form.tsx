@@ -5,28 +5,16 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PropostaBrlCurrencyInput } from "@/components/crm/proposta-brl-currency-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
-import { type InvestimentoTipoDef } from "@/data/proposta-investimento-catalog";
 import {
   PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO,
   type PropostaAreaKey,
   type PropostaEscopoDetalheEntry,
   type TipoDef,
 } from "@/data/proposta-tipos-catalog";
-import {
-  findInvestmentSubtype,
-  investmentSubtypeFieldKeys,
-  scopeSubtypeFieldKeys,
-} from "@/lib/crm/proposal-catalog-utils";
-import { investmentSubtypeHasParcelas } from "@/lib/crm/proposta-investimento-parcelas";
-import {
-  filterInvestimentoPlaceholderKeys,
-  isInvestimentoCurrencyKey,
-  PropostaInvestimentoParcelasFields,
-} from "@/components/crm/proposta-investimento-parcelas-fields";
+import { scopeSubtypeFieldKeys } from "@/lib/crm/proposal-catalog-utils";
 import { getPropostaPlaceholderLabel } from "@/lib/crm/proposta-placeholder-labels";
 import {
   ESCOPO_PLACEHOLDER_NOME_EMPRESA,
@@ -46,7 +34,6 @@ type Props = {
   entry: PropostaEscopoDetalheEntry;
   catalogArea: PropostaAreaKey;
   tipos: TipoDef[];
-  investmentCatalog: InvestimentoTipoDef[];
   defaultNomeEmpresa: string | null;
   canRemove: boolean;
   onPatch: (patch: Partial<PropostaEscopoDetalheEntry>) => void;
@@ -59,7 +46,6 @@ export function PropostaEscopoEntryForm({
   entry,
   catalogArea,
   tipos,
-  investmentCatalog,
   defaultNomeEmpresa,
   canRemove,
   onPatch,
@@ -91,22 +77,6 @@ export function PropostaEscopoEntryForm({
     });
   }, [catalogArea, entry.id, sub, entry.tipoId, entry.subtipoId, entry.placeholders, defaultNomeEmpresa, placeholderKeys]);
 
-  const invE = entry.investimento;
-  const invEntry = {
-    tipoId: invE?.tipoId ?? "",
-    subtipoId: invE?.subtipoId ?? "",
-    placeholders: invE?.placeholders ?? {},
-  };
-  const invTipoSel = investmentCatalog.find((t) => t.tipoId === invEntry.tipoId);
-  const invSubtiposList = invTipoSel?.subtipos ?? [];
-  const invSubDef =
-    invEntry.tipoId && invEntry.subtipoId
-      ? findInvestmentSubtype(investmentCatalog, invEntry.tipoId, invEntry.subtipoId)
-      : undefined;
-  const invPlaceholderKeys = investmentSubtypeFieldKeys(invSubDef);
-  const invKeysGeneric = filterInvestimentoPlaceholderKeys(invPlaceholderKeys);
-  const showParcelasBlock = investmentSubtypeHasParcelas(invPlaceholderKeys);
-
   const tipoSelectValue = (entry.tipoId ?? "").trim();
   const subtipoSelectValue = (entry.subtipoId ?? "").trim();
 
@@ -119,7 +89,7 @@ export function PropostaEscopoEntryForm({
             {entryCount > 1 ? ` de ${entryCount}` : ""}
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            Tipo, subtipo, variáveis e investimento deste bloco na proposta.
+            Tipo, subtipo e variáveis deste bloco na proposta.
           </p>
         </div>
         {canRemove ? (
@@ -209,118 +179,6 @@ export function PropostaEscopoEntryForm({
           })}
         </div>
       ) : null}
-
-      <div className="min-w-0 border-t border-[#edf0f4] pt-4">
-        <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-[#24615b]">Investimento</p>
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-          <div className="min-w-0 space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</Label>
-            <Select
-              value={invEntry.tipoId ? invEntry.tipoId : SELECT_EMPTY}
-              onValueChange={(v) => {
-                const tipoId = v === SELECT_EMPTY || v == null ? "" : v;
-                onPatch({
-                  investimento: { tipoId, subtipoId: "", placeholders: {} },
-                });
-              }}
-            >
-              <SelectTrigger className="h-10 w-full min-w-0 max-w-full border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
-                <SelectValue placeholder="Selecione o tipo de investimento">
-                  {!invEntry.tipoId
-                    ? "Selecione o tipo de investimento"
-                    : (invTipoSel?.label ?? "Selecione o tipo de investimento")}
-                </SelectValue>
-              </SelectTrigger>
-              <CrmSelectContent>
-                <CrmSelectItem value={SELECT_EMPTY}>Selecione o tipo de investimento</CrmSelectItem>
-                {investmentCatalog.map((t) => (
-                  <CrmSelectItem key={t.tipoId} value={t.tipoId}>
-                    {t.label}
-                  </CrmSelectItem>
-                ))}
-              </CrmSelectContent>
-            </Select>
-          </div>
-          <div className="min-w-0 space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Subtipo</Label>
-            <Select
-              value={invEntry.subtipoId ? invEntry.subtipoId : SELECT_EMPTY}
-              onValueChange={(v) => {
-                const subtipoId = v === SELECT_EMPTY || v == null ? "" : v;
-                onPatch({
-                  investimento: {
-                    tipoId: invEntry.tipoId,
-                    subtipoId,
-                    placeholders: {},
-                  },
-                });
-              }}
-              disabled={!invEntry.tipoId}
-            >
-              <SelectTrigger className="h-10 w-full min-w-0 max-w-full border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
-                <SelectValue placeholder="Selecione o subtipo de investimento">
-                  {!invEntry.subtipoId
-                    ? "Selecione o subtipo de investimento"
-                    : (invSubtiposList.find((s) => s.subtipoId === invEntry.subtipoId)?.label ??
-                      "Selecione o subtipo de investimento")}
-                </SelectValue>
-              </SelectTrigger>
-              <CrmSelectContent>
-                <CrmSelectItem value={SELECT_EMPTY}>Selecione o subtipo de investimento</CrmSelectItem>
-                {invSubtiposList.map((s) => (
-                  <CrmSelectItem key={s.subtipoId} value={s.subtipoId}>
-                    {s.label}
-                  </CrmSelectItem>
-                ))}
-              </CrmSelectContent>
-            </Select>
-          </div>
-        </div>
-        {invSubDef?.conceito ? (
-          <p className="mt-3 rounded-2xl border border-[#edf0f4] bg-[#f8fafc] p-3 text-xs leading-relaxed text-slate-600">
-            {invSubDef.conceito}
-          </p>
-        ) : null}
-        {invSubDef && (showParcelasBlock || invKeysGeneric.length > 0) ? (
-          <div className="mt-3 space-y-3">
-            {invKeysGeneric.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {invKeysGeneric.map((key) => (
-                  <PlaceholderField
-                    key={`inv-${entry.id}-${key}`}
-                    phKey={key}
-                    value={invEntry.placeholders[key] ?? ""}
-                    isCurrency={isInvestimentoCurrencyKey(key)}
-                    onChange={(next) =>
-                      onPatch({
-                        investimento: {
-                          tipoId: invEntry.tipoId,
-                          subtipoId: invEntry.subtipoId,
-                          placeholders: { ...invEntry.placeholders, [key]: next },
-                        },
-                      })
-                    }
-                  />
-                ))}
-              </div>
-            ) : null}
-            {showParcelasBlock ? (
-              <PropostaInvestimentoParcelasFields
-                placeholders={invEntry.placeholders}
-                onChange={(next) =>
-                  onPatch({
-                    investimento: {
-                      tipoId: invEntry.tipoId,
-                      subtipoId: invEntry.subtipoId,
-                      placeholders: next,
-                    },
-                  })
-                }
-              />
-            ) : null}
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }
@@ -329,12 +187,10 @@ function PlaceholderField({
   phKey,
   value,
   onChange,
-  isCurrency = false,
 }: {
   phKey: string;
   value: string;
   onChange: (next: string) => void;
-  isCurrency?: boolean;
 }) {
   const k = phKey.trim();
   const isNome = k === ESCOPO_PLACEHOLDER_NOME_EMPRESA;
@@ -348,13 +204,7 @@ function PlaceholderField({
   return (
     <div className="min-w-0 space-y-1.5">
       <Label className="text-xs font-bold leading-snug text-slate-500">{fieldLabel}</Label>
-      {isCurrency ? (
-        <PropostaBrlCurrencyInput
-          value={value}
-          onChange={onChange}
-          className="border-[#dfe5ee] bg-[#fbfcfd]"
-        />
-      ) : isResumo ? (
+      {isResumo ? (
         <Textarea
           className="min-h-[120px] max-w-full resize-y border-[#dfe5ee] bg-[#fbfcfd] text-sm shadow-sm"
           value={value}

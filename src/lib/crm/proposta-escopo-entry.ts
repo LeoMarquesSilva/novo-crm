@@ -9,16 +9,7 @@ import {
   type PropostaEscopoDetalheEntry,
   type PropostaTiposCatalog,
 } from "@/data/proposta-tipos-catalog";
-import {
-  findInvestmentSubtype,
-  findScopeSubtype,
-  investmentSubtypeFieldKeys,
-  scopeSubtypeFieldKeys,
-} from "@/lib/crm/proposal-catalog-utils";
-import {
-  investmentSubtypeHasParcelas,
-  validateParcelasPlaceholders,
-} from "@/lib/crm/proposta-investimento-parcelas";
+import { findScopeSubtype, scopeSubtypeFieldKeys } from "@/lib/crm/proposal-catalog-utils";
 import { normalizeEntriesForArea, isInvestimentoDocumentoMetaKey } from "@/lib/crm/proposta-escopo-json";
 
 /** Entradas no JSON podem estar na chave legada ou canónica da área. */
@@ -65,11 +56,19 @@ export function isEscopoEntryComplete(
   );
 }
 
+/**
+ * Investimento não faz mais parte da completude por bloco de escopo — o valor
+ * (total) e a forma de pagamento agora vivem só na seção consolidada, no final
+ * do modal (ver `isInvestimentoDocumentoComplete` em
+ * `proposta-investimento-consolidado.ts`, que é o gate real disso na geração
+ * do Word). `investmentCatalog` fica no parâmetro só por compatibilidade de
+ * assinatura com os chamadores existentes.
+ */
 export function isEscopoEntryCompleteWithCatalog(
   areaKeyFromRow: string,
   entry: PropostaEscopoDetalheEntry | undefined,
   scopeCatalog: PropostaTiposCatalog,
-  investmentCatalog: InvestimentoTipoDef[],
+  _investmentCatalog: InvestimentoTipoDef[],
 ): boolean {
   if (!entry?.tipoId?.trim() || !entry?.subtipoId?.trim()) return false;
   const catalogArea = normalizePracticeAreaKey(areaKeyFromRow);
@@ -78,21 +77,6 @@ export function isEscopoEntryCompleteWithCatalog(
   const keys = scopeSubtypeFieldKeys(sub);
   for (const k of keys) {
     const v = entry.placeholders?.[k]?.trim() ?? "";
-    if (!v) return false;
-  }
-
-  const inv = entry.investimento;
-  if (!inv?.tipoId?.trim() || !inv?.subtipoId?.trim()) return false;
-  const invSub = findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId);
-  if (!invSub) return false;
-  const invPh = inv.placeholders ?? {};
-  const invKeys = investmentSubtypeFieldKeys(invSub);
-  if (investmentSubtypeHasParcelas(invKeys)) {
-    if (!validateParcelasPlaceholders(invPh)) return false;
-  }
-  for (const k of invKeys) {
-    if (k === "PARCELAS" || k === "VALORPARCELA" || k === "DETALHEPARCELAS") continue;
-    const v = invPh[k]?.trim() ?? "";
     if (!v) return false;
   }
   return true;

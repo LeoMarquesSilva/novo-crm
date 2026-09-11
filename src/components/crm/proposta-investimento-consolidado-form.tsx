@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
@@ -21,13 +21,11 @@ import {
 } from "@/components/crm/proposta-investimento-parcelas-fields";
 import { getPropostaPlaceholderLabel } from "@/lib/crm/proposta-placeholder-labels";
 import {
-  collectDistinctInvestimentoSubtipos,
   createEmptyInvestimentoDocumentoItem,
   documentoFromItems,
   getInvestimentoDocumentoItems,
   getPrimarySumKeyForSubtipo,
   resolveInvestimentoDocumento,
-  sumInvestimentoAreas,
 } from "@/lib/crm/proposta-investimento-consolidado";
 import {
   parseEscopoJsonWithMeta,
@@ -64,16 +62,6 @@ export function PropostaInvestimentoConsolidadoForm({
     [escopo, areas, parsed.investimentoDocumento, investmentCatalog],
   );
 
-  const sumTotal = useMemo(
-    () => sumInvestimentoAreas(escopo, areas, investmentCatalog),
-    [escopo, areas, investmentCatalog],
-  );
-
-  const distinctSubtipos = useMemo(
-    () => collectDistinctInvestimentoSubtipos(escopo, areas),
-    [escopo, areas],
-  );
-
   const items = useMemo(() => {
     const list = getInvestimentoDocumentoItems(resolved);
     return list.length > 0 ? list : [createEmptyInvestimentoDocumentoItem()];
@@ -102,34 +90,15 @@ export function PropostaInvestimentoConsolidadoForm({
 
   return (
     <div className="space-y-4">
-      {distinctSubtipos.length > 1 ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          As áreas usam subtipos de investimento diferentes ({distinctSubtipos.join(", ")}). Cada
-          forma abaixo entra no documento.
-        </p>
-      ) : null}
-
-      <div className="rounded-xl border border-[#dfe5ee] bg-[#f8fafc] px-4 py-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Soma das áreas</p>
-        <p className="mt-1 text-lg font-bold text-primary-dark">
-          {sumTotal > 0
-            ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(sumTotal)
-            : "—"}
-        </p>
-        <p className="mt-1 text-xs text-slate-500">
-          Usada no valor da primeira forma com campo monetário principal, quando a soma automática
-          estiver ligada.
-        </p>
-      </div>
-
-      <div className="space-y-3 border-t border-[#edf0f4] pt-4">
+      <div className="space-y-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.14em] text-[#24615b]">
-            Forma de pagamento
+            Valor total e forma de pagamento
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Pode haver mais de uma. Tipo e subtipo vêm do catálogo de investimento. As alterações
-            entram no rascunho — use Salvar, Gerar Word ou Gerar PDF para gravar.
+            Pode haver mais de uma forma (ex.: fixo mensal + êxito). Tipo e subtipo vêm do catálogo
+            de investimento. As alterações entram no rascunho — use Salvar, Gerar Word ou Gerar PDF
+            para gravar.
           </p>
         </div>
 
@@ -150,12 +119,6 @@ export function PropostaInvestimentoConsolidadoForm({
                 disabled={disabled}
                 onPatch={(patch) => patchItem(item.id, patch)}
                 onRemove={() => persistItems(items.filter((entry) => entry.id !== item.id))}
-                onRecalcAutoSum={() =>
-                  patchItem(item.id, {
-                    autoSum: true,
-                    placeholders: { ...item.placeholders },
-                  })
-                }
               />
             ))}
             <Button
@@ -183,7 +146,6 @@ function InvestimentoFormaCard({
   disabled,
   onPatch,
   onRemove,
-  onRecalcAutoSum,
 }: {
   index: number;
   item: PropostaInvestimentoDocumentoItem;
@@ -192,7 +154,6 @@ function InvestimentoFormaCard({
   disabled: boolean;
   onPatch: (patch: Partial<PropostaInvestimentoDocumentoItem>) => void;
   onRemove: () => void;
-  onRecalcAutoSum: () => void;
 }) {
   const invTipoSel = investmentCatalog.find((t) => t.tipoId === item.tipoId);
   const invSubDef =
@@ -204,7 +165,6 @@ function InvestimentoFormaCard({
   const primarySumKey = item.subtipoId ? getPrimarySumKeyForSubtipo(item.subtipoId) : null;
   const extraPaymentKeys = invKeysGeneric.filter((key) => key !== primarySumKey);
   const showParcelasBlock = investmentSubtypeHasParcelas(invPlaceholderKeys);
-  const autoSum = item.autoSum !== false;
   const tipoSelectValue = item.tipoId ? item.tipoId : SELECT_EMPTY;
   const subtipoSelectValue = item.subtipoId ? item.subtipoId : SELECT_EMPTY;
   const tipoLabels = {
@@ -302,24 +262,9 @@ function InvestimentoFormaCard({
 
       {primarySumKey && invSubDef ? (
         <div className="space-y-1.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Label className="text-xs font-bold text-slate-500">
-              {getPropostaPlaceholderLabel(primarySumKey)}
-            </Label>
-            {!autoSum ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5 text-xs"
-                disabled={disabled}
-                onClick={onRecalcAutoSum}
-              >
-                <RefreshCw className="size-3.5" aria-hidden />
-                Recalcular da soma das áreas
-              </Button>
-            ) : null}
-          </div>
+          <Label className="text-xs font-bold text-slate-500">
+            {getPropostaPlaceholderLabel(primarySumKey)}
+          </Label>
           <PropostaBrlCurrencyInput
             value={item.placeholders[primarySumKey] ?? ""}
             disabled={disabled}

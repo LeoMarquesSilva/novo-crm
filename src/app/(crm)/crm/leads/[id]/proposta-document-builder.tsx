@@ -802,10 +802,11 @@ function PropostaBuilderDialog({
                   <div className="rounded-xl border border-white/60 bg-slate-50/70 p-5 shadow-sm">
                     <div className="mb-4">
                       <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">
-                        Escopo e investimento
+                        Escopo
                       </h3>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Cada área selecionada compõe blocos repetíveis no Word.
+                        Cada área selecionada compõe blocos repetíveis no Word. O valor e a forma de
+                        pagamento ficam na seção &ldquo;Investimento da proposta&rdquo;, no final deste modal.
                       </p>
                     </div>
                     <PropostaEscopoPorArea
@@ -836,26 +837,6 @@ function PropostaBuilderDialog({
                   </div>
                 ) : null}
 
-                {escopoDetalhe && areasField ? (
-                  <div className="rounded-xl border border-white/60 bg-slate-50/70 p-5 shadow-sm">
-                    <div className="mb-4">
-                      <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">
-                        Investimento da proposta
-                      </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Valor total e forma de pagamento exibidos no Word ([INVESTIMENTO]).
-                      </p>
-                    </div>
-                    <PropostaInvestimentoConsolidadoForm
-                      escopoJson={escopoJson}
-                      areasDisplay={draftValues.cp_areas_objeto ?? areasField.value ?? ""}
-                      investmentCatalog={investmentCatalog}
-                      disabled={busy}
-                      onEscopoJsonChange={syncEscopoJsonFromDraft}
-                    />
-                  </div>
-                ) : null}
-
                 <BuilderSection
                   meta={SECTION_META.condicoes}
                   fields={fieldsBySection.condicoes}
@@ -875,6 +856,28 @@ function PropostaBuilderDialog({
                     onChange={fieldChange}
                     disabled={busy}
                   />
+                ) : null}
+
+                {/* Investimento consolidado — sempre por último: valor total e forma de
+                    pagamento (fixo, spot, parcelado etc.) da proposta como um todo, não por área. */}
+                {escopoDetalhe && areasField ? (
+                  <div className="rounded-xl border border-white/60 bg-slate-50/70 p-5 shadow-sm">
+                    <div className="mb-4">
+                      <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">
+                        Investimento da proposta
+                      </h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Valor total e forma de pagamento exibidos no Word ([INVESTIMENTO]).
+                      </p>
+                    </div>
+                    <PropostaInvestimentoConsolidadoForm
+                      escopoJson={escopoJson}
+                      areasDisplay={draftValues.cp_areas_objeto ?? areasField.value ?? ""}
+                      investmentCatalog={investmentCatalog}
+                      disabled={busy}
+                      onEscopoJsonChange={syncEscopoJsonFromDraft}
+                    />
+                  </div>
                 ) : null}
 
                 {/* Pendências */}

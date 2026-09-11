@@ -1,19 +1,18 @@
 import { appUserAreaMatchesScopeKey } from "@/lib/crm/area-keys-alignment";
 
 /**
- * Alinhado a `patch-lead-detail` para `cp_escopo_detalhe_json`: admin edita tudo;
- * comercial sem `app_users.area` edita tudo; comercial com área só a chave dessa área.
+ * Qualquer usuário com acesso à ficha do lead pode preencher/ajustar o escopo de
+ * qualquer área — inclusive de áreas fora da sua própria. Antes disso era
+ * restrito por `app_users.area`; a restrição existia só para direcionar quem
+ * preenchia o quê, não como controle de acesso real, e travava colaboração
+ * legítima entre áreas.
  */
 export function canEditEscopoArea(
-  role: string | null | undefined,
-  profileArea: string | null | undefined,
-  areaKey: string,
+  _role: string | null | undefined,
+  _profileArea: string | null | undefined,
+  _areaKey: string,
 ): boolean {
-  if (role === "admin") return true;
-  if (role !== "comercial") return false;
-  const pa = profileArea?.trim() ?? "";
-  if (!pa) return true;
-  return appUserAreaMatchesScopeKey(pa, areaKey);
+  return true;
 }
 
 /** Comercial com área definida em outra prática — pode pedir ao gestor que preencha esta área. */

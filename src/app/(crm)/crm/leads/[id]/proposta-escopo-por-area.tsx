@@ -27,7 +27,7 @@ import {
   type PropostaEscopoDetalheEntry,
   type PropostaTiposCatalog,
 } from "@/data/proposta-tipos-catalog";
-import { findInvestmentSubtype, findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
+import { findScopeSubtype } from "@/lib/crm/proposal-catalog-utils";
 import { appUserAreaMatchesScopeKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { AreaIconLabel, PracticeAreaIconBadge } from "@/lib/crm/area-lucide-icon";
 import { getEscopoEntriesForArea, isEscopoAreaComplete } from "@/lib/crm/proposta-escopo-entry";
@@ -51,10 +51,7 @@ import { applyProposalScopeSave, isProposalScopeAreaDirty } from "@/lib/crm/prop
 import { PropostaEscopoEntryForm } from "@/components/crm/proposta-escopo-entry-form";
 import { JustifiedDocumentText } from "@/components/crm/justified-document-text";
 import { createSupabaseClient } from "@/lib/supabase/client";
-import {
-  mergeEscopoTemplate,
-  mergeInvestimentoTemplate,
-} from "@/lib/crm/proposta-escopo-preview";
+import { mergeEscopoTemplate } from "@/lib/crm/proposta-escopo-preview";
 
 const EMPTY_RESPONSAVEIS: Array<ResolvedAppUser & { id: string }> = [];
 
@@ -207,6 +204,19 @@ export function PropostaEscopoPorArea({
 
   useEffect(() => {
     const supabase = createSupabaseClient();
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    // Debounced de propósito: cada campo salvo nesta tela grava em `field_values`,
+    // e sem isso o próprio salvamento do usuário disparava um `router.refresh()`
+    // imediato (re-render da página inteira) a cada campo — deixando a digitação
+    // e o clique nos campos visivelmente lentos enquanto o builder está aberto.
+    const schedule = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        debounce = null;
+        if (!cancelled) router.refresh();
+      }, 900);
+    };
     const channel = supabase
       .channel(`lead-proposal-scope-${leadId}`)
       .on(
@@ -217,7 +227,7 @@ export function PropostaEscopoPorArea({
           table: "field_values",
           filter: `entity_record_id=eq.${leadId}`,
         },
-        () => router.refresh(),
+        schedule,
       )
       .on(
         "postgres_changes",
@@ -227,11 +237,13 @@ export function PropostaEscopoPorArea({
           table: "proposta_escopo_solicitacao",
           filter: `oportunidade_id=eq.${leadId}`,
         },
-        () => router.refresh(),
+        schedule,
       )
       .subscribe();
 
     return () => {
+      cancelled = true;
+      if (debounce) clearTimeout(debounce);
       void supabase.removeChannel(channel);
     };
   }, [leadId, router]);
@@ -437,9 +449,10 @@ export function PropostaEscopoPorArea({
       <div className="min-w-0">
         <p className="text-sm font-semibold text-primary-dark">Escopo detalhado por área</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Cada área pode ter <span className="font-medium text-foreground/90">vários escopos</span> (ex.: dois processos
+          Qualquer pessoa pode preencher ou ajustar o escopo de qualquer área. Cada área pode ter{" "}
+          <span className="font-medium text-foreground/90">vários escopos</span> (ex.: dois processos
           distintos em Cível). Use <span className="font-medium text-foreground/90">Salvar esta área</span> após
-          preencher. Nas áreas de outras equipes, use <span className="font-medium text-foreground/90">Solicitar escopo</span>.
+          preencher — dá pra notificar as demais áreas pendentes no mesmo passo.
         </p>
         {anyAreaDirty ? (
           <p className="mt-2 text-xs font-medium text-amber-900/90">Há alterações não salvas em uma ou mais áreas.</p>
@@ -565,41 +578,23 @@ function buildEntriesPreviewText(
   entries: PropostaEscopoDetalheEntry[],
   catalogArea: PropostaAreaKey,
   scopeCatalog: PropostaTiposCatalog,
-  investmentCatalog: InvestimentoTipoDef[],
   defaultNomeEmpresa: string | null,
-): { escopo: string; investimento: string } {
+): { escopo: string } {
   const escopoParts: string[] = [];
-  const invParts: string[] = [];
   const areaLabel = normalizePracticeAreaKey(catalogArea);
 
   entries.forEach((entry) => {
-    let scopeLabelPrefix = "";
-    if (entry.tipoId && entry.subtipoId) {
-      const sub = findScopeSubtype(scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId);
-      if (sub) {
-        scopeLabelPrefix = entries.length > 1 ? `${sub.label}\n` : "";
-        const text = mergeEscopoTemplate(sub.escopoTemplate, entry.placeholders ?? {}, {
-          defaultNomeEmpresa,
-        }).trim();
-        if (text) escopoParts.push(`${scopeLabelPrefix}${text}`);
-      }
-    }
-    const inv = entry.investimento;
-    if (inv?.tipoId && inv.subtipoId) {
-      const invSub = findInvestmentSubtype(investmentCatalog, inv.tipoId, inv.subtipoId);
-      if (invSub) {
-        const text = mergeInvestimentoTemplate(invSub.template, inv.placeholders ?? {}, {
-          defaultNomeEmpresa,
-        }).trim();
-        if (text) invParts.push(`${scopeLabelPrefix}${text}`);
-      }
-    }
+    if (!entry.tipoId || !entry.subtipoId) return;
+    const sub = findScopeSubtype(scopeCatalog, areaLabel, entry.tipoId, entry.subtipoId);
+    if (!sub) return;
+    const scopeLabelPrefix = entries.length > 1 ? `${sub.label}\n` : "";
+    const text = mergeEscopoTemplate(sub.escopoTemplate, entry.placeholders ?? {}, {
+      defaultNomeEmpresa,
+    }).trim();
+    if (text) escopoParts.push(`${scopeLabelPrefix}${text}`);
   });
 
-  return {
-    escopo: escopoParts.join("\n\n") || "—",
-    investimento: invParts.join("\n\n") || "—",
-  };
+  return { escopo: escopoParts.join("\n\n") || "—" };
 }
 
 function EscopoAreaDelegatedModal({
@@ -631,11 +626,10 @@ function EscopoAreaDelegatedModal({
   const [selectedTargetIds, setSelectedTargetIds] = useState<string[]>([]);
   const areaLabel = normalizePracticeAreaKey(area);
   const responsaveis = request?.responsaveis ?? EMPTY_RESPONSAVEIS;
-  const { escopo: previewEscopo, investimento: previewInv } = buildEntriesPreviewText(
+  const { escopo: previewEscopo } = buildEntriesPreviewText(
     entries,
     catalogArea,
     scopeCatalog,
-    investmentCatalog,
     defaultNomeEmpresa,
   );
 
@@ -771,7 +765,7 @@ function EscopoAreaDelegatedModal({
           </div>
             </div>
           <div className="min-w-0 w-full lg:max-w-[400px] lg:shrink-0">
-            <PreviewGrid escopo={previewEscopo} investimento={previewInv} />
+            <PreviewGrid escopo={previewEscopo} />
           </div>
           </div>
         </div>
@@ -916,11 +910,10 @@ function EscopoAreaBlock({
 }) {
   const areaLabel = normalizePracticeAreaKey(area);
   const tipos = scopeCatalog[catalogArea] ?? [];
-  const { escopo: previewEscopo, investimento: previewInv } = buildEntriesPreviewText(
+  const { escopo: previewEscopo } = buildEntriesPreviewText(
     entries,
     catalogArea,
     scopeCatalog,
-    investmentCatalog,
     defaultNomeEmpresa,
   );
   const complete = isEscopoAreaComplete(area, entries, scopeCatalog, investmentCatalog);
@@ -1002,7 +995,6 @@ function EscopoAreaBlock({
                     entry={entry}
                     catalogArea={catalogArea}
                     tipos={tipos}
-                    investmentCatalog={investmentCatalog}
                     defaultNomeEmpresa={defaultNomeEmpresa}
                     canRemove={entries.length > 1}
                     onPatch={(patch) => onPatchEntry(entry.id, patch)}
@@ -1020,7 +1012,7 @@ function EscopoAreaBlock({
                 </Button>
               </div>
               <div className="min-w-0 w-full xl:max-w-[min(100%,400px)] xl:shrink-0">
-                <PreviewGrid escopo={previewEscopo} investimento={previewInv} />
+                <PreviewGrid escopo={previewEscopo} />
               </div>
             </div>
           </div>
@@ -1267,7 +1259,7 @@ function ReadOnlyPair({ label, value, dark }: { label: string; value: string; da
   );
 }
 
-function PreviewGrid({ escopo, investimento }: { escopo: string; investimento: string }) {
+function PreviewGrid({ escopo }: { escopo: string }) {
   return (
     <aside className="min-w-0 overflow-hidden rounded-[26px] border border-[#dfe5ee] bg-[#eef2f6] p-3 shadow-sm xl:sticky xl:top-4">
       <div className="min-w-0 rounded-[22px] border border-white bg-white p-4 shadow-[0_18px_50px_rgba(16,31,46,0.08)] sm:p-5">
@@ -1280,26 +1272,14 @@ function PreviewGrid({ escopo, investimento }: { escopo: string; investimento: s
             Word
           </span>
         </div>
-        <div className="grid min-w-0 gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Escopo</p>
-            <div className="crm-scrollbar mt-2 max-h-[min(40vh,280px)] overflow-auto rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 text-xs leading-relaxed text-primary-dark">
-              {escopo.trim() ? (
-                <JustifiedDocumentText text={escopo} />
-              ) : (
-                <p className="italic text-slate-400">—</p>
-              )}
-            </div>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Investimento</p>
-            <div className="crm-scrollbar mt-2 max-h-[min(32vh,220px)] overflow-auto rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 text-xs leading-relaxed text-primary-dark">
-              {investimento.trim() ? (
-                <JustifiedDocumentText text={investimento} />
-              ) : (
-                <p className="italic text-slate-400">—</p>
-              )}
-            </div>
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Escopo</p>
+          <div className="crm-scrollbar mt-2 max-h-[min(50vh,360px)] overflow-auto rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 text-xs leading-relaxed text-primary-dark">
+            {escopo.trim() ? (
+              <JustifiedDocumentText text={escopo} />
+            ) : (
+              <p className="italic text-slate-400">—</p>
+            )}
           </div>
         </div>
       </div>
