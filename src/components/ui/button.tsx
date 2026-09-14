@@ -4,41 +4,55 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-full border border-transparent bg-clip-padding text-sm font-semibold whitespace-nowrap tracking-[-0.01em] transition-all duration-200 ease-out outline-none select-none hover:-translate-y-0.5 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/45 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  // Design System V2 (§16.3): disabled usa fundo neutro e texto disabled, não só opacidade.
+  "group/button inline-flex shrink-0 items-center justify-center rounded-[var(--radius-v2-lg)] border border-transparent bg-clip-padding text-sm font-semibold whitespace-nowrap tracking-[-0.01em] transition-colors duration-200 ease-out outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20 disabled:pointer-events-none disabled:border-transparent disabled:bg-muted disabled:text-text-disabled-v2 disabled:shadow-none aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
+      // Design System V2 (§16): sem gradiente/sombra decorativa e sem deslocamento no
+      // hover/active em botões comuns. `default` fica como alias de `primary`. Mapeamento
+      // do legado (§31): `cta` e `teal` passam a renderizar como `primary` (nomes mantidos
+      // por compatibilidade de API — nenhum consumidor precisa trocar de variant — mas o
+      // resultado visual não compete mais com o azul funcional). `hero`/`inverse` ficam
+      // como o branco-sobre-navy oficial (§16.1), para o raro contexto institucional escuro.
       variant: {
         default:
-          "bg-crm-gradient-primary text-primary-foreground shadow-[0_14px_30px_rgba(15,118,110,0.22)] hover:shadow-[0_18px_42px_rgba(15,118,110,0.28)]",
+          "bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active",
         primary:
-          "bg-crm-gradient-primary text-primary-foreground shadow-[0_14px_30px_rgba(15,118,110,0.22)] hover:shadow-[0_18px_42px_rgba(15,118,110,0.28)]",
-        cta:
-          "border-primary-dark/10 bg-[linear-gradient(135deg,var(--primary-dark),var(--primary-medium))] px-8 text-white shadow-[0_14px_32px_rgba(23,32,51,0.22)] hover:shadow-[0_18px_42px_rgba(23,32,51,0.26)]",
+          "bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active",
+        cta: "bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active",
+        inverse:
+          "border border-white/30 bg-white text-brand-navy hover:bg-neutral-50",
         hero:
-          "border-white/45 bg-white text-primary-dark shadow-[0_14px_34px_rgba(0,0,0,0.18)] hover:bg-slate-50 hover:shadow-[0_18px_42px_rgba(0,0,0,0.22)]",
-        teal: "bg-accent-teal text-white shadow-[0_12px_28px_rgba(15,159,143,0.26)] hover:bg-accent-teal/90",
+          "border border-white/30 bg-white text-brand-navy hover:bg-neutral-50",
+        teal: "bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active",
         outline:
-          "border-border bg-white/70 text-foreground shadow-sm shadow-primary-dark/[0.03] hover:border-accent-teal/35 hover:bg-white aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-border bg-white text-foreground hover:border-border-strong hover:bg-neutral-50 aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
-          "border border-border/60 bg-secondary text-secondary-foreground hover:bg-white aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "border border-border bg-white text-secondary-foreground hover:bg-secondary-hover aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
-          "border border-border/60 bg-white/45 text-primary-medium hover:border-accent-teal/30 hover:bg-white/85 hover:text-primary-dark aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+          "text-foreground hover:bg-muted aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // Alturas V2 (§16.2): sm=32px, control=36px (novo, uso em toolbar), default=40px,
+      // lg=44px, icon-sm=32px, icon=36px, icon-lg=40px. `xs`/`icon-xs` são extensões
+      // fora da escala V2, mantidas por compatibilidade (uso existente em ações compactas
+      // de tabela/toolbar) com raio compacto (8px) em vez do raio padrão de botão (10px).
       size: {
         default:
-          "h-10 gap-1.5 px-6 has-data-[icon=inline-end]:pr-5 has-data-[icon=inline-start]:pl-5",
-        xs: "h-7 gap-1 rounded-[10px] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1 rounded-[12px] px-3 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3.5",
-        lg: "h-11 gap-2 px-7 has-data-[icon=inline-end]:pr-6 has-data-[icon=inline-start]:pl-6",
-        icon: "size-8",
+          "h-10 gap-1.5 px-4 has-data-[icon=inline-end]:pr-3.5 has-data-[icon=inline-start]:pl-3.5",
+        xs: "h-7 gap-1 rounded-[var(--radius-v2-md)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-8 gap-1 rounded-[var(--radius-v2-md)] px-2.5 text-[13px] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3.5",
+        control:
+          "h-9 gap-1.5 px-3 text-sm in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
+        lg: "h-11 gap-2 px-[18px] has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4",
+        icon: "size-9",
         "icon-xs":
-          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
+          "size-6 rounded-[var(--radius-v2-md)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
         "icon-sm":
-          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
-        "icon-lg": "size-9",
+          "size-8 rounded-[var(--radius-v2-md)] in-data-[slot=button-group]:rounded-lg",
+        "icon-lg": "size-10",
       },
     },
     defaultVariants: {

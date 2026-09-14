@@ -240,7 +240,12 @@
   --text-primary: #182230;
   --text-secondary: #475467;
   --text-muted: #667085;
-  --text-placeholder: #98a2b3;
+  /* Desvio deliberado do valor literal do documento-fonte (neutral-400 #98A2B3, ~2,58:1
+     sobre branco): não atinge WCAG AA (4,5:1) para texto normal, e §27.1 exige AA.
+     Achado da Codex (QA) na revisão da Fase 2. Reaproveita --text-secondary/neutral-500
+     (#667085, ~4,98:1), documentado em STATUS_REDESIGN.md. --text-disabled mantém o valor
+     original: WCAG isenta explicitamente componentes desabilitados do requisito de contraste. */
+  --text-placeholder: #667085;
   --text-disabled: #98a2b3;
 
   /* ---- Design System V2 — raio, sombra, movimento, z-index (§10/§11/§24) ----

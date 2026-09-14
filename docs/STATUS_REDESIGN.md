@@ -12,9 +12,9 @@ Documento-fonte: `DESIGN_SYSTEM_V2_CRM_BP.md` (raiz do projeto) — é a especif
 
 *(Última atualização: 14/09/2026 — preencher com data/hora real a cada edição)*
 
-- **Fase atual:** Fase 2 — Primitives (Button, Input, Select, Badge, Card/Surface, Dialog — em andamento)
+- **Fase atual:** Fase 2 — Primitives — lote 1 concluído (Button, Input, Select+CrmSelect, Badge, Card/Surface, Dialog+AlertDialog); restam Checkbox/Radio/Switch, Tabs, Table/Skeleton/Progress/Alert, Popover/Tooltip, DateInputBr/TimeInputBr/CalendarBr
 - **Fases concluídas:** Fase 0 — Auditoria; Fase 1 — Fundação de tokens
-- **Próxima fase:** Fase 3 — Shell e padrões globais (AppShell, sidebar, PageHeader)
+- **Próxima fase:** completar o restante da Fase 2, depois Fase 3 — Shell e padrões globais (AppShell, sidebar, PageHeader)
 - **Bloqueios conhecidos:** ver seção "Bloqueios" abaixo
 
 ## Fases (referência rápida — ver seção 33 do documento-fonte para detalhes completos)
@@ -38,6 +38,8 @@ Documento-fonte: `DESIGN_SYSTEM_V2_CRM_BP.md` (raiz do projeto) — é a especif
 | 14/09/2026 | Tokens de texto semântico (`--text-primary`, `--text-secondary`, `--text-muted`, `--text-placeholder`, `--text-disabled`) ficam como custom properties soltas em `:root`, **fora** do bloco `@theme inline`; o alias de utility Tailwind usa chave própria (`--color-text-primary-v2` etc.) apontando pro valor canônico | Claude (Lead), revisado por Codex | Dentro de `@theme`, um `--text-primary` bruto colide com o namespace `--text-*` de tamanho de fonte do Tailwind v4 e geraria um utilitário `text-primary` concorrente com o que já vem de `--color-primary` |
 | 14/09/2026 | Tokens semânticos shadcn (`--background`, `--primary`, `--border`, `--input`, `--ring`, `--destructive`, paleta de gráficos) foram sobrescritos direto pros valores V2 já na Fase 1, sem alias temporário | Claude (Lead) | Blast radius mapeado por grep antes da troca. Correção (apontada pela Codex): a estilização pesada de Button/Card/sidebar (gradiente teal, `.glass-card`, pill, navy) continua vindo de classes/cores próprias (`--accent-teal`, `--primary-dark`, `--sidebar-*`) intocadas — mas há consumo semântico direto real desses tokens em Button (`primary-foreground`, `secondary`, `destructive`), Card (`card-foreground`), e `--border` alcança globalmente via `* { @apply border-border }` e as 682 utilities `border`/`border-x/y/t/r/b/s/e` em 110 arquivos. Risco avaliado como baixo mesmo assim: valores V2 próximos dos legados nesses pontos (cores de texto/estado, não a decoração visual pesada) |
 | 14/09/2026 | Motion (`--motion-fast/default/slow/ease`) e z-index (`--z-base`…`--z-drag-overlay`) definidos na Fase 1 mas **não aplicados** a nenhum componente ainda; z-index hardcoded atual (40/50/60/70/100/120/130/400) permanece intacto | Claude (Lead) | Migração de z-index precisa ser um lote único coordenado (Fase 3 — Shell/overlays), não pontual, pra não quebrar empilhamento de overlays |
+| 14/09/2026 | Fase 2, lote 1 (Button/Input/Select+CrmSelect/Badge/Card/Dialog+AlertDialog): todas as props/API existentes preservadas (`variant`/`size` do Button, `size` do Select etc.) — só as classes Tailwind internas mudaram. Button: `rounded-full`→`rounded-[var(--radius-v2-lg)]`(10px), removido hover/active translate, `teal` e `cta` passam a renderizar como `primary` (nomes mantidos por compat., 26+8 consumidores intocados), `secondary` virou `bg-white` (era `bg-secondary`), `inverse` (variante oficial nova) e `hero` (legada) usam branco-sobre-navy, disabled ganhou fundo neutro + texto disabled em vez de só opacidade, `icon`/`icon-sm`/`icon-lg` foram para 36/32/40px (V2), size `control`=36px é novo. Input/Select: 40px (36px em `data-size=sm`), raio 8px, foco azul. Card: parou de usar `.glass-card` (classe global, ainda usada por outros 15 consumidores intocados) e passou a ter raio/borda/fundo próprios sem sombra. Dialog/AlertDialog: conteúdo opaco (sem blur/translucidez), raio 16px, `shadow-v2-lg` | Claude (Lead), revisado por Codex | Reduzir risco: qualquer um dos ~700 call-sites desses componentes continua funcionando sem alteração de código |
+| 14/09/2026 | `--text-placeholder` mudou de `#98A2B3` (neutral-400, ~2,58:1 sobre branco) para `#667085` (mesmo valor de `--text-secondary`/neutral-500, ~4,98:1) — desvio deliberado do valor literal do documento-fonte | Claude (Lead), achado bloqueante da Codex | `#98A2B3` não atinge WCAG AA (4,5:1) para texto normal e §27.1 exige AA; só ficou um problema real quando Input/Select passaram a consumir o token de fato, na Fase 2. `--text-disabled` manteve `#98A2B3` (WCAG isenta componente desabilitado do requisito) |
 
 ## Ressalvas da Codex (QA) — pendências não-bloqueantes para a Fase 2+
 
@@ -45,8 +47,15 @@ Registradas na revisão de fechamento da Fase 1 (aprovado com ressalvas):
 
 1. Considerar registrar radius/shadow/tipografia V2 diretamente nos namespaces do `@theme` (mantendo o sufixo `v2`) à medida que cada primitive migrar, permitindo `rounded-v2-lg`, `shadow-v2-md`, `text-v2-heading-xl` como utilities de verdade em vez de custom properties soltas.
 2. Tokens semânticos (`--primary`, `--border` etc.) hoje repetem o hex das primitivas (`--interactive-600`, `--neutral-200`) em vez de referenciá-las via `var(...)`. Encadear (`--primary: var(--interactive-600)`) reduziria risco de divergência futura.
-3. `--text-placeholder: #98A2B3` sobre fundo branco tem contraste ~2,58:1 — é o valor oficial do documento-fonte, mas merece checagem de acessibilidade quando um componente passar a consumi-lo de fato (placeholder de Input, por exemplo).
-4. O contrato Dialog+Select (`src/lib/ui/base-ui-select-dialog.ts`) segue estruturalmente intacto (nada da Fase 1 tocou nisso), mas não tem teste automatizado dedicado — recomenda-se smoke test manual (abrir Select dentro de Dialog, selecionar item, confirmar que o Dialog não fecha) assim que Select/Dialog forem migrados nesta Fase 2.
+3. ~~`--text-placeholder: #98A2B3` sobre fundo branco tem contraste ~2,58:1~~ — **resolvido na Fase 2**: quando Input/Select passaram a consumir o token de fato, a Codex escalou isso a bloqueador (viola WCAG AA, §27.1). `--text-placeholder` passou a usar o valor de `--text-secondary`/`neutral-500` (`#667085`, ~4,98:1), um desvio deliberado do valor literal do documento-fonte (que mapeia placeholder para `neutral-400`) — `--text-disabled` manteve `#98A2B3` porque WCAG isenta componentes desabilitados do requisito de contraste.
+4. O contrato Dialog+Select (`src/lib/ui/base-ui-select-dialog.ts`) segue estruturalmente intacto (nada da Fase 1 tocou nisso) — **verificado e promovido a teste permanente na Fase 2**: `src/lib/ui/base-ui-select-dialog.test.tsx` (baseado no smoke test que a Codex escreveu para a revisão, adaptado ao `vitest.config.ts` do repo). Passa: selecionar uma opção do Select não fecha o Dialog.
+
+## Ressalvas da Codex (QA) — pendências não-bloqueantes para o restante da Fase 2
+
+Registradas na revisão de fechamento do lote 1 (Button/Input/Select+CrmSelect/Badge/Card/Dialog+AlertDialog — aprovado com ressalvas):
+
+1. `src/components/ui/select.tsx`: o `SelectContent` de base tinha `align="center"` como default, enquanto §18.1 pede alinhamento inicial (`align="start"`) — **corrigido**. `CrmSelectContent` já fixava `start` explicitamente, então nenhum consumidor via `CrmSelect` foi afetado; só o default do primitive cru mudou.
+2. Dialog/AlertDialog ainda carregam dívida visual anterior à Fase 2: sem contrato estrutural de largura/margem no mobile nem de `max-height`/scroll interno quando o conteúdo é maior que a viewport. Não é regressão desta fase — registrar para tratar quando Dialog for revisitado (Fase 3+, ou quando um consumidor concreto expuser o problema).
 
 ## Bloqueios / pontos de atenção
 
