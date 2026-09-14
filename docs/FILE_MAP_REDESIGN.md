@@ -13,7 +13,7 @@ Levantado por listagem direta do repositório em 14/09/2026. Se a estrutura muda
 
 ## Layout global / AppShell / Sidebar
 
-- `src/components/crm/app-shell.tsx` — shell principal, sidebar, navegação. **Fase 2.**
+- `src/components/crm/app-shell.tsx` — shell principal, sidebar, navegação. **Fase 3.**
 - `src/components/crm/crm-page-header.tsx` — PageHeader (título, breadcrumb, ações).
 - `src/components/crm/crm-surface-header.tsx` — header de superfície/card.
 - `src/components/crm/sidebar-account-menu.tsx` — menu de conta na sidebar.
@@ -21,7 +21,7 @@ Levantado por listagem direta do repositório em 14/09/2026. Se a estrutura muda
 
 ## Componentes base (shadcn/ui) — `src/components/ui/`
 
-Primitivos usados em todo o produto. Mudança aqui afeta tudo — priorizar na Fase 3.
+Primitivos usados em todo o produto. Mudança aqui afeta tudo — priorizar na Fase 2.
 
 `button.tsx` · `input.tsx` · `select.tsx` · `dialog.tsx` · `alert-dialog.tsx` · `tabs.tsx` · `table.tsx` · `card.tsx` · `badge.tsx` · `avatar.tsx` · `alert.tsx` · `popover.tsx` · `tooltip.tsx` · `switch.tsx` · `textarea.tsx` · `label.tsx` · `progress.tsx` · `skeleton.tsx` · `date-input-br.tsx` · `time-input-br.tsx` · `calendar-br.tsx`
 
@@ -54,13 +54,27 @@ Relacionados: `lead-intake-empresa-block.tsx`, `lead-intake-types.ts`, `lead-add
 
 **Agente responsável: Grok — Leads/Kanban** (é parte do fluxo de entrada de leads).
 
-## Detalhe do Lead / Propostas / Contratos (builder)
+## Detalhe do Lead (shell) — Fase 4, Grok Leads/Kanban
 
-Rota: `src/app/(crm)/crm/leads/[id]/` — **atenção: área jurídica sensível.**
+Rota: `src/app/(crm)/crm/leads/[id]/` — mesma pasta das Propostas/Contratos abaixo, mas
+**fronteira de propriedade é por responsabilidade, não por pasta**: o *shell* da ficha
+(breadcrumb, EntityHeader sem hero escuro, linha de contexto, navegação das tabs) é
+Fase 4/Leads; o *conteúdo* de cada tab de proposta/contrato é Fase 5/Propostas-Contratos
+(seção seguinte). Ver §29.4 do documento-fonte.
 
 - `page.tsx` (~34KB) — shell da página de detalhe do lead
-- `lead-detail-view.tsx` (~86KB) — view principal do detalhe
+- `lead-detail-view.tsx` (~86KB) — view principal do detalhe: EntityHeader, linha de
+  contexto (etapa/valor/responsável/atualização), tabs `line`. **Não** o conteúdo interno
+  das tabs de proposta/contrato, só o chrome de navegação entre elas.
 - `lead-detail-field-editor.tsx`, `lead-notes-tab.tsx`, `lead-d4sign-panel.tsx`, `lead-delete-button.tsx`
+
+**Agente responsável: Grok — Leads/Kanban.**
+
+## Propostas / Contratos (builder) — Fase 5, Grok Propostas/Contratos
+
+Rota: `src/app/(crm)/crm/leads/[id]/` (conteúdo das tabs Proposta/Contrato) — **atenção:
+área jurídica sensível.**
+
 - `proposta-document-builder.tsx` (~75KB) — **builder de propostas**
 - `proposta-escopo-por-area.tsx` (~53KB), `proposta-escopo-area-coordenacao.tsx` — escopo da proposta
 - `gerar-proposta-docx-button.tsx` — geração do documento
