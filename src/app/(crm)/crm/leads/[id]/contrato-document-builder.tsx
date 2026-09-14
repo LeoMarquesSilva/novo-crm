@@ -28,7 +28,6 @@ import {
   Trash2,
   TriangleAlert,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -52,6 +51,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import {
+  DocumentBuilderDialogHeader,
+  DocumentBuilderHubHeader,
+  DocumentInheritedBadge,
+  DocumentStatusCard,
+  documentBuilderDialogClass,
+  documentBuilderHubClass,
+} from "@/components/crm/document-builder-chrome";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -305,50 +312,39 @@ export function ContratoDocumentBuilder({
   }
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-crm-border-warm-strong bg-crm-surface-warm shadow-[0_28px_80px_rgba(16,31,46,0.12)]">
-      {/* Header */}
-      <div className="relative overflow-hidden border-b border-white/20 bg-[#0b1724] px-5 py-5 text-white sm:px-6">
-        <div className="absolute inset-0 bg-crm-gradient-dark opacity-85" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(45,200,183,0.28),transparent_34%),linear-gradient(135deg,rgba(8,22,36,0.15),rgba(4,13,22,0.92))]" />
-        <div className="absolute -right-16 -top-24 h-56 w-56 rounded-full border border-white/10 bg-white/8 blur-2xl" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-accent-teal/35 bg-accent-teal/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-teal-100">
-              <FileText className="size-3.5" aria-hidden />
-              Elaboração de Contrato
-            </div>
-            <h2 className="mt-3 text-2xl font-extrabold tracking-[-0.045em] text-white">
-              Workspace de contrato
-            </h2>
-            <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-100/85">
-              {hasInstance
-                ? "Rascunho em andamento. Clique em “Continuar Elaboração” para editar."
-                : "Selecione o modelo, preencha os dados e visualize o preview ao vivo."}
-            </p>
-          </div>
+    <section className={documentBuilderHubClass}>
+      <DocumentBuilderHubHeader
+        eyebrow="Elaboração de Contrato"
+        title="Workspace de contrato"
+        description={
+          hasInstance
+            ? "Rascunho em andamento. Clique em “Continuar Elaboração” para editar."
+            : "Selecione o modelo, preencha os dados e visualize o preview ao vivo."
+        }
+        actions={
           <Button
             type="button"
-            variant="teal"
+            variant="primary"
             size="sm"
-            className="h-11 gap-2 px-5 text-sm font-bold"
+            className="gap-2"
             disabled={loading}
             onClick={() => setBuilderOpen(true)}
           >
             <PenLine className="size-4" aria-hidden />
             {hasInstance ? "Continuar Elaboração" : "Elaborar Contrato"}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Status overview */}
       <div className="space-y-5 px-5 py-5 sm:px-6">
         {loading ? (
-          <div className="flex items-center gap-2 rounded-xl border border-white/50 bg-white/55 p-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" aria-hidden />
             Carregando...
           </div>
         ) : error ? (
-          <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          <div className="flex items-center gap-2 rounded-(--radius-v2-xl) border border-danger-border bg-danger-bg p-4 text-sm text-danger-text">
             <AlertCircle className="size-4 shrink-0" aria-hidden />
             {error}
           </div>
@@ -356,30 +352,29 @@ export function ContratoDocumentBuilder({
 
         {/* Dados herdados */}
         {(propostaEmpresaPrincipalNome || inheritedFields.length > 0) && !loading ? (
-          <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4 shadow-sm">
-            <div className="mb-3 flex items-center gap-2">
-              <Building2 className="size-4 text-accent-teal" aria-hidden />
-              <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">
-                Dados da proposta
-              </h3>
+          <div className="rounded-(--radius-v2-xl) border border-info-border bg-info-bg p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Building2 className="size-4 text-info-text" aria-hidden />
+              <h3 className="text-v2-heading-md text-foreground">Dados da proposta</h3>
+              <DocumentInheritedBadge />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {propostaEmpresaPrincipalNome ? (
-                <div className="rounded-xl border border-teal-200/60 bg-white/80 p-3 sm:col-span-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent-teal/80">
+                <div className="rounded-(--radius-v2-md) border border-border bg-white p-3 sm:col-span-2">
+                  <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
                     Empresa principal
                   </p>
-                  <p className="mt-1 text-sm font-extrabold text-primary-dark">
+                  <p className="mt-1 text-sm font-semibold text-foreground">
                     {propostaEmpresaPrincipalNome}
                   </p>
                 </div>
               ) : null}
               {inheritedFields.map((f) => (
-                <div key={f.definitionId} className="rounded-xl border border-teal-200/60 bg-white/80 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent-teal/80">
+                <div key={f.definitionId} className="rounded-(--radius-v2-md) border border-border bg-white p-3">
+                  <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
                     {userFacingFieldLabel(f.label, f.fieldCode)}
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-primary-dark">
+                  <p className="mt-1 text-sm font-medium text-foreground">
                     {f.value.trim() || <span className="text-muted-foreground">Não preenchido</span>}
                   </p>
                 </div>
@@ -391,13 +386,13 @@ export function ContratoDocumentBuilder({
         {/* Status cards */}
         {!loading && contratoState ? (
           <div className="grid gap-4 lg:grid-cols-2">
-            <ContratStatusCard
+            <DocumentStatusCard
               title={pending.length === 0 ? "Pronto para gerar" : "Pendências"}
               icon={pending.length === 0 ? CheckCircle2 : TriangleAlert}
               tone={pending.length === 0 ? "ok" : "warn"}
             >
               {pending.length === 0 ? (
-                <p className="text-sm text-primary-dark/80">
+                <p className="text-sm text-foreground">
                   Todos os campos obrigatórios estão preenchidos.
                 </p>
               ) : (
@@ -407,7 +402,7 @@ export function ContratoDocumentBuilder({
                       <button
                         type="button"
                         onClick={() => goToPendingItem(item)}
-                        className="group flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-sm text-primary-dark/80 transition-colors hover:bg-amber-100/60"
+                        className="group flex w-full items-center gap-2 rounded-(--radius-v2-md) px-1.5 py-1 text-left text-sm text-foreground transition-colors hover:bg-warning-bg"
                       >
                         <TriangleAlert className="size-3.5 shrink-0 text-amber-500" aria-hidden />
                         <span className="flex-1">{item.label}</span>
@@ -425,9 +420,9 @@ export function ContratoDocumentBuilder({
                   ) : null}
                 </ul>
               )}
-            </ContratStatusCard>
+            </DocumentStatusCard>
 
-            <ContratStatusCard title="Histórico" icon={History} tone="neutral">
+            <DocumentStatusCard title="Histórico" icon={History} tone="neutral">
               <div className="space-y-2 text-sm">
                 {versions.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhuma versão gerada ainda.</p>
@@ -435,10 +430,10 @@ export function ContratoDocumentBuilder({
                   versions.slice(0, 4).map((v) => (
                     <div
                       key={v.id}
-                      className="flex items-center justify-between rounded-lg border border-stone-200 bg-white/70 px-3 py-2"
+                      className="flex items-center justify-between rounded-(--radius-v2-md) border border-border bg-surface-subtle px-3 py-2"
                     >
                       <div>
-                        <p className="text-xs font-semibold text-primary-dark">v{v.version_number}</p>
+                        <p className="text-xs font-semibold text-foreground">v{v.version_number}</p>
                         <p className="text-[10px] text-muted-foreground">
                           {new Date(v.generated_at).toLocaleString("pt-BR")}
                         </p>
@@ -447,7 +442,7 @@ export function ContratoDocumentBuilder({
                   ))
                 )}
               </div>
-            </ContratStatusCard>
+            </DocumentStatusCard>
           </div>
         ) : null}
 
@@ -559,6 +554,7 @@ function ContratoBuilderDialog({
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
 
   const [confirmClose, setConfirmClose] = useState(false);
+  const [mobilePane, setMobilePane] = useState<"edit" | "preview">("edit");
   const [alterarEscoposOpen, setAlterarEscoposOpen] = useState(false);
 
   const initialObjectDraft = contratoState.objectDraft ?? {
@@ -887,88 +883,66 @@ function ContratoBuilderDialog({
             e.preventDefault();
             handleCloseAttempt();
           }}
-          className={cn(
-            "flex flex-col gap-0 p-0",
-            "fixed left-[50%] top-[50%] z-[110]",
-            "w-[98vw] max-w-[98vw] h-[95vh]",
-            "translate-x-[-50%] translate-y-[-50%]",
-            "rounded-2xl border border-white/30 bg-white shadow-2xl",
-            "overflow-hidden",
-          )}
+          className={documentBuilderDialogClass}
         >
-          {/* ── Header ── */}
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-[#0b1724] px-5 py-4 text-white sm:px-6">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-teal/20 text-accent-teal">
-                  <PenLine className="size-4" aria-hidden />
-                </span>
-                <DialogTitle className="text-base font-extrabold tracking-[-0.02em] text-white">
-                  Elaborar Contrato
-                </DialogTitle>
-                <DialogDescription className="sr-only">
-                  Edição do contrato herdado automaticamente da proposta aprovada.
-                </DialogDescription>
-                {isDirty ? (
-                  <span className="rounded-full bg-amber-500/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">
-                    Não salvo
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-9 gap-1.5 border-white/25 bg-white/15 text-white shadow-sm backdrop-blur hover:bg-white/20"
-                disabled={saving || generating}
-                onClick={() => void handleSave()}
-              >
-                {saving ? (
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <Save className="size-3.5" aria-hidden />
-                )}
-                Salvar
-              </Button>
-
-              <Button
-                type="button"
-                variant="teal"
-                size="sm"
-                className="h-9 gap-1.5"
-                disabled={generating || saving}
-                onClick={() => void handleGenerate()}
-              >
-                {generating ? (
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <FileDown className="size-3.5" aria-hidden />
-                )}
-                Gerar Word
-              </Button>
-
-              <button
-                type="button"
-                onClick={handleCloseAttempt}
-                className="ml-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white"
-                aria-label="Fechar"
-              >
-                <X className="size-4" aria-hidden />
-              </button>
-            </div>
-          </div>
+          <DialogTitle className="sr-only">Elaborar Contrato</DialogTitle>
+          <DialogDescription className="sr-only">
+            Edição do contrato herdado automaticamente da proposta aprovada.
+          </DialogDescription>
+          <DocumentBuilderDialogHeader
+            icon={<PenLine className="size-4" aria-hidden />}
+            title="Elaborar Contrato"
+            description="Edição do contrato herdado automaticamente da proposta aprovada."
+            saving={saving}
+            dirty={isDirty}
+            mobilePane={mobilePane}
+            onMobilePaneChange={setMobilePane}
+            onClose={handleCloseAttempt}
+            closeDisabled={saving || generating}
+            actions={
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="gap-1.5"
+                  disabled={saving || generating}
+                  onClick={() => void handleSave()}
+                >
+                  {saving ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Save className="size-3.5" aria-hidden />
+                  )}
+                  Salvar
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={generating || saving}
+                  onClick={() => void handleGenerate()}
+                >
+                  {generating ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <FileDown className="size-3.5" aria-hidden />
+                  )}
+                  Gerar Word
+                </Button>
+              </>
+            }
+          />
 
           {/* Feedback / erro */}
           {(saveFeedback ?? saveError) ? (
             <div
               className={cn(
-                "shrink-0 px-5 py-2 text-sm font-semibold sm:px-6",
+                "shrink-0 px-5 py-2 text-sm font-medium sm:px-6",
                 saveError
-                  ? "bg-rose-50 text-rose-700"
-                  : "bg-emerald-50 text-emerald-700",
+                  ? "bg-danger-bg text-danger-text"
+                  : "bg-success-bg text-success-text",
               )}
             >
               {saveError ?? saveFeedback}
@@ -976,9 +950,14 @@ function ContratoBuilderDialog({
           ) : null}
 
           {/* ── Body split-pane ── */}
-          <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
             {/* Painel esquerdo — Formulário */}
-            <aside className="crm-scrollbar w-[46%] shrink-0 overflow-y-auto border-r border-slate-200 bg-white">
+            <aside
+              className={cn(
+                "crm-scrollbar min-h-0 w-full overflow-y-auto border-border bg-white md:w-[46%] md:flex-none md:border-r",
+                mobilePane === "edit" ? "flex-1" : "hidden md:block",
+              )}
+            >
               <SectionNav
                 sections={[
                   { id: "section-partes", num: 1, label: "Partes", state: propostaEmpresaPrincipalNome ? "complete" : "pending" },
@@ -994,11 +973,14 @@ function ContratoBuilderDialog({
                 {/* Seção: Partes (read-only) */}
                 <FormSection id="section-partes" num={1} title="Partes" isComplete={Boolean(propostaEmpresaPrincipalNome)}>
                   {propostaEmpresaPrincipalNome ? (
-                    <div className="rounded-xl border border-teal-200/60 bg-teal-50/50 p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent-teal/80">
-                        Empresa principal
-                      </p>
-                      <p className="mt-1 text-sm font-extrabold text-primary-dark">
+                    <div className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3">
+                      <div className="mb-1 flex items-center gap-2">
+                        <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+                          Empresa principal
+                        </p>
+                        <DocumentInheritedBadge />
+                      </div>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
                         {propostaEmpresaPrincipalNome}
                       </p>
                     </div>
@@ -1102,7 +1084,7 @@ function ContratoBuilderDialog({
                 {/* Seção 5: Vigência e início */}
                 <FormSection id="section-vigencia" num={5} title="Vigência e Início" isComplete={prazComplete || Boolean(liveBuild)}>
                   {liveBuild ? (
-                    <div className="rounded-xl border border-teal-200/60 bg-teal-50/40 p-3 text-xs text-primary-dark">
+                    <div className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3 text-xs text-foreground">
                       <p>
                         <span className="font-bold">Vigência: </span>
                         {liveBuild.data.term.kind === "indefinite"
@@ -1134,9 +1116,9 @@ function ContratoBuilderDialog({
                     );
                   })}
                   {prazComplete && (
-                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                    <div className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3 text-xs text-info-text">
                       <div className="flex items-start gap-2">
-                        <Bell className="mt-0.5 size-3.5 shrink-0 text-blue-600" aria-hidden />
+                        <Bell className="mt-0.5 size-3.5 shrink-0 text-info-text" aria-hidden />
                         <p>
                           <strong>Ao salvar</strong>, a área{" "}
                           <span className="font-semibold">Societário e Contratos</span> será notificada
@@ -1174,9 +1156,14 @@ function ContratoBuilderDialog({
             </aside>
 
             {/* Painel direito — Preview ao vivo */}
-            <main className="relative flex w-[54%] flex-1 flex-col overflow-hidden bg-slate-50">
+            <main
+              className={cn(
+                "relative min-h-0 w-full flex-1 flex-col overflow-hidden bg-canvas md:w-[54%] md:flex-none",
+                mobilePane === "preview" ? "flex" : "hidden md:flex",
+              )}
+            >
               {/* Cabeçalho do preview */}
-              <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-[#f0f9f8] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-accent-teal">
+              <div className="flex shrink-0 items-center gap-2 border-b border-border bg-white px-4 py-2.5 text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
                 <FileText className="size-3.5 shrink-0" aria-hidden />
                 Preview ao vivo
                 <span className="ml-1 size-2 shrink-0 rounded-full bg-emerald-500" aria-hidden />
@@ -1209,7 +1196,7 @@ function ContratoBuilderDialog({
 
               {/* Preview content */}
               <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto">
-                <div className="bg-[radial-gradient(circle_at_top,#e8f5f3_0%,#e2eceb_36%,#d8e8e7_100%)] p-3 sm:p-4">
+                <div className="bg-surface-subtle p-3 sm:p-4">
                   <ClickablePreview
                     page={livePreview}
                     pins={draftPins}
@@ -1280,7 +1267,7 @@ function ContratoBuilderDialog({
 
       {/* Confirmação de descarte — z acima do builder (z-[110]) */}
       <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
-        <AlertDialogContent overlayClassName="z-[120]" className="z-[130]">
+        <AlertDialogContent overlayClassName="z-(--z-tooltip)" className="z-(--z-drag-overlay)">
           <AlertDialogHeader>
             <AlertDialogTitle>Há alterações não salvas</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1481,7 +1468,7 @@ function D4SignSendSection({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="overflow-hidden rounded-(--radius-v2-xl) border border-border bg-white">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
         <span className={cn(
@@ -1524,7 +1511,7 @@ function D4SignSendSection({
                 <button
                   type="button"
                   onClick={() => setViewDialogOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition-colors"
+                  className="inline-flex items-center gap-1 rounded-(--radius-v2-md) border border-interactive-300 bg-interactive-50 px-3 py-1.5 text-xs font-medium text-interactive-700 transition-colors hover:bg-interactive-100"
                 >
                   <Eye className="size-3" aria-hidden />
                   Ver contrato
@@ -1560,7 +1547,7 @@ function D4SignSendSection({
               href={sendResult.linkContrato}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-medium text-interactive-700 hover:underline"
             >
               <ExternalLink className="size-3" aria-hidden />
               Abrir link
@@ -1624,26 +1611,26 @@ function D4SignSendSection({
             {/* ── CONTRATADA (sócios da firma) ─────────────────────────── */}
             <div
               className={cn(
-                "rounded-xl border border-teal-200 bg-teal-50/50 p-3.5",
+                "rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-3.5",
                 formLocked && "opacity-60",
               )}
             >
               <div className="mb-2.5 flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-700">
+                  <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
                     CONTRATADA · sócios administradores
                   </p>
-                  <p className="text-[10px] text-teal-900/60">
+                  <p className="text-[10px] text-muted-foreground">
                     Assinam todo contrato em nome de Bismarchi | Pires.
                   </p>
                 </div>
-                <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-[10px] font-semibold text-teal-800">
+                <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-[10px] font-medium text-foreground">
                   <input
                     type="checkbox"
                     checked={includeFirmSigners}
                     onChange={(e) => setIncludeFirmSigners(e.target.checked)}
                     disabled={sending || formLocked}
-                    className="size-3.5 rounded border-teal-400 text-teal-600"
+                    className="size-3.5 rounded-(--radius-v2-sm) border-border text-interactive-600"
                   />
                   Incluir
                 </label>
@@ -1655,9 +1642,9 @@ function D4SignSendSection({
                   {firmSigners.map((s) => (
                     <li
                       key={s.email}
-                      className="flex items-center gap-2.5 rounded-lg border border-teal-200 bg-white px-3 py-2"
+                      className="flex items-center gap-2.5 rounded-(--radius-v2-md) border border-border bg-white px-3 py-2"
                     >
-                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-[10px] font-black text-teal-700">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-full) bg-interactive-50 text-[10px] font-semibold text-interactive-700">
                         {s.name
                           .split(/\s+/)
                           .map((p) => p[0])
@@ -1670,7 +1657,7 @@ function D4SignSendSection({
                         <p className="truncate text-xs font-bold text-primary-dark">{s.name}</p>
                         <p className="truncate text-[10px] text-muted-foreground">
                           {s.email}
-                          {s.oab ? <span className="ml-2 text-teal-700">· {s.oab}</span> : null}
+                          {s.oab ? <span className="ml-2 text-interactive-700">· {s.oab}</span> : null}
                         </p>
                       </div>
                     </li>
@@ -1791,7 +1778,7 @@ function D4SignSendSection({
 
             <Button
               type="button"
-              variant="teal"
+              variant="primary"
               size="sm"
               className="h-10 w-full gap-2 text-sm font-bold"
               disabled={sending || !canSend}
@@ -1852,7 +1839,7 @@ function SignersStatusList({
 
       {contratada.length > 0 ? (
         <div className="space-y-1">
-          <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-teal-700">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-muted-v2">
             CONTRATADA
           </p>
           <ul className="space-y-1.5">
@@ -1908,7 +1895,7 @@ function SignerRow({
         "flex items-center gap-3 rounded-xl border bg-white px-3.5 py-2.5",
         signer.signed
           ? "border-emerald-200"
-          : accent === "teal" ? "border-teal-200" : "border-amber-200",
+          : accent === "teal" ? "border-info-border" : "border-warning-border",
       )}
     >
       {/* Avatar */}
@@ -1923,7 +1910,7 @@ function SignerRow({
           "flex size-8 shrink-0 items-center justify-center rounded-full text-[10px] font-black",
           signer.signed
             ? "bg-emerald-100 text-emerald-700"
-            : accent === "teal" ? "bg-teal-100 text-teal-700" : "bg-amber-100 text-amber-700",
+            : accent === "teal" ? "bg-info-bg text-info-text" : "bg-warning-bg text-warning-text",
         )}>
           {initials}
         </span>
@@ -1980,7 +1967,7 @@ function InclusionToggleCard({
     <div
       className={cn(
         "rounded-xl border transition-colors",
-        isIncluded ? "border-teal-200 bg-teal-50/50" : "border-slate-200 bg-white",
+        isIncluded ? "border-success-border bg-success-bg" : "border-border bg-white",
       )}
     >
       <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
@@ -1995,7 +1982,7 @@ function InclusionToggleCard({
           <div
             className={cn(
               "flex size-5 items-center justify-center rounded-md border-2 transition-colors",
-              isIncluded ? "border-teal-500 bg-teal-500" : "border-slate-300 bg-white",
+              isIncluded ? "border-success-text bg-success-text" : "border-border bg-white",
             )}
           >
             {isIncluded && <Check className="size-3 text-white" aria-hidden />}
@@ -2004,19 +1991,19 @@ function InclusionToggleCard({
         <span
           className={cn(
             "flex-1 text-sm font-semibold",
-            isIncluded ? "text-teal-900" : "text-slate-600",
+            isIncluded ? "text-success-text" : "text-text-secondary-v2",
           )}
         >
           {item.label}
         </span>
         {isIncluded ? (
-          <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
             Incluído
           </span>
         ) : null}
       </label>
       {isIncluded && item.detailCodes.length > 0 ? (
-        <div className="space-y-3 border-t border-teal-100 px-4 pb-4 pt-3">
+        <div className="space-y-3 border-t border-success-border px-4 pb-4 pt-3">
           {item.detailCodes.map((code) => {
             const f = fieldByCode[code];
             if (!f) return null;
@@ -2094,7 +2081,7 @@ function ReviewTaskCard({
   return (
     <div
       className={cn(
-        "rounded-2xl border overflow-hidden shadow-sm",
+        "overflow-hidden rounded-(--radius-v2-xl) border",
         cfg.border,
         cfg.bg,
       )}
@@ -2115,7 +2102,7 @@ function ReviewTaskCard({
           <span className={cn("text-[11px] font-semibold", cfg.color)}>{cfg.label}</span>
         </div>
         {reviewTask.notificado_em && (
-          <span className="flex items-center gap-1 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+          <span className="flex items-center gap-1 rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
             <Bell className="size-2.5" />
             Notificado
           </span>
@@ -2351,7 +2338,7 @@ function ClausulasSection({
           Cláusulas Adicionais
         </h3>
         {selected.length > 0 ? (
-          <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
             {selected.length} adicionada{selected.length > 1 ? "s" : ""}
           </span>
         ) : (
@@ -2419,7 +2406,7 @@ function ClauseGroupBlock({
           {group.title}
         </span>
         {group.addedCount > 0 ? (
-          <span className="shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+          <span className="shrink-0 rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
             {group.addedCount} no contrato
           </span>
         ) : null}
@@ -2487,14 +2474,14 @@ function ClauseRowItem({
       <div
         className={cn(
           "rounded-lg border p-2.5",
-          inContractNow ? "border-teal-200/70 bg-teal-50/40" : "border-amber-200/70 bg-amber-50/50",
+          inContractNow ? "border-success-border bg-success-bg" : "border-warning-border bg-warning-bg",
         )}
       >
         <div className="flex items-center gap-2">
           <span
             className={cn(
               "flex size-4 shrink-0 items-center justify-center rounded-full text-white",
-              inContractNow ? "bg-teal-500" : "bg-amber-400",
+              inContractNow ? "bg-success-text" : "bg-warning-text",
             )}
           >
             {inContractNow ? <Check className="size-2.5" aria-hidden /> : <Lock className="size-2.5" aria-hidden />}
@@ -2506,8 +2493,8 @@ function ClauseRowItem({
                 className={cn(
                   "flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold",
                   inContractNow
-                    ? "border-teal-300 bg-teal-100 text-teal-800"
-                    : "border-amber-300 bg-amber-100 text-amber-800",
+                    ? "border-success-border bg-success-bg text-success-text"
+                    : "border-warning-border bg-warning-bg text-warning-text",
                 )}
               >
                 <Lock className="size-2.5" aria-hidden />
@@ -2534,7 +2521,7 @@ function ClauseRowItem({
           <p
             className={cn(
               "mt-2 whitespace-pre-wrap rounded-md border bg-white p-2 text-xs leading-relaxed text-slate-600",
-              inContractNow ? "border-teal-200/70" : "border-amber-200/70",
+              inContractNow ? "border-success-border" : "border-warning-border",
             )}
           >
             {viewContent || "—"}
@@ -2548,12 +2535,12 @@ function ClauseRowItem({
     <div
       className={cn(
         "rounded-lg border bg-white p-2.5",
-        row.isAdded ? "border-teal-200/70 shadow-sm" : "border-slate-200",
+        row.isAdded ? "border-success-border" : "border-border",
       )}
     >
       <div className="flex items-center gap-2">
         {row.isAdded ? (
-          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-teal-500 text-white">
+          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-success-text text-white">
             <Check className="size-2.5" aria-hidden />
           </span>
         ) : (
@@ -2660,7 +2647,7 @@ function PinsSection({
           Posicionar Assinaturas
         </h3>
         {pins.length > 0 ? (
-          <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
+          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
             {pins.length} pin{pins.length > 1 ? "s" : ""}
           </span>
         ) : (
@@ -2680,7 +2667,7 @@ function PinsSection({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 gap-1.5 border-teal-200 text-[11px] text-teal-800"
+          className="h-8 gap-1.5 border-border text-[11px] text-foreground"
           disabled={disabled}
           onClick={() => onChange(buildDefaultSignaturePins())}
         >
@@ -2700,7 +2687,7 @@ function PinsSection({
                 key={signer.key}
                 className={cn(
                   "flex items-center gap-2 rounded-lg border bg-white px-2.5 py-1.5",
-                  signer.color === "teal" && "border-teal-200",
+                  signer.color === "teal" && "border-info-border",
                   signer.color === "emerald" && "border-emerald-200",
                   signer.color === "amber" && "border-amber-200",
                 )}
@@ -2708,7 +2695,7 @@ function PinsSection({
                 <span
                   className={cn(
                     "size-2.5 shrink-0 rounded-full",
-                    signer.color === "teal" && "bg-teal-500",
+                    signer.color === "teal" && "bg-interactive-600",
                     signer.color === "emerald" && "bg-emerald-500",
                     signer.color === "amber" && "bg-amber-500",
                   )}
@@ -2725,7 +2712,7 @@ function PinsSection({
                   variant={isActiveAssin ? "default" : "outline"}
                   className={cn(
                     "h-7 gap-1 px-2 text-[10px]",
-                    isActiveAssin && "bg-accent-teal text-white",
+                    isActiveAssin && "bg-interactive-600 text-white",
                   )}
                   disabled={disabled}
                   onClick={() =>
@@ -2743,7 +2730,7 @@ function PinsSection({
                   variant={isActiveRubr ? "default" : "outline"}
                   className={cn(
                     "h-7 gap-1 px-2 text-[10px]",
-                    isActiveRubr && "bg-accent-teal text-white",
+                    isActiveRubr && "bg-interactive-600 text-white",
                   )}
                   disabled={disabled}
                   onClick={() =>
@@ -2792,7 +2779,7 @@ function PinsSection({
                         key={idx}
                         className={cn(
                           "flex items-center gap-2 rounded-md border px-2 py-1",
-                          color === "teal" && "border-teal-200 bg-teal-50/60",
+                          color === "teal" && "border-info-border bg-info-bg",
                           color === "emerald" && "border-emerald-200 bg-emerald-50/60",
                           color === "amber" && "border-amber-200 bg-amber-50/60",
                         )}
@@ -2860,7 +2847,7 @@ function ClickablePreview({
 
       {/* Folha de assinaturas — pins D4Sign */}
       <div>
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-teal-700">
+        <p className="mb-2 text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
           Folha de assinaturas — última página do PDF
         </p>
         <div
@@ -2888,7 +2875,7 @@ function ClickablePreview({
                   <div
                     className={cn(
                       "flex items-center gap-1 rounded-md border-2 border-dashed px-2 py-0.5 shadow-sm",
-                      color === "teal" && "border-teal-500 bg-teal-100/90",
+                      color === "teal" && "border-interactive-600 bg-interactive-50",
                       color === "emerald" && "border-emerald-500 bg-emerald-100/90",
                       color === "amber" && "border-amber-500 bg-amber-100/90",
                     )}
@@ -2896,7 +2883,7 @@ function ClickablePreview({
                     <MapPin
                       className={cn(
                         "size-3",
-                        color === "teal" && "text-teal-700",
+                        color === "teal" && "text-interactive-700",
                         color === "emerald" && "text-emerald-700",
                         color === "amber" && "text-amber-700",
                       )}
@@ -2904,7 +2891,7 @@ function ClickablePreview({
                     <span
                       className={cn(
                         "text-[9px] font-bold uppercase tracking-wide",
-                        color === "teal" && "text-teal-800",
+                        color === "teal" && "text-interactive-800",
                         color === "emerald" && "text-emerald-800",
                         color === "amber" && "text-amber-800",
                       )}
@@ -2938,7 +2925,7 @@ function SectionNav({
   sections: Array<{ id: string; num: number; label: string; state: NavSectionState }>;
 }) {
   return (
-    <div className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white/95 px-5 py-2 backdrop-blur sm:px-6">
+    <div className="sticky top-0 z-(--z-sticky) flex gap-1 overflow-x-auto border-b border-border bg-white px-5 py-2 sm:px-6">
       {sections.map((s) => (
         <button
           key={s.id}
@@ -2946,12 +2933,12 @@ function SectionNav({
           title={s.label}
           onClick={() => scrollToSection(s.id)}
           className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors",
+            "flex shrink-0 items-center gap-1.5 rounded-(--radius-v2-full) border px-2.5 py-1 text-[11px] font-medium transition-colors",
             s.state === "complete"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              ? "border-success-border bg-success-bg text-success-text hover:bg-success-bg"
               : s.state === "pending"
-                ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100",
+                ? "border-warning-border bg-warning-bg text-warning-text hover:bg-warning-bg"
+                : "border-border bg-surface-subtle text-text-muted-v2 hover:bg-surface-hover",
           )}
         >
           <span
@@ -3106,36 +3093,6 @@ function CcFieldInput({
 
 // ─── Status card ──────────────────────────────────────────────────────────────
 
-function ContratStatusCard({
-  title,
-  icon: Icon,
-  tone,
-  children,
-}: {
-  title: string;
-  icon: LucideIcon;
-  tone: "ok" | "warn" | "neutral";
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-stone-200 bg-white/75 p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2">
-        <span
-          className={cn(
-            "flex size-8 items-center justify-center rounded-lg",
-            tone === "ok" && "bg-emerald-100 text-emerald-700",
-            tone === "warn" && "bg-amber-100 text-amber-700",
-            tone === "neutral" && "bg-slate-100 text-slate-700",
-          )}
-        >
-          <Icon className="size-4" aria-hidden />
-        </span>
-        <h3 className="text-sm font-bold text-primary-dark">{title}</h3>
-      </div>
-      {children}
-    </div>
-  );
-}
 
 // ─── Documento de preview — estilo contrato jurídico ──────────────────────────
 
@@ -3148,7 +3105,7 @@ const CONTRACT_BODY_STYLE: React.CSSProperties = {
 };
 
 const A4_PAGE_CLASS =
-  "mx-auto w-full max-w-[794px] bg-white px-[11%] shadow-[0_24px_70px_rgba(16,31,46,0.22)] ring-1 ring-black/5";
+  "mx-auto w-full max-w-[794px] bg-white px-[11%] shadow-(--shadow-v2-lg) ring-1 ring-black/5";
 
 /**
  * Cabeçalho/rodapé reais do modelo Word oficial (`templates/contrato/

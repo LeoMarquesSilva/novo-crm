@@ -92,10 +92,10 @@ export function PropostaEscopoEntryForm({
   };
 
   return (
-    <div className="min-w-0 space-y-4 rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm">
+    <div className="min-w-0 space-y-4 rounded-(--radius-v2-xl) border border-border bg-white p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-extrabold text-[#24615b]">
+          <p className="text-v2-caption-medium text-text-muted-v2">
             Escopo {entryIndex + 1}
             {entryCount > 1 ? ` de ${entryCount}` : ""}
           </p>
@@ -127,7 +127,7 @@ export function PropostaEscopoEntryForm({
               onPatch({ tipoId, subtipoId: "", placeholders: {} });
             }}
           >
-            <SelectTrigger className="h-10 w-full min-w-0 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
+            <SelectTrigger className="h-10 w-full min-w-0 max-w-full rounded-(--radius-v2-md) border-border bg-white">
               <CrmSelectValue
                 value={tipoSelectValue || SELECT_EMPTY}
                 labels={tipoLabels}
@@ -154,7 +154,7 @@ export function PropostaEscopoEntryForm({
             }}
             disabled={!entry.tipoId}
           >
-            <SelectTrigger className="h-10 w-full min-w-0 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
+            <SelectTrigger className="h-10 w-full min-w-0 max-w-full rounded-(--radius-v2-md) border-border bg-white">
               <CrmSelectValue
                 value={subtipoSelectValue || SELECT_EMPTY}
                 labels={subtipoLabels}
@@ -174,7 +174,7 @@ export function PropostaEscopoEntryForm({
       </div>
 
       {placeholderKeys.length > 0 && sub ? (
-        <div className="grid min-w-0 gap-3 border-t border-[#edf0f4] pt-4 sm:grid-cols-2">
+        <div className="grid min-w-0 gap-3 border-t border-border pt-4 sm:grid-cols-2">
           {placeholderKeys.map((key) => {
             const wide = getPropostaPlaceholderFieldConfig(key).wide;
             return (
@@ -222,7 +222,7 @@ function PlaceholderField({
       <Label className="text-xs font-bold leading-snug text-slate-600">{config.label}</Label>
       {config.control === "textarea" ? (
         <Textarea
-          className="min-h-[104px] max-w-full resize-y rounded-xl border-[#dfe5ee] bg-[#fbfcfd] text-sm shadow-sm"
+          className="min-h-[104px] max-w-full resize-y rounded-(--radius-v2-md) border-border bg-white text-sm"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={config.placeholder}
@@ -233,14 +233,14 @@ function PlaceholderField({
           value={value}
           onChange={onChange}
           placeholder={config.placeholder}
-          className="h-10 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd]"
+          className="h-10 max-w-full rounded-(--radius-v2-md) border-border bg-white"
         />
       ) : config.control === "select" && config.options ? (
         <Select
           value={selectValue}
           onValueChange={(next) => onChange(next === SELECT_EMPTY || next == null ? "" : next)}
         >
-          <SelectTrigger className="h-10 w-full min-w-0 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
+          <SelectTrigger className="h-10 w-full min-w-0 max-w-full rounded-(--radius-v2-md) border-border bg-white">
             <CrmSelectValue
               value={selectValue}
               labels={selectLabels}
@@ -258,7 +258,7 @@ function PlaceholderField({
         </Select>
       ) : (
         <Input
-          className="h-10 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd] shadow-sm"
+          className="h-10 max-w-full rounded-(--radius-v2-md) border-border bg-white"
           type={config.control === "date" ? "date" : "text"}
           value={value}
           onChange={(e) => {
@@ -282,7 +282,7 @@ function PlaceholderField({
       )}
       {horasPreview ? (
         <p className="text-[11px] leading-relaxed text-slate-500">
-          Na proposta: <span className="font-semibold text-[#24615b]">{horasPreview}</span>
+          Na proposta: <span className="font-semibold text-interactive-700">{horasPreview}</span>
         </p>
       ) : null}
     </div>

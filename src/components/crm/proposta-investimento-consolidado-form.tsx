@@ -92,7 +92,7 @@ export function PropostaInvestimentoConsolidadoForm({
     <div className="space-y-4">
       <div className="space-y-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#24615b]">
+          <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
             Valor total e forma de pagamento
           </p>
           <p className="mt-1 text-xs text-slate-500">
@@ -124,7 +124,7 @@ export function PropostaInvestimentoConsolidadoForm({
             <Button
               type="button"
               variant="outline"
-              className="w-full gap-2 border-dashed border-[#24615b]/35 text-[#24615b] hover:bg-[#24615b]/5"
+              className="w-full gap-2 border-dashed border-interactive-300 text-interactive-700 hover:bg-interactive-50"
               disabled={disabled}
               onClick={() => persistItems([...items, createEmptyInvestimentoDocumentoItem()])}
             >
@@ -177,7 +177,7 @@ function InvestimentoFormaCard({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-[#dfe5ee] bg-white p-4">
+    <div className="space-y-3 rounded-(--radius-v2-xl) border border-border bg-white p-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
           Forma {index + 1}
@@ -208,7 +208,7 @@ function InvestimentoFormaCard({
               onPatch({ tipoId, subtipoId: "", placeholders: {}, autoSum: true });
             }}
           >
-            <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-white shadow-sm">
+            <SelectTrigger className="h-10 w-full min-w-0 border-border bg-white">
               <CrmSelectValue
                 value={tipoSelectValue}
                 labels={tipoLabels}
@@ -235,7 +235,7 @@ function InvestimentoFormaCard({
               onPatch({ subtipoId, placeholders: {}, autoSum: true });
             }}
           >
-            <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-white shadow-sm">
+            <SelectTrigger className="h-10 w-full min-w-0 border-border bg-white">
               <CrmSelectValue
                 value={subtipoSelectValue}
                 labels={subtipoLabels}
@@ -255,7 +255,7 @@ function InvestimentoFormaCard({
       </div>
 
       {invSubDef?.conceito ? (
-        <p className="rounded-2xl border border-[#edf0f4] bg-[#f8fafc] p-3 text-xs leading-relaxed text-slate-600">
+        <p className="rounded-(--radius-v2-md) border border-border bg-surface-subtle p-3 text-xs leading-relaxed text-text-secondary-v2">
           {invSubDef.conceito}
         </p>
       ) : null}
@@ -274,7 +274,7 @@ function InvestimentoFormaCard({
                 autoSum: false,
               })
             }
-            className="h-10 border-[#dfe5ee] bg-white shadow-sm"
+            className="h-10 border-border bg-white"
           />
         </div>
       ) : null}
@@ -294,7 +294,7 @@ function InvestimentoFormaCard({
                   autoSum: item.autoSum,
                 })
               }
-              className="h-10 border-[#dfe5ee] bg-white shadow-sm"
+              className="h-10 border-border bg-white"
             />
           ) : key.includes("CONDIC") || key.includes("DETALHE") || key.includes("PRAZO") ? (
             <Textarea
@@ -307,7 +307,7 @@ function InvestimentoFormaCard({
                   autoSum: item.autoSum,
                 })
               }
-              className="min-h-[72px] border-[#dfe5ee] bg-white shadow-sm"
+              className="min-h-[72px] border-border bg-white"
             />
           ) : (
             <Input
@@ -319,7 +319,7 @@ function InvestimentoFormaCard({
                   autoSum: item.autoSum,
                 })
               }
-              className="h-10 border-[#dfe5ee] bg-white shadow-sm"
+              className="h-10 border-border bg-white"
             />
           )}
         </div>

@@ -70,8 +70,8 @@ export function EscoposContratadosSection({
           <p className="text-xs text-amber-700">Nenhum escopo herdado da proposta.</p>
         ) : (
           groups.map((group) => (
-            <div key={group.area} className="rounded-xl border border-teal-200/60 bg-teal-50/40 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent-teal/80">
+            <div key={group.area} className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3">
+              <p className="text-v2-caption-medium uppercase tracking-wide text-info-text">
                 {group.area}
               </p>
               <ul className="mt-2 space-y-1.5">
@@ -367,13 +367,13 @@ const SOURCE_BADGE_CFG: Record<
   ContractObjectFieldValue["source"],
   { label: string; icon: typeof Check; className: string }
 > = {
-  proposal:   { label: "Proposta",   icon: Handshake,     className: "bg-teal-50 text-teal-700 border-teal-200" },
-  intake:     { label: "Cadastro",   icon: ClipboardCheck, className: "bg-sky-50 text-sky-700 border-sky-200" },
-  opportunity:{ label: "Oportunidade", icon: ClipboardCheck, className: "bg-sky-50 text-sky-700 border-sky-200" },
-  company:    { label: "Empresa",    icon: ClipboardCheck, className: "bg-sky-50 text-sky-700 border-sky-200" },
-  process:    { label: "Processo",   icon: ClipboardCheck, className: "bg-sky-50 text-sky-700 border-sky-200" },
-  manual:     { label: "Preenchido neste contrato", icon: FileEdit, className: "bg-amber-50 text-amber-700 border-amber-200" },
-  unresolved: { label: "Pendente",   icon: TriangleAlert, className: "bg-slate-100 text-slate-500 border-slate-200" },
+  proposal:   { label: "Proposta",   icon: Handshake,     className: "bg-info-bg text-info-text border-info-border" },
+  intake:     { label: "Cadastro",   icon: ClipboardCheck, className: "bg-interactive-50 text-interactive-700 border-interactive-300" },
+  opportunity:{ label: "Oportunidade", icon: ClipboardCheck, className: "bg-interactive-50 text-interactive-700 border-interactive-300" },
+  company:    { label: "Empresa",    icon: ClipboardCheck, className: "bg-interactive-50 text-interactive-700 border-interactive-300" },
+  process:    { label: "Processo",   icon: ClipboardCheck, className: "bg-interactive-50 text-interactive-700 border-interactive-300" },
+  manual:     { label: "Preenchido neste contrato", icon: FileEdit, className: "bg-warning-bg text-warning-text border-warning-border" },
+  unresolved: { label: "Pendente",   icon: TriangleAlert, className: "bg-surface-subtle text-text-muted-v2 border-border" },
 };
 
 function SourceBadge({
@@ -425,7 +425,7 @@ function ObjectBlockPreview({
   const [reason, setReason] = useState("");
 
   return (
-    <div className="rounded-lg border border-white bg-white p-3 shadow-sm">
+    <div className="rounded-(--radius-v2-md) border border-border bg-white p-3">
       <div className="flex items-center gap-2">
         <p className="min-w-0 flex-1 truncate text-xs font-bold text-primary-dark">
           {line.number}.{line.title ? ` ${line.title}.` : ""}
@@ -441,7 +441,7 @@ function ObjectBlockPreview({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="shrink-0 text-[11px] font-semibold text-accent-teal hover:underline"
+          className="shrink-0 text-[11px] font-medium text-interactive-700 hover:underline"
         >
           {expanded ? "Ocultar texto" : "Ver texto"}
         </button>
@@ -597,16 +597,16 @@ export function SectionHeading({
       <span
         className={cn(
           "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-black",
-          complete ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500",
+          complete ? "bg-success-bg text-success-text" : "bg-surface-subtle text-text-muted-v2",
         )}
       >
         {complete ? <Check className="size-3.5" aria-hidden /> : num}
       </span>
-      <h3 className="text-sm font-bold tracking-[-0.01em] text-primary-dark">{title}</h3>
+      <h3 className="text-v2-heading-md text-foreground">{title}</h3>
       <span
         className={cn(
           "rounded-full px-2 py-0.5 text-[10px] font-bold",
-          complete ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
+          complete ? "bg-success-bg text-success-text" : "bg-warning-bg text-warning-text",
         )}
       >
         {complete ? "Completo" : "Pendente"}

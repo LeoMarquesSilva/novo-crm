@@ -32,9 +32,9 @@ export function PropostaInvestimentoParcelasFields({ placeholders, onChange }: P
   }
 
   return (
-    <div className="col-span-full space-y-4 rounded-2xl border border-[#dfe5ee] bg-[#f8fafc] p-4">
+    <div className="col-span-full space-y-4 rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-4">
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#24615b]">Parcelas</p>
+        <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">Parcelas</p>
         <p className="mt-1 text-xs leading-relaxed text-slate-500">
           Preencha primeiro o valor total (SPOT) acima. Depois informe quantas parcelas, os valores e
           quando cada uma será paga (ex.: na data de assinatura do Contrato).
@@ -61,7 +61,7 @@ export function PropostaInvestimentoParcelasFields({ placeholders, onChange }: P
               patch({ count: nextCount, modo: "iguais", vencimentos: sizedV });
             }
           }}
-          className="h-10 border-[#dfe5ee] bg-white shadow-sm"
+          className="h-10 border-border bg-white"
           placeholder="0 = só à vista"
         />
       </div>
@@ -154,7 +154,7 @@ export function PropostaInvestimentoParcelasFields({ placeholders, onChange }: P
                           vencimentos: next,
                         });
                       }}
-                      className="min-h-[4.5rem] resize-y border-[#dfe5ee] bg-white text-sm leading-relaxed shadow-sm"
+                      className="min-h-[4.5rem] resize-y border-border bg-white text-sm leading-relaxed"
                       placeholder={
                         i === 0
                           ? "Ex.: na data de assinatura do Contrato"
@@ -193,8 +193,8 @@ function ModoButton({
       className={cn(
         "rounded-full border px-3 py-1.5 text-xs font-bold transition-colors",
         active
-          ? "border-[#24615b] bg-[#24615b] text-white shadow-sm"
-          : "border-[#dfe5ee] bg-white text-slate-600 hover:border-[#24615b]/30",
+          ? "border-interactive-600 bg-interactive-600 text-white"
+          : "border-border bg-white text-text-secondary-v2 hover:border-interactive-300",
       )}
     >
       {children}

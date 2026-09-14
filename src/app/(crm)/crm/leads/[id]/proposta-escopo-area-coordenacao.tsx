@@ -121,7 +121,7 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
   return (
     <div
       className={cn(
-        "rounded-xl border border-white/45 bg-white/30 p-4 shadow-sm shadow-primary-dark/5",
+        "rounded-(--radius-v2-xl) border border-border bg-white p-4",
         className,
       )}
     >
@@ -140,11 +140,11 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
                     variant={done ? "secondary" : "outline"}
                     className={cn(
                       "max-w-full gap-1.5 py-1 pl-2 pr-2.5 font-normal",
-                      isMine && "ring-1 ring-accent-teal/40",
+                      isMine && "ring-1 ring-interactive-300",
                     )}
                   >
                     {done ? (
-                      <CheckCircle2 className="size-3.5 shrink-0 text-accent-teal" aria-hidden />
+                      <CheckCircle2 className="size-3.5 shrink-0 text-success-text" aria-hidden />
                     ) : (
                       <CircleDashed className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                     )}
@@ -169,15 +169,15 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
             </p>
           )}
           {canNotify ? (
-            <div className="mt-3 space-y-3 rounded-2xl border border-[#dfe5ee] bg-white/75 p-3">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#24615b]">
+            <div className="mt-3 space-y-3 rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-3">
+              <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
                 Selecionar destinatários
               </p>
               {solicitacoes
                 .filter((s) => !appUserAreaMatchesScopeKey(myArea, s.areaKey) && !s.concluidoEm)
                 .map((s) => (
-                  <div key={s.areaKey} className="rounded-xl border border-[#edf0f4] bg-[#fbfcfd] p-3">
-                    <p className="text-xs font-extrabold text-[#102033]">{labelForAreaKey(s.areaKey)}</p>
+                  <div key={s.areaKey} className="rounded-(--radius-v2-md) border border-border bg-white p-3">
+                    <p className="text-xs font-semibold text-foreground">{labelForAreaKey(s.areaKey)}</p>
                     {(s.responsaveis ?? []).length > 0 ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {(s.responsaveis ?? []).map((user) => {
@@ -200,7 +200,7 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
                               />
                               <Avatar className="h-6 w-6 border border-white shadow-sm">
                                 {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
-                                <AvatarFallback className="bg-[#102033] text-[9px] font-black text-white">
+                                <AvatarFallback className="bg-brand-navy text-[9px] font-semibold text-white">
                                   {initialsFromFullName(user.fullName)}
                                 </AvatarFallback>
                               </Avatar>
@@ -224,7 +224,7 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
           <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
             <Button
               type="button"
-              variant="teal"
+              variant="primary"
               size="sm"
               className="gap-2"
               disabled={loading || selectedTargetCount === 0}
@@ -253,7 +253,7 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
         ) : null}
       </div>
       {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
-      {message ? <p className="mt-2 text-sm text-accent-teal">{message}</p> : null}
+      {message ? <p className="mt-2 text-sm text-success-text">{message}</p> : null}
     </div>
   );
 }

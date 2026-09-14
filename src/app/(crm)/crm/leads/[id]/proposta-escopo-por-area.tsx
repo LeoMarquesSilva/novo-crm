@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Loader2, Pencil, Plus, Save, Send } from "lucide-react";
+import { ChevronDown, Loader2, Pencil, Plus, Save, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import { DocumentSaveStatus } from "@/components/crm/document-builder-chrome";
 import {
   Dialog,
   DialogContent,
@@ -56,7 +57,7 @@ import { mergeEscopoTemplate } from "@/lib/crm/proposta-escopo-preview";
 const EMPTY_RESPONSAVEIS: Array<ResolvedAppUser & { id: string }> = [];
 
 const SCOPE_DIALOG_CLASS =
-  "z-[130] flex max-h-[min(94dvh,820px)] w-[calc(100vw-1.5rem)] max-w-[min(1160px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border-[#dfe5ee] bg-[#f6f8fb] p-0 text-primary-dark shadow-[0_32px_90px_rgba(16,31,46,0.24)] [&>button]:right-4 [&>button]:top-4 [&>button]:rounded-full [&>button]:bg-white/90 [&>button]:p-2 [&>button]:text-[#102033] [&>button]:shadow-sm [&>button]:hover:bg-white";
+  "z-(--z-drag-overlay) flex max-h-[min(94dvh,820px)] w-[calc(100vw-1.5rem)] max-w-[min(1160px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-(--radius-v2-2xl) border-border bg-canvas p-0 text-foreground shadow-(--shadow-v2-lg) [&>button]:right-4 [&>button]:top-4 [&>button]:rounded-(--radius-v2-full) [&>button]:bg-white [&>button]:p-2 [&>button]:text-foreground [&>button]:hover:bg-surface-hover";
 
 function mergeEscopoEntryPatch(
   cur: PropostaEscopoDetalheEntry,
@@ -448,24 +449,21 @@ export function PropostaEscopoPorArea({
   }
 
   return (
-    <div className={cn("space-y-4 rounded-lg border border-white/50 bg-white/45 p-4 sm:col-span-2", className)}>
+    <div className={cn("space-y-4 rounded-(--radius-v2-xl) border border-border bg-white p-4 sm:col-span-2", className)}>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-primary-dark">Escopo detalhado por área</p>
+        <p className="text-v2-heading-md text-foreground">Escopo detalhado por área</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Qualquer pessoa pode preencher ou ajustar o escopo de qualquer área. Cada área pode ter{" "}
-          <span className="font-medium text-foreground/90">vários escopos</span> (ex.: dois processos
-          distintos em Cível). Use <span className="font-medium text-foreground/90">Salvar esta área</span> após
+          <span className="font-medium text-foreground">vários escopos</span> (ex.: dois processos
+          distintos em Cível). Use <span className="font-medium text-foreground">Salvar esta área</span> após
           preencher — dá pra notificar as demais áreas pendentes no mesmo passo.
         </p>
-        {anyAreaDirty ? (
-          <p className="mt-2 text-xs font-medium text-amber-900/90">Há alterações não salvas em uma ou mais áreas.</p>
-        ) : null}
-        {lastSavedAt ? (
-          <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent-teal">
-            <Check className="size-3" aria-hidden />
-            Último salvamento às {lastSavedAt}
-          </p>
-        ) : null}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <DocumentSaveStatus saving={Boolean(savingAreaKey)} dirty={anyAreaDirty} />
+          {!savingAreaKey && !anyAreaDirty && lastSavedAt ? (
+            <span className="text-v2-caption text-muted-foreground">às {lastSavedAt}</span>
+          ) : null}
+        </div>
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -686,7 +684,7 @@ function EscopoAreaDelegatedModal({
     <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={SCOPE_DIALOG_CLASS}
-        overlayClassName="z-[120]"
+        overlayClassName="z-(--z-tooltip)"
         onPointerDownOutside={(event) => {
           if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
         }}
@@ -699,8 +697,8 @@ function EscopoAreaDelegatedModal({
         <div className="crm-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5">
           <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
             <div className="min-w-0 flex-1 space-y-5">
-            <div className="rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#24615b]">Acionamento da área</p>
+            <div className="rounded-(--radius-v2-xl) border border-border bg-white p-5">
+              <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">Acionamento da área</p>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
                 Você não pode preencher esta área. Selecione abaixo quem da prática deve receber a notificação para assumir o escopo.
               </p>
@@ -724,10 +722,10 @@ function EscopoAreaDelegatedModal({
                 }
               />
             </div>
-          <div className="rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
+          <div className="rounded-(--radius-v2-xl) border border-border bg-white p-5">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#24615b]">Quem notificar</p>
+                <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">Quem notificar</p>
                 <p className="mt-1 text-sm text-slate-500">
                   Responsáveis comerciais cadastrados na área {areaLabel}.
                 </p>
@@ -744,15 +742,15 @@ function EscopoAreaDelegatedModal({
                     <label
                       key={user.id}
                       className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition-all",
+                        "flex cursor-pointer items-center gap-3 rounded-(--radius-v2-xl) border p-3 transition-colors",
                         checked
-                          ? "border-[#24615b]/35 bg-emerald-50 shadow-sm"
-                          : "border-[#edf0f4] bg-[#fbfcfd] hover:border-[#dfe5ee] hover:bg-white",
+                          ? "border-success-border bg-success-bg"
+                          : "border-border bg-surface-subtle hover:bg-white",
                       )}
                     >
                       <input
                         type="checkbox"
-                        className="size-4 accent-[#24615b]"
+                        className="size-4 accent-interactive-600"
                         checked={checked}
                         onChange={() => toggleTarget(user.id)}
                       />
@@ -779,13 +777,13 @@ function EscopoAreaDelegatedModal({
           </div>
           </div>
         </div>
-        <div className="flex shrink-0 flex-col gap-3 border-t border-[#dfe5ee] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex shrink-0 flex-col gap-3 border-t border-border bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="min-w-0 text-xs text-muted-foreground">
             {feedback ?? "Solicite o preenchimento para registrar prazo e canais de notificação."}
           </p>
           <Button
             type="button"
-            variant="teal"
+            variant="primary"
             className="gap-2"
             disabled={status === "loading" || selectedTargetIds.length === 0}
             onClick={() => void solicitar()}
@@ -976,7 +974,7 @@ function EscopoAreaBlock({
           // z-[130] no content + z-[120] no backdrop garantem que este sub-dialog
           // fique acima do dialog pai "Elaborar Proposta" (z-[110]/z-[100]).
           className={SCOPE_DIALOG_CLASS}
-          overlayClassName="z-[120]"
+          overlayClassName="z-(--z-tooltip)"
           onPointerDownOutside={(event) => {
             if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
           }}
@@ -1011,7 +1009,7 @@ function EscopoAreaBlock({
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full gap-2 border-dashed border-[#24615b]/35 text-[#24615b] hover:bg-[#24615b]/5"
+                  className="w-full gap-2 border-dashed border-interactive-300 text-interactive-700 hover:bg-interactive-50"
                   onClick={onAddEntry}
                 >
                   <Plus className="size-4" aria-hidden />
@@ -1023,14 +1021,14 @@ function EscopoAreaBlock({
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 flex-col gap-3 border-t border-[#dfe5ee] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="flex shrink-0 flex-col gap-3 border-t border-border bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="min-w-0 text-xs text-muted-foreground">
               {areaDirty ? "Há alterações não salvas nesta área." : "Tudo salvo nesta área até o momento."}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               type="button"
-              variant={areaDirty ? "teal" : "outline"}
+              variant={areaDirty ? "primary" : "outline"}
               size="sm"
               className="gap-2"
               disabled={!areaDirty || savingThisArea}
@@ -1112,23 +1110,22 @@ function AreaSummaryCard({
   const status = areaStatusLabel({ complete, dirty, request, nowMs });
   const statusTone =
     status === "Preenchido"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      ? "border-success-border bg-success-bg text-success-text"
       : status === "Atrasado"
-        ? "border-rose-200 bg-rose-50 text-rose-800"
+        ? "border-danger-border bg-danger-bg text-danger-text"
         : status === "Em edição"
-          ? "border-blue-200 bg-blue-50 text-blue-800"
-          : "border-amber-200 bg-amber-50 text-amber-800";
+          ? "border-info-border bg-info-bg text-info-text"
+          : "border-warning-border bg-warning-bg text-warning-text";
 
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-2xl border p-4 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(16,31,46,0.08)]",
-        tone === "complete" && "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white",
-        tone === "editable" && "border-[#dfe5ee] bg-white",
-        tone === "delegated" && "border-sky-200 bg-gradient-to-br from-sky-50 via-white to-white",
+        "relative overflow-hidden rounded-(--radius-v2-xl) border p-4",
+        tone === "complete" && "border-success-border bg-success-bg",
+        tone === "editable" && "border-border bg-white",
+        tone === "delegated" && "border-info-border bg-info-bg",
       )}
     >
-      <div className="pointer-events-none absolute -right-10 -top-12 h-28 w-28 rounded-full bg-[#c8a96b]/15 blur-2xl" />
       <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <PracticeAreaIconBadge area={areaLabel} size="lg" />
@@ -1201,7 +1198,7 @@ function AreaSummaryCard({
             </p>
           </div>
         </div>
-        <Button type="button" variant={complete ? "outline" : "teal"} size="sm" className="shrink-0 gap-2" onClick={onOpen}>
+        <Button type="button" variant={complete ? "outline" : "primary"} size="sm" className="shrink-0 gap-2" onClick={onOpen}>
           {complete ? <Pencil className="size-3.5" /> : <Send className="size-3.5" />}
           {actionLabel}
         </Button>
@@ -1224,17 +1221,16 @@ function EscopoModalHeader({
   const completedBy = request?.preenchidoPor ?? (request?.concluidoEm ? request?.gestor : null);
 
   return (
-    <DialogHeader className="relative shrink-0 overflow-hidden border-b border-[#dfe5ee] bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_62%,#eef5f3_100%)] px-4 py-4 pr-14 text-primary-dark sm:px-5 sm:pr-16">
-      <div className="pointer-events-none absolute -left-16 -top-20 h-40 w-40 rounded-full bg-[#d8bf82]/15 blur-3xl" />
+    <DialogHeader className="relative shrink-0 border-b border-border bg-white px-4 py-4 pr-14 text-foreground sm:px-5 sm:pr-16">
       <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <PracticeAreaIconBadge area={areaLabel} size="md" className="shadow-sm" />
+          <PracticeAreaIconBadge area={areaLabel} size="md" />
           <div className="min-w-0">
             <div className="mb-1.5 flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[#73531c]">
+              <span className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
                 Escopo por área
               </span>
-              <span className="rounded-full border border-[#cfe2de] bg-[#edf7f5] px-2 py-0.5 text-[10px] font-bold text-[#24615b]">
+              <span className="rounded-(--radius-v2-full) border border-border bg-surface-subtle px-2 py-0.5 text-v2-caption-medium text-foreground">
                 {statusLabel}
               </span>
             </div>
@@ -1254,7 +1250,7 @@ function EscopoModalHeader({
                 <span>Responsável ainda não resolvido</span>
               )}
               {direcionamentoHint ? (
-                <span className="font-semibold text-[#24615b]">{direcionamentoHint}</span>
+                <span className="font-semibold text-interactive-700">{direcionamentoHint}</span>
               ) : null}
             </DialogDescription>
           </div>
@@ -1302,7 +1298,7 @@ function HeaderMeta({ label, value }: { label: string; value: ReactNode }) {
 
 function ReadOnlyPair({ label, value, dark }: { label: string; value: string; dark?: boolean }) {
   return (
-    <div className={cn("rounded-2xl border p-3 shadow-sm", dark ? "border-white/10 bg-white/10" : "border-[#dfe5ee] bg-white/90")}>
+    <div className={cn("rounded-(--radius-v2-xl) border p-3", dark ? "border-white/10 bg-white/10" : "border-border bg-white")}>
       <p className={cn("text-[10px] font-black uppercase tracking-[0.14em]", dark ? "text-white/45" : "text-slate-400")}>
         {label}
       </p>
@@ -1313,10 +1309,10 @@ function ReadOnlyPair({ label, value, dark }: { label: string; value: string; da
 
 function PreviewGrid({ escopo }: { escopo: string }) {
   return (
-    <aside className="min-w-0 overflow-hidden rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm lg:sticky lg:top-4">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#edf0f4] pb-3">
+    <aside className="min-w-0 overflow-hidden rounded-(--radius-v2-xl) border border-border bg-white p-4 lg:sticky lg:top-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-border pb-3">
         <div className="min-w-0">
-          <p className="text-xs font-extrabold text-[#24615b]">Texto gerado</p>
+          <p className="text-v2-caption-medium text-text-muted-v2">Texto gerado</p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
             Referência do conteúdo; a diagramação final aparece na prévia Word.
           </p>

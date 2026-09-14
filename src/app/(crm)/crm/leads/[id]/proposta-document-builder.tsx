@@ -20,7 +20,6 @@ import {
   Target,
   TriangleAlert,
   UserRound,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -47,6 +46,14 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import {
+  DocumentBuilderDialogHeader,
+  DocumentBuilderHubHeader,
+  DocumentStatusCard,
+  documentBuilderDialogClass,
+  documentBuilderHubClass,
+  documentEmptyStateClass,
+} from "@/components/crm/document-builder-chrome";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
 import { useBodyScrollLock } from "@/lib/ui/body-scroll-lock";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
@@ -282,50 +289,39 @@ export function PropostaDocumentBuilder({
   const hasInstance = Boolean(docState?.instance);
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-crm-border-warm-strong bg-crm-surface-warm shadow-[0_28px_80px_rgba(16,31,46,0.12)]">
-      {/* ── Header ── */}
-      <div className="relative overflow-hidden border-b border-white/20 bg-[#0b1724] px-5 py-5 text-white sm:px-6">
-        <div className="absolute inset-0 bg-crm-gradient-dark opacity-85" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(45,200,183,0.28),transparent_34%),linear-gradient(135deg,rgba(8,22,36,0.15),rgba(4,13,22,0.92))]" />
-        <div className="absolute -right-16 -top-24 h-56 w-56 rounded-full border border-white/10 bg-white/8 blur-2xl" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-accent-green/35 bg-accent-green/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">
-              <FileText className="size-3.5" aria-hidden />
-              Documentos / Propostas
-            </div>
-            <h2 className="mt-3 text-2xl font-extrabold tracking-[-0.045em] text-white">
-              Workspace de proposta
-            </h2>
-            <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-100/85">
-              {hasInstance
-                ? "Rascunho em andamento. Clique em \"Elaborar Proposta\" para editar."
-                : "Selecione o modelo, preencha os dados e baixe a prévia em Word."}
-            </p>
-          </div>
+    <section className={documentBuilderHubClass}>
+      <DocumentBuilderHubHeader
+        eyebrow="Documentos / Propostas"
+        title="Workspace de proposta"
+        description={
+          hasInstance
+            ? "Rascunho em andamento. Clique em \"Elaborar Proposta\" para editar."
+            : "Selecione o modelo, preencha os dados e baixe a prévia em Word."
+        }
+        actions={
           <Button
             type="button"
-            variant="teal"
+            variant="primary"
             size="sm"
-            className="h-11 gap-2 px-5 text-sm font-bold"
+            className="gap-2"
             disabled={loading}
             onClick={() => setBuilderOpen(true)}
           >
             <PenLine className="size-4" aria-hidden />
             {hasInstance ? "Continuar Proposta" : "Elaborar Proposta"}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── Status overview ── */}
       <div className="space-y-5 px-5 py-5 sm:px-6">
         {loading ? (
-          <div className="flex items-center gap-2 rounded-xl border border-white/50 bg-white/55 p-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" aria-hidden />
             Carregando...
           </div>
         ) : error ? (
-          <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          <div className="flex items-center gap-2 rounded-(--radius-v2-xl) border border-danger-border bg-danger-bg p-4 text-sm text-danger-text">
             <TriangleAlert className="size-4 shrink-0" aria-hidden />
             {error}
           </div>
@@ -333,17 +329,17 @@ export function PropostaDocumentBuilder({
 
         {!loading && docState ? (
           <div className="grid gap-4 lg:grid-cols-2">
-            <StatusCard
+            <DocumentStatusCard
               title={pending.length === 0 ? "Pronto para gerar" : "Pendências"}
               icon={pending.length === 0 ? CheckCircle2 : TriangleAlert}
               tone={pending.length === 0 ? "ok" : "warn"}
             >
               {pending.length === 0 ? (
-                <p className="text-sm text-primary-dark/80">
+                <p className="text-sm text-foreground">
                   Todos os campos obrigatórios estão preenchidos.
                 </p>
               ) : (
-                <ul className="space-y-1 text-sm text-primary-dark/80">
+                <ul className="space-y-1 text-sm text-foreground">
                   {pending.slice(0, 6).map((item) => (
                     <li key={item}>· {item}</li>
                   ))}
@@ -354,9 +350,9 @@ export function PropostaDocumentBuilder({
                   ) : null}
                 </ul>
               )}
-            </StatusCard>
+            </DocumentStatusCard>
 
-            <StatusCard title="Histórico" icon={History} tone="neutral">
+            <DocumentStatusCard title="Histórico" icon={History} tone="neutral">
               <div className="space-y-2 text-sm">
                 {versions.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhuma versão gerada ainda.</p>
@@ -364,10 +360,10 @@ export function PropostaDocumentBuilder({
                   versions.slice(0, 4).map((v) => (
                     <div
                       key={v.id}
-                      className="flex items-center justify-between rounded-lg border border-stone-200 bg-white/70 px-3 py-2"
+                      className="flex items-center justify-between rounded-(--radius-v2-md) border border-border bg-surface-subtle px-3 py-2"
                     >
                       <div>
-                        <p className="text-xs font-semibold text-primary-dark">v{v.version_number}</p>
+                        <p className="text-xs font-semibold text-foreground">v{v.version_number}</p>
                         <p className="text-[10px] text-muted-foreground">
                           {new Date(v.generated_at).toLocaleString("pt-BR")}
                         </p>
@@ -376,7 +372,7 @@ export function PropostaDocumentBuilder({
                   ))
                 )}
               </div>
-            </StatusCard>
+            </DocumentStatusCard>
           </div>
         ) : null}
       </div>
@@ -493,6 +489,7 @@ function PropostaBuilderDialog({
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [confirmClose, setConfirmClose] = useState(false);
+  const [mobilePane, setMobilePane] = useState<"edit" | "preview">("edit");
   const [activeStep, setActiveStep] = useState<ProposalStepKey>("responsavel");
 
   const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(PROPOSTA_TIPOS_CATALOG);
@@ -842,106 +839,81 @@ function PropostaBuilderDialog({
             e.preventDefault();
             handleCloseAttempt();
           }}
-          className={cn(
-            "flex flex-col gap-0 p-0",
-            "fixed left-[50%] top-[50%] z-[110]",
-            "w-[98vw] max-w-[98vw] h-[95vh]",
-            "translate-x-[-50%] translate-y-[-50%]",
-            "rounded-2xl border border-white/30 bg-white shadow-2xl",
-            "overflow-hidden",
-          )}
+          className={documentBuilderDialogClass}
         >
-          {/* ── Header ── */}
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-[#0b1724] px-5 py-4 text-white sm:px-6">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-green/20 text-emerald-300">
-                  <PenLine className="size-4" aria-hidden />
-                </span>
-                <DialogTitle className="text-base font-extrabold tracking-[-0.02em] text-white">
-                  Elaborar Proposta
-                </DialogTitle>
-                <DialogDescription className="sr-only">
-                  Preencha as seções da proposta e confira o documento Word oficial na prévia.
-                </DialogDescription>
-                {isDirty ? (
-                  <span className="rounded-full bg-amber-500/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">
-                    Não salvo
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            {/* Ações */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-9 gap-1.5 border-white/25 bg-white/15 text-white shadow-sm backdrop-blur hover:bg-white/20"
-                disabled={busy || !isDirty}
-                onClick={() => void saveDraft()}
-              >
-                {saving ? (
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <Save className="size-3.5" aria-hidden />
-                )}
-                Salvar
-              </Button>
-
-              <Button
-                type="button"
-                variant="teal"
-                size="sm"
-                className="h-9 gap-1.5"
-                disabled={busy || !selectedTemplateId || pending.length > 0}
-                onClick={() => void downloadFinal("docx")}
-              >
-                {generating ? (
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <FileDown className="size-3.5" aria-hidden />
-                )}
-                Gerar Word
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 gap-1.5 border-white/25 bg-white/15 text-white shadow-sm backdrop-blur hover:bg-white/20"
-                disabled={busy || !selectedTemplateId || pending.length > 0}
-                onClick={() => void downloadFinal("pdf")}
-              >
-                {generating ? (
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <FileText className="size-3.5" aria-hidden />
-                )}
-                Gerar PDF
-              </Button>
-
-              <button
-                type="button"
-                onClick={handleCloseAttempt}
-                className="ml-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white"
-                disabled={busy}
-                aria-label="Fechar"
-              >
-                <X className="size-4" aria-hidden />
-              </button>
-            </div>
-          </div>
+          <DialogTitle className="sr-only">Elaborar Proposta</DialogTitle>
+          <DialogDescription className="sr-only">
+            Preencha as seções da proposta e confira o documento Word oficial na prévia.
+          </DialogDescription>
+          <DocumentBuilderDialogHeader
+            icon={<PenLine className="size-4" aria-hidden />}
+            title="Elaborar Proposta"
+            description="Preencha as seções da proposta e confira o documento Word oficial na prévia."
+            saving={saving}
+            dirty={isDirty}
+            mobilePane={mobilePane}
+            onMobilePaneChange={setMobilePane}
+            onClose={handleCloseAttempt}
+            closeDisabled={busy}
+            actions={
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="gap-1.5"
+                  disabled={busy || !isDirty}
+                  onClick={() => void saveDraft()}
+                >
+                  {saving ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Save className="size-3.5" aria-hidden />
+                  )}
+                  Salvar
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={busy || !selectedTemplateId || pending.length > 0}
+                  onClick={() => void downloadFinal("docx")}
+                >
+                  {generating ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <FileDown className="size-3.5" aria-hidden />
+                  )}
+                  Gerar Word
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={busy || !selectedTemplateId || pending.length > 0}
+                  onClick={() => void downloadFinal("pdf")}
+                >
+                  {generating ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <FileText className="size-3.5" aria-hidden />
+                  )}
+                  Gerar PDF
+                </Button>
+              </>
+            }
+          />
 
           {/* Feedback / erro */}
           {(feedback ?? saveError) ? (
             <div
               className={cn(
-                "shrink-0 px-5 py-2 text-sm font-semibold sm:px-6",
+                "shrink-0 px-5 py-2 text-sm font-medium sm:px-6",
                 saveError
-                  ? "bg-rose-50 text-rose-700"
-                  : "bg-emerald-50 text-emerald-700",
+                  ? "bg-danger-bg text-danger-text"
+                  : "bg-success-bg text-success-text",
               )}
             >
               {saveError ?? feedback}
@@ -953,24 +925,27 @@ function PropostaBuilderDialog({
             {/* Painel esquerdo — preenchimento guiado */}
             <aside
               inert={busy}
-              className="crm-scrollbar max-h-[58%] w-full shrink-0 overscroll-contain overflow-y-auto border-b border-slate-200 bg-slate-50/70 md:max-h-none md:min-w-[440px] md:w-[54%] md:border-b-0 md:border-r lg:w-[55%] xl:w-[54%]"
+              className={cn(
+                "crm-scrollbar min-h-0 w-full overscroll-contain overflow-y-auto border-border bg-surface-subtle md:block md:min-w-[440px] md:w-[54%] md:flex-none md:border-r lg:w-[55%] xl:w-[54%]",
+                mobilePane === "edit" ? "flex-1" : "hidden md:block",
+              )}
             >
-              <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-5 pb-4 pt-5 backdrop-blur sm:px-6">
+              <div className="sticky top-0 z-(--z-sticky) border-b border-border bg-white px-5 pb-4 pt-5 sm:px-6">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#24615b]">
+                    <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
                       Preenchimento
                     </p>
-                    <h2 className="mt-1 text-base font-extrabold tracking-[-0.02em] text-primary-dark">
+                    <h3 className="mt-1 text-v2-heading-md text-foreground">
                       {completedStepCount} de {PROPOSAL_STEPS.length} seções concluídas
-                    </h2>
+                    </h3>
                   </div>
                   <span
                     className={cn(
-                      "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold",
+                      "shrink-0 rounded-(--radius-v2-full) px-2.5 py-1 text-v2-caption-medium",
                       pending.length > 0
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-emerald-100 text-emerald-800",
+                        ? "border border-warning-border bg-warning-bg text-warning-text"
+                        : "border border-success-border bg-success-bg text-success-text",
                     )}
                   >
                     {pending.length > 0 ? `${pending.length} pendência(s)` : "Pronto para gerar"}
@@ -978,7 +953,7 @@ function PropostaBuilderDialog({
                 </div>
 
                 <div
-                  className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"
+                  className="mt-3 h-1.5 overflow-hidden rounded-(--radius-v2-full) bg-surface-subtle"
                   role="progressbar"
                   aria-label="Progresso do preenchimento"
                   aria-valuemin={0}
@@ -986,7 +961,7 @@ function PropostaBuilderDialog({
                   aria-valuenow={completedStepCount}
                 >
                   <div
-                    className="h-full rounded-full bg-[#2d8a80] transition-[width] duration-300"
+                    className="h-full rounded-(--radius-v2-full) bg-interactive-600 transition-[width] duration-300"
                     style={{ width: `${(completedStepCount / PROPOSAL_STEPS.length) * 100}%` }}
                   />
                 </div>
@@ -1009,17 +984,17 @@ function PropostaBuilderDialog({
                         aria-controls="proposal-step-panel"
                         onClick={() => setActiveStep(step.key)}
                         className={cn(
-                          "flex min-w-[7.25rem] items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8a80] focus-visible:ring-offset-2",
+                          "flex min-w-[7.25rem] items-center gap-2 rounded-(--radius-v2-md) border px-3 py-2 text-left transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                           isActive
-                            ? "border-[#2d8a80] bg-[#e9f5f2] text-[#164f4a]"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                            ? "border-interactive-300 bg-interactive-50 text-interactive-800"
+                            : "border-border bg-white text-text-secondary-v2 hover:border-border-strong hover:bg-surface-hover",
                         )}
                       >
                         <span
                           className={cn(
-                            "flex size-7 shrink-0 items-center justify-center rounded-lg",
-                            isActive ? "bg-white text-[#24615b]" : "bg-slate-100 text-slate-500",
+                            "flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-md)",
+                            isActive ? "bg-white text-interactive-700" : "bg-surface-subtle text-text-muted-v2",
                           )}
                         >
                           <Icon className="size-3.5" aria-hidden />
@@ -1033,7 +1008,7 @@ function PropostaBuilderDialog({
                         {stepPending === 0 ? (
                           <CheckCircle2 className="ml-auto size-3.5 shrink-0 text-emerald-600" aria-label="Concluída" />
                         ) : (
-                          <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-extrabold text-amber-800">
+                          <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-(--radius-v2-full) bg-warning-bg text-[10px] font-semibold text-warning-text">
                             {stepPending}
                           </span>
                         )}
@@ -1047,29 +1022,29 @@ function PropostaBuilderDialog({
                 <section
                   id="proposal-step-panel"
                   role="tabpanel"
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.06)]"
+                  className="overflow-hidden rounded-(--radius-v2-xl) border border-border bg-white"
                 >
-                  <div className="flex items-start gap-3 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#e4f3f0] text-[#24615b]">
+                  <div className="flex items-start gap-3 border-b border-border bg-surface-subtle px-5 py-4">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 text-interactive-700">
                       <ActiveStepIcon className="size-4" aria-hidden />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-sm font-extrabold text-primary-dark">
+                        <h3 className="text-v2-heading-md text-foreground">
                           {activeStepMeta.label}
                         </h3>
                         {pendingByStep[activeStep] > 0 ? (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                          <span className="rounded-(--radius-v2-full) border border-warning-border bg-warning-bg px-2 py-0.5 text-v2-caption-medium text-warning-text">
                             {pendingByStep[activeStep]} pendência(s)
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700">
+                          <span className="inline-flex items-center gap-1 text-v2-caption-medium text-success-text">
                             <CheckCircle2 className="size-3" aria-hidden />
                             Concluída
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                         {activeStepMeta.description}
                       </p>
                     </div>
@@ -1078,7 +1053,7 @@ function PropostaBuilderDialog({
                   <div className="p-5">
                     {activeStep === "responsavel" ? (
                       <div className="space-y-2">
-                        <Label htmlFor="proposal-responsavel" className="text-xs font-semibold text-primary-dark">
+                        <Label htmlFor="proposal-responsavel" className="text-xs font-medium text-foreground">
                           Enviado por
                         </Label>
                         <Select
@@ -1094,7 +1069,7 @@ function PropostaBuilderDialog({
                         >
                           <SelectTrigger
                             id="proposal-responsavel"
-                            className="h-auto min-h-11 w-full rounded-xl border-slate-200 bg-white px-3 py-2 [&_[data-slot=select-value]]:w-full"
+                            className="h-auto min-h-10 w-full rounded-(--radius-v2-md) border-border bg-white px-3 py-2 [&_[data-slot=select-value]]:w-full"
                           >
                             {proposalUsersLoading ? (
                               <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
@@ -1211,9 +1186,9 @@ function PropostaBuilderDialog({
                             embedded
                           />
                           {fieldsBySection.revisao.length > 0 ? (
-                            <div className={cn(fieldsBySection.condicoes.length > 0 && "border-t border-slate-100 pt-5")}>
+                            <div className={cn(fieldsBySection.condicoes.length > 0 && "border-t border-border pt-5")}>
                               <div className="mb-4">
-                                <p className="text-xs font-bold text-primary-dark">Informações adicionais</p>
+                                <p className="text-v2-heading-md text-foreground">Informações adicionais</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   Campos complementares definidos para este modelo.
                                 </p>
@@ -1282,7 +1257,7 @@ function PropostaBuilderDialog({
                 ) : null}
               </div>
 
-              <div className="sticky bottom-0 z-20 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-5 py-3 backdrop-blur sm:px-6">
+              <div className="sticky bottom-0 z-(--z-sticky) flex items-center justify-between gap-3 border-t border-border bg-white px-5 py-3 sm:px-6">
                 <Button
                   type="button"
                   variant="ghost"
@@ -1294,13 +1269,13 @@ function PropostaBuilderDialog({
                   <ChevronLeft className="size-3.5" aria-hidden />
                   Anterior
                 </Button>
-                <span className="text-[11px] font-semibold text-slate-400">
+                <span className="text-v2-caption-medium tabular-nums text-text-muted-v2">
                   {activeStepIndex + 1}/{PROPOSAL_STEPS.length}
                 </span>
                 {activeStepIndex < PROPOSAL_STEPS.length - 1 ? (
                   <Button
                     type="button"
-                    variant="teal"
+                    variant="primary"
                     size="sm"
                     className="gap-1.5"
                     disabled={busy}
@@ -1312,7 +1287,7 @@ function PropostaBuilderDialog({
                 ) : (
                   <Button
                     type="button"
-                    variant="teal"
+                    variant="primary"
                     size="sm"
                     className="gap-1.5"
                     disabled={busy || !isDirty}
@@ -1329,19 +1304,24 @@ function PropostaBuilderDialog({
               </div>
             </aside>
 
-            <main className="flex min-h-[42%] min-w-0 flex-1 flex-col overflow-hidden bg-slate-100 md:min-h-0">
-              <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+            <main
+              className={cn(
+                "min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas",
+                mobilePane === "preview" ? "flex" : "hidden md:flex",
+              )}
+            >
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-4 py-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-primary-dark">Prévia do Word oficial</h3>
+                    <h3 className="text-v2-heading-md text-foreground">Prévia do Word oficial</h3>
                     {pdfPreview.updating ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#24615b]">
+                      <span className="inline-flex items-center gap-1 text-v2-caption-medium text-interactive-700">
                         <Loader2 className="size-3 animate-spin" aria-hidden />
                         Atualizando
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-xs text-slate-500" role="status">
+                  <p className="mt-1 text-xs text-muted-foreground" role="status">
                     {pdfPreview.url
                       ? "PDF convertido diretamente do mesmo Word usado na versão final."
                       : pdfPreview.error
@@ -1386,19 +1366,19 @@ function PropostaBuilderDialog({
                     key={pdfPreview.url}
                     src={`${pdfPreview.url}#toolbar=0&navpanes=0&view=Fit&zoom=page-fit`}
                     title="Prévia da proposta convertida do Word oficial"
-                    className="h-full w-full border-0 bg-slate-200"
+                    className="h-full w-full border-0 bg-surface-subtle"
                   />
                   {pdfPreview.updating ? (
-                    <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-1.5 text-xs font-semibold text-primary-dark shadow-md backdrop-blur">
-                      <Loader2 className="size-3.5 animate-spin text-[#24615b]" aria-hidden />
+                    <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-2 rounded-(--radius-v2-full) border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground shadow-(--shadow-v2-sm)">
+                      <Loader2 className="size-3.5 animate-spin text-interactive-700" aria-hidden />
                       Convertendo o Word…
                     </div>
                   ) : null}
                 </div>
               ) : (
-                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-slate-500">
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
                   {pdfPreview.updating ? (
-                    <Loader2 className="size-8 animate-spin text-[#24615b]" aria-hidden />
+                    <Loader2 className="size-8 animate-spin text-interactive-700" aria-hidden />
                   ) : (
                     <FileText className="size-9" aria-hidden />
                   )}
@@ -1408,7 +1388,7 @@ function PropostaBuilderDialog({
                   </p>
                 </div>
               )}
-              <p className="shrink-0 border-t border-slate-200 bg-white px-4 py-2 text-xs text-slate-500">
+              <p className="shrink-0 border-t border-border bg-white px-4 py-2 text-xs text-muted-foreground">
                 Esta visualização não replica o layout: ela é produzida diretamente pelo documento Word oficial.
               </p>
             </main>
@@ -1419,8 +1399,8 @@ function PropostaBuilderDialog({
       {/* Confirmação de descarte do modelo */}
       <AlertDialog open={confirmClose}>
         <AlertDialogContent
-          className="z-[130]"
-          overlayClassName="z-[120]"
+          className="z-(--z-drag-overlay)"
+          overlayClassName="z-(--z-tooltip)"
         >
           <AlertDialogHeader>
             <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
@@ -1495,11 +1475,11 @@ function proposalStepForPendingItem(
 
 function ProposalStepEmptyState({ text }: { text: string }) {
   return (
-    <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-9 text-center">
-      <span className="flex size-10 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm">
+    <div className={documentEmptyStateClass}>
+      <span className="flex size-10 items-center justify-center rounded-(--radius-v2-md) border border-border bg-white text-text-muted-v2">
         <ListChecks className="size-4" aria-hidden />
       </span>
-      <p className="mt-3 max-w-sm text-sm font-semibold leading-relaxed text-slate-600">{text}</p>
+      <p className="mt-3 max-w-sm text-sm font-medium leading-relaxed text-text-secondary-v2">{text}</p>
     </div>
   );
 }
@@ -1525,10 +1505,10 @@ function BuilderSection({
 }) {
   if (fields.length === 0) return null;
   return (
-    <section className={cn(!embedded && "rounded-xl border border-slate-200 bg-white p-5 shadow-sm")}>
+    <section className={cn(!embedded && "rounded-(--radius-v2-xl) border border-border bg-white p-5")}>
       {!embedded ? (
         <div className="mb-4">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">{meta.title}</h3>
+          <h3 className="text-v2-heading-md text-foreground">{meta.title}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{meta.description}</p>
         </div>
       ) : null}
@@ -1580,7 +1560,7 @@ function PropFieldInput({
     const selected = normalizeTributacaoValue(value);
     return (
       <div className={cn("space-y-1.5", wrapperClass)}>
-        <Label className="text-xs font-medium text-primary-dark">Tributação</Label>
+        <Label className="text-xs font-medium text-foreground">Tributação</Label>
         <Select
           value={selected}
           onValueChange={(v) => {
@@ -1588,7 +1568,7 @@ function PropFieldInput({
           }}
           disabled={disabled}
         >
-          <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white text-sm">
+          <SelectTrigger className="rounded-(--radius-v2-md) border-border bg-white text-sm">
             <CrmSelectValue
               value={selected}
               labels={PROPOSTA_TRIBUTACAO_LABELS}
@@ -1611,7 +1591,7 @@ function PropFieldInput({
   if (pe.kind === "select" && pe.selectOptions && pe.selectOptions.length > 0) {
     return (
       <div className={cn("space-y-1.5", wrapperClass)}>
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+        <Label className="text-xs font-medium text-foreground">{label}</Label>
         <Select
           value={value}
           onValueChange={(v) => {
@@ -1619,7 +1599,7 @@ function PropFieldInput({
           }}
           disabled={disabled}
         >
-          <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white text-sm">
+          <SelectTrigger className="rounded-(--radius-v2-md) border-border bg-white text-sm">
             <span className={cn("text-left", !value && "text-muted-foreground")}>
               {value || "Selecionar..."}
             </span>
@@ -1640,12 +1620,12 @@ function PropFieldInput({
   if (pe.kind === "date") {
     return (
       <div className={cn("space-y-1.5", wrapperClass)}>
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+        <Label className="text-xs font-medium text-foreground">{label}</Label>
         <DateInputBr
           value={value}
           onChange={onChange}
           disabled={disabled}
-          className="h-11 rounded-xl border-slate-200 bg-white text-sm"
+          className="rounded-(--radius-v2-md) border-border bg-white text-sm"
         />
       </div>
     );
@@ -1655,13 +1635,13 @@ function PropFieldInput({
   if (pe.kind === "textarea") {
     return (
       <div className={cn("space-y-1.5", wrapperClass)}>
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+        <Label className="text-xs font-medium text-foreground">{label}</Label>
         <Textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           placeholder={`${label}…`}
-          className="min-h-[120px] resize-y rounded-xl border-slate-200 bg-white text-sm leading-relaxed"
+          className="min-h-[120px] resize-y rounded-(--radius-v2-md) border-border bg-white text-sm leading-relaxed"
         />
       </div>
     );
@@ -1680,8 +1660,8 @@ function PropFieldInput({
     }
     return (
       <div className={cn("space-y-1.5", "sm:col-span-2")}>
-        <Label className="text-xs font-medium text-primary-dark">{label}</Label>
-        <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3">
+        <Label className="text-xs font-medium text-foreground">{label}</Label>
+        <div className="flex flex-wrap gap-2 rounded-(--radius-v2-md) border border-border bg-white p-3">
           {pe.selectOptions.map((opt) => {
             const active = selected.has(opt);
             return (
@@ -1691,10 +1671,10 @@ function PropFieldInput({
                 onClick={() => toggle(opt)}
                 disabled={disabled}
                 className={cn(
-                  "min-h-8 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors",
+                  "min-h-8 rounded-(--radius-v2-full) border px-3 py-1 text-[11px] font-medium transition-colors",
                   active
-                    ? "border-accent-teal bg-accent-teal text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                    ? "border-interactive-600 bg-interactive-600 text-white"
+                    : "border-border bg-white text-text-secondary-v2 hover:border-border-strong",
                   disabled && "cursor-not-allowed opacity-60",
                 )}
               >
@@ -1733,14 +1713,14 @@ function PropFieldInput({
 
   return (
     <div className={cn("space-y-1.5", wrapperClass)}>
-      <Label className="text-xs font-medium text-primary-dark">{label}</Label>
+      <Label className="text-xs font-medium text-foreground">{label}</Label>
       <Input
         type={inputType}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={`${label}…`}
-        className="h-11 rounded-xl border-slate-200 bg-white text-sm"
+        className="rounded-(--radius-v2-md) border-border bg-white text-sm"
       />
     </div>
   );
@@ -1775,25 +1755,25 @@ function ProposalCompanySummary({
     selection.primaryIndex != null ? `Empresa/Pessoa ${selection.primaryIndex}` : "Empresa principal";
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 sm:col-span-2">
+    <div className="rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-4 sm:col-span-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#24615b] shadow-sm">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) border border-border bg-white text-interactive-700">
             <Building2 className="size-4" aria-hidden />
           </span>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+            <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
               Empresa principal
             </p>
-            <p className="mt-1 truncate text-sm font-extrabold text-primary-dark">
+            <p className="mt-1 truncate text-sm font-semibold text-foreground">
               {empresaNome?.trim() || fallback}
             </p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               Usada no cabeçalho do documento.
             </p>
           </div>
         </div>
-        <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600">
+        <span className="shrink-0 rounded-(--radius-v2-full) border border-border bg-white px-2.5 py-1 text-v2-caption-medium text-text-secondary-v2">
           {selection.extrasCount > 0
             ? `${selection.extrasCount} ${selection.extrasCount === 1 ? "adicional" : "adicionais"}`
             : "Sem adicionais"}
@@ -1802,37 +1782,3 @@ function ProposalCompanySummary({
     </div>
   );
 }
-
-// ─── Status card ──────────────────────────────────────────────────────────────
-
-function StatusCard({
-  title,
-  icon: Icon,
-  tone,
-  children,
-}: {
-  title: string;
-  icon: LucideIcon;
-  tone: "ok" | "warn" | "neutral";
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-stone-200 bg-white/75 p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2">
-        <span
-          className={cn(
-            "flex size-8 items-center justify-center rounded-lg",
-            tone === "ok" && "bg-emerald-100 text-emerald-700",
-            tone === "warn" && "bg-amber-100 text-amber-700",
-            tone === "neutral" && "bg-slate-100 text-slate-700",
-          )}
-        >
-          <Icon className="size-4" aria-hidden />
-        </span>
-        <h3 className="text-sm font-bold text-primary-dark">{title}</h3>
-      </div>
-      {children}
-    </div>
-  );
-}
-

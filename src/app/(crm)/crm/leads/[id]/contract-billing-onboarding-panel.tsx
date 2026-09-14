@@ -16,9 +16,9 @@ export function ContractBillingOnboardingPanel({
 }) {
   if (!contractBilling) {
     return (
-      <Card className="glass-card-no-float border-[#dfe5ee] p-6">
+      <Card className="border-border bg-white p-6">
         <CardHeader className="px-0 pt-0">
-          <CardTitle className="text-xl font-extrabold text-[#102033]">Contrato não vinculado</CardTitle>
+          <CardTitle className="text-v2-heading-lg text-foreground">Contrato não vinculado</CardTitle>
           <p className="text-sm text-slate-500">Não foi encontrado um cadastro contratual para esta oportunidade.</p>
         </CardHeader>
       </Card>
@@ -27,14 +27,14 @@ export function ContractBillingOnboardingPanel({
 
   const { validationProgress } = contractBilling;
   return (
-    <Card className="glass-card-no-float border-[#dfe5ee] p-5 sm:p-6">
+    <Card className="border-border bg-white p-5 sm:p-6">
       <CardHeader className="gap-3 px-0 pt-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-[#24615b]">
+            <p className="flex items-center gap-2 text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
               <ReceiptText className="h-4 w-4" /> Implantação financeira
             </p>
-            <CardTitle className="mt-2 text-xl font-extrabold text-[#102033]">Configuração do faturamento</CardTitle>
+            <CardTitle className="mt-2 text-v2-heading-lg text-foreground">Configuração do faturamento</CardTitle>
           </div>
           <Badge variant="outline">{contractBilling.lifecycleStatus}</Badge>
         </div>
@@ -42,7 +42,7 @@ export function ContractBillingOnboardingPanel({
       </CardHeader>
       <CardContent className="space-y-5 px-0 pb-0">
         <div className="space-y-2">
-          <div className="flex justify-between text-sm font-semibold text-[#102033]">
+          <div className="flex justify-between text-sm font-medium text-foreground">
             <span>Validação</span>
             <span>{validationProgress.completed}/{validationProgress.total}</span>
           </div>
@@ -63,7 +63,7 @@ export function ContractBillingOnboardingPanel({
           </p>
         )}
         {showSetupAction ? (
-          <Link href={contractBilling.setupHref} className={buttonVariants({ variant: "cta" })}>
+          <Link href={contractBilling.setupHref} className={buttonVariants({ variant: "primary" })}>
             Configurar contrato
           </Link>
         ) : null}
