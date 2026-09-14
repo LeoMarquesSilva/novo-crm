@@ -66,8 +66,8 @@ export function TimeInputBr({
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedBy}
           className={cn(
-            "h-8 w-full min-w-0 justify-start border-input bg-white px-2.5 py-1 font-mono text-base tabular-nums font-normal md:text-sm",
-            !display && "text-muted-foreground",
+            "h-10 w-full min-w-0 justify-start border-input bg-white px-3 font-mono text-base tabular-nums font-normal md:text-sm",
+            !display && "text-text-placeholder-v2",
             className,
           )}
         >
@@ -92,7 +92,7 @@ export function TimeInputBr({
             value={hm}
             disabled={disabled}
             onChange={(e) => onChange(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-white px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-9 w-full rounded-(--radius-v2-md) border border-input bg-white px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/20"
           />
           {suggestions && suggestions.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 border-t border-border pt-2">
@@ -110,7 +110,7 @@ export function TimeInputBr({
                     className={cn(
                       "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
                       hm === (norm || t)
-                        ? "border-primary-medium/50 bg-primary-light/25 text-primary-dark"
+                        ? "border-interactive-300 bg-accent text-accent-foreground"
                         : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",
                     )}
                   >

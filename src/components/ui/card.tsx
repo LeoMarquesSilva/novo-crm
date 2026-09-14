@@ -14,7 +14,7 @@ function Card({
       className={cn(
         // Design System V2 (§15.1): Surface — fundo branco, borda --border, raio 12px,
         // sem sombra, sem deslocamento no hover.
-        "group/card flex flex-col gap-4 overflow-hidden rounded-[var(--radius-v2-xl)] border border-border bg-surface py-4 text-sm text-card-foreground has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-[var(--radius-v2-xl)] *:[img:last-child]:rounded-b-[var(--radius-v2-xl)]",
+        "group/card flex flex-col gap-4 overflow-hidden rounded-(--radius-v2-xl) border border-border bg-surface py-4 text-sm text-card-foreground has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-[var(--radius-v2-xl)] *:[img:last-child]:rounded-b-[var(--radius-v2-xl)]",
         className
       )}
       {...props}

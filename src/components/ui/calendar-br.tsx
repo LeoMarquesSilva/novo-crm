@@ -11,7 +11,7 @@ export function CalendarBr({ className, locale = ptBR, ...props }: DayPickerProp
   return (
     <DayPicker
       locale={locale}
-      className={cn("rounded-lg bg-popover p-2 text-popover-foreground", className)}
+      className={cn("rounded-(--radius-v2-xl) bg-popover p-2 text-popover-foreground", className)}
       {...props}
     />
   );

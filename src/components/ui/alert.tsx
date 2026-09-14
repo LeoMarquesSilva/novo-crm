@@ -4,7 +4,8 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  "relative w-full rounded-xl border border-border/70 bg-card/70 px-4 py-3 text-sm text-card-foreground shadow-sm [&>svg]:absolute [&>svg]:top-3.5 [&>svg]:left-4 [&>svg]:size-4 [&:has(>svg)]:pl-10",
+  // Design System V2: superfície de feedback inline — sem sombra decorativa (§3.6).
+  "relative w-full rounded-(--radius-v2-xl) border border-border bg-white px-4 py-3 text-sm text-card-foreground [&>svg]:absolute [&>svg]:top-3.5 [&>svg]:left-4 [&>svg]:size-4 [&:has(>svg)]:pl-10",
   {
     variants: {
       variant: {

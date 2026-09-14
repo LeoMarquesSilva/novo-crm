@@ -20,7 +20,9 @@ const TooltipContent = React.forwardRef<
       sideOffset={sideOffset}
       collisionPadding={collisionPadding}
       className={cn(
-        "z-[100] max-h-[min(72vh,440px)] w-[min(calc(100vw-20px),300px)] max-w-[300px] overflow-y-auto overflow-x-hidden rounded-xl border border-slate-300/60 bg-white/96 p-0 text-sm text-primary-dark shadow-xl shadow-slate-900/15 backdrop-blur-md duration-150",
+        // Design System V2 (§10.1/§10.3/§24.5): largura máx. 300px, raio 8px, shadow-md,
+        // fundo sólido (sem blur/translucidez).
+        "z-[100] max-h-[min(72vh,440px)] w-[min(calc(100vw-20px),300px)] max-w-[300px] overflow-y-auto overflow-x-hidden rounded-(--radius-v2-md) border border-border bg-white p-0 text-sm text-foreground shadow-(--shadow-v2-md) duration-150",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
         "data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-[state=instant-open]:animate-in data-[state=instant-open]:fade-in-0 data-[state=instant-open]:zoom-in-95",
         "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",

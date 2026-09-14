@@ -97,8 +97,8 @@ export function DateInputBr({
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedBy}
           className={cn(
-            "h-8 w-full min-w-0 justify-start border-input bg-white px-2.5 py-1 font-normal text-base md:text-sm",
-            !labelText && "text-muted-foreground",
+            "h-10 w-full min-w-0 justify-start border-input bg-white px-3 font-normal text-base md:text-sm",
+            !labelText && "text-text-placeholder-v2",
             className,
           )}
         >
