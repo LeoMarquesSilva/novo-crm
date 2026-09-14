@@ -19,9 +19,10 @@ interface LeadDeleteButtonProps {
   leadId: string;
   /** Variante visual quando o botão fica sobre fundo escuro (ex.: header do lead). */
   variant?: "default" | "onDark";
+  className?: string;
 }
 
-export function LeadDeleteButton({ leadId, variant = "default" }: LeadDeleteButtonProps) {
+export function LeadDeleteButton({ leadId, variant = "default", className }: LeadDeleteButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -54,7 +55,7 @@ export function LeadDeleteButton({ leadId, variant = "default" }: LeadDeleteButt
   }
 
   return (
-    <div className={cn(variant === "default" && "mt-4 space-y-2")}>
+    <div className={cn(variant === "default" && "mt-4 space-y-2", className)}>
       <AlertDialog
         open={open}
         onOpenChange={(next) => {

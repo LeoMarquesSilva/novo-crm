@@ -3,8 +3,9 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { dialogSelectOutsideHandlers } from "@/lib/ui/base-ui-select-dialog";
 import {
   LeadsPipelineToolbar,
   type SituationFilter,
@@ -160,11 +161,9 @@ export default function LeadsPage() {
   const [justRefreshed, setJustRefreshed] = useState(false);
   const [silentRefreshing, setSilentRefreshing] = useState(false);
   const justRefreshedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [mounted, setMounted] = useState(false);
   const [kanbanPrefsHydrated, setKanbanPrefsHydrated] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const prefs = readKanbanPrefs();
     setMostrarLeadsRd(prefs.mostrarLeadsRd);
     setKanbanPrefsHydrated(true);
@@ -452,7 +451,7 @@ export default function LeadsPage() {
                   className={crmSurfaceSegmentedTabClass(pipelineTab === "vendas")}
                 >
                   Vendas
-                  <span className="ml-1.5 tabular-nums text-zinc-500">({salesBoardCount})</span>
+                  <span className="ml-1.5 tabular-nums text-muted-foreground">({salesBoardCount})</span>
                 </button>
                 <button
                   type="button"
@@ -460,7 +459,7 @@ export default function LeadsPage() {
                   className={crmSurfaceSegmentedTabClass(pipelineTab === "pos_venda")}
                 >
                   Pós-venda
-                  <span className="ml-1.5 tabular-nums text-zinc-500">({posVendaBoardCount})</span>
+                  <span className="ml-1.5 tabular-nums text-muted-foreground">({posVendaBoardCount})</span>
                 </button>
               </div>
               <p className={cn("flex flex-wrap items-center gap-2", crmSurfaceMetaClass)}>
@@ -487,7 +486,7 @@ export default function LeadsPage() {
             <div className={crmSurfaceHeaderPanelClass}>
               <Label
                 htmlFor="kanban-toggle-rd-leads"
-                className="cursor-pointer text-[13px] font-medium text-zinc-700"
+                className="cursor-pointer text-[13px] font-medium text-foreground"
               >
                 RD Station
               </Label>
@@ -541,31 +540,29 @@ export default function LeadsPage() {
       </Card>
       </motion.div>
 
-      {mounted && isCadastroOpen
-        ? createPortal(
-            <div
-              className="font-new-lead-modal fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(7,12,20,0.72)] p-3 backdrop-blur-md sm:p-5"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Cadastro de novo lead"
-              onClick={() => setIsCadastroOpen(false)}
-            >
-              <div
-                className="flex max-h-[90vh] w-full max-w-[min(100vw-1.5rem,1280px)] flex-col"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <NewDemandForm
-                  onRequestClose={() => setIsCadastroOpen(false)}
-                  onSuccess={() => {
-                    setIsCadastroOpen(false);
-                    void refreshLeadsSilently();
-                  }}
-                />
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      <Dialog
+        modal={false}
+        open={isCadastroOpen}
+        onOpenChange={(open) => {
+          if (!open) setIsCadastroOpen(false);
+        }}
+      >
+        <DialogContent
+          hideCloseButton
+          aria-describedby={undefined}
+          className="flex max-h-[90vh] w-full max-w-[min(100vw-1.5rem,1120px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(100vw-1.5rem,1120px)]"
+          {...dialogSelectOutsideHandlers()}
+        >
+          <DialogTitle className="sr-only">Cadastro de novo lead</DialogTitle>
+          <NewDemandForm
+            onRequestClose={() => setIsCadastroOpen(false)}
+            onSuccess={() => {
+              setIsCadastroOpen(false);
+              void refreshLeadsSilently();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

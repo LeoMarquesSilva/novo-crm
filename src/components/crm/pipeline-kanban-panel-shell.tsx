@@ -17,46 +17,46 @@ const TONE: Record<
   }
 > = {
   violet: {
-    shell: "border-violet-300/50 bg-gradient-to-b from-violet-50/90 to-white/80",
-    icon: "border-violet-200/80 bg-violet-500/10 text-violet-800",
-    badge: "bg-violet-500/15 text-violet-950",
-    progress: "bg-violet-500",
-    summaryHover: "hover:bg-violet-500/[0.04]",
+    shell: "border-violet-border bg-violet-bg",
+    icon: "border-violet-border bg-white text-violet-text",
+    badge: "bg-white text-violet-text",
+    progress: "bg-violet-text",
+    summaryHover: "hover:bg-white/70",
   },
   indigo: {
-    shell: "border-indigo-300/50 bg-gradient-to-b from-indigo-50/90 to-white/80",
-    icon: "border-indigo-200/80 bg-indigo-500/10 text-indigo-800",
-    badge: "bg-indigo-500/15 text-indigo-950",
-    progress: "bg-indigo-500",
-    summaryHover: "hover:bg-indigo-500/[0.04]",
+    shell: "border-info-border bg-info-bg",
+    icon: "border-info-border bg-white text-info-text",
+    badge: "bg-white text-info-text",
+    progress: "bg-info-text",
+    summaryHover: "hover:bg-white/70",
   },
   sky: {
-    shell: "border-sky-300/50 bg-gradient-to-b from-sky-50/90 to-white/80",
-    icon: "border-sky-200/80 bg-sky-500/10 text-sky-800",
-    badge: "bg-sky-500/15 text-sky-950",
-    progress: "bg-sky-500",
-    summaryHover: "hover:bg-sky-500/[0.04]",
+    shell: "border-info-border bg-info-bg",
+    icon: "border-info-border bg-white text-info-text",
+    badge: "bg-white text-info-text",
+    progress: "bg-info-text",
+    summaryHover: "hover:bg-white/70",
   },
   amber: {
-    shell: "border-amber-300/50 bg-gradient-to-b from-amber-50/90 to-white/80",
-    icon: "border-amber-200/80 bg-amber-500/10 text-amber-900",
-    badge: "bg-amber-500/15 text-amber-950",
-    progress: "bg-amber-500",
-    summaryHover: "hover:bg-amber-500/[0.04]",
+    shell: "border-warning-border bg-warning-bg",
+    icon: "border-warning-border bg-white text-warning-text",
+    badge: "bg-white text-warning-text",
+    progress: "bg-warning-text",
+    summaryHover: "hover:bg-white/70",
   },
   emerald: {
-    shell: "border-emerald-300/55 bg-gradient-to-b from-emerald-50/95 to-white/85",
-    icon: "border-emerald-200/80 bg-emerald-500/10 text-emerald-700",
-    badge: "bg-emerald-500/15 text-emerald-900",
-    progress: "bg-emerald-500",
-    summaryHover: "hover:bg-emerald-500/[0.04]",
+    shell: "border-success-border bg-success-bg",
+    icon: "border-success-border bg-white text-success-text",
+    badge: "bg-white text-success-text",
+    progress: "bg-success-text",
+    summaryHover: "hover:bg-white/70",
   },
   slate: {
-    shell: "border-primary-dark/10 bg-gradient-to-b from-[#f8f9fb] to-white/80",
-    icon: "border-primary-dark/10 bg-primary-dark/[0.04] text-primary-dark/75",
-    badge: "bg-primary-dark/[0.06] text-primary-dark",
-    progress: "bg-primary-dark/40",
-    summaryHover: "hover:bg-primary-dark/[0.03]",
+    shell: "border-border bg-surface-subtle",
+    icon: "border-border bg-white text-muted-foreground",
+    badge: "bg-white text-foreground",
+    progress: "bg-neutral-400",
+    summaryHover: "hover:bg-surface-hover",
   },
 };
 
@@ -89,13 +89,13 @@ export function KanbanPanelShell({
   return (
     <div
       className={cn(
-        "mt-2 overflow-hidden rounded-xl border text-[10px] shadow-sm shadow-primary-dark/[0.03]",
+        "mt-2 overflow-hidden rounded-(--radius-v2-xl) border text-[10px]",
         styles.shell,
         className,
       )}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <div className={cn("px-2.5 py-2", children || footer ? "border-b border-primary-dark/[0.06]" : null)}>
+      <div className={cn("px-2.5 py-2", children || footer ? "border-b border-border" : null)}>
         <div className="flex items-start gap-2">
           <span
             className={cn(
@@ -109,9 +109,9 @@ export function KanbanPanelShell({
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[11px] font-bold tracking-tight text-primary-dark">{title}</p>
+                <p className="text-[11px] font-semibold tracking-tight text-foreground">{title}</p>
                 {subtitle ? (
-                  <p className="mt-0.5 text-[9px] font-medium text-primary-dark/55">{subtitle}</p>
+                  <p className="mt-0.5 text-[9px] font-medium text-muted-foreground">{subtitle}</p>
                 ) : null}
               </div>
               {badge ? (
@@ -126,7 +126,7 @@ export function KanbanPanelShell({
               ) : null}
             </div>
             {showProgress ? (
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-primary-dark/[0.06]">
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/70">
                 <div
                   className={cn("h-full rounded-full transition-all duration-500", styles.progress)}
                   style={{ width: `${Math.max(0, Math.min(100, progressPct))}%` }}
@@ -188,7 +188,7 @@ type KanbanPanelInfoRowProps = {
 
 export function KanbanPanelInfoRow({ icon, label, value, muted }: KanbanPanelInfoRowProps) {
   return (
-    <div className="flex items-start gap-2 rounded-[10px] border border-primary-dark/[0.06] bg-white/50 px-2 py-1.5">
+    <div className="flex items-start gap-2 rounded-(--radius-v2-lg) border border-border bg-white px-2 py-1.5">
       <span className="mt-0.5 shrink-0 text-primary-dark/45" aria-hidden>
         {icon}
       </span>

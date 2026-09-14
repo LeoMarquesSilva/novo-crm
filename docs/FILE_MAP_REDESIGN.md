@@ -15,6 +15,7 @@ Levantado por listagem direta do repositório em 14/09/2026. Se a estrutura muda
 
 - `src/components/crm/app-shell.tsx` — shell principal, sidebar, navegação. **Fase 3.**
 - `src/components/crm/crm-page-header.tsx` — PageHeader (título, breadcrumb, ações).
+- `src/components/crm/crm-entity-header.tsx` — EntityHeader da ficha (Fase 4, criado a partir do detalhe do lead).
 - `src/components/crm/crm-surface-header.tsx` — header de superfície/card.
 - `src/components/crm/sidebar-account-menu.tsx` — menu de conta na sidebar.
 - `src/components/crm/crm-notifications-bell.tsx` — sino de notificações.

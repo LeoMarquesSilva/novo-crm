@@ -32,8 +32,8 @@ export function PipelineKanbanRefreshIndicator({
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums transition-all duration-300",
         justRefreshed
-          ? "bg-zinc-100 text-zinc-700"
-          : "text-zinc-400",
+          ? "bg-success-bg text-success-text"
+          : "text-muted-foreground",
         className,
       )}
       aria-live="polite"
@@ -59,11 +59,11 @@ export function PipelineKanbanErrorState({
 }: PipelineKanbanErrorStateProps) {
   return (
     <div className="flex h-full min-h-[min(50dvh,420px)] flex-col items-center justify-center gap-4 px-6 py-10 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-200/80 bg-rose-50 text-rose-600 shadow-sm">
+      <div className="flex h-12 w-12 items-center justify-center rounded-(--radius-v2-xl) border border-danger-border bg-danger-bg text-danger-text">
         <AlertCircle className="h-6 w-6" strokeWidth={2} aria-hidden />
       </div>
       <div className="max-w-sm space-y-1">
-        <p className="text-sm font-bold text-primary-dark">Não foi possível carregar o pipeline</p>
+        <p className="text-sm font-semibold text-foreground">Não foi possível carregar o pipeline</p>
         <p className="text-xs leading-relaxed text-muted-foreground">{message}</p>
       </div>
       <Button
@@ -72,7 +72,7 @@ export function PipelineKanbanErrorState({
         size="sm"
         disabled={retrying}
         onClick={onRetry}
-        className="gap-1.5 border-primary-dark/15 bg-white"
+        className="gap-1.5"
       >
         {retrying ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />

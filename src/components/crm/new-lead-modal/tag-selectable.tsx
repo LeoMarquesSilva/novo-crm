@@ -29,24 +29,24 @@ export function TagSelectable({
         }
       }}
       className={cn(
-        "flex w-full cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-3 text-left text-sm transition-[border-color,background-color,box-shadow,transform] duration-150 outline-none focus-visible:border-[#101f2e]/45 focus-visible:ring-[3px] focus-visible:ring-[#101f2e]/15",
+        "flex w-full cursor-pointer items-center gap-3 rounded-(--radius-v2-xl) border px-3 py-3 text-left text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20",
         checked
-          ? "border-[#101f2e] bg-[#f3f5f8] shadow-[0_1px_3px_rgba(16,31,46,0.08)]"
-          : "border-[#dfe5ee] bg-white hover:border-[#cbd5e1] hover:shadow-sm active:scale-[0.99]",
+          ? "border-interactive-300 bg-interactive-50"
+          : "border-border bg-white hover:border-border-strong hover:bg-surface-hover",
         className,
       )}
     >
       <span
         className={cn(
-          "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors duration-150",
+          "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) border transition-colors",
           checked
-            ? "border-[#101f2e]/25 bg-white text-[#101f2e]"
-            : "border-[#dfe5ee] bg-[#f8f9fb] text-[#6b7280]",
+            ? "border-interactive-300 bg-white text-interactive-700"
+            : "border-border bg-surface-subtle text-muted-foreground",
         )}
       >
         <Icon className="h-4 w-4" />
       </span>
-      <span className="font-semibold leading-snug tracking-[-0.01em] text-[#111827]">{children}</span>
+      <span className="font-medium leading-snug text-foreground">{children}</span>
     </button>
   );
 }

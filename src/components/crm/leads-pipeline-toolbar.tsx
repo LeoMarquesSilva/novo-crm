@@ -43,11 +43,11 @@ function OwnerAvatar({
   className?: string;
 }) {
   return (
-    <Avatar className={cn("h-8 w-8 shrink-0 border border-zinc-200 bg-zinc-50", className)}>
+    <Avatar className={cn("h-8 w-8 shrink-0 border border-border bg-surface-subtle", className)}>
       {avatarUrl ? (
         <AvatarImage src={avatarUrl} alt="" className="object-cover" />
       ) : null}
-      <AvatarFallback className="bg-emerald-50 text-[10px] font-medium text-emerald-800">
+      <AvatarFallback className="bg-interactive-50 text-[10px] font-medium text-interactive-700">
         {initialsFromName(name)}
       </AvatarFallback>
     </Avatar>
@@ -63,10 +63,9 @@ const tipoLeadLabel: Record<DemandType, string> = {
 };
 
 const LEAD_SEARCH_SITUATION_BADGE: Record<LeadPipelineSituation, string> = {
-  em_andamento:
-    "border-emerald-200/90 bg-emerald-50 text-emerald-800",
-  vendidas: "border-teal-200/90 bg-teal-50 text-teal-800",
-  perdidas: "border-zinc-200 bg-zinc-50 text-zinc-600",
+  em_andamento: "border-info-border bg-info-bg text-info-text",
+  vendidas: "border-success-border bg-success-bg text-success-text",
+  perdidas: "border-danger-border bg-danger-bg text-danger-text",
 };
 
 function LeadSearchSituationBadge({ situ }: { situ: LeadPipelineSituation }) {
@@ -87,22 +86,22 @@ function LeadSearchSituationBadge({ situ }: { situ: LeadPipelineSituation }) {
 
 function leadSearchOptionClassName(isActive: boolean) {
   return cn(
-    "lead-search-option flex w-full flex-col gap-1.5 border-b border-zinc-100 px-3 py-2.5 text-left text-sm transition-colors last:border-b-0",
-    "outline-none [-webkit-tap-highlight-color:transparent] [accent-color:var(--accent-teal)]",
-    "hover:bg-emerald-50",
-    "focus:outline-none focus:bg-emerald-50 focus:shadow-[inset_0_0_0_2px_rgba(15,159,143,0.35)]",
-    "focus-visible:outline-none focus-visible:bg-emerald-50 focus-visible:shadow-[inset_0_0_0_2px_rgba(15,159,143,0.35)]",
-    "active:bg-emerald-100",
-    isActive && "bg-emerald-50 shadow-[inset_0_0_0_2px_rgba(15,159,143,0.35)]",
+    "lead-search-option flex w-full flex-col gap-1.5 border-b border-border px-3 py-2.5 text-left text-sm transition-colors last:border-b-0",
+    "outline-none [-webkit-tap-highlight-color:transparent]",
+    "hover:bg-interactive-50",
+    "focus:outline-none focus:bg-interactive-50",
+    "focus-visible:outline-none focus-visible:bg-interactive-50 focus-visible:ring-2 focus-visible:ring-ring/30",
+    "active:bg-interactive-100",
+    isActive && "bg-interactive-50 text-interactive-700",
   );
 }
 
 function situationFilterTabClass(active: boolean) {
   return cn(
-    "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors duration-150",
+    "rounded-(--radius-v2-md) px-2.5 py-1.5 text-xs font-medium transition-colors duration-150",
     active
-      ? "bg-accent-teal text-white shadow-sm"
-      : "text-zinc-600 hover:bg-white hover:text-zinc-900",
+      ? "bg-white text-foreground shadow-sm"
+      : "text-muted-foreground hover:bg-white hover:text-foreground",
   );
 }
 
@@ -226,7 +225,7 @@ export function LeadsPipelineToolbar({
       transition={{ duration: 0.2, ease: "easeOut" }}
       className="relative z-20"
     >
-    <Card className={cn(crmSurfaceCardClass, "shrink-0")}>
+    <Card className={cn(crmSurfaceCardClass, "shrink-0 bg-surface-subtle")}>
       <CardHeader className={cn(crmSurfaceHeaderClass, "rounded-t-xl px-4 py-3")}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -237,9 +236,9 @@ export function LeadsPipelineToolbar({
           </div>
           <Button
             variant="default"
-            size="sm"
+            size="control"
             onClick={onNovoCadastro}
-            className="h-9 shrink-0 gap-1.5 px-4 sm:min-w-[140px]"
+            className="shrink-0 gap-1.5 sm:min-w-[140px]"
           >
             <UserPlus className="h-4 w-4" aria-hidden />
             Novo cadastro
@@ -250,15 +249,15 @@ export function LeadsPipelineToolbar({
         <div className="grid gap-3 lg:grid-cols-[minmax(320px,1fr)_minmax(200px,240px)] xl:grid-cols-[minmax(320px,1fr)_minmax(200px,240px)_minmax(250px,auto)]">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="lead-search" className="text-xs font-medium text-zinc-600">
+              <Label htmlFor="lead-search" className="text-xs font-medium text-muted-foreground">
                 Buscar lead
               </Label>
-              <span className="hidden text-[11px] text-zinc-400 sm:inline">
+              <span className="hidden text-[11px] text-muted-foreground sm:inline">
                 mín. {searchMinChars} letras
               </span>
             </div>
             <div ref={searchAnchorRef} className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="lead-search"
                 role="combobox"
@@ -274,7 +273,7 @@ export function LeadsPipelineToolbar({
                 onBlur={scheduleCloseSuggestions}
                 placeholder="Nome, tipo ou solicitante…"
                 autoComplete="off"
-                className="h-10 rounded-lg border-zinc-200 bg-white pl-10 text-sm shadow-sm focus-visible:border-accent-teal/45 focus-visible:ring-accent-teal/30"
+                className="h-9 pl-10 text-sm"
               />
               {showSuggestionPanel &&
               suggestionsPanelStyle &&
@@ -285,7 +284,7 @@ export function LeadsPipelineToolbar({
                       id="lead-search-suggestions"
                       role="listbox"
                       aria-label="Leads encontrados"
-                      className="lead-search-suggestions crm-scrollbar fixed z-[100] max-h-[min(24rem,70dvh)] overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
+                      className="lead-search-suggestions crm-scrollbar fixed z-(--z-dialog-floating) max-h-[min(24rem,70dvh)] overflow-y-auto rounded-(--radius-v2-xl) border border-border bg-white py-1 shadow-(--shadow-v2-sm)"
                       style={{
                         top: suggestionsPanelStyle.top,
                         left: suggestionsPanelStyle.left,
@@ -294,7 +293,7 @@ export function LeadsPipelineToolbar({
                       onMouseEnter={cancelCloseSuggestions}
                     >
                       {searchSuggestions.length === 0 ? (
-                        <p className="px-3 py-2.5 text-sm text-zinc-500">
+                        <p className="px-3 py-2.5 text-sm text-muted-foreground">
                           Nenhum lead com os filtros atuais.
                         </p>
                       ) : (
@@ -326,7 +325,7 @@ export function LeadsPipelineToolbar({
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <span className="truncate text-sm font-semibold text-zinc-900">
+                                    <span className="truncate text-sm font-semibold text-foreground">
                                       {nomeNegociacao}
                                     </span>
                                     <LeadSearchSituationBadge situ={situ} />
@@ -339,13 +338,13 @@ export function LeadsPipelineToolbar({
                                         className="h-7 w-7"
                                       />
                                       <div className="min-w-0">
-                                        <p className="truncate text-xs text-zinc-600">
+                                        <p className="truncate text-xs text-muted-foreground">
                                           {usuarioNome}
                                         </p>
                                       </div>
                                     </div>
                                   ) : null}
-                                  <p className="mt-0.5 text-xs text-zinc-500">
+                                  <p className="mt-0.5 text-xs text-muted-foreground">
                                     {tipoLeadLabel[lead.tipo]}
                                     {rdNome &&
                                     rdNome.toLowerCase() !== nomeNegociacao.toLowerCase()
@@ -362,7 +361,7 @@ export function LeadsPipelineToolbar({
                                     <DaysInStagePanel
                                       item={lead}
                                       compact
-                                      className="focus-visible:border-accent-teal/40 focus-visible:ring-accent-teal/25"
+                                      className="focus-visible:border-ring focus-visible:ring-ring/25"
                                     />
                                   </span>
                                 ) : null}
@@ -378,20 +377,20 @@ export function LeadsPipelineToolbar({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="lead-owner" className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary-light">
+            <Label htmlFor="lead-owner" className="text-xs font-medium text-muted-foreground">
               Responsável (usuário)
             </Label>
             <Select value={ownerFilter} onValueChange={(v) => onOwnerFilterChange(v ?? "todos")}>
               <SelectTrigger
                 id="lead-owner"
-                size="default"
-                className="h-10 w-full min-w-0 rounded-[13px] border border-primary-dark/10 bg-white px-3 text-sm font-medium text-primary-dark shadow-[0_1px_2px_rgba(16,31,46,0.03)] data-placeholder:text-primary-dark"
+                size="sm"
+                className="h-9 w-full min-w-0"
               >
                 <span className="flex min-w-0 flex-1 items-center gap-2.5">
                   {ownerFilter === "todos" || !selectedOwner ? (
                     <>
                       <span
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-dark/10 text-primary-dark"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-subtle text-muted-foreground"
                         aria-hidden
                       >
                         <Users className="h-3.5 w-3.5" />
@@ -412,7 +411,7 @@ export function LeadsPipelineToolbar({
               <CrmSelectContent className="max-h-[min(320px,70dvh)]">
                 <CrmSelectItem value="todos">
                   <span className="flex items-center gap-2.5">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-dark/10 text-primary-dark">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-subtle text-muted-foreground">
                       <Users className="h-4 w-4" />
                     </span>
                     <span>Todos os usuários</span>
@@ -435,7 +434,7 @@ export function LeadsPipelineToolbar({
           </div>
 
           <div className="space-y-1.5 lg:col-span-2 xl:col-span-1">
-            <p className="text-xs font-medium text-zinc-600">Situação</p>
+            <p className="text-xs font-medium text-muted-foreground">Situação</p>
             <div className={cn(crmSurfaceSegmentedRootClass, "flex flex-wrap gap-0.5")}>
               {situationOptions.map((opt) => (
                 <button

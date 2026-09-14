@@ -68,7 +68,7 @@ function AvatarNameBlock({
 }) {
   return (
     <div className="flex items-start gap-2">
-      <Avatar className="h-7 w-7 shrink-0 border border-primary-dark/10 shadow-sm">
+      <Avatar className="h-7 w-7 shrink-0 border border-border">
         {imageUrl ? (
           <AvatarImage src={imageUrl} alt="" className="object-cover" />
         ) : null}
@@ -78,7 +78,7 @@ function AvatarNameBlock({
         <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </p>
-        <p className="truncate text-[12px] font-bold leading-snug tracking-[-0.02em] text-primary-dark">{name}</p>
+        <p className="truncate text-[12px] font-semibold leading-snug tracking-tight text-foreground">{name}</p>
       </div>
     </div>
   );
@@ -97,13 +97,13 @@ function LossReasonTooltipBody({ motivo }: { motivo: string }) {
       <div className="flex items-start gap-2.5">
         <span className="mt-1 size-2.5 shrink-0 rounded-full bg-rose-600" aria-hidden />
         <div className="min-w-0">
-          <p className="font-semibold leading-snug text-primary-dark">Motivo da perda</p>
+          <p className="font-semibold leading-snug text-foreground">Motivo da perda</p>
           <div className="mt-2">
             <span className="inline-flex rounded-md bg-rose-500/14 px-2 py-0.5 text-[11px] font-semibold tracking-tight text-rose-900">
               Perdida
             </span>
           </div>
-          <p className="mt-3 text-[13px] leading-snug text-primary-dark/90">{motivo}</p>
+          <p className="mt-3 text-[13px] leading-snug text-foreground/90">{motivo}</p>
         </div>
       </div>
     </div>
@@ -137,12 +137,12 @@ function PipelineRdLeadCardContent({
           RD Station
         </span>
         {situacaoComercial === "vendidas" ? (
-          <span className="inline-flex items-center rounded-full border border-emerald-600/35 bg-emerald-500/18 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-950">
+          <span className="inline-flex items-center rounded-full border border-success-border bg-success-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-success-text">
             Vendida
           </span>
         ) : null}
         {situacaoComercial === "perdidas" ? (
-          <span className="inline-flex items-center rounded-full border border-rose-400/45 bg-rose-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-rose-950">
+          <span className="inline-flex items-center rounded-full border border-danger-border bg-danger-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-danger-text">
             Perdida
           </span>
         ) : null}
@@ -153,7 +153,7 @@ function PipelineRdLeadCardContent({
           <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
             Negociação (RD)
           </p>
-          <p className="mt-0.5 text-[13px] font-extrabold leading-snug tracking-[-0.03em] text-primary-dark">
+          <p className="mt-0.5 text-[13px] font-semibold leading-snug tracking-tight text-foreground">
             {item.solicitante}
           </p>
         </div>
@@ -162,8 +162,8 @@ function PipelineRdLeadCardContent({
             href={`/crm/leads/${encodeURIComponent(item.id)}`}
             className={cn(
               "mt-0.5 inline-flex shrink-0 rounded-md p-1 text-muted-foreground transition-colors",
-              "hover:bg-primary-dark/10 hover:text-primary-dark",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-dark/35 focus-visible:ring-offset-1",
+              "hover:bg-interactive-50 hover:text-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:ring-offset-1",
             )}
             title="Ver ficha (dados do RD)"
             aria-label="Ver ficha (dados do RD)"
@@ -175,7 +175,7 @@ function PipelineRdLeadCardContent({
       </div>
 
       <p className="mt-2 text-[11px] text-muted-foreground">
-        <span className="font-medium text-primary-dark/80">
+        <span className="font-medium text-foreground/80">
           {OPPORTUNITY_STAGE_LABELS[item.etapa] ?? item.etapa}
         </span>
         <span className="text-muted-foreground"> · {TIPO_DEMANDA_LABEL[item.tipo]}</span>
@@ -183,7 +183,7 @@ function PipelineRdLeadCardContent({
 
       {showRdNome ? (
         <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
-          Solicitante RD: <span className="font-medium text-primary-dark/85">{rdNome}</span>
+          Solicitante RD: <span className="font-medium text-foreground/85">{rdNome}</span>
         </p>
       ) : null}
 
@@ -283,7 +283,7 @@ export function PipelineLeadCardContent({
         <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
           {situacaoComercial === "vendidas" ? (
             <span
-              className="inline-flex items-center rounded-full border border-emerald-600/35 bg-emerald-500/18 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-950"
+              className="inline-flex items-center rounded-full border border-success-border bg-success-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-success-text"
               title="Negociação fechada como ganha ou em contrato assinado"
             >
               Vendida
@@ -291,7 +291,7 @@ export function PipelineLeadCardContent({
           ) : null}
           {situacaoComercial === "perdidas" ? (
             <span
-              className="inline-flex items-center rounded-full border border-rose-400/45 bg-rose-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-rose-950"
+              className="inline-flex items-center rounded-full border border-danger-border bg-danger-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-danger-text"
               title={perdidaTooltip}
             >
               Perdida
@@ -313,7 +313,7 @@ export function PipelineLeadCardContent({
           <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
             Nome do lead
           </p>
-          <p className="mt-0.5 text-[13px] font-extrabold leading-snug tracking-[-0.03em] text-primary-dark">
+          <p className="mt-0.5 text-[13px] font-semibold leading-snug tracking-tight text-foreground">
             {item.solicitante}
           </p>
         </div>
@@ -322,8 +322,8 @@ export function PipelineLeadCardContent({
             href={`/crm/leads/${encodeURIComponent(item.id)}`}
             className={cn(
               "mt-0.5 inline-flex shrink-0 cursor-pointer rounded-md p-1 text-muted-foreground transition-colors",
-              "hover:bg-primary-dark/10 hover:text-primary-dark",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-dark/35 focus-visible:ring-offset-1",
+              "hover:bg-interactive-50 hover:text-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:ring-offset-1",
             )}
             title="Abrir ficha do lead"
             aria-label="Abrir ficha do lead"
@@ -409,7 +409,7 @@ export function PipelineLeadCardContent({
 
       {showContractSentOnlySummary ? (
         <div
-          className="mt-2 overflow-hidden rounded-xl border border-sky-300/50 bg-gradient-to-b from-sky-50/90 to-white/80 px-2.5 py-2 text-[10px] font-medium text-primary-dark/85 shadow-sm shadow-primary-dark/[0.03]"
+          className="mt-2 overflow-hidden rounded-(--radius-v2-xl) border border-info-border bg-info-bg px-2.5 py-2 text-[10px] font-medium text-foreground"
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-start gap-2">
@@ -417,13 +417,13 @@ export function PipelineLeadCardContent({
               <Send className="h-3.5 w-3.5" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-bold tracking-tight text-primary-dark">Contrato enviado</p>
+              <p className="text-[11px] font-bold tracking-tight text-foreground">Contrato enviado</p>
               {contractSentAt ? (
-                <p className="mt-0.5 text-[9px] font-medium text-primary-dark/55">
+                <p className="mt-0.5 text-[9px] font-medium text-foreground/55">
                   {formatDateTimeBr(contractSentAt)}
                 </p>
               ) : (
-                <p className="mt-0.5 text-[9px] font-medium text-primary-dark/55">
+                <p className="mt-0.5 text-[9px] font-medium text-foreground/55">
                   Aguardando dados dos signatários
                 </p>
               )}

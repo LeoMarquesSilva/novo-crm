@@ -15,7 +15,7 @@ export function StickyFooter({
   return (
     <footer
       className={cn(
-        "shrink-0 border-t border-[#dfe5ee] bg-white px-5 py-4 shadow-[0_-10px_30px_rgba(16,31,46,0.04)] sm:px-7",
+        "shrink-0 border-t border-border bg-white px-5 py-4 sm:px-7",
         className,
       )}
     >

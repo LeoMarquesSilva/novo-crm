@@ -458,28 +458,28 @@
     transform: rotate(180deg);
   }
 
-  /** Scoped to Novo Lead modal — does not replace global Montserrat. */
+  /** Alias legado do Novo Lead — herda Plus Jakarta Sans do produto (Inter removida deste fluxo). */
   .font-new-lead-modal {
-    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    font-family: inherit;
   }
 
-  /** Painel de busca de leads (kanban): foco/clique verde, sem azul do browser. */
+  /** Painel de busca de leads (kanban): seleção azul funcional, sem teal legado. */
   .lead-search-suggestions .lead-search-option {
     -webkit-tap-highlight-color: transparent;
-    accent-color: var(--accent-teal);
+    accent-color: var(--interactive-600);
   }
 
   .lead-search-suggestions .lead-search-option:focus,
   .lead-search-suggestions .lead-search-option:focus-visible {
     outline: none;
-    background-color: #ecfdf5;
-    box-shadow: inset 0 0 0 2px rgba(15, 159, 143, 0.38);
+    background-color: var(--interactive-50);
+    color: var(--interactive-700);
   }
 
   .lead-search-suggestions .lead-search-option::selection,
   .lead-search-suggestions .lead-search-option *::selection {
-    background-color: rgba(16, 185, 129, 0.22);
-    color: #064e3b;
+    background-color: var(--interactive-100);
+    color: var(--interactive-800);
   }
 }
 

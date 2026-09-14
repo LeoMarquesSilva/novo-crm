@@ -56,7 +56,10 @@ import {
 } from "@/lib/crm/compute-transition-requirements";
 import type { PipelineBoardColumn } from "@/lib/crm/pipeline-board-config";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
-import { getLeadPipelineSituation } from "@/modules/crm/application/lead-pipeline-situation";
+import {
+  getLeadPipelineSituation,
+  type LeadPipelineSituation,
+} from "@/modules/crm/application/lead-pipeline-situation";
 import { isRdKanbanViewOnlyLead, RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import { canMoveToStage } from "@/modules/crm/domain/workflow";
 import { Oportunidade, OpportunityStage } from "@/modules/crm/domain/entities";
@@ -81,6 +84,30 @@ import {
 import { AlertCircle, Calendar, FileText, Link2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+function leadCardSurfaceClass(
+  situacao: LeadPipelineSituation,
+  {
+    overlay = false,
+    pendingConfirm = false,
+    rdViewOnly = false,
+  }: { overlay?: boolean; pendingConfirm?: boolean; rdViewOnly?: boolean } = {},
+) {
+  return cn(
+    "rounded-(--radius-v2-xl) border p-3 transition-colors duration-150",
+    overlay ? "shadow-(--shadow-v2-lg)" : "shadow-none",
+    rdViewOnly && "cursor-default border-dashed border-warning-border bg-warning-bg/60",
+    !rdViewOnly &&
+      !overlay &&
+      "cursor-grab hover:border-border-strong hover:bg-surface-hover active:cursor-grabbing",
+    !rdViewOnly && situacao === "em_andamento" && "border-border bg-white",
+    !rdViewOnly && situacao === "vendidas" && "border-success-border bg-success-bg",
+    !rdViewOnly && situacao === "perdidas" && "border-danger-border bg-danger-bg",
+    !rdViewOnly &&
+      pendingConfirm &&
+      "border-dashed border-interactive-300 bg-interactive-50",
+  );
+}
 
 interface PipelineBoardProps {
   opportunities: Oportunidade[];
@@ -269,21 +296,10 @@ function LeadCard({
       data-situacao={situacao}
       data-rd-view-only={rdViewOnly ? "true" : undefined}
       aria-hidden={isDragging}
-      className={cn(
-        "rounded-[14px] border p-3 shadow-sm transition-[box-shadow,transform,opacity] duration-150",
-        rdViewOnly
-          ? "cursor-default border-dashed border-orange-200/90 bg-orange-50/25 shadow-none hover:shadow-sm"
-          : cn(
-              "cursor-grab shadow-primary-dark/[0.025] hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(16,31,46,0.08)] active:cursor-grabbing",
-              situacao === "em_andamento" && "border-primary-dark/10 bg-white/80",
-              situacao === "vendidas" &&
-                "border-emerald-600/28 bg-emerald-50/80 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.22)] ring-1 ring-emerald-800/10",
-              situacao === "perdidas" &&
-                "border-rose-400/35 bg-rose-50/80 shadow-[inset_0_1px_0_0_rgba(244,63,94,0.18)] ring-1 ring-rose-900/10",
-              pendingConfirm &&
-                "border-dashed border-accent-teal/45 bg-white/70 ring-1 ring-accent-teal/20",
-            ),
-      )}
+      className={leadCardSurfaceClass(situacao, {
+        pendingConfirm,
+        rdViewOnly,
+      })}
       data-dragging={isDragging}
     >
       <PipelineLeadCardContent
@@ -321,18 +337,18 @@ function Column({
       transition={{ duration: 0.18, ease: "easeOut" }}
       className="h-full min-h-0 w-[min(19vw,300px)] min-w-[250px] max-w-[320px] shrink-0 sm:min-w-[268px]"
     >
-    <Card className="glass-card-no-float flex h-full min-h-0 w-full flex-col gap-0 rounded-[16px] border-primary-dark/10 py-0">
+    <Card className="flex h-full min-h-0 w-full flex-col gap-0 rounded-(--radius-v2-xl) border-border bg-surface-subtle py-0 shadow-none">
       <CardHeader
         className={cn(
           "relative z-0 flex shrink-0 flex-row items-center justify-between gap-3",
-          "border-b border-primary-dark/[0.08] bg-[#fbfbfc] px-3.5 py-3",
+          "border-b border-border bg-surface-subtle px-3.5 py-3",
         )}
       >
-        <CardTitle className="min-w-0 flex-1 pr-1 text-left text-[12px] font-bold leading-snug tracking-[-0.02em] text-foreground/90">
+        <CardTitle className="min-w-0 flex-1 pr-1 text-left text-[12px] font-semibold leading-snug tracking-tight text-foreground">
           {title}
         </CardTitle>
         <span
-          className="shrink-0 rounded-full border border-accent-teal/20 bg-accent-teal/10 px-2 py-0.5 text-[10px] font-bold tabular-nums tracking-[0.06em] text-accent-teal"
+          className="shrink-0 rounded-full border border-border bg-white px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground"
           aria-label={`${items.length} ${items.length === 1 ? "oportunidade nesta etapa" : "oportunidades nesta etapa"}`}
         >
           {items.length}
@@ -349,7 +365,7 @@ function Column({
           >
             {items.length === 0 ? (
               <div
-                className="rounded-[14px] border border-dashed border-slate-200 bg-[#f8f9fb] p-4 text-center text-xs text-muted-foreground"
+                className="rounded-(--radius-v2-xl) border border-dashed border-border bg-white p-4 text-center text-xs text-muted-foreground"
                 data-stage={stage}
               >
                 Arraste uma oportunidade para esta etapa.
@@ -1024,7 +1040,7 @@ export function PipelineBoard({
             >
               {transitionModal.missing.includes("linkProposta") ? (
                 <div className="space-y-1.5">
-                  <Label htmlFor="transition-link-proposta" className="text-xs font-medium text-[#111827]">
+                  <Label htmlFor="transition-link-proposta" className="text-xs font-medium text-foreground">
                     Link da proposta *
                   </Label>
                   <Input
@@ -1044,7 +1060,7 @@ export function PipelineBoard({
               ) : null}
               {transitionModal.missing.includes("linkContrato") ? (
                 <div className="space-y-1.5">
-                  <Label htmlFor="transition-link-contrato" className="text-xs font-medium text-[#111827]">
+                  <Label htmlFor="transition-link-contrato" className="text-xs font-medium text-foreground">
                     Link do contrato *
                   </Label>
                   <Input
@@ -1111,7 +1127,7 @@ export function PipelineBoard({
             >
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label htmlFor="tr-loc" className="text-xs font-medium text-[#111827]">
+                  <Label htmlFor="tr-loc" className="text-xs font-medium text-foreground">
                     Local da reunião *
                   </Label>
                   <Button
@@ -1124,7 +1140,7 @@ export function PipelineBoard({
                       )
                     }
                     disabled={transitionSubmitting}
-                    className="h-7 rounded-full border-[#dfe5ee] bg-white px-2.5 text-[11px] font-semibold text-[#536274] shadow-none hover:border-[#bfd2f6] hover:bg-[#eef5ff] hover:text-[#173a6a]"
+                    className="h-7 border-border bg-white px-2.5 text-[11px] font-medium text-muted-foreground shadow-none hover:border-interactive-300 hover:bg-interactive-50 hover:text-interactive-700"
                   >
                     Ainda sem local
                   </Button>
@@ -1144,7 +1160,7 @@ export function PipelineBoard({
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="tr-dt" className="text-xs font-medium text-[#111827]">
+                  <Label htmlFor="tr-dt" className="text-xs font-medium text-foreground">
                     Data *
                   </Label>
                   <DateInputBr
@@ -1160,7 +1176,7 @@ export function PipelineBoard({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="tr-hr" className="text-xs font-medium text-[#111827]">
+                  <Label htmlFor="tr-hr" className="text-xs font-medium text-foreground">
                     Horário *
                   </Label>
                   <TimeInputBr
@@ -1187,7 +1203,7 @@ export function PipelineBoard({
             >
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label htmlFor="tr-loc" className="text-xs font-medium text-[#111827]">
+                  <Label htmlFor="tr-loc" className="text-xs font-medium text-foreground">
                     Local da reunião *
                   </Label>
                   <Button
@@ -1200,7 +1216,7 @@ export function PipelineBoard({
                       )
                     }
                     disabled={transitionSubmitting}
-                    className="h-7 rounded-full border-[#dfe5ee] bg-white px-2.5 text-[11px] font-semibold text-[#536274] shadow-none hover:border-[#bfd2f6] hover:bg-[#eef5ff] hover:text-[#173a6a]"
+                    className="h-7 border-border bg-white px-2.5 text-[11px] font-medium text-muted-foreground shadow-none hover:border-interactive-300 hover:bg-interactive-50 hover:text-interactive-700"
                   >
                     Ainda sem local
                   </Button>
@@ -1220,7 +1236,7 @@ export function PipelineBoard({
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="tr-dt" className="text-xs font-medium text-[#111827]">
+                  <Label htmlFor="tr-dt" className="text-xs font-medium text-foreground">
                     Data *
                   </Label>
                   <DateInputBr
@@ -1236,7 +1252,7 @@ export function PipelineBoard({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="tr-hr" className="text-xs font-medium text-[#111827]">
+                  <Label htmlFor="tr-hr" className="text-xs font-medium text-foreground">
                     Horário *
                   </Label>
                   <TimeInputBr
@@ -1266,7 +1282,7 @@ export function PipelineBoard({
             >
               {visibleCustomFields.map((field) => (
                 <div key={field.field_code} className="space-y-1.5">
-                  <Label className="text-xs font-medium text-[#111827]">
+                  <Label className="text-xs font-medium text-foreground">
                     {userFacingFieldLabel(field.label, field.field_code)}
                     {field.is_required ? (
                       <span className="text-red-500" aria-hidden>
@@ -1299,7 +1315,7 @@ export function PipelineBoard({
               </p>
               {visibleCustomFields.map((field) => (
                 <div key={field.field_code} className="space-y-1.5">
-                  <Label className="text-sm font-medium text-primary-dark">
+                  <Label className="text-sm font-medium text-foreground">
                     {userFacingFieldLabel(field.label, field.field_code)}
                     {field.is_required ? (
                       <span className="text-red-500" aria-hidden>
@@ -1379,22 +1395,25 @@ export function PipelineBoard({
           hideCloseButton={isReuniaoConfeccaoModal}
           className={cn(
             isReuniaoConfeccaoModal
-              ? "max-h-[min(90vh,860px)] max-w-[min(100vw-1.5rem,960px)] w-full gap-0 overflow-hidden rounded-[22px] border border-[#dfe5ee] bg-[#f8f9fb] p-0 shadow-[0_28px_80px_rgba(16,31,46,0.18),0_10px_30px_rgba(16,31,46,0.08)] backdrop-blur-xl sm:rounded-[22px]"
+              ? "max-h-[min(90vh,860px)] w-full max-w-[min(100vw-1.5rem,960px)] gap-0 overflow-hidden p-0 sm:max-w-[min(100vw-1.5rem,960px)]"
               : "max-h-[min(90vh,760px)] max-w-lg overflow-y-auto",
           )}
           onPointerDownOutside={(event) => {
             if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
           }}
+          onFocusOutside={(event) => {
+            if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
+          }}
         >
           {transitionModal && isReuniaoConfeccaoModal ? (
-            <div className="font-new-lead-modal flex max-h-[min(90vh,860px)] min-h-0 w-full flex-col overflow-hidden">
+            <div className="flex max-h-[min(90vh,860px)] min-h-0 w-full flex-col overflow-hidden">
               <ModalHeader
                 badge="TRANSIÇÃO DE ETAPA"
                 title="Reunião → elaboração da proposta"
                 subtitle={
                   <>
                     Complete os dados obrigatórios para mover{" "}
-                    <span className="font-semibold text-white">
+                    <span className="font-semibold text-foreground">
                       {transitionModal.item.solicitante ?? "esta oportunidade"}
                     </span>{" "}
                     no funil. O layout segue o mesmo padrão visual do cadastro de novo lead.
@@ -1422,8 +1441,8 @@ export function PipelineBoard({
               <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
                 <div className="mx-auto max-w-[880px] space-y-5">
                   {transitionModal.requirementsLoading ? (
-                    <div className="flex items-center gap-3 rounded-2xl border border-[#dfe5ee] bg-white px-4 py-6 text-sm text-[#536274]">
-                      <Loader2 className="size-5 shrink-0 animate-spin text-[#101f2e]" />
+                    <div className="flex items-center gap-3 rounded-(--radius-v2-xl) border border-border bg-white px-4 py-6 text-sm text-muted-foreground">
+                      <Loader2 className="size-5 shrink-0 animate-spin text-foreground" />
                       Carregando os dados obrigatórios desta etapa…
                     </div>
                   ) : (
@@ -1442,8 +1461,8 @@ export function PipelineBoard({
               <StickyFooter
                 left={
                   <div className="space-y-0.5">
-                    <p className="text-sm font-semibold text-[#111827]">Confirmar mudança de etapa</p>
-                    <p className="text-xs font-normal leading-relaxed text-[#6b7280]">
+                    <p className="text-sm font-semibold text-foreground">Confirmar mudança de etapa</p>
+                    <p className="text-xs font-normal leading-relaxed text-muted-foreground">
                       Os dados serão gravados com a transição. Fechar (X ou Cancelar) com campos
                       preenchidos pede confirmação antes de descartar.
                     </p>
@@ -1454,7 +1473,7 @@ export function PipelineBoard({
                     <Button
                       type="button"
                       variant="outline"
-                      className="w-full rounded-full border-[#e5e7eb] bg-white text-[#111827] transition-[transform,box-shadow] duration-180 hover:bg-[#f9fafb] sm:w-auto"
+                      className="w-full sm:w-auto"
                       disabled={transitionSubmitting}
                       onClick={() => requestCloseTransitionModal()}
                     >
@@ -1462,7 +1481,7 @@ export function PipelineBoard({
                     </Button>
                     <Button
                       type="button"
-                      className="w-full rounded-full border-0 bg-[#101f2e] px-8 text-white shadow-md shadow-[#101f2e]/25 transition-[transform,box-shadow,background-color] duration-180 hover:-translate-y-0.5 hover:bg-[#1b2d42] hover:shadow-lg disabled:translate-y-0 sm:w-auto"
+                      className="w-full sm:w-auto"
                       disabled={transitionSubmitting || Boolean(transitionModal.requirementsLoading)}
                       onClick={handleModalSubmit}
                     >
@@ -1478,11 +1497,11 @@ export function PipelineBoard({
                 <DialogTitle>Dados obrigatórios para a etapa</DialogTitle>
                 <DialogDescription>
                   Para mover{" "}
-                  <strong className="text-primary-dark">
+                  <strong className="text-foreground">
                     {transitionModal?.item.solicitante ?? "esta oportunidade"}
                   </strong>{" "}
                   para{" "}
-                  <strong className="text-primary-dark">
+                  <strong className="text-foreground">
                     {transitionModal
                       ? OPPORTUNITY_STAGE_LABELS[transitionModal.nextStage]
                       : ""}
@@ -1491,7 +1510,7 @@ export function PipelineBoard({
                 </DialogDescription>
               </DialogHeader>
               {transitionModal?.requirementsLoading ? (
-                <div className="flex items-center gap-3 rounded-xl border border-[#dfe5ee] bg-white px-3 py-4 text-sm text-slate-600">
+                <div className="flex items-center gap-3 rounded-(--radius-v2-xl) border border-border bg-white px-3 py-4 text-sm text-muted-foreground">
                   <Loader2 className="size-5 shrink-0 animate-spin" />
                   Carregando os dados obrigatórios desta etapa…
                 </div>
@@ -1532,7 +1551,7 @@ export function PipelineBoard({
           if (!open) setBoardError(null);
         }}
       >
-        <DialogContent className="max-w-md gap-5 border-destructive/25 bg-white/95 sm:rounded-2xl">
+        <DialogContent className="max-w-md gap-5">
           <DialogHeader className="gap-3 text-left sm:text-left">
             <div className="flex gap-3">
               <div
@@ -1542,7 +1561,7 @@ export function PipelineBoard({
                 <AlertCircle className="size-5" strokeWidth={2} />
               </div>
               <div className="min-w-0 flex-1 space-y-2 pt-0.5">
-                <DialogTitle className="text-base font-semibold text-primary-dark">
+                <DialogTitle className="text-base font-semibold">
                   Transição não permitida
                 </DialogTitle>
                 {boardError ? (
@@ -1595,19 +1614,15 @@ export function PipelineBoard({
       {typeof document !== "undefined"
         ? createPortal(
             <DragOverlay
-              zIndex={10000}
+              zIndex={130}
               dropAnimation={null}
             >
               {activeItem && dragOverlaySituacao ? (
                 <div
                   data-situacao={dragOverlaySituacao}
                   className={cn(
-                    "box-border max-w-none cursor-grabbing rounded-[14px] border p-3 shadow-xl touch-none",
-                    dragOverlaySituacao === "em_andamento" && "border-primary-dark/10 bg-white",
-                    dragOverlaySituacao === "vendidas" &&
-                      "border-emerald-600/28 bg-emerald-50 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.22)] ring-1 ring-emerald-800/10",
-                    dragOverlaySituacao === "perdidas" &&
-                      "border-rose-400/35 bg-rose-50 shadow-[inset_0_1px_0_0_rgba(244,63,94,0.18)] ring-1 ring-rose-900/10",
+                    "box-border max-w-none cursor-grabbing touch-none",
+                    leadCardSurfaceClass(dragOverlaySituacao, { overlay: true }),
                   )}
                 >
                   {/* Mesmo layout do card na coluna para o rect do overlay coincidir com o cursor */}

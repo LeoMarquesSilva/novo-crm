@@ -101,7 +101,7 @@ export function MeetingKanbanPanel({ item }: MeetingKanbanPanelProps) {
         />
       </div>
       {!hasSchedule ? (
-        <div className="border-t border-primary-dark/[0.06] px-2.5 py-1.5 text-[9px] font-medium text-primary-dark/55">
+        <div className="border-t border-border px-2.5 py-1.5 text-[9px] font-medium text-muted-foreground">
           Preencha local, data e horário na ficha do lead.
         </div>
       ) : null}
@@ -130,7 +130,7 @@ export function PropostaEscopoKanbanPanel({
       href={linkProposta.trim()}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-accent-teal underline-offset-2 hover:underline"
+      className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
       title={linkProposta.trim()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -142,7 +142,7 @@ export function PropostaEscopoKanbanPanel({
       Todas as áreas enviaram — pronto para elaborar
     </p>
   ) : pendente > 0 ? (
-    <p className="text-[9px] font-medium text-primary-dark/60">
+    <p className="text-[9px] font-medium text-muted-foreground">
       {pendente === 1 ? "1 área pendente de envio" : `${pendente} áreas pendentes de envio`}
     </p>
   ) : null;
@@ -166,7 +166,7 @@ export function PropostaEscopoKanbanPanel({
           className="kanban-panel-details group/details"
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold text-primary-dark/70 outline-none transition-colors hover:bg-primary-dark/[0.03] [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground outline-none transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
             <span>Ver áreas</span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/details:rotate-180" />
           </summary>
@@ -208,7 +208,7 @@ export function PropostaEnviadaKanbanPanel({ linkProposta }: PropostaEnviadaKanb
             href={linkProposta!.trim()}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-accent-teal underline-offset-2 hover:underline"
+            className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
             title={linkProposta!.trim()}
             onPointerDown={(e) => e.stopPropagation()}
           >
@@ -263,8 +263,8 @@ export function ContractReviewKanbanPanel({
             onPointerDown={(e) => e.stopPropagation()}
             className={cn(
               "flex w-full items-center justify-center gap-1.5 rounded-lg",
-              "border border-accent-teal/40 bg-accent-teal/10 px-2.5 py-1.5",
-              "text-[10px] font-bold text-teal-800 transition-colors hover:bg-accent-teal/20",
+              "border border-interactive-300 bg-interactive-50 px-2.5 py-1.5",
+              "text-[10px] font-semibold text-interactive-700 transition-colors hover:bg-interactive-100",
             )}
           >
             <PenLine className="h-3 w-3 shrink-0" aria-hidden />
@@ -319,7 +319,7 @@ export function ContractReviewKanbanPanel({
           href={linkContrato!.trim()}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-accent-teal underline-offset-2 hover:underline"
+          className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
           title={linkContrato!.trim()}
           onPointerDown={(e) => e.stopPropagation()}
         >
@@ -343,8 +343,8 @@ export function ContractReviewKanbanPanel({
           onPointerDown={(e) => e.stopPropagation()}
           className={cn(
             "flex w-full items-center justify-center gap-1.5 rounded-lg",
-            "border border-accent-teal/40 bg-accent-teal/10 px-2.5 py-1.5",
-            "text-[10px] font-bold text-teal-800 transition-colors hover:bg-accent-teal/20",
+            "border border-interactive-300 bg-interactive-50 px-2.5 py-1.5",
+            "text-[10px] font-semibold text-interactive-700 transition-colors hover:bg-interactive-100",
           )}
         >
           <PenLine className="h-3 w-3 shrink-0" aria-hidden />
@@ -406,7 +406,7 @@ function AreaListDetails({ label, children }: { label: string; children: ReactNo
       className="kanban-panel-details group/details"
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold text-primary-dark/70 outline-none transition-colors hover:bg-primary-dark/[0.03] [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground outline-none transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
         <span>{label}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/details:rotate-180" />
       </summary>
@@ -434,7 +434,7 @@ export function DueLevantamentoKanbanPanel({ summary, breakdown }: DueLevantamen
     ) : allDone ? (
       <p className="text-[9px] font-semibold text-emerald-800/85">Todas as áreas concluíram o levantamento</p>
     ) : (
-      <p className="text-[9px] font-medium text-primary-dark/60">
+      <p className="text-[9px] font-medium text-muted-foreground">
         {total - disponibilizados} área(s) pendente(s)
       </p>
     );
@@ -488,7 +488,7 @@ export function DueRevisaoKanbanPanel({ summary, breakdown }: DueRevisaoKanbanPa
   const footer = allDone ? (
     <p className="text-[9px] font-semibold text-emerald-800/85">Todas as áreas revisaram</p>
   ) : (
-    <p className="text-[9px] font-medium text-primary-dark/60">
+    <p className="text-[9px] font-medium text-muted-foreground">
       {pending === 1 ? "1 área sem revisão" : `${pending} áreas sem revisão`}
     </p>
   );

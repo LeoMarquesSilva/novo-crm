@@ -238,14 +238,14 @@ function CurrentUserSummary({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-[14px] border border-[#e5e7eb] bg-[#fafafa] p-4">
+    <div className="rounded-[14px] border border-border bg-surface-subtle p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6b7280]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Cadastro realizado por
           </p>
         </div>
-        <div className="rounded-full border border-[#e5e7eb] bg-white px-2.5 py-1 text-[11px] font-medium text-[#6b7280]">
+        <div className="rounded-full border border-border bg-white px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
           Automático
         </div>
       </div>
@@ -253,14 +253,14 @@ function CurrentUserSummary({
       {loading ? (
         <div className="h-14 animate-pulse rounded-xl bg-[#f3f4f6]" />
       ) : user ? (
-        <div className="flex items-center gap-3 rounded-xl border border-[#e5e7eb] bg-white px-3 py-3">
-          <Avatar className="h-10 w-10 border border-[#e5e7eb]">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-white px-3 py-3">
+          <Avatar className="h-10 w-10 border border-border">
             <AvatarImage src={user.avatarUrl} alt={user.name} />
             <AvatarFallback>{initialsFromName(user.name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-[#111827]">{user.name}</p>
-            <p className="truncate text-xs text-[#6b7280]">{user.email}</p>
+            <p className="truncate text-sm font-semibold text-foreground">{user.name}</p>
+            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
           </div>
         </div>
       ) : (
@@ -309,9 +309,9 @@ function ReviewItem({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-[14px] border border-[#e5e7eb] bg-white px-4 py-3 shadow-sm", className)}>
+    <div className={cn("rounded-[14px] border border-border bg-white px-4 py-3 shadow-sm", className)}>
       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8a94a6]">{label}</p>
-      <p className="mt-1 text-sm font-semibold leading-relaxed text-[#102033]">{value || "Não informado"}</p>
+      <p className="mt-1 text-sm font-semibold leading-relaxed text-foreground">{value || "Não informado"}</p>
     </div>
   );
 }
@@ -964,7 +964,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       initial={{ opacity: 0, y: 12, scale: 0.985 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.22, ease: "easeOut" }}
-      className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-[22px] border border-[#dfe5ee] bg-[#f8f9fb] shadow-[0_28px_80px_rgba(16,31,46,0.18),0_10px_30px_rgba(16,31,46,0.08)]"
+      className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-surface-subtle"
     >
       <ModalHeader
         badge="NOVO LEAD"
@@ -1013,16 +1013,16 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             ) : null}
           </div>
 
-          <div className="rounded-[20px] border border-[#dfe5ee] bg-white px-4 py-4 shadow-sm sm:px-5">
+          <div className="rounded-(--radius-v2-xl) border border-border bg-white px-4 py-4 sm:px-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-accent-teal">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-interactive-700">
                   Etapa {currentStepIndex + 1} de {WIZARD_STEPS.length}
                 </p>
-                <h3 className="mt-1 text-xl font-extrabold tracking-[-0.04em] text-[#102033]">
+                <h3 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
                   {activeWizardStep.label}
                 </h3>
-                <p className="mt-1 text-sm text-[#6b7280]">{activeWizardStep.description}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{activeWizardStep.description}</p>
               </div>
               <div className="grid grid-cols-6 gap-1 md:min-w-[260px]">
                 {WIZARD_STEPS.map((step, index) => (
@@ -1032,7 +1032,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                     onClick={() => selectWizardStep(step.id)}
                     className={cn(
                       "h-2 rounded-full transition-colors",
-                      index <= currentStepIndex ? "bg-[#102033]" : "bg-[#d8dee8]",
+                      index <= currentStepIndex ? "bg-interactive-600" : "bg-neutral-200",
                     )}
                     aria-label={`Ir para etapa ${step.label}`}
                   />
@@ -1050,7 +1050,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-[#111827]">Tipo de Lead *</Label>
+                  <Label className="text-xs font-medium text-foreground">Tipo de Lead *</Label>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {leadTypes.map((item) => {
                       const active = tipoLead === item;
@@ -1061,10 +1061,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                           type="button"
                           onClick={() => setTipoLead(item)}
                           className={cn(
-                            "rounded-xl border px-3 py-2.5 text-left transition-[border-color,background-color,box-shadow,transform] duration-180",
+                            "rounded-(--radius-v2-xl) border px-3 py-2.5 text-left transition-colors duration-150",
                             active
-                              ? "border-[#101f2e] bg-[#f0f3f7] shadow-[0_1px_3px_rgba(16,31,46,0.08)]"
-                              : "border-[#e5e7eb] bg-white hover:border-[#cbd5e1] hover:shadow-sm active:scale-[0.99]",
+                              ? "border-interactive-300 bg-interactive-50"
+                              : "border-border bg-white hover:border-border-strong hover:bg-surface-hover",
                           )}
                         >
                           <div className="flex items-center gap-2.5">
@@ -1072,14 +1072,14 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                               className={cn(
                                 "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors duration-180",
                                 active
-                                  ? "border-[#101f2e]/20 bg-white text-[#101f2e]"
-                                  : "border-[#e5e7eb] bg-[#fafafa] text-[#6b7280]",
+                                  ? "border-interactive-300 bg-white text-interactive-700"
+                                  : "border-border bg-surface-subtle text-muted-foreground",
                               )}
                             >
                               <Icon className="h-4 w-4" />
                             </span>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-[#111827]">{item}</p>
+                              <p className="text-sm font-semibold text-foreground">{item}</p>
                             </div>
                           </div>
                         </button>
@@ -1119,10 +1119,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                     >
                       Fluxo selecionado
                     </p>
-                    <p className="mt-2 text-lg font-extrabold tracking-[-0.03em] text-[#102033]">
+                    <p className="mt-2 text-lg font-extrabold tracking-[-0.03em] text-foreground">
                       {tipoLead}
                     </p>
-                    <p className="mt-1 text-sm font-normal leading-relaxed text-[#536274]">
+                    <p className="mt-1 text-sm font-normal leading-relaxed text-muted-foreground">
                       {LEAD_TYPE_HELP[tipoLead]}
                     </p>
                   </div>
@@ -1151,7 +1151,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         <SelectTrigger
                           className={cn(
                             newLeadModalFieldClass,
-                            "!h-12 w-full justify-between font-normal whitespace-normal",
+                            "h-10 w-full justify-between font-normal whitespace-normal",
                           )}
                         >
                           <CrmSelectValue
@@ -1203,7 +1203,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         <SelectTrigger
                           className={cn(
                             newLeadModalFieldClass,
-                            "!h-12 w-full justify-between font-normal whitespace-normal",
+                            "h-10 w-full justify-between font-normal whitespace-normal",
                           )}
                         >
                           <CrmSelectValue
@@ -1250,7 +1250,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                     helperText="Ao selecionar um cliente, a razao social e o CNPJ da primeira empresa serao preenchidos automaticamente."
                   />
                 ) : (
-                  <div className="rounded-xl border border-dashed border-[#e5e7eb] bg-[#fafafa] px-3 py-3 text-sm text-[#6b7280]">
+                  <div className="rounded-xl border border-dashed border-border bg-surface-subtle px-3 py-3 text-sm text-muted-foreground">
                     Sem campos extras para este tipo de lead. Você pode seguir para os
                     dados do solicitante.
                   </div>
@@ -1300,14 +1300,14 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               {empresas.map((company, index) => (
                 <div
                   key={`company-${index}`}
-                  className="rounded-[14px] border border-[#e5e7eb] bg-white p-4 shadow-sm"
+                  className="rounded-[14px] border border-border bg-white p-4 shadow-sm"
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-[#111827]">
+                      <p className="text-sm font-semibold text-foreground">
                         Empresa/Pessoa {index + 1}
                       </p>
-                      <p className="text-xs text-[#6b7280]">
+                      <p className="text-xs text-muted-foreground">
                         Dados usados na abertura e na ficha do lead.
                       </p>
                     </div>
@@ -1355,7 +1355,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         <SelectTrigger
                           className={cn(
                             newLeadModalFieldClass,
-                            "!h-12 w-full min-w-0 justify-between font-normal",
+                            "h-10 w-full min-w-0 justify-between font-normal",
                           )}
                         >
                           <CrmSelectValue
@@ -1396,7 +1396,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               variant="outline"
               size="sm"
               onClick={addCompany}
-              className="rounded-full border-[#e5e7eb] bg-white text-[#111827] transition-[border-color,background-color] duration-180 hover:bg-[#f9fafb]"
+              className="border-border bg-white text-foreground hover:bg-surface-hover"
             >
               <Plus className="mr-1.5 h-4 w-4" />
               Adicionar Empresa/Pessoa
@@ -1441,27 +1441,27 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             >
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-[#111827]">
+                  <Label className="text-xs font-medium text-foreground">
                     Haverá Due Diligence? *
                   </Label>
                   <div className="flex flex-wrap gap-2">
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium text-[#111827] transition-[border-color,background-color] duration-180 hover:border-[#cbd5e1] has-[:checked]:border-[#101f2e] has-[:checked]:bg-[#f0f3f7]">
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-lg) border border-border bg-white px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:border-border-strong has-[:checked]:border-interactive-300 has-[:checked]:bg-interactive-50">
                       <input
                         type="radio"
                         name="due_diligence"
                         checked={dueDiligence === "Sim"}
                         onChange={() => setDueDiligence("Sim")}
-                        className="size-4 accent-[#101f2e]"
+                        className="size-4 accent-interactive-600"
                       />
                       Sim
                     </label>
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium text-[#111827] transition-[border-color,background-color] duration-180 hover:border-[#cbd5e1] has-[:checked]:border-[#101f2e] has-[:checked]:bg-[#f0f3f7]">
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-lg) border border-border bg-white px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:border-border-strong has-[:checked]:border-interactive-300 has-[:checked]:bg-interactive-50">
                       <input
                         type="radio"
                         name="due_diligence"
                         checked={dueDiligence === "Nao"}
                         onChange={() => setDueDiligence("Nao")}
-                        className="size-4 accent-[#101f2e]"
+                        className="size-4 accent-interactive-600"
                       />
                       Não
                     </label>
@@ -1471,17 +1471,17 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                 {dueDiligence === "Sim" ? (
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label className="text-xs font-medium text-[#111827]">
+                      <Label className="text-xs font-medium text-foreground">
                         Prazo de entrega do levantamento da base *
                       </Label>
                       <DateInputBr
                         value={prazoDue}
                         onChange={setPrazoDue}
-                        className={cn(newLeadModalFieldClass, "!h-12")}
+                        className={newLeadModalFieldClass}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-medium text-[#111827]">
+                      <Label className="text-xs font-medium text-foreground">
                         Horário de entrega do levantamento da base *
                       </Label>
                       <TimeInputBr
@@ -1489,12 +1489,12 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         onChange={setHorarioDue}
                         step={300}
                         suggestions={DUE_TIME_SUGGESTIONS}
-                        className={cn(newLeadModalFieldClass, "!h-12 font-mono")}
+                        className={cn(newLeadModalFieldClass, "font-mono")}
                       />
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-[#e5e7eb] bg-[#fafafa] px-3 py-3 text-sm text-[#6b7280]">
+                  <div className="rounded-xl border border-dashed border-border bg-surface-subtle px-3 py-3 text-sm text-muted-foreground">
                     Sem due diligence, o lead pode seguir para reunião diretamente.
                   </div>
                 )}
@@ -1509,7 +1509,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               <div className="grid gap-3">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label className="text-xs font-medium text-[#111827]">
+                    <Label className="text-xs font-medium text-foreground">
                       Local da Reunião *
                     </Label>
                     <Button
@@ -1517,7 +1517,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       size="sm"
                       variant="outline"
                       onClick={() => setLocalReuniao(MEETING_LOCATION_PENDING)}
-                      className="h-7 rounded-full border-[#dfe5ee] bg-white px-2.5 text-[11px] font-semibold text-[#536274] shadow-none hover:border-[#bfd2f6] hover:bg-[#eef5ff] hover:text-[#173a6a]"
+                      className="h-7 border-border bg-white px-2.5 text-[11px] font-medium text-muted-foreground shadow-none hover:border-interactive-300 hover:bg-interactive-50 hover:text-interactive-700"
                     >
                       Ainda sem local
                     </Button>
@@ -1532,7 +1532,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium text-[#111827]">
+                    <Label className="text-xs font-medium text-foreground">
                       Data da Reunião {dueDiligence === "Sim" ? "*" : ""}
                     </Label>
                     <DateInputBr
@@ -1541,17 +1541,17 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       minYmd={
                         dueDiligence === "Sim" && reuniaoMinDate ? reuniaoMinDate : undefined
                       }
-                      className={cn(newLeadModalFieldClass, "!h-12")}
+                      className={newLeadModalFieldClass}
                     />
                     {dueDiligence === "Sim" && reuniaoMinDate ? (
-                      <p className="text-[11px] text-[#6b7280]">
+                      <p className="text-[11px] text-muted-foreground">
                         Mínimo permitido: {formatDateYmdBr(reuniaoMinDate)}
                       </p>
                     ) : null}
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium text-[#111827]">
+                    <Label className="text-xs font-medium text-foreground">
                       Horário da Reunião
                     </Label>
                     <TimeInputBr
@@ -1559,7 +1559,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       onChange={setHorarioReuniao}
                       step={300}
                       suggestions={MEETING_TIME_SUGGESTIONS}
-                      className={cn(newLeadModalFieldClass, "!h-12 font-mono")}
+                      className={cn(newLeadModalFieldClass, "font-mono")}
                     />
                   </div>
                 </div>
@@ -1638,14 +1638,14 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       <StickyFooter
         left={
           <div className="space-y-0.5">
-            <p className="text-sm font-semibold text-[#111827]">
+            <p className="text-sm font-semibold text-foreground">
               {isReviewStep
                 ? canSubmitLead
                   ? "Pronto para abrir o lead"
                   : "Revise as pendências antes de enviar"
                 : `Etapa atual: ${activeWizardStep.label}`}
             </p>
-            <p className="text-xs font-normal text-[#6b7280]">
+            <p className="text-xs font-normal text-muted-foreground">
               {completedJourneySteps}/{journeySteps.length} etapas concluídas. Avance uma tela por vez para manter o cadastro organizado.
             </p>
           </div>
@@ -1656,7 +1656,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               <Button
                 type="button"
                 variant="outline"
-                className="w-full rounded-full border-[#e5e7eb] bg-white text-[#111827] transition-[transform,box-shadow] duration-180 hover:bg-[#f9fafb] sm:w-auto"
+                className="w-full sm:w-auto"
                 disabled={isSaving}
                 onClick={onRequestClose}
               >
@@ -1666,7 +1666,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             <Button
               type="button"
               variant="outline"
-              className="w-full rounded-full border-[#e5e7eb] bg-white text-[#111827] transition-[transform,box-shadow] duration-180 hover:bg-[#f9fafb] sm:w-auto"
+              className="w-full sm:w-auto"
               disabled={isSaving || currentStepIndex === 0}
               onClick={goToPreviousWizardStep}
             >
@@ -1675,7 +1675,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             {!isReviewStep ? (
               <Button
                 type="button"
-                className="w-full rounded-full border-0 bg-[#101f2e] px-8 text-white shadow-md shadow-[#101f2e]/25 transition-[transform,box-shadow,background-color] duration-180 hover:-translate-y-0.5 hover:bg-[#1b2d42] hover:shadow-lg disabled:translate-y-0 sm:w-auto"
+                className="w-full sm:w-auto"
                 disabled={isSaving}
                 onClick={goToNextWizardStep}
               >
@@ -1684,7 +1684,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             ) : (
             <Button
               type="button"
-              className="w-full rounded-full border-0 bg-[#101f2e] px-8 text-white shadow-md shadow-[#101f2e]/25 transition-[transform,box-shadow,background-color] duration-180 hover:-translate-y-0.5 hover:bg-[#1b2d42] hover:shadow-lg disabled:translate-y-0 sm:w-auto"
+              className="w-full sm:w-auto"
               disabled={!canSubmitLead}
               onClick={() => {
                 if (validateBeforeConfirm()) {
@@ -1700,12 +1700,12 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       />
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent className="max-w-md rounded-[20px] border border-[#e5e7eb] bg-white p-6 shadow-[0_25px_50px_-12px_rgba(16,24,40,0.2)]">
+        <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#111827]">
+            <AlertDialogTitle>
               Confirmar cadastro do novo lead?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-[#6b7280]">
+            <AlertDialogDescription>
               O lead será criado e, se houver due diligence, o CRM enviará a
               notificação no WhatsApp configurado e criará o agendamento no SharePoint.
             </AlertDialogDescription>
@@ -1714,13 +1714,12 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             <AlertDialogCancel
               type="button"
               disabled={isSaving}
-              className="mt-0 rounded-full border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f9fafb]"
+              className="mt-0"
             >
               Cancelar
             </AlertDialogCancel>
             <Button
               type="button"
-              className="rounded-full bg-[#101f2e] text-white hover:bg-[#1b2d42]"
               disabled={isSaving}
               onClick={() => {
                 void submitLead();

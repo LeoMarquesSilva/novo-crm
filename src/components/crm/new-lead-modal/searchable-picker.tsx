@@ -119,24 +119,24 @@ export function SearchablePicker<T>({
             id={listId}
             role="listbox"
             data-new-lead-picker-panel=""
-            className="fixed z-[100] overflow-hidden rounded-xl border border-[#dfe5ee] bg-white shadow-[0_16px_40px_rgba(16,31,46,0.16)] ring-1 ring-black/5"
+            className="fixed z-(--z-dialog-floating) overflow-hidden rounded-(--radius-v2-xl) border border-border bg-white shadow-(--shadow-v2-sm)"
             style={{
               top: panelStyle.top,
               left: panelStyle.left,
               width: panelStyle.width,
             }}
           >
-            <div className="border-b border-[#eef1f5] p-2">
+            <div className="border-b border-border p-2">
               <div className="relative">
                 <Search
-                  className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]"
+                  className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                   aria-hidden
                 />
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={searchPlaceholder}
-                  className={cn(newLeadModalFieldClass, "h-10 pl-9")}
+                  className={cn(newLeadModalFieldClass, "pl-9")}
                   autoFocus
                 />
               </div>
@@ -162,8 +162,8 @@ export function SearchablePicker<T>({
                       className={cn(
                         "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-sm transition-colors",
                         isSelected
-                          ? "bg-[#eef5ff] text-[#102033] ring-1 ring-[#bfd2f6]/60"
-                          : "text-[#111827] hover:bg-[#f3f4f6]",
+                          ? "bg-interactive-50 text-interactive-700"
+                          : "text-foreground hover:bg-surface-hover",
                       )}
                     >
                       {renderOption(option)}
@@ -179,7 +179,7 @@ export function SearchablePicker<T>({
 
   return (
     <div className="space-y-2">
-      <Label className="text-xs font-medium text-[#111827]">{label}</Label>
+      <Label className="text-xs font-medium text-foreground">{label}</Label>
       <button
         ref={triggerRef}
         type="button"
@@ -193,16 +193,16 @@ export function SearchablePicker<T>({
         }}
         className={cn(
           newLeadModalFieldClass,
-          "!h-12 flex items-center justify-between gap-2 text-left font-normal shadow-none transition-colors hover:bg-[#fafafa]",
-          open && "border-[#101f2e]/35 ring-[3px] ring-[#101f2e]/12",
+          "flex items-center justify-between gap-2 text-left font-normal hover:bg-surface-hover",
+          open && "border-primary ring-3 ring-ring/20",
         )}
       >
         <span className="min-w-0 flex-1">{selected ? renderTrigger(selected) : (
-          <span className="text-[#6b7280]">{placeholder}</span>
+          <span className="text-muted-foreground">{placeholder}</span>
         )}</span>
         <ChevronDown
           className={cn(
-            "h-4 w-4 shrink-0 text-[#9ca3af] transition-transform",
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
             open && "rotate-180",
           )}
           aria-hidden
@@ -253,19 +253,19 @@ export function UserPickerField({
       renderTrigger={(user) =>
         user ? (
         <span className="inline-flex min-w-0 items-center gap-2.5">
-          <Avatar className="h-8 w-8 border border-[#e5e7eb]">
+          <Avatar className="h-8 w-8 border border-border">
             <AvatarImage src={user.avatarUrl} alt="" className="object-cover" />
             <AvatarFallback className="text-[10px] font-bold">
               {initialsFromName(user.name)}
             </AvatarFallback>
           </Avatar>
-          <span className="min-w-0 truncate font-medium text-[#111827]">{user.name}</span>
+          <span className="min-w-0 truncate font-medium text-foreground">{user.name}</span>
         </span>
         ) : null
       }
       renderOption={(user) => (
         <>
-          <Avatar className="h-8 w-8 shrink-0 border border-[#e5e7eb]">
+          <Avatar className="h-8 w-8 shrink-0 border border-border">
             <AvatarImage src={user.avatarUrl} alt="" className="object-cover" />
             <AvatarFallback className="text-[10px] font-bold">
               {initialsFromName(user.name)}
@@ -273,7 +273,7 @@ export function UserPickerField({
           </Avatar>
           <span className="min-w-0">
             <span className="block truncate font-medium">{user.name}</span>
-            <span className="block truncate text-xs text-[#6b7280]">{user.email}</span>
+            <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
           </span>
         </>
       )}
@@ -322,15 +322,15 @@ export function ClientPickerField({
       renderTrigger={(client) =>
         client ? (
         <span className="flex min-w-0 flex-col items-start text-left">
-          <span className="truncate font-medium text-[#111827]">{client.razao_social}</span>
-          <span className="truncate text-xs text-[#6b7280]">{client.documento}</span>
+          <span className="truncate font-medium text-foreground">{client.razao_social}</span>
+          <span className="truncate text-xs text-muted-foreground">{client.documento}</span>
         </span>
         ) : null
       }
       renderOption={(client) => (
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{client.razao_social}</span>
-          <span className="block truncate text-xs text-[#6b7280]">{client.documento}</span>
+          <span className="block truncate text-xs text-muted-foreground">{client.documento}</span>
         </span>
       )}
     />

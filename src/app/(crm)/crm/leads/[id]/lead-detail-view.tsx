@@ -1,11 +1,10 @@
 ﻿"use client";
 
-import { createElement, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   BriefcaseBusiness,
   Building2,
   CheckCircle2,
@@ -15,16 +14,16 @@ import {
   FileText,
   Layers3,
   LinkIcon,
-  ListChecks,
   Mail,
   Presentation,
   ShieldCheck,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { CrmEntityHeader } from "@/components/crm/crm-entity-header";
+import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -34,14 +33,12 @@ import { Label } from "@/components/ui/label";
 import { isHttpUrl } from "@/lib/crm/is-http-url";
 import { uploadDuePpt } from "@/lib/crm/upload-due-ppt";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
-import { getStageIcon } from "@/lib/crm/stage-icons";
 import {
   isCadastroLeadOnlyStage,
   isPosVendaPipelineStage,
   POS_VENDA_PIPELINE_COLUMNS,
   SALES_PIPELINE_COLUMNS,
 } from "@/lib/crm/pipeline-board-config";
-import { initialsFromFullName } from "@/lib/crm/resolve-app-user-display";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
 import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-tasks";
@@ -108,11 +105,11 @@ export function LeadDetailView({
   const isCrossSellingLead = normalizeLeadType(leadTypeDisplay).includes("crossselling");
   const heroContextBadge =
     lead.encerramento === "ganho"
-      ? ({ label: "Ganho", className: "border-emerald-400/35 bg-emerald-500/15 text-emerald-100" } as const)
+      ? ({ label: "Ganho", className: "border-success-border bg-success-bg text-success-text" } as const)
       : lead.encerramento === "perdido"
-        ? ({ label: "Perdido", className: "border-rose-400/35 bg-rose-500/15 text-rose-100" } as const)
+        ? ({ label: "Perdido", className: "border-danger-border bg-danger-bg text-danger-text" } as const)
         : lead.rdDealUrl
-          ? ({ label: "Negociação no RD Station", className: "border-white/10 bg-white/10 text-white/80" } as const)
+          ? ({ label: "RD Station", className: "border-info-border bg-info-bg text-info-text" } as const)
           : null;
 
   const proposalPipelineFields = isProposalStage
@@ -191,41 +188,41 @@ export function LeadDetailView({
             onValueChange={(value) => handleTabChange(value as LeadDetailTab)}
             className="gap-4"
           >
-            <div className="overflow-x-auto rounded-[22px] border border-[#dfe5ee] bg-white p-2 shadow-sm">
-              <TabsList className="h-auto min-w-max gap-1 bg-transparent p-0">
-                <TabsTrigger value="overview" className="h-10 rounded-2xl px-4 text-sm font-bold">
+            <div className="overflow-x-auto border-b border-border">
+              <TabsList variant="line" className="h-auto min-w-max justify-start bg-transparent p-0">
+                <TabsTrigger value="overview" className="h-10 px-3 text-sm font-medium">
                   Visão geral
                 </TabsTrigger>
                 {lead.haveraDueDiligence ? (
-                  <TabsTrigger value="due" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                  <TabsTrigger value="due" className="h-10 px-3 text-sm font-medium">
                     Due diligence
                   </TabsTrigger>
                 ) : null}
-                <TabsTrigger value="proposal" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                <TabsTrigger value="proposal" className="h-10 px-3 text-sm font-medium">
                   Proposta
                 </TabsTrigger>
                 {isContractStage ? (
-                  <TabsTrigger value="contract" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                  <TabsTrigger value="contract" className="h-10 px-3 text-sm font-medium">
                     Contrato
                   </TabsTrigger>
                 ) : null}
                 {showBillingTab ? (
-                  <TabsTrigger value="billing" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                  <TabsTrigger value="billing" className="h-10 px-3 text-sm font-medium">
                     Faturamento
                   </TabsTrigger>
                 ) : null}
                 {isRdLead ? (
-                  <TabsTrigger value="crm" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                  <TabsTrigger value="crm" className="h-10 px-3 text-sm font-medium">
                     CRM / RD
                   </TabsTrigger>
                 ) : null}
-                <TabsTrigger value="signature" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                <TabsTrigger value="signature" className="h-10 px-3 text-sm font-medium">
                   Assinatura
                 </TabsTrigger>
-                <TabsTrigger value="history" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                <TabsTrigger value="history" className="h-10 px-3 text-sm font-medium">
                   Histórico
                 </TabsTrigger>
-                <TabsTrigger value="notes" className="h-10 rounded-2xl px-4 text-sm font-bold">
+                <TabsTrigger value="notes" className="h-10 px-3 text-sm font-medium">
                   Anotações
                 </TabsTrigger>
               </TabsList>
@@ -233,10 +230,10 @@ export function LeadDetailView({
 
             <TabsContent value="overview" className="mt-4 space-y-5">
               <section id="resumo" className="scroll-mt-6">
-                <Card className="glass-card-no-float border-[#dfe5ee] p-5 sm:p-6">
+                <Card className="border-border bg-white p-5 sm:p-6">
                   <CardHeader className="px-0 pt-0">
                     <SectionEyebrow icon={UserRound}>Resumo editável</SectionEyebrow>
-                    <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                    <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                       Identificação e origem
                     </CardTitle>
                   </CardHeader>
@@ -294,10 +291,10 @@ export function LeadDetailView({
 
               {lead.intakeFields.length > 0 || lead.empresasIntake.length > 0 ? (
                 <section id="cadastro" className="scroll-mt-6">
-                  <Card className="glass-card-no-float border-[#dfe5ee] p-5 sm:p-6">
+                  <Card className="border-border bg-white p-5 sm:p-6">
                     <CardHeader className="px-0 pt-0">
                       <SectionEyebrow icon={BriefcaseBusiness}>Cadastro inicial</SectionEyebrow>
-                      <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                         Dados enviados na abertura
                       </CardTitle>
                       <p className="mt-1 text-sm text-slate-500">
@@ -367,10 +364,10 @@ export function LeadDetailView({
                 ) : null}
 
                 {isProposalStage && proposalPipelineFields.length === 0 ? (
-                  <Card className="glass-card-no-float border-[#dfe5ee] p-6">
+                  <Card className="border-border bg-white p-6">
                     <CardHeader className="px-0 pt-0">
                       <SectionEyebrow icon={FileText}>Documentos / Propostas</SectionEyebrow>
-                      <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                         Proposta de serviços advocatícios
                       </CardTitle>
                       <p className="mt-1 text-sm text-slate-500">
@@ -381,10 +378,10 @@ export function LeadDetailView({
                 ) : null}
 
                 {!isProposalStage ? (
-                  <Card className="glass-card-no-float border-[#dfe5ee] p-6">
+                  <Card className="border-border bg-white p-6">
                     <CardHeader className="px-0 pt-0">
                       <SectionEyebrow icon={FileText}>Documentos / Propostas</SectionEyebrow>
-                      <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                         Proposta ainda não habilitada
                       </CardTitle>
                       <p className="mt-1 text-sm text-slate-500">
@@ -421,10 +418,10 @@ export function LeadDetailView({
             <TabsContent value="crm" className="mt-4 space-y-5">
               {otherPipelineFields.length > 0 ? (
                 <section id="pipeline" className="scroll-mt-6">
-                  <Card className="glass-card-no-float border-[#dfe5ee] p-5 sm:p-6">
+                  <Card className="border-border bg-white p-5 sm:p-6">
                     <CardHeader className="px-0 pt-0">
                       <SectionEyebrow icon={Layers3}>Pipeline CRM</SectionEyebrow>
-                      <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                         Campos da etapa atual
                       </CardTitle>
                       <p className="mt-1 text-sm text-slate-500">
@@ -457,10 +454,10 @@ export function LeadDetailView({
               ) : null}
 
               <section id="rd" className="scroll-mt-6">
-                <Card className="glass-card-no-float border-[#dfe5ee] p-5 sm:p-6">
+                <Card className="border-border bg-white p-5 sm:p-6">
                   <CardHeader className="px-0 pt-0">
                     <SectionEyebrow icon={ShieldCheck}>RD Station</SectionEyebrow>
-                    <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                    <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                       Campos preenchidos no RD
                     </CardTitle>
                     <p className="mt-1 text-sm text-slate-500">
@@ -586,16 +583,6 @@ function computeProposalScopeSummary(
   return { scopeProgressLabel, pendingCount, areas: areaRows };
 }
 
-function StageGlyph({
-  stage,
-  className,
-}: {
-  stage: LeadDetailData["etapa"];
-  className: string;
-}) {
-  return createElement(getStageIcon(stage), { className, "aria-hidden": true });
-}
-
 function LeadDetailHero({
   lead,
   etapaLabel,
@@ -613,248 +600,123 @@ function LeadDetailHero({
   propostaEmpresaPrincipalNome: string | null;
   proposalScopeSummary: ProposalScopeSummary | null;
 }) {
-  const stageIcon = getStageIcon(lead.etapa);
   const isPosVenda = isPosVendaPipelineStage(lead.etapa);
   const pipelineColumns = isPosVenda ? POS_VENDA_PIPELINE_COLUMNS : SALES_PIPELINE_COLUMNS;
   const stageIndex = pipelineColumns.findIndex((column) => column.stage === lead.etapa);
   const pipelineLabel = isPosVenda ? "Pós-venda" : isCadastroLeadOnlyStage(lead.etapa) ? "Pré-funil" : "Funil comercial";
-  const pipelineProgress =
-    stageIndex >= 0 ? Math.round(((stageIndex + 1) / pipelineColumns.length) * 100) : null;
   const pipelineStepLabel =
     stageIndex >= 0 ? `${stageIndex + 1}/${pipelineColumns.length}` : null;
 
   const cadastradoPor = lead.intakeFields.find((field) => field.key === "cadastrado_por");
-  const areasAnalise = lead.intakeFields.find((field) => field.key === "areas_analise")?.value?.trim();
   const empresaLabel =
     propostaEmpresaPrincipalNome?.trim() ||
     lead.empresasIntake[0]?.razao_social?.trim() ||
     null;
 
+  // Nome e avatar vêm sempre da mesma fonte (cadastradoPor.resolvedUser) — nunca
+  // misturar fallbacks independentes aqui. `lead.ownerUserName`/`ownerUserAvatarUrl`
+  // existem no tipo (Oportunidade) mas só são resolvidos no loader da LISTAGEM
+  // (via e-mail do dono no RD, ver src/app/api/crm/leads/route.ts); o loader desta
+  // página de detalhe (getLeadById) não os popula, então usá-los aqui criaria um
+  // par nome/avatar de origens diferentes (achado da Codex na revisão da Fase 4).
+  const ownerName = cadastradoPor?.resolvedUser?.fullName?.trim() || null;
+  const ownerAvatar = cadastradoPor?.resolvedUser?.avatarUrl ?? null;
+
   return (
-    <section className="overflow-hidden rounded-[22px] border border-[#dfe5ee] bg-[#0b1724] text-white shadow-sm sm:rounded-[28px]">
-      <div className="relative">
-        <div className="absolute inset-0 bg-crm-gradient-dark opacity-90" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(45,200,183,0.22),transparent_50%),linear-gradient(180deg,rgba(4,13,22,0.2),rgba(4,13,22,0.95))]" />
-
-        <div className="relative z-[1] px-4 py-4 sm:px-6 sm:py-5">
-          {/* Toolbar */}
-          <div className="flex items-center justify-between gap-3">
-            <Link
-              href="/crm/leads"
-              className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/8 px-2.5 py-1.5 text-xs font-bold text-white/90 transition-colors hover:bg-white/14 sm:gap-2 sm:px-3 sm:text-sm"
-            >
-              <ArrowLeft className="h-4 w-4 shrink-0" />
-              <span className="truncate">Voltar</span>
-            </Link>
-            <div className="flex shrink-0 items-center gap-2">
-              {lead.rdDealUrl ? (
-                <Link
-                  href={lead.rdDealUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/8 px-2.5 py-1.5 text-xs font-bold text-white/90 transition-colors hover:bg-white/14 sm:px-3"
-                >
-                  <span className="hidden sm:inline">RD Station</span>
-                  <span className="sm:hidden">RD</span>
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Link>
-              ) : null}
-              {lead.isSystemCreated ? <LeadDeleteButton leadId={lead.id} variant="onDark" /> : null}
-            </div>
-          </div>
-
-          {/* Identidade */}
-          <div className="mt-4 flex flex-col gap-4 sm:mt-5 sm:flex-row sm:items-start sm:gap-5">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 sm:h-14 sm:w-14">
-              <StageGlyph stage={lead.etapa} className="h-5 w-5 sm:h-6 sm:w-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-accent-green/30 bg-accent-green/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100">
-                  {pipelineLabel}
-                </span>
-                {heroContextBadge ? (
-                  <span
-                    className={cn(
-                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                      heroContextBadge.className,
-                    )}
-                  >
-                    {heroContextBadge.label}
-                  </span>
-                ) : null}
-              </div>
-              <h1 className="mt-2 break-words text-2xl font-extrabold leading-tight tracking-[-0.04em] sm:text-3xl lg:text-[2rem]">
-                {lead.solicitante}
-              </h1>
-              {(empresaLabel || lead.solicitanteEmail) ? (
-                <div className="mt-2 flex flex-col gap-1.5 text-sm text-white/80 sm:flex-row sm:flex-wrap sm:gap-x-4">
-                  {empresaLabel ? (
-                    <span className="inline-flex min-w-0 items-center gap-1.5">
-                      <Building2 className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-                      <span className="truncate">{empresaLabel}</span>
-                    </span>
-                  ) : null}
-                  {lead.solicitanteEmail ? (
-                    <span className="inline-flex min-w-0 items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-                      <span className="truncate">{lead.solicitanteEmail}</span>
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Meta chips — scroll horizontal no mobile */}
-          <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:overflow-visible sm:px-0">
-            <div className="flex w-max min-w-full flex-wrap gap-2 sm:w-auto">
-              <HeroMetaChip icon={stageIcon} label="Etapa" value={etapaLabel} accent="teal" />
-              <HeroMetaChip icon={BriefcaseBusiness} label="Tipo" value={leadTypeDisplay} accent="gold" />
-              <HeroMetaChip
-                icon={ListChecks}
-                label="DUE"
-                value={ddSimNao}
-                accent={lead.haveraDueDiligence ? "emerald" : "slate"}
-              />
-              {areasAnalise ? (
-                <HeroMetaChip icon={Layers3} label="Áreas" value={areasAnalise} accent="slate" />
-              ) : null}
-              {proposalScopeSummary ? (
-                <>
-                  <HeroMetaChip
-                    icon={FileText}
-                    label="Escopos"
-                    value={proposalScopeSummary.scopeProgressLabel}
-                    accent={proposalScopeSummary.pendingCount > 0 ? "warn" : "emerald"}
-                  />
-                  {proposalScopeSummary.pendingCount > 0 ? (
-                    <HeroMetaChip
-                      icon={ListChecks}
-                      label="Pendências"
-                      value={String(proposalScopeSummary.pendingCount)}
-                      accent="warn"
-                    />
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-          </div>
-
-          {proposalScopeSummary && proposalScopeSummary.areas.length > 0 ? (
-            <div className="-mx-1 mt-2 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:px-0">
-              <div className="flex w-max gap-1.5 sm:flex-wrap sm:w-auto">
-                {proposalScopeSummary.areas.map(({ area, status }) => (
-                  <span
-                    key={area}
-                    className={cn(
-                      "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-                      status === "complete" && "border-emerald-400/30 bg-emerald-400/12 text-emerald-50",
-                      status === "pending" && "border-amber-400/30 bg-amber-400/12 text-amber-50",
-                      status === "overdue" && "border-rose-400/35 bg-rose-400/12 text-rose-50",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        status === "complete" && "bg-emerald-300",
-                        status === "pending" && "bg-amber-300",
-                        status === "overdue" && "bg-rose-300",
-                      )}
-                    />
-                    {area}
-                  </span>
-                ))}
-              </div>
-            </div>
+    <CrmEntityHeader
+      breadcrumb={
+        <nav className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground" aria-label="Breadcrumb">
+          <Link href="/crm/leads" className="hover:text-foreground">
+            Leads
+          </Link>
+          <span aria-hidden>/</span>
+          <span className="truncate text-foreground">{lead.solicitante}</span>
+        </nav>
+      }
+      title={lead.solicitante}
+      subtitle={
+        <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-4">
+          {empresaLabel ? (
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{empresaLabel}</span>
+            </span>
           ) : null}
-
-          {/* Rodapé: pessoa + datas + progresso */}
-          <div className="mt-4 space-y-3 border-t border-white/10 pt-4 sm:mt-5">
-            <div
+          {lead.solicitanteEmail ? (
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{lead.solicitanteEmail}</span>
+            </span>
+          ) : null}
+          {!empresaLabel && !lead.solicitanteEmail ? (
+            <span>Oportunidade comercial</span>
+          ) : null}
+        </div>
+      }
+      badges={
+        <>
+          <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            {pipelineLabel}
+          </span>
+          {heroContextBadge ? (
+            <span
               className={cn(
-                "flex flex-col gap-3 sm:flex-row sm:items-center",
-                cadastradoPor?.resolvedUser ? "sm:justify-between" : "",
+                "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                heroContextBadge.className,
               )}
             >
-              {cadastradoPor?.resolvedUser ? (
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <Avatar className="h-8 w-8 border border-white/15">
-                    {cadastradoPor.resolvedUser.avatarUrl ? (
-                      <AvatarImage src={cadastradoPor.resolvedUser.avatarUrl} alt="" className="object-cover" />
-                    ) : null}
-                    <AvatarFallback className="bg-white/15 text-[10px] font-bold text-white">
-                      {initialsFromFullName(cadastradoPor.resolvedUser.fullName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/40">Cadastrado por</p>
-                    <p className="truncate text-sm font-semibold">{cadastradoPor.resolvedUser.fullName}</p>
-                  </div>
-                </div>
-              ) : null}
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-white/50 sm:text-xs">
-                <span>Criado {formatDateTimeBr(lead.criadoEm)}</span>
-                {lead.atualizadoEm ? <span>Atualizado {formatDateTimeBr(lead.atualizadoEm)}</span> : null}
-              </div>
-            </div>
-
-            {pipelineProgress != null ? (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs">
-                  <span className="truncate font-medium text-white/60">{etapaLabel}</span>
-                  <span className="shrink-0 font-bold tabular-nums text-emerald-100/90">{pipelineStepLabel}</span>
-                </div>
-                <div className="h-1 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className={cn(
-                      "h-full rounded-full",
-                      lead.encerramento === "perdido"
-                        ? "bg-rose-400"
-                        : lead.encerramento === "ganho"
-                          ? "bg-emerald-400"
-                          : "bg-gradient-to-r from-teal-400 to-emerald-400",
-                    )}
-                    style={{ width: `${pipelineProgress}%` }}
+              {heroContextBadge.label}
+            </span>
+          ) : null}
+        </>
+      }
+      actions={
+        <>
+          {lead.rdDealUrl ? (
+            <Link
+              href={lead.rdDealUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={buttonVariants({ variant: "outline", size: "control" })}
+            >
+              RD Station
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          ) : null}
+          {lead.isSystemCreated ? <LeadDeleteButton leadId={lead.id} className="mt-0" /> : null}
+        </>
+      }
+      context={[
+        { label: "Etapa", value: etapaLabel },
+        { label: "Tipo", value: leadTypeDisplay },
+        ...(ownerName
+          ? [
+              {
+                label: "Responsável",
+                value: (
+                  <CrmUserLabel
+                    name={ownerName}
+                    avatarUrl={ownerAvatar}
+                    size="xs"
+                    variant="inline"
                   />
-                </div>
-              </div>
-            ) : isCadastroLeadOnlyStage(lead.etapa) ? (
-              <p className="text-xs text-white/55">Lead em cadastro inicial — avance para entrar no funil.</p>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HeroMetaChip({
-  icon: Icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  accent: "teal" | "gold" | "emerald" | "slate" | "warn";
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex max-w-[min(100%,20rem)] shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] sm:px-3 sm:text-xs",
-        accent === "teal" && "border-teal-300/25 bg-teal-400/10 text-teal-50",
-        accent === "gold" && "border-[#c8a96b]/35 bg-[#c8a96b]/12 text-amber-50",
-        accent === "emerald" && "border-emerald-300/30 bg-emerald-400/12 text-emerald-50",
-        accent === "slate" && "border-white/15 bg-white/8 text-slate-100",
-        accent === "warn" && "border-amber-400/35 bg-amber-400/14 text-amber-50",
-      )}
-    >
-      <Icon className="h-3 w-3 shrink-0 opacity-75 sm:h-3.5 sm:w-3.5" aria-hidden />
-      <span className="font-medium opacity-70">{label}</span>
-      <span className="truncate font-bold">{value}</span>
-    </span>
+                ),
+              },
+            ]
+          : []),
+        {
+          // Achado da Codex: rótulo fixo "Atualização" mostrando a data de criação
+          // quando não há atualizadoEm era enganoso — label acompanha a fonte real.
+          label: lead.atualizadoEm ? "Atualização" : "Criação",
+          value: formatDateTimeBr(lead.atualizadoEm ?? lead.criadoEm),
+        },
+        ...(lead.haveraDueDiligence ? [{ label: "DUE", value: ddSimNao }] : []),
+        ...(pipelineStepLabel ? [{ label: "Funil", value: pipelineStepLabel }] : []),
+        ...(proposalScopeSummary
+          ? [{ label: "Escopos", value: proposalScopeSummary.scopeProgressLabel }]
+          : []),
+      ]}
+    />
   );
 }
 
@@ -1033,12 +895,12 @@ function DueCompilacaoSection({
 
   return (
     <section id="due-compilacao" className="scroll-mt-6">
-      <Card className="glass-card-no-float border-[#dfe5ee] p-5 sm:p-6">
+                  <Card className="border-border bg-white p-5 sm:p-6">
         <CardHeader className="px-0 pt-0">
           <SectionEyebrow icon={Presentation}>Due Diligence</SectionEyebrow>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                 Compilação (PPT)
               </CardTitle>
               <p className="mt-1 text-sm text-slate-500">
@@ -1359,10 +1221,10 @@ function DueRevisaoSection({
 
   return (
     <section id="due-revisao" className="scroll-mt-6">
-      <Card className="glass-card-no-float border-[#dfe5ee] p-5 sm:p-6">
+                  <Card className="border-border bg-white p-5 sm:p-6">
         <CardHeader className="px-0 pt-0">
           <SectionEyebrow icon={ShieldCheck}>Due Diligence</SectionEyebrow>
-          <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
             Revisão por área
           </CardTitle>
           <p className="mt-1 text-sm text-slate-500">
@@ -1595,12 +1457,12 @@ function DueAreaTasksCard({
   return (
     <>
       <section id="due-levantamento" className="scroll-mt-6">
-        <Card className="glass-card-no-float border-[#dfe5ee] p-5 sm:p-6">
+                  <Card className="border-border bg-white p-5 sm:p-6">
           <CardHeader className="px-0 pt-0">
             <SectionEyebrow icon={CheckCircle2}>Due Diligence</SectionEyebrow>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                   Levantamento de dados por área
                 </CardTitle>
                 <p className="mt-1 text-sm text-slate-500">
@@ -1826,10 +1688,10 @@ function EmptyTabCard({
   description: string;
 }) {
   return (
-    <Card className="glass-card-no-float border-[#dfe5ee] p-6">
+    <Card className="border-border bg-white p-6">
       <CardHeader className="px-0 pt-0">
         <SectionEyebrow icon={Icon}>Sem dados nesta área</SectionEyebrow>
-        <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
           {title}
         </CardTitle>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
@@ -1849,10 +1711,10 @@ function normalizeLeadType(value: string) {
 function CrmLinksCard({ lead }: { lead: LeadDetailData }) {
   return (
     <section id="links" className="scroll-mt-6">
-      <Card className="glass-card-no-float border-[#dfe5ee] p-5 sm:p-6">
+                  <Card className="border-border bg-white p-5 sm:p-6">
         <CardHeader className="px-0 pt-0">
           <SectionEyebrow icon={LinkIcon}>Links no CRM</SectionEyebrow>
-          <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
             Proposta e contrato
           </CardTitle>
         </CardHeader>
@@ -1894,7 +1756,7 @@ function D4SignDisclosure({
 
   return (
     <section id="assinatura" className="scroll-mt-6">
-      <Card className="glass-card-no-float overflow-hidden border-[#dfe5ee] p-0">
+      <Card className="overflow-hidden border-border bg-white p-0">
         <button
           type="button"
           onClick={() => setOpen((current) => !current)}
@@ -1903,7 +1765,7 @@ function D4SignDisclosure({
         >
           <div className="min-w-0">
             <SectionEyebrow icon={FileSignature}>Assinatura eletrônica</SectionEyebrow>
-            <h2 className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">D4Sign</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">D4Sign</h2>
             <p className="mt-1 text-sm text-slate-500">
               {hasDocument
                 ? `Último documento conectado${lead.d4signStatus ? `: ${lead.d4signStatus}` : "."}`

@@ -14,7 +14,7 @@ export function SelectField({
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#65758f]">{label}</p>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
       {children}
     </div>
   );

@@ -11,7 +11,7 @@ type PipelineBoardSkeletonProps = {
 
 function SkeletonLeadCard({ tall }: { tall?: boolean }) {
   return (
-    <div className="rounded-[14px] border border-primary-dark/10 bg-white/80 p-3 shadow-sm">
+    <div className="rounded-(--radius-v2-xl) border border-border bg-white p-3">
       <Skeleton className="h-2 w-14" />
       <Skeleton className="mt-2 h-3.5 w-[85%]" />
       <Skeleton className="mt-3 h-7 w-full rounded-lg" />
@@ -30,8 +30,8 @@ function SkeletonLeadCard({ tall }: { tall?: boolean }) {
 function SkeletonColumn({ titleWidth, cardCount }: { titleWidth: string; cardCount: number }) {
   return (
     <div className="h-full min-h-0 w-[min(19vw,300px)] min-w-[250px] max-w-[320px] shrink-0 sm:min-w-[268px]">
-      <Card className="glass-card-no-float flex h-full min-h-0 w-full flex-col gap-0 rounded-[16px] border-primary-dark/10 py-0">
-        <CardHeader className="relative z-0 flex shrink-0 flex-row items-center justify-between gap-3 border-b border-primary-dark/[0.08] bg-[#fbfbfc] px-3.5 py-3">
+      <Card className="flex h-full min-h-0 w-full flex-col gap-0 rounded-(--radius-v2-xl) border-border bg-surface-subtle py-0 shadow-none">
+        <CardHeader className="relative z-0 flex shrink-0 flex-row items-center justify-between gap-3 border-b border-border bg-surface-subtle px-3.5 py-3">
           <Skeleton className={cn("h-3.5", titleWidth)} />
           <Skeleton className="h-5 w-7 rounded-full" />
         </CardHeader>
