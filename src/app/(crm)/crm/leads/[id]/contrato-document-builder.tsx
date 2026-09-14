@@ -55,6 +55,7 @@ import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/cr
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { evaluateCondition, type FieldCondition } from "@/lib/crm/field-condition";
 import { usePaginatedBlocks, type PreviewBlock } from "@/lib/crm/document-pagination";
 import {
@@ -376,7 +377,7 @@ export function ContratoDocumentBuilder({
               {inheritedFields.map((f) => (
                 <div key={f.definitionId} className="rounded-xl border border-teal-200/60 bg-white/80 p-3">
                   <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent-teal/80">
-                    {f.label.replace(" [CP]", "")}
+                    {userFacingFieldLabel(f.label, f.fieldCode)}
                   </p>
                   <p className="mt-1 text-sm font-semibold text-primary-dark">
                     {f.value.trim() || <span className="text-muted-foreground">Não preenchido</span>}
@@ -3030,7 +3031,7 @@ function CcFieldInput({
   /** Sobrepõe `field.required` quando a obrigatoriedade é condicional (não fixa no banco). */
   requiredOverride?: boolean;
 }) {
-  const label = field.label.replace(" [CC]", "");
+  const label = userFacingFieldLabel(field.label, field.fieldCode);
   const isRequired = requiredOverride ?? field.required;
   const labelNode = (
     <Label className="flex items-center gap-1 text-xs font-medium text-primary-dark">

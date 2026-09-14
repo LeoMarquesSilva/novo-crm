@@ -8,6 +8,7 @@ import {
   parseParcelasCount,
   VALOR_PARCELA_KEY,
 } from "@/lib/crm/proposta-investimento-parcelas";
+import { getPropostaPlaceholderFieldConfig } from "@/lib/crm/proposta-placeholder-labels";
 
 /** Chaves cujo valor é salvo e mostrado em MAIÚSCULAS (exceto máscara de processo). `RESUMO_DO_PROCESSO` fica de fora (texto livre). */
 export const ESCOPO_PLACEHOLDER_UPPERCASE = new Set([
@@ -96,7 +97,7 @@ export function mergeEscopoTemplate(
   placeholders: Record<string, string>,
   opts: { defaultNomeEmpresa?: string | null },
 ): string {
-  return template.replace(/\[([^\]]+)\]/g, (_, inner: string) => {
+  return template.replace(/\[([^\]]+)\]/g, (_, inner: string, offset: number) => {
     const key = inner.trim();
     let v = placeholders[key];
     if ((v == null || v === "") && key === ESCOPO_PLACEHOLDER_NOME_EMPRESA) {
@@ -105,6 +106,13 @@ export function mergeEscopoTemplate(
     if (v == null || v === "") return "";
     if (isHorasMesPlaceholderKey(key)) {
       return formatHorasMesForMerge(String(v));
+    }
+    if (getPropostaPlaceholderFieldConfig(key).control === "currency") {
+      const formatted = formatInvestimentoCurrencyForMerge(String(v));
+      const templateAlreadyHasCurrencySymbol = /R\$\s*$/i.test(
+        template.slice(Math.max(0, offset - 8), offset),
+      );
+      return templateAlreadyHasCurrencySymbol ? formatted : `R$ ${formatted}`;
     }
     return String(v);
   });

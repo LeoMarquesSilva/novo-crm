@@ -3,6 +3,7 @@ import type { PropostaTiposCatalog } from "@/data/proposta-tipos-catalog";
 import { getEscopoEntriesForArea, isEscopoEntryCompleteWithCatalog } from "./proposta-escopo-entry";
 import { parseAreasList, parseEscopoJsonWithMeta } from "./proposta-escopo-json";
 import { isInvestimentoDocumentoComplete, resolveInvestimentoDocumento } from "./proposta-investimento-consolidado";
+import { userFacingFieldLabel } from "./user-facing-field-label";
 
 export type ProposalRequiredField = { fieldCode: string; label: string; isRequired: boolean };
 
@@ -28,17 +29,23 @@ export function listProposalPendingFields(params: {
           isEscopoEntryCompleteWithCatalog(area, entry, scopeCatalog, investmentCatalog),
         );
       });
-      if (!complete) pending.add(field.label);
+      if (!complete) pending.add(userFacingFieldLabel(field.label, field.fieldCode));
     } else if (!(fieldByCode[field.fieldCode] ?? templateData[field.fieldCode] ?? "").trim()) {
-      pending.add(field.label);
+      pending.add(userFacingFieldLabel(field.label, field.fieldCode));
     }
   }
   const investment = resolveInvestimentoDocumento(escopo, areas, investimentoDocumento, investmentCatalog);
   if (areas.length > 0 && !isInvestimentoDocumentoComplete(investment, investmentCatalog)) {
     pending.add("Investimento da proposta");
   }
-  for (const key of ["EMPRESA", "DOCUMENTO", "ESCOPO_AREA", "INVESTIMENTO"]) {
-    if (!(templateData[key] ?? "").trim()) pending.add(`Placeholder [${key}]`);
+  const templatePendingLabels: Record<string, string> = {
+    EMPRESA: "Empresa",
+    DOCUMENTO: "CPF/CNPJ",
+    ESCOPO_AREA: "Escopo da proposta",
+    INVESTIMENTO: "Investimento da proposta",
+  };
+  for (const key of Object.keys(templatePendingLabels)) {
+    if (!(templateData[key] ?? "").trim()) pending.add(templatePendingLabels[key]!);
   }
   if (!params.responsavel.trim()) pending.add("Enviado por");
   return [...pending];

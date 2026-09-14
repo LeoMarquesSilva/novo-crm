@@ -12,6 +12,7 @@ import {
 } from "@/lib/crm/proposta-escopo-solicitacoes";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { labelForRdFieldKey } from "@/lib/crm/lead-rd-field-labels";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 import { canPatchLeadDetail } from "@/lib/auth/crm-access-policy";
 
@@ -186,7 +187,10 @@ async function patchPipelineFieldValue(
   const existing = existingRows?.[0];
 
   const now = new Date().toISOString();
-  const fieldLabel = String((def as { label?: string }).label ?? fieldCode);
+  const fieldLabel = userFacingFieldLabel(
+    String((def as { label?: string }).label ?? fieldCode),
+    fieldCode,
+  );
   let fieldValueId: string | null = existing?.id ? String(existing.id) : null;
 
   if (existing?.id) {
@@ -316,7 +320,7 @@ async function patchRdFieldOverride(
   await recordLeadActivityEvent(supabase, {
     oportunidadeId,
     kind: "campo_rd_alterado",
-    title: `Campo RD atualizado: ${labelForRdFieldKey(key) ?? key}`,
+    title: `Campo RD atualizado: ${userFacingFieldLabel(labelForRdFieldKey(key) ?? key, key)}`,
     detail: trimmed ? trimmed.slice(0, 280) : null,
     etapa: (oppRow?.etapa as OpportunityStage | undefined) ?? null,
     actorAppUserId: viewer?.appUserId ?? null,

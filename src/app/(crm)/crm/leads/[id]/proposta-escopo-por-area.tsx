@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Loader2, Pencil, Plus, Save, Send } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +32,7 @@ import { appUserAreaMatchesScopeKey, normalizePracticeAreaKey } from "@/lib/crm/
 import { AreaIconLabel, PracticeAreaIconBadge } from "@/lib/crm/area-lucide-icon";
 import { getEscopoEntriesForArea, isEscopoAreaComplete } from "@/lib/crm/proposta-escopo-entry";
 import { getEscopoDirecionamentoHint } from "@/lib/crm/proposta-escopo-direcionamento";
-import { initialsFromFullName, type ResolvedAppUser } from "@/lib/crm/resolve-app-user-display";
+import type { ResolvedAppUser } from "@/lib/crm/resolve-app-user-display";
 import {
   canEditEscopoArea,
   canRequestGestorFillForArea,
@@ -54,6 +54,9 @@ import { createSupabaseClient } from "@/lib/supabase/client";
 import { mergeEscopoTemplate } from "@/lib/crm/proposta-escopo-preview";
 
 const EMPTY_RESPONSAVEIS: Array<ResolvedAppUser & { id: string }> = [];
+
+const SCOPE_DIALOG_CLASS =
+  "z-[130] flex max-h-[min(94dvh,820px)] w-[calc(100vw-1.5rem)] max-w-[min(1160px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border-[#dfe5ee] bg-[#f6f8fb] p-0 text-primary-dark shadow-[0_32px_90px_rgba(16,31,46,0.24)] [&>button]:right-4 [&>button]:top-4 [&>button]:rounded-full [&>button]:bg-white/90 [&>button]:p-2 [&>button]:text-[#102033] [&>button]:shadow-sm [&>button]:hover:bg-white";
 
 function mergeEscopoEntryPatch(
   cur: PropostaEscopoDetalheEntry,
@@ -499,12 +502,24 @@ export function PropostaEscopoPorArea({
                     Sem acesso
                   </Badge>
                 </div>
-                <span className="mt-2 block text-xs">
-                  Seu perfil não pode preencher nem solicitar esta área. Responsáveis:{" "}
-                  <strong className="text-slate-700">
-                    {responsaveis.length > 0 ? responsaveis.map((user) => user.fullName).join(", ") : "nenhum gestor cadastrado"}
-                  </strong>.
-                </span>
+                <p className="mt-2 text-xs">
+                  Seu perfil não pode preencher nem solicitar esta área.
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {responsaveis.length > 0 ? (
+                    responsaveis.map((user) => (
+                      <CrmUserLabel
+                        key={user.id}
+                        name={user.fullName}
+                        avatarUrl={user.avatarUrl}
+                        size="xs"
+                        variant="inline"
+                      />
+                    ))
+                  ) : (
+                    <span className="text-xs text-slate-500">Nenhum gestor cadastrado</span>
+                  )}
+                </div>
               </div>
             );
           }
@@ -518,7 +533,6 @@ export function PropostaEscopoPorArea({
                 catalogArea={catalogArea}
                 entries={entries}
                 scopeCatalog={scopeCatalog}
-                investmentCatalog={investmentCatalog}
                 defaultNomeEmpresa={defaultNomeEmpresa}
                 request={request}
                 panelOpen={panelOpen}
@@ -603,7 +617,6 @@ function EscopoAreaDelegatedModal({
   catalogArea,
   entries,
   scopeCatalog,
-  investmentCatalog,
   defaultNomeEmpresa,
   request,
   open,
@@ -614,7 +627,6 @@ function EscopoAreaDelegatedModal({
   catalogArea: PropostaAreaKey;
   entries: PropostaEscopoDetalheEntry[];
   scopeCatalog: PropostaTiposCatalog;
-  investmentCatalog: InvestimentoTipoDef[];
   defaultNomeEmpresa: string | null;
   request: EscopoAreaSolicitacao | null;
   open: boolean;
@@ -673,7 +685,8 @@ function EscopoAreaDelegatedModal({
   return (
     <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[min(92dvh,900px)] w-[calc(100vw-1rem)] max-w-[min(1120px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[30px] border-[#dfe5ee] bg-[#f6f8fb] p-0 text-primary-dark shadow-[0_40px_120px_rgba(16,31,46,0.26)] [&>button]:right-5 [&>button]:top-5 [&>button]:rounded-full [&>button]:bg-white/85 [&>button]:p-2 [&>button]:text-[#102033] [&>button]:shadow-sm [&>button]:hover:bg-white"
+        className={SCOPE_DIALOG_CLASS}
+        overlayClassName="z-[120]"
         onPointerDownOutside={(event) => {
           if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
         }}
@@ -683,8 +696,8 @@ function EscopoAreaDelegatedModal({
       >
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <EscopoModalHeader areaLabel={areaLabel} request={request} statusLabel="Outra equipe" />
-        <div className="crm-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-5 sm:px-7">
-          <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-start">
+        <div className="crm-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5">
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
             <div className="min-w-0 flex-1 space-y-5">
             <div className="rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#24615b]">Acionamento da área</p>
@@ -743,16 +756,13 @@ function EscopoAreaDelegatedModal({
                         checked={checked}
                         onChange={() => toggleTarget(user.id)}
                       />
-                      <Avatar className="h-9 w-9 border-2 border-white shadow-sm">
-                        {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" className="object-cover" /> : null}
-                        <AvatarFallback className="bg-[#102033] text-[11px] font-black text-white">
-                          {initialsFromFullName(user.fullName)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-extrabold text-[#102033]">{user.fullName}</span>
-                        <span className="block text-xs font-semibold text-slate-500">Gestor responsável</span>
-                      </span>
+                      <CrmUserLabel
+                        name={user.fullName}
+                        avatarUrl={user.avatarUrl}
+                        size="sm"
+                        variant="stacked"
+                        sublabel="Gestor responsável"
+                      />
                     </label>
                   );
                 })}
@@ -764,12 +774,12 @@ function EscopoAreaDelegatedModal({
             )}
           </div>
             </div>
-          <div className="min-w-0 w-full lg:max-w-[400px] lg:shrink-0">
+          <div className="min-w-0 w-full">
             <PreviewGrid escopo={previewEscopo} />
           </div>
           </div>
         </div>
-        <div className="flex shrink-0 flex-col gap-3 border-t border-[#dfe5ee] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+        <div className="flex shrink-0 flex-col gap-3 border-t border-[#dfe5ee] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="min-w-0 text-xs text-muted-foreground">
             {feedback ?? "Solicite o preenchimento para registrar prazo e canais de notificação."}
           </p>
@@ -796,7 +806,6 @@ function EscopoAreaDelegated({
   catalogArea,
   entries,
   scopeCatalog,
-  investmentCatalog,
   defaultNomeEmpresa,
   request,
   panelOpen,
@@ -807,7 +816,6 @@ function EscopoAreaDelegated({
   catalogArea: PropostaAreaKey;
   entries: PropostaEscopoDetalheEntry[];
   scopeCatalog: PropostaTiposCatalog;
-  investmentCatalog: InvestimentoTipoDef[];
   defaultNomeEmpresa: string | null;
   request: EscopoAreaSolicitacao | null;
   panelOpen: boolean;
@@ -832,7 +840,6 @@ function EscopoAreaDelegated({
         catalogArea={catalogArea}
         entries={entries}
         scopeCatalog={scopeCatalog}
-        investmentCatalog={investmentCatalog}
         defaultNomeEmpresa={defaultNomeEmpresa}
         request={request}
         open={panelOpen}
@@ -968,7 +975,7 @@ function EscopoAreaBlock({
           inert={disabled}
           // z-[130] no content + z-[120] no backdrop garantem que este sub-dialog
           // fique acima do dialog pai "Elaborar Proposta" (z-[110]/z-[100]).
-          className="z-[130] flex max-h-[min(92dvh,900px)] w-[calc(100vw-1rem)] max-w-[min(1220px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[30px] border-[#dfe5ee] bg-[#f6f8fb] p-0 text-primary-dark shadow-[0_40px_120px_rgba(16,31,46,0.26)] [&>button]:right-5 [&>button]:top-5 [&>button]:rounded-full [&>button]:bg-white/85 [&>button]:p-2 [&>button]:text-[#102033] [&>button]:shadow-sm [&>button]:hover:bg-white"
+          className={SCOPE_DIALOG_CLASS}
           overlayClassName="z-[120]"
           onPointerDownOutside={(event) => {
             if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
@@ -984,8 +991,8 @@ function EscopoAreaBlock({
             statusLabel={complete ? "Preenchido" : areaDirty ? "Alterações não salvas" : "Em preenchimento"}
             direcionamentoHint={!complete ? direcionamentoHint : null}
           />
-          <div className="crm-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-5 sm:px-7">
-            <div className="flex min-w-0 flex-col gap-5 xl:flex-row xl:items-start">
+          <div className="crm-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
               <div className="min-w-0 w-full flex-1 space-y-4">
                 {entries.map((entry, index) => (
                   <PropostaEscopoEntryForm
@@ -1011,12 +1018,12 @@ function EscopoAreaBlock({
                   Adicionar outro escopo nesta área
                 </Button>
               </div>
-              <div className="min-w-0 w-full xl:max-w-[min(100%,400px)] xl:shrink-0">
+              <div className="min-w-0 w-full">
                 <PreviewGrid escopo={previewEscopo} />
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 flex-col gap-3 border-t border-[#dfe5ee] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          <div className="flex shrink-0 flex-col gap-3 border-t border-[#dfe5ee] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="min-w-0 text-xs text-muted-foreground">
               {areaDirty ? "Há alterações não salvas nesta área." : "Tudo salvo nesta área até o momento."}
             </div>
@@ -1095,13 +1102,7 @@ function AreaSummaryCard({
   onOpen: () => void;
 }) {
   const [nowMs] = useState(() => Date.now());
-  const gestorName = request?.gestor?.fullName ?? `Gestor ${areaLabel}`;
-  const preenchidoPorName = request?.preenchidoPor?.fullName ?? request?.gestor?.fullName ?? null;
   const responsaveis = request?.responsaveis ?? EMPTY_RESPONSAVEIS;
-  const responsaveisLabel =
-    responsaveis.length > 0
-      ? responsaveis.map((user) => user.fullName).join(", ")
-      : gestorName;
   const permissionLabel =
     tone === "delegated"
       ? "Você pode solicitar, mas não preencher"
@@ -1131,14 +1132,6 @@ function AreaSummaryCard({
       <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <PracticeAreaIconBadge area={areaLabel} size="lg" />
-          <Avatar className="h-9 w-9 shrink-0 border-2 border-white shadow-sm ring-1 ring-[#dfe5ee]">
-            {request?.gestor?.avatarUrl ? (
-              <AvatarImage src={request.gestor.avatarUrl} alt="" className="object-cover" />
-            ) : null}
-            <AvatarFallback className="bg-[#102033] text-[10px] font-black text-white">
-              {initialsFromFullName(request?.gestor?.fullName ?? areaLabel)}
-            </AvatarFallback>
-          </Avatar>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-base font-extrabold tracking-[-0.02em] text-primary-dark">{areaLabel}</p>
@@ -1163,13 +1156,43 @@ function AreaSummaryCard({
               </Badge>
             </div>
             <p className="mt-1 text-xs font-semibold text-slate-500">{permissionLabel}</p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">
-              {complete || request?.concluidoEm ? "Responsável: " : "Gestores responsáveis: "}
-              {complete || request?.concluidoEm ? gestorName : responsaveisLabel}
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {complete || request?.concluidoEm ? (
+                request?.gestor?.fullName ? (
+                  <CrmUserLabel
+                    name={request.gestor.fullName}
+                    avatarUrl={request.gestor.avatarUrl}
+                    prefix="Responsável"
+                    size="xs"
+                    variant="inline"
+                  />
+                ) : (
+                  <span className="text-xs text-slate-500">Responsável não definido</span>
+                )
+              ) : responsaveis.length > 0 ? (
+                <>
+                  {responsaveis.slice(0, 2).map((user) => (
+                    <CrmUserLabel
+                      key={user.id}
+                      name={user.fullName}
+                      avatarUrl={user.avatarUrl}
+                      size="xs"
+                      variant="inline"
+                    />
+                  ))}
+                  {responsaveis.length > 2 ? (
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      +{responsaveis.length - 2}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                <span className="text-xs text-slate-500">Gestor responsável ainda não definido</span>
+              )}
+            </div>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               {request?.concluidoEm
-                ? `Preenchido${preenchidoPorName ? ` por ${preenchidoPorName}` : ""} em ${formatDateTimeBr(request.concluidoEm)}.`
+                ? `Concluído em ${formatDateTimeBr(request.concluidoEm)}.`
                 : request?.prazoAte
                   ? `Prazo até ${formatDateTimeBr(request.prazoAte)}.`
                   : request?.notificadoEm
@@ -1198,53 +1221,82 @@ function EscopoModalHeader({
   statusLabel: string;
   direcionamentoHint?: string | null;
 }) {
+  const completedBy = request?.preenchidoPor ?? (request?.concluidoEm ? request?.gestor : null);
+
   return (
-    <DialogHeader className="relative shrink-0 overflow-hidden border-b border-[#dfe5ee] bg-[linear-gradient(135deg,#ffffff_0%,#f7f9fc_58%,#eef5f3_100%)] px-5 py-5 text-primary-dark sm:px-7 sm:py-6">
-      <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[#d8bf82]/20 blur-3xl" />
-      <div className="pointer-events-none absolute right-10 top-0 h-36 w-36 rounded-full bg-emerald-300/20 blur-3xl" />
-      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <DialogHeader className="relative shrink-0 overflow-hidden border-b border-[#dfe5ee] bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_62%,#eef5f3_100%)] px-4 py-4 pr-14 text-primary-dark sm:px-5 sm:pr-16">
+      <div className="pointer-events-none absolute -left-16 -top-20 h-40 w-40 rounded-full bg-[#d8bf82]/15 blur-3xl" />
+      <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <PracticeAreaIconBadge area={areaLabel} size="lg" className="shadow-sm" />
-          <Avatar className="h-10 w-10 border-2 border-white shadow-md shadow-slate-900/10 ring-1 ring-[#dfe5ee]">
-            {request?.gestor?.avatarUrl ? (
-              <AvatarImage src={request.gestor.avatarUrl} alt="" className="object-cover" />
-            ) : null}
-            <AvatarFallback className="bg-[#102033] text-xs font-black text-white">
-              {initialsFromFullName(request?.gestor?.fullName ?? areaLabel)}
-            </AvatarFallback>
-          </Avatar>
+          <PracticeAreaIconBadge area={areaLabel} size="md" className="shadow-sm" />
           <div className="min-w-0">
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-[#d8bf82]/45 bg-[#fff7df] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#73531c]">
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[#73531c]">
                 Escopo por área
               </span>
-              <span className="rounded-full border border-[#dfe5ee] bg-white px-2.5 py-1 text-xs font-bold text-[#24615b] shadow-sm">
+              <span className="rounded-full border border-[#cfe2de] bg-[#edf7f5] px-2 py-0.5 text-[10px] font-bold text-[#24615b]">
                 {statusLabel}
               </span>
             </div>
-            <DialogTitle className="text-2xl font-extrabold tracking-[-0.045em] text-primary-dark sm:text-3xl">
+            <DialogTitle className="text-xl font-extrabold tracking-[-0.035em] text-primary-dark sm:text-2xl">
               {areaLabel}
             </DialogTitle>
-            <DialogDescription className="mt-1 max-w-2xl space-y-1 text-sm leading-relaxed text-slate-500">
-              <span className="block">
-                {request?.gestor?.fullName ? `Responsável: ${request.gestor.fullName}` : "Responsável ainda não resolvido"}
-              </span>
+            <DialogDescription className="mt-1 flex max-w-2xl flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-relaxed text-slate-500">
+              {request?.gestor?.fullName ? (
+                <CrmUserLabel
+                  name={request.gestor.fullName}
+                  avatarUrl={request.gestor.avatarUrl}
+                  prefix="Responsável"
+                  size="xs"
+                  variant="inline"
+                />
+              ) : (
+                <span>Responsável ainda não resolvido</span>
+              )}
               {direcionamentoHint ? (
-                <span className="block font-semibold text-[#24615b]">{direcionamentoHint}</span>
+                <span className="font-semibold text-[#24615b]">{direcionamentoHint}</span>
               ) : null}
             </DialogDescription>
           </div>
         </div>
-        <div className="grid min-w-0 gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3 lg:min-w-0 xl:min-w-[480px]">
-          <ReadOnlyPair label="Prazo" value={request?.prazoAte ? formatDateTimeBr(request.prazoAte) : "Não definido"} />
-          <ReadOnlyPair
-            label="Preenchido por"
-            value={request?.preenchidoPor?.fullName ?? (request?.concluidoEm ? "Usuário não registrado" : "Ainda não")}
+        <div className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-2 border-t border-slate-200 pt-3 sm:grid-cols-3 lg:min-w-[440px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+          <HeaderMeta
+            label="Prazo"
+            value={request?.prazoAte ? formatDateTimeBr(request.prazoAte) : "Não definido"}
           />
-          <ReadOnlyPair label="Preenchido" value={request?.concluidoEm ? formatDateTimeBr(request.concluidoEm) : "Ainda não"} />
+          <HeaderMeta
+            label="Preenchido por"
+            value={
+              completedBy?.fullName ? (
+                <CrmUserLabel
+                  name={completedBy.fullName}
+                  avatarUrl={completedBy.avatarUrl}
+                  size="xs"
+                  variant="inline"
+                />
+              ) : request?.concluidoEm ? (
+                "Usuário não registrado"
+              ) : (
+                "Ainda não"
+              )
+            }
+          />
+          <HeaderMeta
+            label="Preenchido"
+            value={request?.concluidoEm ? formatDateTimeBr(request.concluidoEm) : "Ainda não"}
+          />
         </div>
       </div>
     </DialogHeader>
+  );
+}
+
+function HeaderMeta({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">{label}</p>
+      <div className="mt-1 truncate text-xs font-bold text-primary-dark">{value}</div>
+    </div>
   );
 }
 
@@ -1261,27 +1313,24 @@ function ReadOnlyPair({ label, value, dark }: { label: string; value: string; da
 
 function PreviewGrid({ escopo }: { escopo: string }) {
   return (
-    <aside className="min-w-0 overflow-hidden rounded-[26px] border border-[#dfe5ee] bg-[#eef2f6] p-3 shadow-sm xl:sticky xl:top-4">
-      <div className="min-w-0 rounded-[22px] border border-white bg-white p-4 shadow-[0_18px_50px_rgba(16,31,46,0.08)] sm:p-5">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-[#edf0f4] pb-3">
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#24615b]">Texto do escopo</p>
-            <p className="mt-1 text-xs text-slate-500">Conteúdo de referência; confira a diagramação na prévia Word.</p>
-          </div>
-          <span className="shrink-0 rounded-full border border-[#dfe5ee] bg-[#f8fafc] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-            Word
-          </span>
-        </div>
+    <aside className="min-w-0 overflow-hidden rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm lg:sticky lg:top-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#edf0f4] pb-3">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Escopo</p>
-          <div className="crm-scrollbar mt-2 max-h-[min(50vh,360px)] overflow-auto rounded-2xl border border-[#edf0f4] bg-[#fbfcfd] p-4 text-xs leading-relaxed text-primary-dark">
-            {escopo.trim() ? (
-              <JustifiedDocumentText text={escopo} />
-            ) : (
-              <p className="italic text-slate-400">—</p>
-            )}
-          </div>
+          <p className="text-xs font-extrabold text-[#24615b]">Texto gerado</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+            Referência do conteúdo; a diagramação final aparece na prévia Word.
+          </p>
         </div>
+        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">
+          Word
+        </span>
+      </div>
+      <div className="crm-scrollbar max-h-[min(42vh,300px)] min-w-0 overflow-auto rounded-xl border border-[#edf0f4] bg-[#fbfcfd] p-3.5 text-xs leading-relaxed text-primary-dark">
+        {escopo.trim() ? (
+          <JustifiedDocumentText text={escopo} />
+        ) : (
+          <p className="italic text-slate-400">O texto será exibido após selecionar tipo e subtipo.</p>
+        )}
       </div>
     </aside>
   );

@@ -25,6 +25,7 @@ import { LeadDetailView } from "./lead-detail-view";
 import type { LeadIntakeEmpresaRow } from "./lead-intake-types";
 import { parseEmpresasIntakeFromRecord } from "@/lib/crm/parse-lead-intake-empresas";
 import { fetchLeadLifecycleTimeline, type LeadLifecycleTimeline } from "@/lib/crm/lead-lifecycle-timeline";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 
 export type { LeadIntakeEmpresaRow } from "./lead-intake-types";
 
@@ -590,6 +591,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
 
   const filledFieldsResolved = filledFieldsMerged.map((f) => ({
     ...f,
+    label: userFacingFieldLabel(f.label, f.key),
     resolvedUser:
       isRdFieldAppUserKey(f.key) && looksLikeUuid(f.value)
         ? appUserMap.get(f.value.trim())
@@ -598,6 +600,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
 
   const pipelineFieldsResolved = pipelineFields.map((p) => ({
     ...p,
+    label: userFacingFieldLabel(p.label, p.fieldCode),
     resolvedUser:
       p.fieldType === "user" && looksLikeUuid(p.value)
         ? appUserMap.get(p.value.trim())

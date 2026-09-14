@@ -61,6 +61,7 @@ import { isRdKanbanViewOnlyLead, RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/r
 import { canMoveToStage } from "@/modules/crm/domain/workflow";
 import { Oportunidade, OpportunityStage } from "@/modules/crm/domain/entities";
 import { cn } from "@/lib/utils";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import type { SignerAppUserLookup } from "@/lib/crm/signer-avatar-catalog";
 import {
   buildCpQualificacaoText,
@@ -1266,7 +1267,7 @@ export function PipelineBoard({
               {visibleCustomFields.map((field) => (
                 <div key={field.field_code} className="space-y-1.5">
                   <Label className="text-xs font-medium text-[#111827]">
-                    {field.label}
+                    {userFacingFieldLabel(field.label, field.field_code)}
                     {field.is_required ? (
                       <span className="text-red-500" aria-hidden>
                         {" "}
@@ -1299,7 +1300,7 @@ export function PipelineBoard({
               {visibleCustomFields.map((field) => (
                 <div key={field.field_code} className="space-y-1.5">
                   <Label className="text-sm font-medium text-primary-dark">
-                    {field.label}
+                    {userFacingFieldLabel(field.label, field.field_code)}
                     {field.is_required ? (
                       <span className="text-red-500" aria-hidden>
                         {" "}

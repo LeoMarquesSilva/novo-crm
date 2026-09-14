@@ -4,6 +4,7 @@ import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import type { LeadActivityKind } from "@/lib/crm/record-lead-activity";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
+import { userFacingActivityTitle } from "@/lib/crm/user-facing-field-label";
 
 export type LeadActivityActor = {
   appUserId: string;
@@ -154,7 +155,11 @@ export async function fetchLeadLifecycleTimeline(
     return {
       id: String(row.id),
       kind: String(row.kind) as LeadActivityKind,
-      title: String(row.title),
+      title: userFacingActivityTitle({
+        kind: String(row.kind),
+        title: String(row.title),
+        metadata: meta,
+      }),
       detail: row.detail ? String(row.detail) : null,
       etapa,
       etapaLabel: etapa ? stageLabel(etapa) : null,

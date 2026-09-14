@@ -18,3 +18,26 @@ describe("mergeEscopoTemplate HORAS MES", () => {
     expect(out).toBe("Pacote de 12 horas por mês. consultivo.");
   });
 });
+
+describe("mergeEscopoTemplate valores monetários", () => {
+  it.each([
+    ["Valor da Hora Adicional", "R$ [Valor da Hora Adicional] por hora"],
+    ["VALORHORAEXCEDENTE", "R$ [VALORHORAEXCEDENTE] por hora"],
+    ["Vlr adcional de processo", "R$ [Vlr adcional de processo] por processo"],
+  ])("formata %s com valor numérico e por extenso sem duplicar R$", (key, template) => {
+    const out = mergeEscopoTemplate(template, { [key]: "R$ 1.250,50" }, {});
+    expect(out).toBe(
+      "R$ 1.250,50 (mil e duzentos e cinquenta reais e cinquenta centavos) " +
+        (template.endsWith("por hora") ? "por hora" : "por processo"),
+    );
+  });
+
+  it("inclui R$ quando o template não traz o símbolo antes do valor", () => {
+    const out = mergeEscopoTemplate(
+      "O valor da causa é [VALOR_CAUSA].",
+      { VALOR_CAUSA: "1000" },
+      {},
+    );
+    expect(out).toBe("O valor da causa é R$ 1.000,00 (mil reais).");
+  });
+});

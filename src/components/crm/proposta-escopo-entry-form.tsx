@@ -6,24 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
+import { Select, SelectTrigger } from "@/components/ui/select";
+import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { PropostaBrlCurrencyInput } from "@/components/crm/proposta-brl-currency-input";
 import {
-  PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO,
   type PropostaAreaKey,
   type PropostaEscopoDetalheEntry,
   type TipoDef,
 } from "@/data/proposta-tipos-catalog";
 import { scopeSubtypeFieldKeys } from "@/lib/crm/proposal-catalog-utils";
-import { getPropostaPlaceholderLabel } from "@/lib/crm/proposta-placeholder-labels";
+import { getPropostaPlaceholderFieldConfig } from "@/lib/crm/proposta-placeholder-labels";
 import {
-  ESCOPO_PLACEHOLDER_NOME_EMPRESA,
   ESCOPO_PLACEHOLDER_UPPERCASE,
   formatHorasMesForMerge,
   isHorasMesPlaceholderKey,
-  isNumeroProcessoPlaceholderKey,
   maskNumeroProcessoCNJ,
 } from "@/lib/crm/proposta-escopo-preview";
+import { maskCnpj } from "@/lib/crm/br-document-mask";
 import { cn } from "@/lib/utils";
 
 const SELECT_EMPTY = "__crm_escopo_none__";
@@ -55,6 +54,9 @@ export function PropostaEscopoEntryForm({
   const subtipos = tipo?.subtipos ?? [];
   const sub = subtipos.find((s) => s.subtipoId === entry.subtipoId);
   const placeholderKeys = scopeSubtypeFieldKeys(sub);
+  const companyPlaceholderKeys = placeholderKeys.filter(
+    (key) => getPropostaPlaceholderFieldConfig(key).autoFillFromCompany,
+  );
   const seedSigRef = useRef<string>("");
   const onPatchRef = useRef(onPatch);
 
@@ -65,30 +67,39 @@ export function PropostaEscopoEntryForm({
   useEffect(() => {
     const sig = `${catalogArea}|${entry.id}|${entry.tipoId}|${entry.subtipoId}|${defaultNomeEmpresa ?? ""}`;
     if (!sub || !defaultNomeEmpresa) return;
-    if (!placeholderKeys.some((k) => k.trim() === ESCOPO_PLACEHOLDER_NOME_EMPRESA)) return;
-    if (entry.placeholders?.[ESCOPO_PLACEHOLDER_NOME_EMPRESA]?.trim()) return;
+    if (companyPlaceholderKeys.length === 0) return;
+    if (companyPlaceholderKeys.every((key) => entry.placeholders?.[key]?.trim())) return;
     if (seedSigRef.current === sig) return;
     seedSigRef.current = sig;
+    const seededPlaceholders = { ...(entry.placeholders ?? {}) };
+    for (const key of companyPlaceholderKeys) {
+      if (!seededPlaceholders[key]?.trim()) seededPlaceholders[key] = defaultNomeEmpresa;
+    }
     onPatchRef.current({
-      placeholders: {
-        ...(entry.placeholders ?? {}),
-        [ESCOPO_PLACEHOLDER_NOME_EMPRESA]: defaultNomeEmpresa,
-      },
+      placeholders: seededPlaceholders,
     });
-  }, [catalogArea, entry.id, sub, entry.tipoId, entry.subtipoId, entry.placeholders, defaultNomeEmpresa, placeholderKeys]);
+  }, [catalogArea, entry.id, sub, entry.tipoId, entry.subtipoId, entry.placeholders, defaultNomeEmpresa, companyPlaceholderKeys]);
 
   const tipoSelectValue = (entry.tipoId ?? "").trim();
   const subtipoSelectValue = (entry.subtipoId ?? "").trim();
+  const tipoLabels = {
+    [SELECT_EMPTY]: "Selecione o tipo",
+    ...Object.fromEntries((tipos ?? []).map((item) => [item.tipoId, item.label])),
+  };
+  const subtipoLabels = {
+    [SELECT_EMPTY]: "Selecione o subtipo",
+    ...Object.fromEntries(subtipos.map((item) => [item.subtipoId, item.label])),
+  };
 
   return (
-    <div className="min-w-0 space-y-4 rounded-[24px] border border-[#dfe5ee] bg-white p-5 shadow-sm">
+    <div className="min-w-0 space-y-4 rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#24615b]">
+          <p className="text-xs font-extrabold text-[#24615b]">
             Escopo {entryIndex + 1}
             {entryCount > 1 ? ` de ${entryCount}` : ""}
           </p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-xs text-slate-500">
             Tipo, subtipo e variáveis deste bloco na proposta.
           </p>
         </div>
@@ -108,7 +119,7 @@ export function PropostaEscopoEntryForm({
 
       <div className="grid min-w-0 gap-3 sm:grid-cols-2">
         <div className="min-w-0 space-y-1.5">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tipo (escopo)</Label>
+          <Label className="text-xs font-semibold text-slate-600">Tipo do escopo</Label>
           <Select
             value={tipoSelectValue ? tipoSelectValue : SELECT_EMPTY}
             onValueChange={(v) => {
@@ -116,12 +127,14 @@ export function PropostaEscopoEntryForm({
               onPatch({ tipoId, subtipoId: "", placeholders: {} });
             }}
           >
-            <SelectTrigger className="h-10 w-full min-w-0 max-w-full border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
-              <SelectValue placeholder="Selecione o tipo">
-                {!tipoSelectValue ? "Selecione o tipo" : (tipo?.label ?? "Selecione o tipo")}
-              </SelectValue>
+            <SelectTrigger className="h-10 w-full min-w-0 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
+              <CrmSelectValue
+                value={tipoSelectValue || SELECT_EMPTY}
+                labels={tipoLabels}
+                placeholder="Selecione o tipo"
+              />
             </SelectTrigger>
-            <CrmSelectContent>
+            <CrmSelectContent inModal>
               <CrmSelectItem value={SELECT_EMPTY}>Selecione o tipo</CrmSelectItem>
               {(tipos ?? []).map((t) => (
                 <CrmSelectItem key={t.tipoId} value={t.tipoId}>
@@ -132,7 +145,7 @@ export function PropostaEscopoEntryForm({
           </Select>
         </div>
         <div className="min-w-0 space-y-1.5">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Subtipo (escopo)</Label>
+          <Label className="text-xs font-semibold text-slate-600">Subtipo do escopo</Label>
           <Select
             value={subtipoSelectValue ? subtipoSelectValue : SELECT_EMPTY}
             onValueChange={(v) => {
@@ -141,12 +154,14 @@ export function PropostaEscopoEntryForm({
             }}
             disabled={!entry.tipoId}
           >
-            <SelectTrigger className="h-10 w-full min-w-0 max-w-full border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
-              <SelectValue placeholder="Selecione o subtipo">
-                {!subtipoSelectValue ? "Selecione o subtipo" : (sub?.label ?? "Selecione o subtipo")}
-              </SelectValue>
+            <SelectTrigger className="h-10 w-full min-w-0 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
+              <CrmSelectValue
+                value={subtipoSelectValue || SELECT_EMPTY}
+                labels={subtipoLabels}
+                placeholder="Selecione o subtipo"
+              />
             </SelectTrigger>
-            <CrmSelectContent>
+            <CrmSelectContent inModal>
               <CrmSelectItem value={SELECT_EMPTY}>Selecione o subtipo</CrmSelectItem>
               {subtipos.map((s) => (
                 <CrmSelectItem key={s.subtipoId} value={s.subtipoId}>
@@ -161,8 +176,7 @@ export function PropostaEscopoEntryForm({
       {placeholderKeys.length > 0 && sub ? (
         <div className="grid min-w-0 gap-3 border-t border-[#edf0f4] pt-4 sm:grid-cols-2">
           {placeholderKeys.map((key) => {
-            const wide =
-              key.trim() === PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO || isHorasMesPlaceholderKey(key);
+            const wide = getPropostaPlaceholderFieldConfig(key).wide;
             return (
               <div key={key} className={cn("min-w-0", wide && "sm:col-span-2")}>
                 <PlaceholderField
@@ -193,44 +207,76 @@ function PlaceholderField({
   onChange: (next: string) => void;
 }) {
   const k = phKey.trim();
-  const isNome = k === ESCOPO_PLACEHOLDER_NOME_EMPRESA;
-  const isProc = isNumeroProcessoPlaceholderKey(k);
+  const config = getPropostaPlaceholderFieldConfig(k);
   const isHorasMes = isHorasMesPlaceholderKey(k);
-  const isResumo = k === PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO;
   const forceUpper = ESCOPO_PLACEHOLDER_UPPERCASE.has(k);
-  const fieldLabel = getPropostaPlaceholderLabel(k);
   const horasPreview = isHorasMes && value.trim() ? formatHorasMesForMerge(value) : null;
+  const selectValue = value || SELECT_EMPTY;
+  const selectLabels = {
+    [SELECT_EMPTY]: config.placeholder,
+    ...Object.fromEntries((config.options ?? []).map((option) => [option, option])),
+  };
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <Label className="text-xs font-bold leading-snug text-slate-500">{fieldLabel}</Label>
-      {isResumo ? (
+      <Label className="text-xs font-bold leading-snug text-slate-600">{config.label}</Label>
+      {config.control === "textarea" ? (
         <Textarea
-          className="min-h-[120px] max-w-full resize-y border-[#dfe5ee] bg-[#fbfcfd] text-sm shadow-sm"
+          className="min-h-[104px] max-w-full resize-y rounded-xl border-[#dfe5ee] bg-[#fbfcfd] text-sm shadow-sm"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Texto livre do resumo do processo"
+          placeholder={config.placeholder}
           rows={5}
         />
+      ) : config.control === "currency" ? (
+        <PropostaBrlCurrencyInput
+          value={value}
+          onChange={onChange}
+          placeholder={config.placeholder}
+          className="h-10 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd]"
+        />
+      ) : config.control === "select" && config.options ? (
+        <Select
+          value={selectValue}
+          onValueChange={(next) => onChange(next === SELECT_EMPTY || next == null ? "" : next)}
+        >
+          <SelectTrigger className="h-10 w-full min-w-0 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd] shadow-sm">
+            <CrmSelectValue
+              value={selectValue}
+              labels={selectLabels}
+              placeholder={config.placeholder}
+            />
+          </SelectTrigger>
+          <CrmSelectContent inModal>
+            <CrmSelectItem value={SELECT_EMPTY}>{config.placeholder}</CrmSelectItem>
+            {config.options.map((option) => (
+              <CrmSelectItem key={option} value={option}>
+                {option}
+              </CrmSelectItem>
+            ))}
+          </CrmSelectContent>
+        </Select>
       ) : (
         <Input
-          className="h-10 max-w-full border-[#dfe5ee] bg-[#fbfcfd] shadow-sm"
+          className="h-10 max-w-full rounded-xl border-[#dfe5ee] bg-[#fbfcfd] shadow-sm"
+          type={config.control === "date" ? "date" : "text"}
           value={value}
           onChange={(e) => {
             let next = e.target.value;
-            if (isHorasMes) next = next.replace(/\D/g, "").slice(0, 4);
-            else if (isProc) next = maskNumeroProcessoCNJ(next);
+            if (config.control === "integer") next = next.replace(/\D/g, "").slice(0, 5);
+            else if (config.control === "process") next = maskNumeroProcessoCNJ(next);
+            else if (config.control === "cnpj") next = maskCnpj(next);
             else if (forceUpper) next = next.toLocaleUpperCase("pt-BR");
             onChange(next);
           }}
-          placeholder={
-            isNome
-              ? "Preenchido pela empresa principal na proposta (pode editar)"
-              : isHorasMes
-                ? "Ex.: 12"
-                : `Texto para «${fieldLabel}»`
+          placeholder={config.placeholder}
+          inputMode={
+            config.control === "integer" ||
+            config.control === "process" ||
+            config.control === "cnpj"
+              ? "numeric"
+              : "text"
           }
-          inputMode={isProc || isHorasMes ? "numeric" : "text"}
           autoComplete="off"
         />
       )}

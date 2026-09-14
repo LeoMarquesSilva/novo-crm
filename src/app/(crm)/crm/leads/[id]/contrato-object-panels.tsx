@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { maskNumeroProcessoCNJ } from "@/lib/crm/proposta-escopo-preview";
 import { cn } from "@/lib/utils";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import type {
   CanonicalContractBuildResult,
   ContractObjectFieldValue,
@@ -333,7 +334,7 @@ function ObjectFieldInput({
       )}
     >
       <Label htmlFor={inputId} className="text-xs font-semibold text-primary-dark">
-        {field.label}
+        {userFacingFieldLabel(field.label, field.key)}
         {field.required ? <span className="text-rose-500"> *</span> : ""}
       </Label>
       <Input

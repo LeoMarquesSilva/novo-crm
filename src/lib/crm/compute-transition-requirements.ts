@@ -7,6 +7,7 @@ import { fieldOptionsFromDb } from "@/lib/crm/pipeline-field-values";
 import { normalizeLabelKey } from "@/lib/crm/field-code";
 import { isEmptyOrInvalidDateBrStoredValue } from "@/lib/crm/date-br";
 import { isValidFullNameTokens } from "@/lib/crm/full-name";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { getPayloadFieldsRequiredForStage } from "@/modules/crm/domain/workflow-rules";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
@@ -218,7 +219,7 @@ export function formatTransitionBlockingError(
       return "Informe o nome completo (nome e sobrenome) do ponto focal / Comercial.";
     }
   }
-  return `Campo obrigatório: ${field.label}`;
+  return `Campo obrigatório: ${userFacingFieldLabel(field.label, field.field_code)}`;
 }
 
 export interface LeadIntakeSnapshot {

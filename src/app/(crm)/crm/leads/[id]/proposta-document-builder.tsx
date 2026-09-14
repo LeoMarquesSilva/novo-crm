@@ -4,14 +4,22 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BadgeDollarSign,
+  Building2,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   FileDown,
   FileText,
   History,
+  ListChecks,
   Loader2,
   PenLine,
   Save,
+  SlidersHorizontal,
+  Target,
   TriangleAlert,
+  UserRound,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +36,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -39,6 +48,8 @@ import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
+import { useBodyScrollLock } from "@/lib/ui/body-scroll-lock";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { cn } from "@/lib/utils";
 import { LeadDetailFieldEditor, pipelineFieldToEditorProps } from "./lead-detail-field-editor";
 import {
@@ -162,6 +173,58 @@ const SECTION_META = {
 } as const;
 
 type SectionKey = keyof typeof SECTION_META;
+
+type ProposalStepKey =
+  | "responsavel"
+  | "cliente"
+  | "objeto"
+  | "escopo"
+  | "condicoes"
+  | "investimento";
+
+const PROPOSAL_STEPS: Array<{
+  key: ProposalStepKey;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+}> = [
+  {
+    key: "responsavel",
+    label: "Responsável",
+    description: "Quem envia e assina a proposta comercial.",
+    icon: UserRound,
+  },
+  {
+    key: "cliente",
+    label: "Cliente",
+    description: "Cadastro e qualificação usados no documento.",
+    icon: Building2,
+  },
+  {
+    key: "objeto",
+    label: "Objeto",
+    description: "Contexto comercial e áreas abrangidas.",
+    icon: Target,
+  },
+  {
+    key: "escopo",
+    label: "Escopo",
+    description: "Entregas detalhadas de cada área selecionada.",
+    icon: ListChecks,
+  },
+  {
+    key: "condicoes",
+    label: "Condições",
+    description: "Prazos e informações comerciais complementares.",
+    icon: SlidersHorizontal,
+  },
+  {
+    key: "investimento",
+    label: "Investimento",
+    description: "Valor total e forma de pagamento da proposta.",
+    icon: BadgeDollarSign,
+  },
+];
 
 // ─── Componente principal (card externo) ──────────────────────────────────────
 
@@ -363,9 +426,10 @@ function PropostaBuilderDialog({
   onRefresh: () => Promise<void>;
 }) {
   const router = useRouter();
+  useBodyScrollLock(open);
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [selectedTemplateId, setSelectedTemplateId] = useState(
+  const [selectedTemplateId] = useState(
     docState.template?.id ?? (templates[0]?.id ?? ""),
   );
   const [savedTemplateId, setSavedTemplateId] = useState(
@@ -429,6 +493,7 @@ function PropostaBuilderDialog({
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [confirmClose, setConfirmClose] = useState(false);
+  const [activeStep, setActiveStep] = useState<ProposalStepKey>("responsavel");
 
   const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(PROPOSTA_TIPOS_CATALOG);
   const [investmentCatalog, setInvestmentCatalog] = useState<InvestimentoTipoDef[]>(
@@ -514,8 +579,8 @@ function PropostaBuilderDialog({
     return false;
   }, [draftValues, savedValues, selectedTemplateId, savedTemplateId, responsavel, savedResponsavel]);
 
-  const selectedTemplateName =
-    templates.find((t) => t.id === selectedTemplateId)?.name ?? "Selecione um modelo";
+  const selectedTemplate =
+    templates.find((template) => template.id === selectedTemplateId) ?? docState.template;
   const selectedProposalUser = useMemo(
     () =>
       proposalUsers.find(
@@ -589,9 +654,8 @@ function PropostaBuilderDialog({
   const currentValidation = useMemo(() => {
     if (!previewCanonical) return ["Não foi possível validar o rascunho atual. Revise os campos da proposta."];
     try {
-      const template = templates.find((item) => item.id === selectedTemplateId) ?? docState.template;
       return listProposalPendingFields({
-        templateFields: template.fields ?? [],
+        templateFields: selectedTemplate.fields ?? [],
         fieldByCode: draftValues,
         templateData: previewCanonical.templateData,
         scopeCatalog,
@@ -601,8 +665,33 @@ function PropostaBuilderDialog({
     } catch {
       return ["Não foi possível validar o rascunho atual. Revise os campos da proposta."];
     }
-  }, [previewCanonical, draftValues, responsavel, scopeCatalog, investmentCatalog, templates, selectedTemplateId, docState.template]);
+  }, [previewCanonical, draftValues, responsavel, scopeCatalog, investmentCatalog, selectedTemplate]);
   const pending = currentValidation;
+
+  const pendingByStep = useMemo(() => {
+    const counts: Record<ProposalStepKey, number> = {
+      responsavel: 0,
+      cliente: 0,
+      objeto: 0,
+      escopo: 0,
+      condicoes: 0,
+      investimento: 0,
+    };
+
+    for (const item of pending) {
+      const step = proposalStepForPendingItem(item, selectedTemplate.fields);
+      counts[step] += 1;
+    }
+
+    return counts;
+  }, [pending, selectedTemplate.fields]);
+
+  const completedStepCount = PROPOSAL_STEPS.filter(
+    (step) => pendingByStep[step.key] === 0,
+  ).length;
+  const activeStepIndex = PROPOSAL_STEPS.findIndex((step) => step.key === activeStep);
+  const activeStepMeta = PROPOSAL_STEPS[activeStepIndex] ?? PROPOSAL_STEPS[0]!;
+  const ActiveStepIcon = activeStepMeta.icon;
 
   const schedulePdfPreview = useCallback(() => {
     if (!selectedTemplateId) return;
@@ -772,6 +861,9 @@ function PropostaBuilderDialog({
                 <DialogTitle className="text-base font-extrabold tracking-[-0.02em] text-white">
                   Elaborar Proposta
                 </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Preencha as seções da proposta e confira o documento Word oficial na prévia.
+                </DialogDescription>
                 {isDirty ? (
                   <span className="rounded-full bg-amber-500/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">
                     Não salvo
@@ -780,28 +872,8 @@ function PropostaBuilderDialog({
               </div>
             </div>
 
-            {/* Template selector + ações */}
+            {/* Ações */}
             <div className="flex flex-wrap items-center gap-2">
-              <Select
-                value={selectedTemplateId}
-                onValueChange={(v) => {
-                  if (v) setSelectedTemplateId(v);
-                  setFeedback(null);
-                }}
-                disabled={busy || templates.length === 0}
-              >
-                <SelectTrigger className="h-9 min-w-[14rem] max-w-[22rem] border-white/25 bg-white/15 text-sm text-white shadow-sm backdrop-blur">
-                  <span className="min-w-0 truncate text-left">{selectedTemplateName}</span>
-                </SelectTrigger>
-                <CrmSelectContent>
-                  {templates.map((t) => (
-                    <CrmSelectItem key={t.id} value={t.id}>
-                      {t.name} v{t.version}
-                    </CrmSelectItem>
-                  ))}
-                </CrmSelectContent>
-              </Select>
-
               <Button
                 type="button"
                 size="sm"
@@ -877,180 +949,387 @@ function PropostaBuilderDialog({
           ) : null}
 
           {/* ── Body split-pane ── */}
-          <div className="flex min-h-0 flex-1 overflow-hidden">
-            {/* Painel esquerdo — Formulário */}
-            <aside inert={busy} className="crm-scrollbar w-[46%] shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-5 py-6 sm:px-6">
-              <div className="space-y-6">
-                <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <Label htmlFor="proposal-responsavel" className="text-sm font-bold text-primary-dark">Enviado por</Label>
-                  <Select
-                    modal={false}
-                    value={selectedProposalUser?.id}
-                    onValueChange={(userId) => {
-                      const user = proposalUsers.find((item) => item.id === userId);
-                      if (!user) return;
-                      setResponsavel(user.name);
-                      setFeedback(null);
-                    }}
-                    disabled={busy || proposalUsersLoading}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+            {/* Painel esquerdo — preenchimento guiado */}
+            <aside
+              inert={busy}
+              className="crm-scrollbar max-h-[58%] w-full shrink-0 overscroll-contain overflow-y-auto border-b border-slate-200 bg-slate-50/70 md:max-h-none md:min-w-[440px] md:w-[54%] md:border-b-0 md:border-r lg:w-[55%] xl:w-[54%]"
+            >
+              <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-5 pb-4 pt-5 backdrop-blur sm:px-6">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#24615b]">
+                      Preenchimento
+                    </p>
+                    <h2 className="mt-1 text-base font-extrabold tracking-[-0.02em] text-primary-dark">
+                      {completedStepCount} de {PROPOSAL_STEPS.length} seções concluídas
+                    </h2>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold",
+                      pending.length > 0
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-emerald-100 text-emerald-800",
+                    )}
                   >
-                    <SelectTrigger
-                      id="proposal-responsavel"
-                      className="h-auto min-h-10 w-full bg-white py-1.5 [&_[data-slot=select-value]]:w-full"
-                    >
-                      {proposalUsersLoading ? (
-                        <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                          <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                          Carregando colaboradores…
+                    {pending.length > 0 ? `${pending.length} pendência(s)` : "Pronto para gerar"}
+                  </span>
+                </div>
+
+                <div
+                  className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"
+                  role="progressbar"
+                  aria-label="Progresso do preenchimento"
+                  aria-valuemin={0}
+                  aria-valuemax={PROPOSAL_STEPS.length}
+                  aria-valuenow={completedStepCount}
+                >
+                  <div
+                    className="h-full rounded-full bg-[#2d8a80] transition-[width] duration-300"
+                    style={{ width: `${(completedStepCount / PROPOSAL_STEPS.length) * 100}%` }}
+                  />
+                </div>
+
+                <div
+                  className="crm-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1"
+                  role="tablist"
+                  aria-label="Seções da proposta"
+                >
+                  {PROPOSAL_STEPS.map((step, index) => {
+                    const Icon = step.icon;
+                    const isActive = step.key === activeStep;
+                    const stepPending = pendingByStep[step.key];
+                    return (
+                      <button
+                        key={step.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        aria-controls="proposal-step-panel"
+                        onClick={() => setActiveStep(step.key)}
+                        className={cn(
+                          "flex min-w-[7.25rem] items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8a80] focus-visible:ring-offset-2",
+                          isActive
+                            ? "border-[#2d8a80] bg-[#e9f5f2] text-[#164f4a]"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "flex size-7 shrink-0 items-center justify-center rounded-lg",
+                            isActive ? "bg-white text-[#24615b]" : "bg-slate-100 text-slate-500",
+                          )}
+                        >
+                          <Icon className="size-3.5" aria-hidden />
                         </span>
-                      ) : responsavel ? (
-                        <CrmUserLabel
-                          name={responsavel}
-                          avatarUrl={selectedProposalUser?.avatarUrl}
-                          size="sm"
-                          variant="inline"
+                        <span className="min-w-0">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider opacity-60">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <span className="block truncate text-xs font-bold">{step.label}</span>
+                        </span>
+                        {stepPending === 0 ? (
+                          <CheckCircle2 className="ml-auto size-3.5 shrink-0 text-emerald-600" aria-label="Concluída" />
+                        ) : (
+                          <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-extrabold text-amber-800">
+                            {stepPending}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="px-5 py-5 sm:px-6">
+                <section
+                  id="proposal-step-panel"
+                  role="tabpanel"
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.06)]"
+                >
+                  <div className="flex items-start gap-3 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#e4f3f0] text-[#24615b]">
+                      <ActiveStepIcon className="size-4" aria-hidden />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-extrabold text-primary-dark">
+                          {activeStepMeta.label}
+                        </h3>
+                        {pendingByStep[activeStep] > 0 ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                            {pendingByStep[activeStep]} pendência(s)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700">
+                            <CheckCircle2 className="size-3" aria-hidden />
+                            Concluída
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                        {activeStepMeta.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5">
+                    {activeStep === "responsavel" ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="proposal-responsavel" className="text-xs font-semibold text-primary-dark">
+                          Enviado por
+                        </Label>
+                        <Select
+                          modal={false}
+                          value={selectedProposalUser?.id ?? ""}
+                          onValueChange={(userId) => {
+                            const user = proposalUsers.find((item) => item.id === userId);
+                            if (!user) return;
+                            setResponsavel(user.name);
+                            setFeedback(null);
+                          }}
+                          disabled={busy || proposalUsersLoading}
+                        >
+                          <SelectTrigger
+                            id="proposal-responsavel"
+                            className="h-auto min-h-11 w-full rounded-xl border-slate-200 bg-white px-3 py-2 [&_[data-slot=select-value]]:w-full"
+                          >
+                            {proposalUsersLoading ? (
+                              <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                                Carregando colaboradores…
+                              </span>
+                            ) : responsavel ? (
+                              <CrmUserLabel
+                                name={responsavel}
+                                avatarUrl={selectedProposalUser?.avatarUrl}
+                                size="sm"
+                                variant="inline"
+                              />
+                            ) : (
+                              <CrmSelectValue placeholder="Selecione um colaborador…" />
+                            )}
+                          </SelectTrigger>
+                          <CrmSelectContent className="max-h-72">
+                            {proposalUsers.map((user) => (
+                              <CrmSelectItem key={user.id} value={user.id} className="py-1.5">
+                                <CrmUserLabel
+                                  name={user.name}
+                                  avatarUrl={user.avatarUrl}
+                                  size="sm"
+                                  variant="inline"
+                                />
+                              </CrmSelectItem>
+                            ))}
+                          </CrmSelectContent>
+                        </Select>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Usamos quem cadastrou o lead como padrão. Esse nome aparecerá no documento oficial.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {activeStep === "cliente" ? (
+                      fieldsBySection.cliente.length > 0 ? (
+                        <BuilderSection
+                          meta={SECTION_META.cliente}
+                          fields={fieldsBySection.cliente}
+                          draftValues={draftValues}
+                          onChange={fieldChange}
+                          disabled={busy}
+                          propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
+                          embedded
                         />
                       ) : (
-                        <CrmSelectValue placeholder="Selecione um colaborador…" />
-                      )}
-                    </SelectTrigger>
-                    <CrmSelectContent className="max-h-72">
-                      {proposalUsers.map((user) => (
-                        <CrmSelectItem key={user.id} value={user.id} className="py-1.5">
-                          <CrmUserLabel
-                            name={user.name}
-                            avatarUrl={user.avatarUrl}
-                            size="sm"
-                            variant="inline"
+                        <ProposalStepEmptyState text="Este modelo não possui campos específicos de cliente." />
+                      )
+                    ) : null}
+
+                    {activeStep === "objeto" ? (
+                      fieldsBySection.objeto.length > 0 ? (
+                        <BuilderSection
+                          meta={SECTION_META.objeto}
+                          fields={fieldsBySection.objeto}
+                          draftValues={draftValues}
+                          onChange={fieldChange}
+                          disabled={busy}
+                          embedded
+                        />
+                      ) : (
+                        <ProposalStepEmptyState text="Este modelo não possui campos específicos de objeto." />
+                      )
+                    ) : null}
+
+                    {activeStep === "escopo" ? (
+                      escopoDetalhe && areasField ? (
+                        <div className="space-y-5">
+                          <p className="rounded-xl bg-blue-50 px-3.5 py-3 text-xs leading-relaxed text-blue-800">
+                            Cada área selecionada cria um bloco próprio no Word. Valores e pagamento são definidos na etapa Investimento.
+                          </p>
+                          <PropostaEscopoPorArea
+                            leadId={lead.id}
+                            fieldDefinitionId={escopoDetalhe.definitionId}
+                            initialValue={escopoJson}
+                            savedValue={savedValues.cp_escopo_detalhe_json ?? ""}
+                            areasDisplay={draftValues.cp_areas_objeto ?? areasField.value}
+                            defaultNomeEmpresa={propostaEmpresaPrincipalNome}
+                            viewerProfileArea={viewer?.area ?? null}
+                            viewerRole={viewer?.role ?? null}
+                            solicitacoes={lead.escopoSolicitacoes ?? []}
+                            className="border-0 bg-transparent p-0"
+                            disabled={busy}
+                            onSavingChange={setScopeSaving}
+                            onSaved={(json) => {
+                              setSavedValues((previous) => ({ ...previous, cp_escopo_detalhe_json: json }));
+                            }}
+                            onEscopoDraftChange={syncEscopoJsonFromDraft}
                           />
-                        </CrmSelectItem>
-                      ))}
-                    </CrmSelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Por padrão, usamos quem cadastrou o lead. Este nome aparecerá no documento oficial.
-                  </p>
-                </div>
-                <BuilderSection
-                  meta={SECTION_META.cliente}
-                  fields={fieldsBySection.cliente}
-                  draftValues={draftValues}
-                  onChange={fieldChange}
-                  disabled={busy}
-                  propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
-                />
+                          {lead.escopoSolicitacoes && lead.escopoSolicitacoes.length > 0 ? (
+                            <PropostaEscopoAreaCoordenacao
+                              leadId={lead.id}
+                              solicitacoes={lead.escopoSolicitacoes}
+                              viewer={viewer ? { area: viewer.area } : null}
+                            />
+                          ) : null}
+                        </div>
+                      ) : (
+                        <ProposalStepEmptyState text="Selecione ao menos uma área na etapa Objeto para configurar o escopo." />
+                      )
+                    ) : null}
 
-                <BuilderSection
-                  meta={SECTION_META.objeto}
-                  fields={fieldsBySection.objeto}
-                  draftValues={draftValues}
-                  onChange={fieldChange}
-                  disabled={busy}
-                />
+                    {activeStep === "condicoes" ? (
+                      fieldsBySection.condicoes.length > 0 || fieldsBySection.revisao.length > 0 ? (
+                        <div className="space-y-6">
+                          <BuilderSection
+                            meta={SECTION_META.condicoes}
+                            fields={fieldsBySection.condicoes}
+                            draftValues={draftValues}
+                            onChange={fieldChange}
+                            disabled={busy}
+                            embedded
+                          />
+                          {fieldsBySection.revisao.length > 0 ? (
+                            <div className={cn(fieldsBySection.condicoes.length > 0 && "border-t border-slate-100 pt-5")}>
+                              <div className="mb-4">
+                                <p className="text-xs font-bold text-primary-dark">Informações adicionais</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Campos complementares definidos para este modelo.
+                                </p>
+                              </div>
+                              <BuilderSection
+                                meta={{
+                                  title: "Informações adicionais",
+                                  description: "Campos complementares definidos para este modelo.",
+                                }}
+                                fields={fieldsBySection.revisao}
+                                draftValues={draftValues}
+                                onChange={fieldChange}
+                                disabled={busy}
+                                embedded
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <ProposalStepEmptyState text="Este modelo não possui condições complementares para preencher." />
+                      )
+                    ) : null}
 
-                {escopoDetalhe && areasField ? (
-                  <div className="rounded-xl border border-white/60 bg-slate-50/70 p-5 shadow-sm">
-                    <div className="mb-4">
-                      <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">
-                        Escopo
-                      </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Cada área selecionada compõe blocos repetíveis no Word. O valor e a forma de
-                        pagamento ficam na seção &ldquo;Investimento da proposta&rdquo;, no final deste modal.
-                      </p>
-                    </div>
-                    <PropostaEscopoPorArea
-                      leadId={lead.id}
-                      fieldDefinitionId={escopoDetalhe.definitionId}
-                      initialValue={escopoJson}
-                      savedValue={savedValues.cp_escopo_detalhe_json ?? ""}
-                      areasDisplay={draftValues.cp_areas_objeto ?? areasField.value}
-                      defaultNomeEmpresa={propostaEmpresaPrincipalNome}
-                      viewerProfileArea={viewer?.area ?? null}
-                      viewerRole={viewer?.role ?? null}
-                      solicitacoes={lead.escopoSolicitacoes ?? []}
-                      className="border-0 bg-transparent p-0"
-                      disabled={busy}
-                      onSavingChange={setScopeSaving}
-                      onSaved={(json) => {
-                        setSavedValues((previous) => ({ ...previous, cp_escopo_detalhe_json: json }));
-                      }}
-                      onEscopoDraftChange={syncEscopoJsonFromDraft}
-                    />
-                    {lead.escopoSolicitacoes && lead.escopoSolicitacoes.length > 0 ? (
-                      <PropostaEscopoAreaCoordenacao
-                        leadId={lead.id}
-                        solicitacoes={lead.escopoSolicitacoes}
-                        viewer={viewer ? { area: viewer.area } : null}
-                      />
+                    {activeStep === "investimento" ? (
+                      escopoDetalhe && areasField ? (
+                        <PropostaInvestimentoConsolidadoForm
+                          escopoJson={escopoJson}
+                          areasDisplay={draftValues.cp_areas_objeto ?? areasField.value ?? ""}
+                          investmentCatalog={investmentCatalog}
+                          disabled={busy}
+                          onEscopoJsonChange={syncEscopoJsonFromDraft}
+                        />
+                      ) : (
+                        <ProposalStepEmptyState text="Configure as áreas e o escopo antes de preencher o investimento." />
+                      )
                     ) : null}
                   </div>
-                ) : null}
+                </section>
 
-                <BuilderSection
-                  meta={SECTION_META.condicoes}
-                  fields={fieldsBySection.condicoes}
-                  draftValues={draftValues}
-                  onChange={fieldChange}
-                  disabled={busy}
-                />
-
-                {fieldsBySection.revisao.length > 0 ? (
-                  <BuilderSection
-                    meta={{
-                      title: "Revisão",
-                      description: "Campos adicionais ainda não alocados a uma seção específica.",
-                    }}
-                    fields={fieldsBySection.revisao}
-                    draftValues={draftValues}
-                    onChange={fieldChange}
-                    disabled={busy}
-                  />
-                ) : null}
-
-                {/* Investimento consolidado — sempre por último: valor total e forma de
-                    pagamento (fixo, spot, parcelado etc.) da proposta como um todo, não por área. */}
-                {escopoDetalhe && areasField ? (
-                  <div className="rounded-xl border border-white/60 bg-slate-50/70 p-5 shadow-sm">
-                    <div className="mb-4">
-                      <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">
-                        Investimento da proposta
-                      </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Valor total e forma de pagamento exibidos no Word ([INVESTIMENTO]).
-                      </p>
-                    </div>
-                    <PropostaInvestimentoConsolidadoForm
-                      escopoJson={escopoJson}
-                      areasDisplay={draftValues.cp_areas_objeto ?? areasField.value ?? ""}
-                      investmentCatalog={investmentCatalog}
-                      disabled={busy}
-                      onEscopoJsonChange={syncEscopoJsonFromDraft}
-                    />
-                  </div>
-                ) : null}
-
-                {/* Pendências */}
                 {pending.length > 0 ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
                     <div className="mb-2 flex items-center gap-2">
                       <TriangleAlert className="size-4 text-amber-600" aria-hidden />
-                      <p className="text-sm font-bold text-amber-800">Pendências</p>
+                      <p className="text-xs font-extrabold text-amber-900">Itens que ainda impedem a geração</p>
                     </div>
-                    <ul className="space-y-1 text-sm text-amber-700">
+                    <div className="flex flex-wrap gap-1.5">
                       {pending.slice(0, 6).map((item) => (
-                        <li key={item}>· {item}</li>
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() =>
+                            setActiveStep(proposalStepForPendingItem(item, selectedTemplate.fields))
+                          }
+                          className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-left text-[11px] font-semibold text-amber-800 transition-colors hover:border-amber-300 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                        >
+                          {item}
+                        </button>
                       ))}
                       {pending.length > 6 ? (
-                        <li className="text-xs">+ {pending.length - 6} pendências</li>
+                        <span className="px-1 py-1.5 text-[11px] font-semibold text-amber-700">
+                          + {pending.length - 6} itens
+                        </span>
                       ) : null}
-                    </ul>
+                    </div>
                   </div>
                 ) : null}
               </div>
+
+              <div className="sticky bottom-0 z-20 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-5 py-3 backdrop-blur sm:px-6">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={busy || activeStepIndex === 0}
+                  onClick={() => setActiveStep(PROPOSAL_STEPS[activeStepIndex - 1]!.key)}
+                >
+                  <ChevronLeft className="size-3.5" aria-hidden />
+                  Anterior
+                </Button>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {activeStepIndex + 1}/{PROPOSAL_STEPS.length}
+                </span>
+                {activeStepIndex < PROPOSAL_STEPS.length - 1 ? (
+                  <Button
+                    type="button"
+                    variant="teal"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={busy}
+                    onClick={() => setActiveStep(PROPOSAL_STEPS[activeStepIndex + 1]!.key)}
+                  >
+                    Próxima
+                    <ChevronRight className="size-3.5" aria-hidden />
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="teal"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={busy || !isDirty}
+                    onClick={() => void saveDraft()}
+                  >
+                    {saving ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      <Save className="size-3.5" aria-hidden />
+                    )}
+                    {isDirty ? "Salvar rascunho" : "Rascunho salvo"}
+                  </Button>
+                )}
+              </div>
             </aside>
 
-            <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
+            <main className="flex min-h-[42%] min-w-0 flex-1 flex-col overflow-hidden bg-slate-100 md:min-h-0">
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
                 <div>
                   <div className="flex items-center gap-2">
@@ -1105,7 +1384,7 @@ function PropostaBuilderDialog({
                 <div className="relative min-h-0 flex-1">
                   <iframe
                     key={pdfPreview.url}
-                    src={`${pdfPreview.url}#toolbar=0&navpanes=0&view=FitH`}
+                    src={`${pdfPreview.url}#toolbar=0&navpanes=0&view=Fit&zoom=page-fit`}
                     title="Prévia da proposta convertida do Word oficial"
                     className="h-full w-full border-0 bg-slate-200"
                   />
@@ -1182,6 +1461,49 @@ function formatDocumentBuilderError(message: string): string {
   return message;
 }
 
+function proposalStepForFieldCode(fieldCode: string): ProposalStepKey {
+  if (fieldCode === "cp_escopo_detalhe_json") return "escopo";
+  if ((SECTION_META.cliente.codes as ReadonlySet<string>).has(fieldCode)) return "cliente";
+  if ((SECTION_META.objeto.codes as ReadonlySet<string>).has(fieldCode)) return "objeto";
+  if ((SECTION_META.condicoes.codes as ReadonlySet<string>).has(fieldCode)) return "condicoes";
+  return "condicoes";
+}
+
+function proposalStepForPendingItem(
+  item: string,
+  templateFields: ProposalRequiredField[],
+): ProposalStepKey {
+  const normalized = item.toLocaleLowerCase("pt-BR");
+  if (normalized.includes("enviado por")) return "responsavel";
+  if (normalized.includes("investimento")) return "investimento";
+  if (normalized.includes("escopo")) return "escopo";
+  if (
+    normalized === "empresa" ||
+    normalized.includes("cpf/cnpj") ||
+    normalized.includes("cliente")
+  ) {
+    return "cliente";
+  }
+
+  const matchedField = templateFields.find(
+    (field) =>
+      userFacingFieldLabel(field.label, field.fieldCode).toLocaleLowerCase("pt-BR") ===
+      normalized,
+  );
+  return matchedField ? proposalStepForFieldCode(matchedField.fieldCode) : "condicoes";
+}
+
+function ProposalStepEmptyState({ text }: { text: string }) {
+  return (
+    <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-9 text-center">
+      <span className="flex size-10 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm">
+        <ListChecks className="size-4" aria-hidden />
+      </span>
+      <p className="mt-3 max-w-sm text-sm font-semibold leading-relaxed text-slate-600">{text}</p>
+    </div>
+  );
+}
+
 // ─── BuilderSection ───────────────────────────────────────────────────────────
 
 function BuilderSection({
@@ -1191,6 +1513,7 @@ function BuilderSection({
   onChange,
   disabled,
   propostaEmpresaPrincipalNome,
+  embedded = false,
 }: {
   meta: { title: string; description: string };
   fields: LeadDetailData["pipelineFields"];
@@ -1198,14 +1521,17 @@ function BuilderSection({
   onChange: (code: string, value: string) => void;
   disabled?: boolean;
   propostaEmpresaPrincipalNome?: string | null;
+  embedded?: boolean;
 }) {
   if (fields.length === 0) return null;
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">{meta.title}</h3>
-        <p className="mt-1 text-xs text-muted-foreground">{meta.description}</p>
-      </div>
+    <section className={cn(!embedded && "rounded-xl border border-slate-200 bg-white p-5 shadow-sm")}>
+      {!embedded ? (
+        <div className="mb-4">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark">{meta.title}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">{meta.description}</p>
+        </div>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         {fields.map((field) => {
           if (field.fieldCode === "cp_qualificacao") return null;
@@ -1246,7 +1572,7 @@ function PropFieldInput({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
-  const label = field.label.replace(" [CP]", "");
+  const label = userFacingFieldLabel(field.label, field.fieldCode);
   const pe = pipelineFieldToEditorProps(field);
   const wrapperClass = field.fieldType === "textarea" ? "sm:col-span-2" : undefined;
 
@@ -1256,13 +1582,13 @@ function PropFieldInput({
       <div className={cn("space-y-1.5", wrapperClass)}>
         <Label className="text-xs font-medium text-primary-dark">Tributação</Label>
         <Select
-          value={selected || undefined}
+          value={selected}
           onValueChange={(v) => {
             if (v) onChange(normalizeTributacaoValue(v) || v);
           }}
           disabled={disabled}
         >
-          <SelectTrigger className="h-10 border-slate-200 bg-white text-sm">
+          <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white text-sm">
             <CrmSelectValue
               value={selected}
               labels={PROPOSTA_TRIBUTACAO_LABELS}
@@ -1287,13 +1613,13 @@ function PropFieldInput({
       <div className={cn("space-y-1.5", wrapperClass)}>
         <Label className="text-xs font-medium text-primary-dark">{label}</Label>
         <Select
-          value={value || undefined}
+          value={value}
           onValueChange={(v) => {
             if (v) onChange(v);
           }}
           disabled={disabled}
         >
-          <SelectTrigger className="h-10 border-slate-200 bg-white text-sm">
+          <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white text-sm">
             <span className={cn("text-left", !value && "text-muted-foreground")}>
               {value || "Selecionar..."}
             </span>
@@ -1319,7 +1645,7 @@ function PropFieldInput({
           value={value}
           onChange={onChange}
           disabled={disabled}
-          className="h-10 border-slate-200 bg-white text-sm"
+          className="h-11 rounded-xl border-slate-200 bg-white text-sm"
         />
       </div>
     );
@@ -1335,7 +1661,7 @@ function PropFieldInput({
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           placeholder={`${label}…`}
-          className="min-h-[110px] resize-y border-slate-200 bg-white text-sm leading-relaxed"
+          className="min-h-[120px] resize-y rounded-xl border-slate-200 bg-white text-sm leading-relaxed"
         />
       </div>
     );
@@ -1355,7 +1681,7 @@ function PropFieldInput({
     return (
       <div className={cn("space-y-1.5", "sm:col-span-2")}>
         <Label className="text-xs font-medium text-primary-dark">{label}</Label>
-        <div className="flex flex-wrap gap-1.5 rounded-lg border border-slate-200 bg-white p-2.5">
+        <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3">
           {pe.selectOptions.map((opt) => {
             const active = selected.has(opt);
             return (
@@ -1365,7 +1691,7 @@ function PropFieldInput({
                 onClick={() => toggle(opt)}
                 disabled={disabled}
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                  "min-h-8 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors",
                   active
                     ? "border-accent-teal bg-accent-teal text-white"
                     : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
@@ -1414,7 +1740,7 @@ function PropFieldInput({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={`${label}…`}
-        className="h-10 border-slate-200 bg-white text-sm"
+        className="h-11 rounded-xl border-slate-200 bg-white text-sm"
       />
     </div>
   );
@@ -1449,21 +1775,28 @@ function ProposalCompanySummary({
     selection.primaryIndex != null ? `Empresa/Pessoa ${selection.primaryIndex}` : "Empresa principal";
 
   return (
-    <div className="rounded-xl border border-emerald-100 bg-emerald-50/80 p-4 sm:col-span-2">
+    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 sm:col-span-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
-            Empresa principal da proposta
-          </p>
-          <p className="mt-1 text-sm font-extrabold text-primary-dark">
-            {empresaNome?.trim() || fallback}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-emerald-900/70">
-            Esta seleção alimenta o cabeçalho do Word.
-          </p>
+        <div className="flex min-w-0 gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#24615b] shadow-sm">
+            <Building2 className="size-4" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+              Empresa principal
+            </p>
+            <p className="mt-1 truncate text-sm font-extrabold text-primary-dark">
+              {empresaNome?.trim() || fallback}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              Usada no cabeçalho do documento.
+            </p>
+          </div>
         </div>
-        <span className="shrink-0 rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-800">
-          {selection.extrasCount > 0 ? `+${selection.extrasCount} extra(s)` : "Sem extras"}
+        <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600">
+          {selection.extrasCount > 0
+            ? `${selection.extrasCount} ${selection.extrasCount === 1 ? "adicional" : "adicionais"}`
+            : "Sem adicionais"}
         </span>
       </div>
     </div>

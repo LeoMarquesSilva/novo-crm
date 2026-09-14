@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { isEmptyOrInvalidDateBrStoredValue } from "@/lib/crm/date-br";
 import { isValidFullNameTokens } from "@/lib/crm/full-name";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import {
   evaluateCondition,
   type FieldCondition,
@@ -568,7 +569,7 @@ export function DynamicForm({
             htmlFor={field.field_code}
             className="flex items-center gap-1.5 text-sm font-medium text-primary-dark"
           >
-            {field.label}
+            {userFacingFieldLabel(field.label, field.field_code)}
             {field.is_required && (
               <span className="text-red-500" aria-hidden>
                 *
