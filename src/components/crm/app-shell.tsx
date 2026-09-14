@@ -160,7 +160,7 @@ function readGroupState(): Record<string, boolean> {
   }
 }
 
-/** Padrão do CRM: sidebar recolhida (88px). Só expande se o usuário clicar em expandir. */
+/** Padrão do CRM: sidebar recolhida (72px, §14.2). Só expande se o usuário clicar em expandir. */
 function readCollapsedPreference(): boolean {
   if (typeof window === "undefined") return true;
   try {
@@ -194,18 +194,21 @@ function SidebarNavItem({
       href={item.href}
       title={collapsed ? item.label : undefined}
       className={cn(
-        "group/nav-item relative flex items-center rounded-2xl border px-3 py-2.5 text-[13px] transition-all duration-150",
+        // Design System V2 (§14.2): item ativo usa fundo interactive-50 + texto/ícone
+        // interactive-700, sem quadrado navy ao redor do ícone e sem sombra. Barra lateral
+        // de 2px opcional via before:.
+        "group/nav-item relative flex items-center rounded-(--radius-v2-lg) border border-transparent px-3 py-2.5 text-[13px] transition-colors duration-150 before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-interactive-700 before:opacity-0 before:transition-opacity",
         collapsed ? "justify-center" : "gap-3",
         compact && "py-2",
         active
-          ? "border-primary-dark/10 bg-white text-primary-dark shadow-[0_10px_26px_rgba(16,31,46,0.08)]"
-          : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/75 hover:text-primary-dark",
+          ? "bg-interactive-50 text-interactive-700 before:opacity-100"
+          : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
       )}
     >
       <span
         className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-xl transition-colors",
-          active ? "bg-primary-dark text-white" : "bg-transparent text-slate-500 group-hover/nav-item:bg-slate-100",
+          "flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) transition-colors",
+          active ? "text-interactive-700" : "text-muted-foreground",
         )}
       >
         <Icon className="size-4" strokeWidth={1.9} />
@@ -465,7 +468,7 @@ export function AppShell({
   return (
     <TooltipProvider delayDuration={220} skipDelayDuration={80}>
       <div className="relative min-h-dvh w-full max-w-full overflow-x-hidden bg-[#f8f9fb]">
-        <div className="sticky top-0 z-40 flex items-center justify-between border-b border-[#e6e9ef] bg-[#f8f9fb]/95 px-4 py-3 shadow-[0_1px_2px_rgba(16,31,46,0.03)] lg:hidden">
+        <div className="sticky top-0 z-(--z-navigation) flex items-center justify-between border-b border-[#e6e9ef] bg-[#f8f9fb]/95 px-4 py-3 shadow-[0_1px_2px_rgba(16,31,46,0.03)] lg:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
@@ -487,7 +490,7 @@ export function AppShell({
               <motion.button
                 type="button"
                 aria-label="Fechar menu lateral"
-                className="fixed inset-0 z-50 bg-primary-dark/25 lg:hidden"
+                className="fixed inset-0 z-(--z-navigation-overlay) bg-primary-dark/25 lg:hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -495,7 +498,7 @@ export function AppShell({
                 onClick={() => setMobileOpen(false)}
               />
               <motion.aside
-                className="fixed inset-y-0 left-0 z-[60] flex w-[min(88vw,320px)] flex-col border-r border-[#e6e9ef] bg-[#f3f5f8] p-4 shadow-[18px_0_45px_rgba(16,31,46,0.14)] lg:hidden"
+                className="fixed inset-y-0 left-0 z-(--z-drawer) flex w-[min(88vw,320px)] flex-col border-r border-[#e6e9ef] bg-[#f3f5f8] p-4 shadow-[18px_0_45px_rgba(16,31,46,0.14)] lg:hidden"
                 initial={{ x: "-100%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "-100%" }}
@@ -575,11 +578,12 @@ export function AppShell({
 
         <aside
           className={cn(
+            // Design System V2 (§14.2): sidebar recolhida 72px, expandida 248px.
             "fixed left-0 top-0 hidden h-dvh max-h-dvh flex-col overflow-x-hidden border-r border-[#e6e9ef] bg-[#f3f5f8] transition-[width,box-shadow] duration-200 lg:flex",
-            isVisuallyExpanded ? "w-[282px]" : "w-[88px]",
+            isVisuallyExpanded ? "w-[248px]" : "w-[72px]",
             isHoverOverlay
-              ? "z-50 shadow-[24px_0_60px_rgba(16,31,46,0.16)]"
-              : "z-40 shadow-[18px_0_45px_rgba(16,31,46,0.045)]",
+              ? "z-(--z-navigation-overlay) shadow-[24px_0_60px_rgba(16,31,46,0.16)]"
+              : "z-(--z-navigation) shadow-[18px_0_45px_rgba(16,31,46,0.045)]",
           )}
           onMouseEnter={handleSidebarPointerEnter}
           onMouseLeave={handleSidebarPointerLeave}
@@ -696,7 +700,7 @@ export function AppShell({
         <div
           className={cn(
             "relative z-10 min-h-dvh w-full min-w-0 transition-[padding] duration-200 ease-out",
-            collapsed ? "lg:pl-[88px]" : "lg:pl-[282px]",
+            collapsed ? "lg:pl-[72px]" : "lg:pl-[248px]",
           )}
         >
           <main className="min-h-dvh min-w-0 px-4 py-5 sm:px-6 lg:py-6">{children}</main>
