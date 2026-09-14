@@ -32,6 +32,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-chart-6: var(--chart-6);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -60,6 +61,64 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ---- Design System V2 (fundação, Fase 1) ---- */
+  /* Paleta primitiva neutra e de interação (§7.1 do DESIGN_SYSTEM_V2_CRM_BP.md) */
+  --color-neutral-0: var(--neutral-0);
+  --color-neutral-25: var(--neutral-25);
+  --color-neutral-50: var(--neutral-50);
+  --color-neutral-100: var(--neutral-100);
+  --color-neutral-150: var(--neutral-150);
+  --color-neutral-200: var(--neutral-200);
+  --color-neutral-300: var(--neutral-300);
+  --color-neutral-400: var(--neutral-400);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-600: var(--neutral-600);
+  --color-neutral-700: var(--neutral-700);
+  --color-neutral-800: var(--neutral-800);
+  --color-neutral-900: var(--neutral-900);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-navy-hover: var(--brand-navy-hover);
+  --color-interactive-50: var(--interactive-50);
+  --color-interactive-100: var(--interactive-100);
+  --color-interactive-300: var(--interactive-300);
+  --color-interactive-500: var(--interactive-500);
+  --color-interactive-600: var(--interactive-600);
+  --color-interactive-700: var(--interactive-700);
+  --color-interactive-800: var(--interactive-800);
+  /* Estados semânticos (§7.1) — texto/fundo/borda por estado */
+  --color-success-text: var(--success-text);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-warning-text: var(--warning-text);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-danger-text: var(--danger-text);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-info-text: var(--info-text);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+  --color-violet-text: var(--violet-text);
+  --color-violet-bg: var(--violet-bg);
+  --color-violet-border: var(--violet-border);
+  /* Tokens semânticos de superfície e texto (§7.2/§7.3) — uso: Fases 2+ */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-text-primary-v2: var(--text-primary);
+  --color-text-secondary-v2: var(--text-secondary);
+  --color-text-muted-v2: var(--text-muted);
+  --color-text-placeholder-v2: var(--text-placeholder);
+  --color-text-disabled-v2: var(--text-disabled);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-border-strong: var(--border-strong);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-destructive-background: var(--destructive-background);
+  --color-destructive-border: var(--destructive-border);
 }
 
 :root {
@@ -81,29 +140,39 @@
   --glass-blur: 0px;
   --glass-border: rgba(16, 31, 46, 0.09);
 
-  --background: #f8f9fb;
-  --foreground: #172033;
+  /* Tokens semânticos V2 (§7.2 do DESIGN_SYSTEM_V2_CRM_BP.md) — fonte de verdade a
+     partir da Fase 1. Sidebar e superfícies com estética navy/teal só migram nas
+     Fases 3/6; até lá continuam usando os tokens --sidebar-* e --primary-dark/--accent-teal
+     definidos acima, preservados de propósito. */
+  --background: #f7f8fa;
+  --foreground: #182230;
   --card: #ffffff;
-  --card-foreground: #172033;
+  --card-foreground: #182230;
   --popover: #ffffff;
-  --popover-foreground: #172033;
-  --primary: #172033;
+  --popover-foreground: #182230;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-active: #1e40af;
   --primary-foreground: #ffffff;
-  --secondary: #f1f3f5;
-  --secondary-foreground: #28364b;
-  --muted: #f2f4f7;
-  --muted-foreground: #65758f;
-  --accent: var(--accent-teal);
-  --accent-foreground: #ffffff;
-  --destructive: #d94862;
-  --border: rgba(16, 31, 46, 0.1);
-  --input: rgba(16, 31, 46, 0.14);
-  --ring: rgba(15, 159, 143, 0.42);
-  --chart-1: #0f9f8f;
-  --chart-2: #2563eb;
-  --chart-3: #d89d19;
-  --chart-4: #8b5cf6;
-  --chart-5: #ef6f6c;
+  --secondary: #f3f5f7;
+  --secondary-foreground: #344054;
+  --muted: #f3f5f7;
+  --muted-foreground: #667085;
+  --accent: #eff6ff;
+  --accent-foreground: #175cd3;
+  --destructive: #b42318;
+  --destructive-background: #fef3f2;
+  --destructive-border: #fecdca;
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
+  --input: #d0d5dd;
+  --ring: #2563eb;
+  --chart-1: #2563eb;
+  --chart-2: #16875d;
+  --chart-3: #c17a0a;
+  --chart-4: #7f56d9;
+  --chart-5: #d92d48;
+  --chart-6: #0284c7;
   --radius: 0.9rem;
   --sidebar: #f3f5f8;
   --sidebar-foreground: #172033;
@@ -113,6 +182,99 @@
   --sidebar-accent-foreground: #17322f;
   --sidebar-border: rgba(49, 70, 96, 0.12);
   --sidebar-ring: rgba(15, 159, 143, 0.45);
+
+  /* ---- Design System V2 — paleta primitiva (§7.1) ---- */
+  --neutral-0: #ffffff;
+  --neutral-25: #fcfcfd;
+  --neutral-50: #f7f8fa;
+  --neutral-100: #f3f5f7;
+  --neutral-150: #eef1f4;
+  --neutral-200: #e4e7ec;
+  --neutral-300: #d0d5dd;
+  --neutral-400: #98a2b3;
+  --neutral-500: #667085;
+  --neutral-600: #475467;
+  --neutral-700: #344054;
+  --neutral-800: #182230;
+  --neutral-900: #101828;
+
+  --brand-navy: #16263b;
+  --brand-navy-hover: #0f1d2d;
+
+  --interactive-50: #eff6ff;
+  --interactive-100: #dbeafe;
+  --interactive-300: #93c5fd;
+  --interactive-500: #3b82f6;
+  --interactive-600: #2563eb;
+  --interactive-700: #1d4ed8;
+  --interactive-800: #1e40af;
+
+  --success-text: #067647;
+  --success-bg: #ecfdf3;
+  --success-border: #abefc6;
+  --warning-text: #b54708;
+  --warning-bg: #fffaeb;
+  --warning-border: #fedf89;
+  --danger-text: #b42318;
+  --danger-bg: #fef3f2;
+  --danger-border: #fecdca;
+  --info-text: #175cd3;
+  --info-bg: #eff8ff;
+  --info-border: #b2ddff;
+  --violet-text: #6941c6;
+  --violet-bg: #f9f5ff;
+  --violet-border: #d9d6fe;
+
+  /* ---- Design System V2 — superfícies e texto (§7.2/§7.3), consumo a partir da Fase 2 ----
+     Nomes canônicos do documento (--text-primary etc). Ficam fora do bloco @theme inline de
+     propósito: dentro dele colidiriam com o namespace --text-* de tamanho de fonte do Tailwind
+     v4 (geraria um utilitário text-primary concorrente com o já existente, vindo de --color-primary).
+     O mapeamento para utilities (bg-/text-text-primary-v2 etc.) usa uma chave --color-* própria,
+     apontando para estes mesmos valores. */
+  --canvas: #f7f8fa;
+  --surface: #ffffff;
+  --surface-subtle: #f3f5f7;
+  --surface-hover: #eef1f4;
+  --surface-selected: #eff6ff;
+  --secondary-hover: #eef1f4;
+  --text-primary: #182230;
+  --text-secondary: #475467;
+  --text-muted: #667085;
+  --text-placeholder: #98a2b3;
+  --text-disabled: #98a2b3;
+
+  /* ---- Design System V2 — raio, sombra, movimento, z-index (§10/§11/§24) ----
+     Nomes distintos das escalas --radius- e --shadow- ja em uso (calculadas a partir de
+     --radius) para nao recolorir componentes ainda nao migrados (Fase 2 adota). */
+  --radius-v2-sm: 6px;
+  --radius-v2-md: 8px;
+  --radius-v2-lg: 10px;
+  --radius-v2-xl: 12px;
+  --radius-v2-2xl: 16px;
+  --radius-v2-full: 999px;
+
+  --shadow-v2-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-v2-sm: 0 2px 8px rgba(16, 24, 40, 0.08);
+  --shadow-v2-md: 0 8px 24px rgba(16, 24, 40, 0.12);
+  --shadow-v2-lg: 0 20px 48px rgba(16, 24, 40, 0.18);
+
+  --motion-fast: 120ms;
+  --motion-default: 180ms;
+  --motion-slow: 240ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --z-base: 0;
+  --z-sticky: 20;
+  --z-navigation: 40;
+  --z-navigation-overlay: 50;
+  --z-drawer: 60;
+  --z-floating: 70;
+  --z-dialog-overlay: 80;
+  --z-dialog: 90;
+  --z-dialog-floating: 100;
+  --z-nested-dialog: 110;
+  --z-tooltip: 120;
+  --z-drag-overlay: 130;
 }
 
 .dark {
@@ -180,6 +342,60 @@
     line-height: 1.08;
   }
 
+  /* Escala tipográfica Design System V2 (§8.2). Nomes prefixados com "v2" para não
+     colidir com .heading-xl/.heading-lg (KPI/hero, escala legada acima) enquanto as
+     telas que os usam não migram (Fases 4/6). Consumo a partir da Fase 2+. */
+  .text-v2-display-sm {
+    font-size: 30px;
+    line-height: 38px;
+    font-weight: 700;
+  }
+  .text-v2-heading-xl {
+    font-size: 24px;
+    line-height: 32px;
+    font-weight: 700;
+  }
+  .text-v2-heading-lg {
+    font-size: 20px;
+    line-height: 28px;
+    font-weight: 700;
+  }
+  .text-v2-heading-md {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 600;
+  }
+  .text-v2-body-md {
+    font-size: 14px;
+    line-height: 22px;
+    font-weight: 400;
+  }
+  .text-v2-body-md-medium {
+    font-size: 14px;
+    line-height: 22px;
+    font-weight: 500;
+  }
+  .text-v2-body-sm {
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 400;
+  }
+  .text-v2-body-sm-medium {
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 500;
+  }
+  .text-v2-caption {
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 400;
+  }
+  .text-v2-caption-medium {
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 600;
+  }
+
   .glass-card {
     background: #ffffff;
     border: 1px solid var(--glass-border);
@@ -194,7 +410,8 @@
   }
 
   .glass-card:hover {
-    transform: translateY(-1px);
+    /* Design System V2 (§11.2/§35): cards não sobem no hover. Deslocamento removido
+       na Fase 1; cor/sombra/raio do Card seguem os valores legados até a Fase 2. */
     border-color: rgba(16, 31, 46, 0.13);
     box-shadow:
       0 2px 5px rgba(16, 31, 46, 0.045),
@@ -205,9 +422,10 @@
     transform: none;
   }
 
+  /* Design System V2 (§31): scrollbar neutra e discreta, sem gradiente teal. */
   .crm-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(15, 159, 143, 0.45) rgba(49, 70, 96, 0.08);
+    scrollbar-color: var(--neutral-400) var(--neutral-100);
   }
 
   .crm-scrollbar::-webkit-scrollbar {
@@ -216,20 +434,18 @@
   }
 
   .crm-scrollbar::-webkit-scrollbar-track {
-    background: rgba(49, 70, 96, 0.08);
+    background: var(--neutral-100);
     border-radius: 999px;
   }
 
   .crm-scrollbar::-webkit-scrollbar-thumb {
-    background:
-      linear-gradient(180deg, rgba(20, 184, 166, 0.72) 0%, rgba(15, 118, 110, 0.78) 100%);
+    background: var(--neutral-400);
     border: 2px solid rgba(255, 255, 255, 0.72);
     border-radius: 999px;
   }
 
   .crm-scrollbar::-webkit-scrollbar-thumb:hover {
-    background:
-      linear-gradient(180deg, rgba(20, 184, 166, 0.9) 0%, rgba(15, 118, 110, 0.92) 100%);
+    background: var(--neutral-500);
   }
 
   /** Kanban: chevron do bloco expansível “Levantamento DUE” (native <details>). */
