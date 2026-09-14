@@ -120,7 +120,7 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
           aria-label="Notificações"
           aria-expanded={open}
           className={cn(
-            "relative inline-flex size-9 items-center justify-center rounded-xl border border-[#e1e5eb] bg-white text-slate-500 shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-all duration-200 hover:border-slate-300 hover:bg-white hover:text-primary-dark focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary-dark/25",
+            "relative inline-flex size-9 items-center justify-center rounded-(--radius-v2-md) border border-border bg-white text-muted-foreground transition-colors duration-200 hover:border-border-strong hover:bg-white hover:text-foreground focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/20",
             unreadCount > 0 &&
               "border-rose-200/90 shadow-[0_0_0_3px_rgba(244,63,94,0.12),0_2px_8px_rgba(225,29,72,0.08)] hover:border-rose-300/90",
             className,
@@ -140,18 +140,18 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
         align="start"
         sideOffset={10}
         collisionPadding={12}
-        className="w-[min(calc(100vw-1.5rem),380px)] rounded-2xl border border-[#e1e6ee] bg-[#fafbfd] p-0 shadow-[0_20px_50px_rgba(16,31,46,0.14)] ring-1 ring-[#102033]/[0.06]"
+        className="w-[min(calc(100vw-1.5rem),380px)] rounded-(--radius-v2-2xl) border border-border bg-white p-0"
       >
-        <div className="flex items-start justify-between gap-3 rounded-t-2xl border-b border-[#e6eaf2] bg-white/90 px-4 pb-3 pt-3.5 backdrop-blur-sm">
-          <h2 className="text-[15px] font-bold tracking-tight text-[#102033]">Notificações</h2>
+        <div className="flex items-start justify-between gap-3 rounded-t-(--radius-v2-2xl) border-b border-border bg-white px-4 pb-3 pt-3.5">
+          <h2 className="text-[15px] font-bold tracking-tight text-foreground">Notificações</h2>
           <button
             type="button"
             disabled={unreadCount === 0 || markingAll}
             onClick={() => void markAllRead()}
             className={cn(
-              "shrink-0 rounded-md px-2 py-1 text-[12px] font-semibold text-slate-600 transition-all duration-150",
-              "hover:bg-[#eef5ff] hover:text-primary-dark hover:underline hover:underline-offset-2",
-              "focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary-dark/20",
+              "shrink-0 rounded-(--radius-v2-sm) px-2 py-1 text-[12px] font-semibold text-muted-foreground transition-colors duration-150",
+              "hover:bg-accent hover:text-foreground hover:underline hover:underline-offset-2",
+              "focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/20",
               "disabled:pointer-events-none disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:no-underline",
             )}
           >
@@ -159,20 +159,20 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
           </button>
         </div>
 
-        <div className="flex items-center gap-0.5 border-b border-[#e6eaf2] bg-white/70 px-2 pb-0 pt-1 backdrop-blur-sm">
+        <div className="flex items-center gap-0.5 border-b border-border bg-white px-2 pb-0 pt-1">
           <button
             type="button"
             onClick={() => setListTab("inbox")}
             className={cn(
-              "relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-150",
+              "relative flex items-center gap-1.5 rounded-(--radius-v2-md) px-3 py-2 text-[13px] font-semibold transition-colors duration-150",
               listTab === "inbox"
-                ? "text-[#102033] after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:rounded-full after:bg-[#102033]"
-                : "text-slate-500 hover:bg-[#f0f3f9] hover:text-[#102033]",
+                ? "text-foreground after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:rounded-full after:bg-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             Caixa de entrada
             {unreadCount > 0 ? (
-              <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-[#102033] px-1.5 py-0.5 text-[10px] font-bold text-white">
+              <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-white">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             ) : null}
@@ -181,10 +181,10 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
             type="button"
             onClick={() => setListTab("geral")}
             className={cn(
-              "relative flex rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-150",
+              "relative flex rounded-(--radius-v2-md) px-3 py-2 text-[13px] font-semibold transition-colors duration-150",
               listTab === "geral"
-                ? "text-[#102033] after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:rounded-full after:bg-[#102033]"
-                : "text-slate-500 hover:bg-[#f0f3f9] hover:text-[#102033]",
+                ? "text-foreground after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:rounded-full after:bg-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             Geral
@@ -192,7 +192,7 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
           <Link
             href="/crm/notifications"
             onClick={() => setOpen(false)}
-            className="ml-auto inline-flex size-9 items-center justify-center rounded-lg text-slate-500 transition-all duration-150 hover:bg-[#eef5ff] hover:text-primary-dark hover:ring-1 hover:ring-primary-dark/15 active:scale-[0.97]"
+            className="ml-auto inline-flex size-9 items-center justify-center rounded-(--radius-v2-md) text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground hover:ring-1 hover:ring-primary/15 active:scale-[0.97]"
             aria-label="Abrir página completa de notificações"
             title="Abrir página completa"
           >
@@ -200,15 +200,15 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
           </Link>
         </div>
 
-        <div className="crm-scrollbar max-h-[min(52vh,380px)] overflow-y-auto overflow-x-hidden bg-[#fafbfd]">
+        <div className="crm-scrollbar max-h-[min(52vh,380px)] overflow-y-auto overflow-x-hidden bg-white">
           {visibleItems.length === 0 ? (
-            <p className="px-4 py-8 text-center text-[13px] text-slate-500">
+            <p className="px-4 py-8 text-center text-[13px] text-muted-foreground">
               {listTab === "inbox"
                 ? "Nenhuma notificação não lida."
                 : "Nenhuma notificação recente."}
             </p>
           ) : (
-            <ul className="divide-y divide-[#e8ecf4]">
+            <ul className="divide-y divide-border">
               {visibleItems.map((row) => {
                 const origin = parseOriginadoPor(row.payload);
                 const criador = parseLeadCriadorPor(row.payload);
@@ -232,25 +232,25 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
                         if (unread) void markOneRead(row.id);
                       }}
                       className={cn(
-                        "group/item flex gap-3 rounded-xl px-3 py-3 transition-all duration-150",
-                        "outline-none hover:bg-white hover:shadow-[0_1px_0_rgba(16,31,46,0.04),inset_3px_0_0_0_#2563eb]",
-                        "focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-primary-dark/20",
+                        "group/item flex gap-3 rounded-(--radius-v2-lg) px-3 py-3 transition-all duration-150",
+                        "outline-none hover:bg-white hover:shadow-[0_1px_0_rgba(16,31,46,0.04),inset_3px_0_0_0_var(--primary)]",
+                        "focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-primary/20",
                         "active:scale-[0.995]",
                       )}
                     >
-                      <Avatar className="size-10 shrink-0 border border-[#e6e9ef]">
+                      <Avatar className="size-10 shrink-0 border border-border">
                         {face?.avatar_url ? <AvatarImage src={face.avatar_url} alt="" /> : null}
-                        <AvatarFallback className="bg-[#eef1f6] text-[11px] font-semibold text-[#102033]">
+                        <AvatarFallback className="bg-neutral-100 text-[11px] font-semibold text-foreground">
                           {face ? initialsFromName(face.full_name) : "—"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-semibold leading-snug text-[#102033]">{title}</p>
-                        <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+                        <p className="text-[13px] font-semibold leading-snug text-foreground">{title}</p>
+                        <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
                           {when}
                           {sub ? (
                             <>
-                              <span aria-hidden className="text-slate-300">
+                              <span aria-hidden className="text-neutral-300">
                                 {" "}
                                 ·{" "}
                               </span>
@@ -259,21 +259,21 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
                           ) : null}
                         </p>
                         {contextoDatas ? (
-                          <p className="mt-1 line-clamp-3 text-[10px] leading-snug text-slate-500">
-                            <span className="font-semibold text-slate-600">Lead: </span>
+                          <p className="mt-1 line-clamp-3 text-[10px] leading-snug text-muted-foreground">
+                            <span className="font-semibold text-muted-foreground">Lead: </span>
                             {formatContextoDateTimePtBr(contextoDatas.lead_criado_em) ?? "—"}
-                            <span aria-hidden className="text-slate-300"> · </span>
-                            <span className="font-semibold text-slate-600">DUE: </span>
+                            <span aria-hidden className="text-neutral-300"> · </span>
+                            <span className="font-semibold text-muted-foreground">DUE: </span>
                             {formatContextoDateTimePtBr(contextoDatas.due_entrega_em) ?? "—"}
-                            <span aria-hidden className="text-slate-300"> · </span>
-                            <span className="font-semibold text-slate-600">Reunião: </span>
+                            <span aria-hidden className="text-neutral-300"> · </span>
+                            <span className="font-semibold text-muted-foreground">Reunião: </span>
                             {formatContextoDateTimePtBr(contextoDatas.reuniao_em) ?? "—"}
                           </p>
                         ) : null}
                       </div>
                       {unread ? (
                         <span
-                          className="mt-1.5 size-2.5 shrink-0 rounded-full bg-[#2563eb] shadow-[0_0_0_2px_rgba(37,99,235,0.25)] ring-1 ring-white"
+                          className="mt-1.5 size-2.5 shrink-0 rounded-full bg-primary shadow-[0_0_0_2px_rgba(37,99,235,0.25)] ring-1 ring-white"
                           aria-label="Não lida"
                         />
                       ) : (
@@ -287,16 +287,16 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
           )}
         </div>
 
-        <div className="border-t border-[#e6eaf2] bg-white/90 px-3 py-2.5 backdrop-blur-sm">
+        <div className="border-t border-border bg-white px-3 py-2.5">
           <Link
             href="/crm/notifications"
             onClick={() => setOpen(false)}
             className={cn(
-              "flex h-10 w-full items-center justify-center rounded-xl border border-transparent text-[13px] font-semibold text-primary-dark",
-              "transition-all duration-150",
-              "hover:border-primary-dark/15 hover:bg-[#eef5ff] hover:shadow-sm",
-              "active:scale-[0.99] active:bg-[#e4edfc]",
-              "focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary-dark/25",
+              "flex h-10 w-full items-center justify-center rounded-(--radius-v2-lg) border border-transparent text-[13px] font-semibold text-foreground",
+              "transition-colors duration-150",
+              "hover:border-border-strong hover:bg-accent hover:shadow-sm",
+              "active:scale-[0.99] active:bg-accent",
+              "focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/20",
             )}
           >
             Ver todas as notificações

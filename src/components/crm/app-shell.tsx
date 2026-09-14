@@ -468,7 +468,8 @@ export function AppShell({
   return (
     <TooltipProvider delayDuration={220} skipDelayDuration={80}>
       <div className="relative min-h-dvh w-full max-w-full overflow-x-hidden bg-[#f8f9fb]">
-        <div className="sticky top-0 z-(--z-navigation) flex items-center justify-between border-b border-[#e6e9ef] bg-[#f8f9fb]/95 px-4 py-3 shadow-[0_1px_2px_rgba(16,31,46,0.03)] lg:hidden">
+        {/* Design System V2 (§14.3): header mobile entre 56px e 60px (py-2.5 + botão de 40px = 60px). */}
+        <div className="sticky top-0 z-(--z-navigation) flex items-center justify-between border-b border-[#e6e9ef] bg-[#f8f9fb]/95 px-4 py-2.5 shadow-[0_1px_2px_rgba(16,31,46,0.03)] lg:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
