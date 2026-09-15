@@ -219,14 +219,14 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
 
   if (draft.status !== "pendente") {
     return (
-      <div className="rounded-xl border border-primary-dark/10 bg-slate-50/80 px-4 py-3 text-sm text-muted-foreground">
-        <span className="font-semibold text-primary-dark">{draft.subtype_label}</span> — {draft.status}
+      <div className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-muted-foreground">
+        <span className="font-semibold text-foreground">{draft.subtype_label}</span> — {draft.status}
       </div>
     );
   }
 
   return (
-    <article className="rounded-2xl border border-primary-dark/10 bg-white/90 p-4 shadow-sm">
+    <article className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
       <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -234,7 +234,7 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
             {draft.area_key ? ` · ${draft.area_key}` : ""}
             {showBatchLabel ? ` · lote ${draft.batch_id.slice(0, 8)}` : ""}
           </p>
-          <h3 className="text-base font-bold text-primary-dark">{draft.subtype_label}</h3>
+          <h3 className="text-base font-bold text-foreground">{draft.subtype_label}</h3>
           <p className="text-xs text-muted-foreground">Tipo: {draft.type_label}</p>
         </div>
         {draft.confidence != null ? (
@@ -300,15 +300,15 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
           </Button>
         </div>
 
-        <div className="space-y-3 rounded-xl bg-gradient-to-br from-[#f9f7f2] to-[#ede9dd] p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#24615b]/70">Preview</p>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-primary-dark">{preview}</p>
+        <div className="space-y-3 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Preview</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{preview}</p>
         </div>
       </div>
 
       {(draft.similar_existing ?? []).length ? (
         <div className="mt-4 space-y-2">
-          <p className="text-xs font-bold text-primary-dark">Semelhantes no catálogo</p>
+          <p className="text-xs font-bold text-foreground">Semelhantes no catálogo</p>
           <div className="flex flex-wrap gap-2">
             {draft.similar_existing.map((item) => (
               <Badge key={item.id} variant="outline" className="text-[10px]">
@@ -321,7 +321,7 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
 
       <button
         type="button"
-        className="mt-4 flex items-center gap-1 text-xs font-semibold text-primary-dark"
+        className="mt-4 flex items-center gap-1 text-xs font-semibold text-foreground"
         onClick={() => setShowSources((v) => !v)}
       >
         <ChevronDown className={cn("size-4 transition", showSources && "rotate-180")} aria-hidden />
@@ -330,8 +330,8 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
       {showSources ? (
         <ul className="mt-2 space-y-2 text-xs text-muted-foreground">
           {draft.sources.map((src) => (
-            <li key={src.source.id} className="rounded-lg border border-primary-dark/10 bg-slate-50 p-2">
-              <p className="font-semibold text-primary-dark">
+            <li key={src.source.id} className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-2">
+              <p className="font-semibold text-foreground">
                 {src.document?.original_filename ?? "Documento"}
               </p>
               <p className="mt-1 whitespace-pre-wrap">{src.extraction?.raw_excerpt ?? "—"}</p>
@@ -340,7 +340,7 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
         </ul>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-primary-dark/10 pt-4">
+      <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-neutral-200 pt-4">
         <div className="space-y-1">
           <Label className="text-xs">Destino no catálogo</Label>
           <Select
@@ -383,14 +383,14 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
           <Button type="button" variant="outline" disabled={busy} onClick={() => void decide("rejeitar")}>
             Rejeitar
           </Button>
-          <Button type="button" variant="teal" disabled={busy} onClick={() => void decide("aprovar")}>
+          <Button type="button" variant="primary" disabled={busy} onClick={() => void decide("aprovar")}>
             {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
             Aprovar
           </Button>
         </div>
       </div>
 
-      {feedback ? <p className="mt-2 text-sm font-semibold text-primary-dark">{feedback}</p> : null}
+      {feedback ? <p className="mt-2 text-sm font-semibold text-foreground">{feedback}</p> : null}
     </article>
   );
 }

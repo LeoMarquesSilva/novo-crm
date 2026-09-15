@@ -209,7 +209,7 @@ export function ScopeImportShell({ catalog }: Props) {
   return (
     <div className="space-y-6">
       {error ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+        <div className="rounded-(--radius-v2-md) border border-danger-border bg-danger-bg px-4 py-3 text-sm font-semibold text-danger-text">
           {error}
         </div>
       ) : null}
@@ -217,7 +217,7 @@ export function ScopeImportShell({ catalog }: Props) {
       {batchId || reviewAll ? (
         <button
           type="button"
-          className="text-xs font-semibold text-primary-dark underline underline-offset-2"
+          className="text-xs font-semibold text-foreground underline underline-offset-2"
           onClick={exitFocusedView}
         >
           ← Ver todos os lotes
@@ -225,10 +225,10 @@ export function ScopeImportShell({ catalog }: Props) {
       ) : null}
 
       {step === "upload" && !batchId && !reviewAll && pastBatches && pastBatches.length > 0 ? (
-        <section className="rounded-[24px] border border-white/55 bg-white/72 p-6 shadow-sm">
+        <section className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-primary-dark">Lotes existentes</h2>
+              <h2 className="text-v2-heading-md text-foreground">Lotes existentes</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Retome um lote já criado (upload, extração ou revisão em andamento).
               </p>
@@ -252,9 +252,9 @@ export function ScopeImportShell({ catalog }: Props) {
                 <button
                   type="button"
                   onClick={() => openBatch(b.id)}
-                  className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-primary-dark/10 bg-slate-50/80 px-4 py-3 text-left text-sm hover:bg-slate-100"
+                  className="flex w-full flex-wrap items-center justify-between gap-2 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-4 py-3 text-left text-sm hover:bg-neutral-100"
                 >
-                  <span className="font-semibold text-primary-dark">
+                  <span className="font-semibold text-foreground">
                     Lote {b.id.slice(0, 8)} · {b.status}
                   </span>
                   <span className="text-xs text-muted-foreground">

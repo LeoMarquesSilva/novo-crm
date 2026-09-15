@@ -147,10 +147,10 @@ export function ImportUploadPanel({
     state?.documents.some((d) => d.status === "aguardando_upload") ?? false;
 
   return (
-    <section className="rounded-[24px] border border-white/55 bg-white/72 p-6 shadow-sm">
+    <section className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-primary-dark">1. Enviar documentos</h2>
+          <h2 className="text-v2-heading-md text-foreground">1. Enviar documentos</h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
             Selecione propostas e contratos em PDF ou DOCX (até {SCOPE_IMPORT_MAX_FILES} arquivos, 25
             MB cada). O upload vai direto ao storage.
@@ -158,7 +158,7 @@ export function ImportUploadPanel({
         </div>
         <Button
           type="button"
-          variant="teal"
+          variant="primary"
           className="gap-2"
           disabled={busy || loading}
           onClick={() => inputRef.current?.click()}
@@ -179,10 +179,10 @@ export function ImportUploadPanel({
       {batchId ? (
         <p className="mt-4 text-xs text-muted-foreground">Lote atual: {batchId}</p>
       ) : null}
-      {progress ? <p className="mt-2 text-sm font-medium text-primary-dark">{progress}</p> : null}
-      {message ? <p className="mt-2 text-sm font-semibold text-primary-dark">{message}</p> : null}
+      {progress ? <p className="mt-2 text-sm font-medium text-foreground">{progress}</p> : null}
+      {message ? <p className="mt-2 text-sm font-semibold text-foreground">{message}</p> : null}
       {waitingConfirm ? (
-        <p className="mt-2 text-sm text-amber-700">Aguardando confirmação de upload…</p>
+        <p className="mt-2 text-sm text-warning-text">Aguardando confirmação de upload…</p>
       ) : null}
     </section>
   );

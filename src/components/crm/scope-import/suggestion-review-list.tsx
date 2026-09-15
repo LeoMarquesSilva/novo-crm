@@ -41,9 +41,9 @@ export function SuggestionReviewList({
   const totalDecided = combined ? decidedCount + decided.length : decided.length;
 
   return (
-    <section className="space-y-4 rounded-[24px] border border-white/55 bg-white/72 p-6 shadow-sm">
+    <section className="space-y-4 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-6">
       <div>
-        <h2 className="text-lg font-bold text-primary-dark">
+        <h2 className="text-v2-heading-md text-foreground">
           {combined ? "Revisão combinada — todos os lotes" : "3. Revisão e aprovação"}
         </h2>
         <p className="text-sm text-muted-foreground">
@@ -62,7 +62,7 @@ export function SuggestionReviewList({
       ) : (
         grouped.map(([groupKey, items]) => (
           <div key={groupKey} className="space-y-3">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-primary-dark/70">{groupKey}</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">{groupKey}</h3>
             {items.map((suggestion) => (
               <SuggestionCard
                 key={suggestion.id}

@@ -80,10 +80,10 @@ export function ImportProgressPanel({ batchId, state, loading, onRefresh, onCons
   }
 
   return (
-    <section className="space-y-4 rounded-[24px] border border-white/55 bg-white/72 p-6 shadow-sm">
+    <section className="space-y-4 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-primary-dark">2. Processar e consolidar</h2>
+          <h2 className="text-v2-heading-md text-foreground">2. Processar e consolidar</h2>
           <p className="text-sm text-muted-foreground">
             Extração de texto + IA por documento; depois consolida escopos semelhantes.
           </p>
@@ -91,7 +91,7 @@ export function ImportProgressPanel({ batchId, state, loading, onRefresh, onCons
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant="teal"
+            variant="primary"
             className="gap-2"
             disabled={processing || loading || doneCount >= total}
             onClick={() => void processLoop()}
@@ -127,7 +127,7 @@ export function ImportProgressPanel({ batchId, state, loading, onRefresh, onCons
       </div>
 
       <div className="space-y-2">
-        <div className="flex justify-between text-xs font-semibold text-primary-dark">
+        <div className="flex justify-between text-xs font-semibold text-foreground">
           <span>
             {doneCount}/{total} documentos
           </span>
@@ -136,19 +136,19 @@ export function ImportProgressPanel({ batchId, state, loading, onRefresh, onCons
         <Progress value={progressPct} className="h-2" />
       </div>
 
-      <ul className="divide-y divide-primary-dark/10 rounded-xl border border-primary-dark/10 bg-white/80">
+      <ul className="divide-y divide-neutral-200 rounded-(--radius-v2-md) border border-neutral-200 bg-white">
         {state.documents.map((doc) => (
           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-            <span className="font-medium text-primary-dark">{doc.original_filename}</span>
+            <span className="font-medium text-foreground">{doc.original_filename}</span>
             <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{doc.status}</span>
             {doc.error_message ? (
-              <span className="w-full text-xs text-rose-600">{doc.error_message}</span>
+              <span className="w-full text-xs text-danger-text">{doc.error_message}</span>
             ) : null}
           </li>
         ))}
       </ul>
 
-      {feedback ? <p className="text-sm font-semibold text-primary-dark">{feedback}</p> : null}
+      {feedback ? <p className="text-sm font-semibold text-foreground">{feedback}</p> : null}
     </section>
   );
 }
