@@ -63,9 +63,9 @@ export default async function CrmDueDiligencePage() {
   const role = profile?.role != null ? String(profile.role) : "";
   if (!["admin", "comercial"].includes(role)) {
     return (
-      <div className="mx-auto max-w-lg rounded-2xl border border-[#dfe5ee] bg-white p-8 text-center shadow-sm">
-        <p className="text-sm font-semibold text-[#102033]">Sem permissão para esta área.</p>
-        <p className="mt-2 text-sm text-slate-500">
+      <div className="mx-auto max-w-lg rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-8 text-center">
+        <p className="text-sm font-semibold text-foreground">Sem permissão para esta área.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
           Apenas perfis comercial ou admin visualizam o painel de Due diligence.
         </p>
       </div>
@@ -113,7 +113,7 @@ export default async function CrmDueDiligencePage() {
 
   if (opError) {
     return (
-      <div className="mx-auto max-w-lg p-8 text-center text-sm text-red-600">
+      <div className="mx-auto max-w-lg p-8 text-center text-sm text-destructive">
         Erro ao carregar negociações: {opError.message}
       </div>
     );
@@ -136,7 +136,7 @@ export default async function CrmDueDiligencePage() {
 
     if (transError) {
       return (
-        <div className="mx-auto max-w-lg p-8 text-center text-sm text-red-600">
+        <div className="mx-auto max-w-lg p-8 text-center text-sm text-destructive">
           Erro ao carregar histórico de etapas: {transError.message}
         </div>
       );
@@ -163,7 +163,7 @@ export default async function CrmDueDiligencePage() {
 
     if (areaErr) {
       return (
-        <div className="mx-auto max-w-lg p-8 text-center text-sm text-red-600">
+        <div className="mx-auto max-w-lg p-8 text-center text-sm text-destructive">
           Erro ao carregar tarefas por área (levantamento): {areaErr.message}
         </div>
       );
@@ -193,7 +193,7 @@ export default async function CrmDueDiligencePage() {
 
     if (revErr) {
       return (
-        <div className="mx-auto max-w-lg p-8 text-center text-sm text-red-600">
+        <div className="mx-auto max-w-lg p-8 text-center text-sm text-destructive">
           Erro ao carregar revisões por área: {revErr.message}
         </div>
       );

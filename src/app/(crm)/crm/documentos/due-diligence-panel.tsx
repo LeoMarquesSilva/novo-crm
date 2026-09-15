@@ -116,27 +116,27 @@ const PHASE_META: Record<
 > = {
   levantamento: {
     label: "Levantamento de dados",
-    badge: "border-sky-300/50 bg-sky-50 text-sky-900",
-    dot: "bg-sky-500",
-    ring: "ring-sky-200",
+    badge: "border-info-border bg-info-bg text-info-text",
+    dot: "bg-info-text",
+    ring: "ring-info-border",
   },
   compilacao: {
     label: "Compilação",
-    badge: "border-violet-300/50 bg-violet-50 text-violet-900",
-    dot: "bg-violet-500",
-    ring: "ring-violet-200",
+    badge: "border-violet-border bg-violet-bg text-violet-text",
+    dot: "bg-violet-text",
+    ring: "ring-violet-border",
   },
   revisao: {
     label: "Revisão por áreas",
-    badge: "border-amber-300/50 bg-amber-50 text-amber-950",
-    dot: "bg-amber-500",
-    ring: "ring-amber-200",
+    badge: "border-warning-border bg-warning-bg text-warning-text",
+    dot: "bg-warning-text",
+    ring: "ring-warning-border",
   },
   finalizada: {
     label: "Due diligence finalizada",
-    badge: "border-accent-green/35 bg-accent-green/10 text-emerald-900",
-    dot: "bg-accent-green",
-    ring: "ring-accent-green/30",
+    badge: "border-success-border bg-success-bg text-success-text",
+    dot: "bg-success-text",
+    ring: "ring-success-border",
   },
 };
 
@@ -235,7 +235,7 @@ function DuePhaseProgressTrack({
   return (
     <div className="w-full" role="group" aria-label="Progresso da due diligence">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <p className="text-xs font-bold text-primary-dark">
+        <p className="text-xs font-bold text-foreground">
           Fase {currentIndex + 1} de {PHASE_STEPS.length}
           <span className="font-semibold text-muted-foreground">
             {" "}
@@ -262,8 +262,8 @@ function DuePhaseProgressTrack({
                 <span
                   className={cn(
                     "min-w-0 flex-1 truncate text-[10px] font-bold leading-tight sm:text-[11px]",
-                    state === "done" && "text-accent-green",
-                    state === "current" && "text-primary-dark",
+                    state === "done" && "text-success-text",
+                    state === "current" && "text-foreground",
                     state === "pending" && "text-muted-foreground",
                   )}
                   title={step.full}
@@ -272,7 +272,7 @@ function DuePhaseProgressTrack({
                   <span className="hidden sm:inline">{step.full}</span>
                 </span>
                 {state === "done" ? (
-                  <Check className="h-3 w-3 shrink-0 text-accent-green" strokeWidth={3} aria-hidden />
+                  <Check className="h-3 w-3 shrink-0 text-success-text" strokeWidth={3} aria-hidden />
                 ) : state === "current" ? (
                   <span
                     className={cn("h-2 w-2 shrink-0 animate-pulse rounded-full", meta.dot)}
@@ -283,9 +283,8 @@ function DuePhaseProgressTrack({
               <div
                 className={cn(
                   "h-2.5 rounded-full transition-all",
-                  state === "done" && "bg-accent-green shadow-sm",
-                  state === "current" &&
-                    cn("bg-primary-dark shadow-md ring-2 ring-offset-1", meta.ring),
+                  state === "done" && "bg-success-text",
+                  state === "current" && cn("bg-foreground ring-2 ring-offset-1", meta.ring),
                   state === "pending" && "bg-border/70",
                 )}
                 role="presentation"
@@ -311,10 +310,10 @@ function DuePhaseProgressTrack({
 
 function PunctualityBadge({ p }: { p: DuePunctuality }) {
   const styleMap: Record<string, string> = {
-    no_prazo: "border-accent-green/30 bg-accent-green/10 text-emerald-800",
+    no_prazo: "border-success-border bg-success-bg text-success-text",
     fora_do_prazo: "border-destructive/30 bg-destructive/10 text-destructive",
     em_atraso: "border-destructive/30 bg-destructive/10 text-destructive",
-    em_andamento: "border-accent-teal/30 bg-accent-teal/[0.07] text-accent-teal",
+    em_andamento: "border-info-border bg-info-bg text-info-text",
     sem_prazo: "border-border bg-muted text-muted-foreground",
   };
   const iconMap: Record<string, React.ReactNode> = {
@@ -388,6 +387,8 @@ function DueDocumentRow({
     a.click();
   };
 
+  // Cores de tipo de arquivo (PDF/PPT) são convenção universal de ícone, não um
+  // estado semântico do produto — mantidas fora da paleta de tokens V2 de propósito.
   const iconStyle =
     kind === "pdf"
       ? "border-rose-200 bg-rose-50 text-rose-600"
@@ -396,10 +397,10 @@ function DueDocumentRow({
         : "border-border bg-muted text-muted-foreground";
 
   return (
-    <li className="group flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-muted/40">
+    <li className="group flex items-center gap-3 rounded-(--radius-v2-md) border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-muted/40">
       <span
         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-(--radius-v2-lg) border",
           iconStyle,
         )}
       >
@@ -410,7 +411,7 @@ function DueDocumentRow({
         )}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-primary-dark">{doc.originalFilename}</p>
+        <p className="truncate text-sm font-medium text-foreground">{doc.originalFilename}</p>
         <p className="text-[11px] text-muted-foreground">
           {kindLabel(doc.documentKind)} · {formatBytes(doc.byteSize)} ·{" "}
           {formatDateTimeBr(doc.uploadedAt)}
@@ -440,7 +441,7 @@ function DueDocumentRow({
 
 function InfoCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl bg-muted/40 px-3 py-2.5">
+    <div className="rounded-(--radius-v2-md) bg-muted/40 px-3 py-2.5">
       <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </dt>
@@ -454,18 +455,18 @@ function InfoCell({ label, children }: { label: string; children: React.ReactNod
 function DueGuideBanner() {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-[18px] border border-accent-teal/20 bg-gradient-to-br from-accent-teal/[0.06] to-white p-4">
+    <div className="rounded-(--radius-v2-xl) border border-interactive-200 bg-gradient-to-br from-interactive-50 to-white p-4">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-start gap-3 text-left"
         aria-expanded={open}
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent-teal/25 bg-white text-accent-teal shadow-sm">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-(--radius-v2-lg) border border-interactive-300 bg-white text-interactive-700">
           <HelpCircle className="h-4 w-4" aria-hidden />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="text-sm font-bold text-primary-dark">Como ler este painel</span>
+          <span className="text-sm font-bold text-foreground">Como ler este painel</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
             Cada cartão é uma negociação com due diligence. O prazo compara a data/hora combinadas no
             cadastro com a finalização no funil.
@@ -487,21 +488,21 @@ function DueGuideBanner() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <ul className="mt-4 grid gap-2 border-t border-accent-teal/15 pt-4 text-xs text-muted-foreground sm:grid-cols-2">
+            <ul className="mt-4 grid gap-2 border-t border-interactive-100 pt-4 text-xs text-muted-foreground sm:grid-cols-2">
               <li>
-                <strong className="text-primary-dark">Fases:</strong> levantamento → compilação →
+                <strong className="text-foreground">Fases:</strong> levantamento → compilação →
                 revisão → finalizada.
               </li>
               <li>
-                <strong className="text-primary-dark">Em atraso:</strong> prazo combinado já passou e
+                <strong className="text-foreground">Em atraso:</strong> prazo combinado já passou e
                 a DD ainda não foi finalizada.
               </li>
               <li>
-                <strong className="text-primary-dark">Documentos:</strong> PPT de compilação e outros
+                <strong className="text-foreground">Documentos:</strong> PPT de compilação e outros
                 anexos enviados no funil.
               </li>
               <li>
-                <strong className="text-primary-dark">Cronologia:</strong> tempos por fase e status de
+                <strong className="text-foreground">Cronologia:</strong> tempos por fase e status de
                 cada área de prática.
               </li>
             </ul>
@@ -530,10 +531,8 @@ function QuickFilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-w-[7.5rem] flex-1 flex-col rounded-xl border px-3 py-2.5 text-left transition-all sm:min-w-0 sm:flex-none",
-        active
-          ? "border-primary-dark bg-primary-dark text-white shadow-md shadow-primary-dark/15"
-          : cn("bg-card hover:border-primary-dark/25 hover:shadow-sm", tone),
+        "flex min-w-[7.5rem] flex-1 flex-col rounded-(--radius-v2-xl) border px-3 py-2.5 text-left transition-colors sm:min-w-0 sm:flex-none",
+        active ? "border-brand-navy bg-brand-navy text-white" : cn("bg-card hover:border-neutral-300", tone),
       )}
     >
       <span
@@ -547,7 +546,7 @@ function QuickFilterChip({
       <span
         className={cn(
           "mt-0.5 text-2xl font-extrabold tabular-nums tracking-[-0.04em]",
-          active ? "text-white" : "text-primary-dark",
+          active ? "text-white" : "text-foreground",
         )}
       >
         {value}
@@ -576,8 +575,8 @@ function PhasePill({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
         active
-          ? "border-primary-dark bg-primary-dark text-white"
-          : "border-border bg-card text-muted-foreground hover:border-primary-dark/30 hover:bg-muted hover:text-primary-dark",
+          ? "border-brand-navy bg-brand-navy text-white"
+          : "border-border bg-card text-muted-foreground hover:border-neutral-300 hover:bg-muted hover:text-foreground",
       )}
     >
       {label}
@@ -607,10 +606,8 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
   return (
     <article
       className={cn(
-        "overflow-hidden rounded-[18px] bg-card shadow-[0_1px_2px_rgba(16,31,46,0.035),0_14px_34px_rgba(16,31,46,0.055)] transition-[border-color,box-shadow,transform] hover:-translate-y-px hover:shadow-[0_2px_5px_rgba(16,31,46,0.045),0_18px_42px_rgba(16,31,46,0.075)]",
-        isAtRisk
-          ? "border border-destructive/30"
-          : "border border-[rgba(16,31,46,0.09)] hover:border-[rgba(16,31,46,0.13)]",
+        "overflow-hidden rounded-(--radius-v2-xl) bg-card",
+        isAtRisk ? "border border-destructive/30" : "border border-neutral-200",
       )}
     >
       {isAtRisk && (
@@ -627,7 +624,7 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
               Funil: {lead.faseAtualLabel}
             </span>
             <div>
-              <h2 className="text-lg font-extrabold leading-tight tracking-[-0.02em] text-primary-dark sm:text-[19px]">
+              <h2 className="text-lg font-extrabold leading-tight tracking-[-0.02em] text-foreground sm:text-[19px]">
                 {lead.leadName}
               </h2>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
@@ -652,7 +649,7 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
             <PunctualityBadge p={lead.punctuality} />
             <Link
               href={`/crm/leads/${encodeURIComponent(lead.oportunidadeId)}`}
-              className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-accent-teal transition-colors hover:bg-muted"
+              className="inline-flex items-center gap-1 rounded-(--radius-v2-lg) border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-interactive-700 transition-colors hover:bg-muted"
             >
               Abrir no funil
               <ExternalLink className="h-3 w-3 opacity-60" aria-hidden />
@@ -660,13 +657,13 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
           </div>
         </div>
 
-        <p className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          <Layers className="mr-1.5 inline h-3.5 w-3.5 -translate-y-px text-accent-teal" aria-hidden />
+        <p className="rounded-(--radius-v2-md) border border-border/50 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          <Layers className="mr-1.5 inline h-3.5 w-3.5 -translate-y-px text-interactive-600" aria-hidden />
           {progressHint}
         </p>
 
         <div className="grid gap-3 lg:grid-cols-[1.4fr_auto]">
-          <div className="rounded-xl border border-border/60 bg-gradient-to-br from-muted/50 to-background px-4 py-4">
+          <div className="rounded-(--radius-v2-xl) border border-border/60 bg-gradient-to-br from-muted/50 to-background px-4 py-4">
             <DuePhaseProgressTrack
               currentPhase={phase}
               timeline={lead.timeline}
@@ -674,26 +671,26 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
             />
           </div>
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-1 sm:gap-2.5">
-            <div className="rounded-xl border border-border/60 bg-background px-3 py-2.5">
+            <div className="rounded-(--radius-v2-md) border border-border/60 bg-background px-3 py-2.5">
               <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 Prazo combinado
               </dt>
-              <dd className="mt-1 text-sm font-bold text-primary-dark">{lead.prazoEntregaLabel}</dd>
+              <dd className="mt-1 text-sm font-bold text-foreground">{lead.prazoEntregaLabel}</dd>
             </div>
-            <div className="rounded-xl border border-border/60 bg-background px-3 py-2.5">
+            <div className="rounded-(--radius-v2-md) border border-border/60 bg-background px-3 py-2.5">
               <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 Documentos
               </dt>
-              <dd className="mt-1 flex items-center gap-1.5 text-sm font-bold text-primary-dark">
+              <dd className="mt-1 flex items-center gap-1.5 text-sm font-bold text-foreground">
                 <FileText className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                 {lead.documents.length}
               </dd>
             </div>
-            <div className="col-span-2 rounded-xl border border-border/60 bg-background px-3 py-2.5 sm:col-span-1">
+            <div className="col-span-2 rounded-(--radius-v2-md) border border-border/60 bg-background px-3 py-2.5 sm:col-span-1">
               <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 Início da DD
               </dt>
-              <dd className="mt-1 flex items-center gap-1.5 text-sm font-bold text-primary-dark">
+              <dd className="mt-1 flex items-center gap-1.5 text-sm font-bold text-foreground">
                 <Timer className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                 {formatDateTimeBr(lead.duePedidoEmIso ?? undefined)}
               </dd>
@@ -705,10 +702,10 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
           type="button"
           onClick={() => setOpen((v) => !v)}
           className={cn(
-            "flex w-full items-center justify-between gap-2 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-colors",
+            "flex w-full items-center justify-between gap-2 rounded-(--radius-v2-lg) border px-4 py-3 text-left text-sm font-semibold transition-colors",
             open
-              ? "border-primary-dark/20 bg-primary-dark/[0.04] text-primary-dark"
-              : "border-border/60 bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted hover:text-primary-dark",
+              ? "border-neutral-300 bg-neutral-100 text-foreground"
+              : "border-border/60 bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground",
           )}
           aria-expanded={open}
           aria-controls={`lead-details-${lead.oportunidadeId}`}
@@ -772,7 +769,7 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
               {/* Documents tab */}
               <TabsContent value="documentos" className="p-4 outline-none sm:p-5">
                 {lead.documents.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border p-8 text-center">
+                  <div className="rounded-(--radius-v2-xl) border border-dashed border-border p-8 text-center">
                     <FileText
                       className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30"
                       aria-hidden
@@ -813,22 +810,22 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
                     />
                   </InfoCell>
                   <InfoCell label="Due pedida / início">
-                    <span className="font-semibold text-primary-dark">
+                    <span className="font-semibold text-foreground">
                       {formatDateTimeBr(lead.duePedidoEmIso ?? undefined)}
                     </span>
                   </InfoCell>
                   <InfoCell label="Prazo combinado">
-                    <span className="font-semibold text-primary-dark">
+                    <span className="font-semibold text-foreground">
                       {lead.prazoEntregaLabel}
                     </span>
                   </InfoCell>
                   <InfoCell label="Due finalizada">
-                    <span className="font-semibold text-primary-dark">
+                    <span className="font-semibold text-foreground">
                       {lead.dueFinalizadaEmIso ? formatDateTimeBr(lead.dueFinalizadaEmIso) : "—"}
                     </span>
                   </InfoCell>
                   <InfoCell label="Fase atual">
-                    <span className="font-semibold text-primary-dark">{lead.faseAtualLabel}</span>
+                    <span className="font-semibold text-foreground">{lead.faseAtualLabel}</span>
                   </InfoCell>
                 </dl>
               </TabsContent>
@@ -861,7 +858,7 @@ const PUNCTUALITY_FILTER_OPTIONS: PunctualityFilterOption[] = [
     label: "Em curso (no prazo)",
     hint: "Due diligence aberta e dentro do prazo",
     icon: Circle,
-    iconClass: "border-accent-teal/35 bg-accent-teal/10 text-accent-teal",
+    iconClass: "border-info-border bg-info-bg text-info-text",
   },
   {
     value: "em_atraso",
@@ -875,14 +872,14 @@ const PUNCTUALITY_FILTER_OPTIONS: PunctualityFilterOption[] = [
     label: "Entregue no prazo",
     hint: "Finalizada até o deadline acordado",
     icon: CheckCircle2,
-    iconClass: "border-accent-green/35 bg-accent-green/10 text-emerald-700",
+    iconClass: "border-success-border bg-success-bg text-success-text",
   },
   {
     value: "fora_do_prazo",
     label: "Entregue fora do prazo",
     hint: "Finalizada após o deadline",
     icon: AlertCircle,
-    iconClass: "border-amber-300/50 bg-amber-50 text-amber-900",
+    iconClass: "border-warning-border bg-warning-bg text-warning-text",
   },
   {
     value: "sem_prazo",
@@ -918,8 +915,8 @@ function DuePunctualityFilterMenu({
           aria-haspopup="listbox"
           aria-expanded={open}
           className={cn(
-            "flex h-10 w-full min-w-[220px] items-center justify-between gap-2 rounded-lg border border-input bg-muted/40 px-3 text-left text-sm font-medium text-primary-dark shadow-sm transition-[border-color,box-shadow,ring-color] outline-none hover:border-primary-dark/20 hover:bg-muted/60 focus-visible:border-accent-teal focus-visible:ring-2 focus-visible:ring-accent-teal/15 sm:w-[260px]",
-            open && "border-accent-teal/40 ring-2 ring-accent-teal/15",
+            "flex h-10 w-full min-w-[220px] items-center justify-between gap-2 rounded-(--radius-v2-md) border border-input bg-muted/40 px-3 text-left text-sm font-medium text-foreground transition-colors outline-none hover:border-neutral-300 hover:bg-muted/60 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/20 sm:w-[260px]",
+            open && "border-primary ring-3 ring-ring/20",
           )}
         >
           <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -962,15 +959,13 @@ function DuePunctualityFilterMenu({
                     setOpen(false);
                   }}
                   className={cn(
-                    "flex w-full items-start gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors",
-                    active
-                      ? "bg-accent-teal/[0.08] ring-1 ring-accent-teal/25"
-                      : "hover:bg-muted/70",
+                    "flex w-full items-start gap-3 rounded-(--radius-v2-md) px-2.5 py-2.5 text-left transition-colors",
+                    active ? "bg-interactive-50 ring-1 ring-interactive-200" : "hover:bg-muted/70",
                   )}
                 >
                   <span
                     className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-(--radius-v2-lg) border",
                       opt.iconClass,
                     )}
                   >
@@ -978,9 +973,9 @@ function DuePunctualityFilterMenu({
                   </span>
                   <span className="min-w-0 flex-1 pt-0.5">
                     <span className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-primary-dark">{opt.label}</span>
+                      <span className="text-sm font-semibold text-foreground">{opt.label}</span>
                       {active ? (
-                        <Check className="h-3.5 w-3.5 shrink-0 text-accent-teal" aria-hidden />
+                        <Check className="h-3.5 w-3.5 shrink-0 text-interactive-700" aria-hidden />
                       ) : null}
                     </span>
                     <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
@@ -1072,7 +1067,7 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
     <div className="space-y-5">
       <DueGuideBanner />
 
-      <div className="glass-card glass-card-no-float rounded-[18px] p-4 space-y-4">
+      <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4 space-y-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Filtrar por situação
@@ -1089,21 +1084,21 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
               label="Em andamento"
               value={stats.emAndamento}
               active={punctualityFilter === "em_andamento"}
-              tone="border-accent-teal/25"
+              tone="border-info-border"
               onClick={() => togglePunctuality("em_andamento")}
             />
             <QuickFilterChip
               label="Em atraso"
               value={stats.emAtraso}
               active={punctualityFilter === "em_atraso"}
-              tone="border-rose-300/40 bg-rose-50/80"
+              tone="border-destructive/30"
               onClick={() => togglePunctuality("em_atraso")}
             />
             <QuickFilterChip
               label="Finalizadas"
               value={stats.finalizadas}
               active={phaseFilter === "finalizada"}
-              tone="border-accent-green/25"
+              tone="border-success-border"
               onClick={() => setPhaseFilter((f) => (f === "finalizada" ? "all" : "finalizada"))}
             />
           </div>
@@ -1120,7 +1115,7 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
               placeholder="Buscar por nome do lead ou solicitante…"
               value={leadQuery}
               onChange={(e) => setLeadQuery(e.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-muted/40 pl-9 pr-3 text-sm outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/60 focus:border-accent-teal focus:ring-2 focus:ring-accent-teal/10"
+              className="h-10 w-full rounded-(--radius-v2-md) border border-border bg-muted/40 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary focus:ring-3 focus:ring-ring/20"
               aria-label="Buscar negociação"
             />
           </div>
@@ -1141,7 +1136,7 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
             <button
               type="button"
               onClick={clearFilters}
-              className="h-10 rounded-lg border border-border px-4 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary-dark/30 hover:text-primary-dark"
+              className="h-10 rounded-(--radius-v2-lg) border border-border px-4 text-xs font-semibold text-muted-foreground transition-colors hover:border-neutral-300 hover:text-foreground"
             >
               Limpar filtros
             </button>
@@ -1174,13 +1169,13 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
         <p className="text-xs text-muted-foreground">
           {sorted.length === leads.length ? (
             <>
-              Exibindo <strong className="text-primary-dark">{sorted.length}</strong> negociação
+              Exibindo <strong className="text-foreground">{sorted.length}</strong> negociação
               {leads.length !== 1 ? "ões" : ""}
               {leads.length > 0 ? " — prioridade para atrasos e prazos mais próximos" : ""}
             </>
           ) : (
             <>
-              <strong className="text-primary-dark">{sorted.length}</strong> de {leads.length}{" "}
+              <strong className="text-foreground">{sorted.length}</strong> de {leads.length}{" "}
               negociação{leads.length !== 1 ? "ões" : ""} com os filtros atuais
             </>
           )}
@@ -1188,9 +1183,9 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
       </div>
 
       {leads.length === 0 ? (
-        <div className="rounded-[18px] border border-dashed border-border bg-muted/20 p-12 text-center">
+        <div className="rounded-(--radius-v2-xl) border border-dashed border-border bg-muted/20 p-12 text-center">
           <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/25" aria-hidden />
-          <p className="text-sm font-semibold text-primary-dark">Nenhuma due diligence no momento</p>
+          <p className="text-sm font-semibold text-foreground">Nenhuma due diligence no momento</p>
           <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
             Quando um lead for cadastrado neste CRM com due diligence ativa, ele aparecerá aqui com
             fase, prazo e documentos.
@@ -1210,7 +1205,7 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
           ))}
         </motion.div>
       ) : (
-        <div className="rounded-[18px] border border-dashed border-border p-12 text-center">
+        <div className="rounded-(--radius-v2-xl) border border-dashed border-border p-12 text-center">
           <SlidersHorizontal
             className="mx-auto mb-3 h-10 w-10 text-muted-foreground/20"
             aria-hidden
@@ -1225,7 +1220,7 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
             <button
               type="button"
               onClick={clearFilters}
-              className="mt-4 rounded-lg border border-border px-4 py-1.5 text-xs font-semibold text-accent-teal transition-colors hover:bg-muted"
+              className="mt-4 rounded-(--radius-v2-lg) border border-border px-4 py-1.5 text-xs font-semibold text-interactive-700 transition-colors hover:bg-muted"
             >
               Limpar filtros
             </button>
