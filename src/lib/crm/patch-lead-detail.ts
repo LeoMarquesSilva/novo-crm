@@ -13,6 +13,7 @@ import {
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { labelForRdFieldKey } from "@/lib/crm/lead-rd-field-labels";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
+import { fetchAppUsersByEmailLookup } from "@/lib/crm/resolve-app-user-display";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 import { canPatchLeadDetail } from "@/lib/auth/crm-access-policy";
 
@@ -407,16 +408,62 @@ async function patchIntakeField(
     };
   }
 
+  if (key === "solicitante_interno") {
+    const email = trimmed.toLowerCase();
+    const usersByEmail = await fetchAppUsersByEmailLookup(supabase);
+    const selectedUser = usersByEmail[email];
+    if (!selectedUser) {
+      return {
+        ok: false,
+        error: "Selecione um utilizador ativo do CRM para o solicitante interno.",
+        status: 400,
+      };
+    }
+
+    const now = new Date().toISOString();
+    const [{ error: intakeUpdateError }, { error: opportunityUpdateError }] = await Promise.all([
+      supabase
+        .from("lead_intakes")
+        .update({ solicitante_nome: selectedUser.fullName })
+        .eq("oportunidade_id", oportunidadeId),
+      supabase
+        .from("oportunidades")
+        .update({ solicitante_email: email, updated_at: now })
+        .eq("id", oportunidadeId),
+    ]);
+    if (intakeUpdateError) return { ok: false, error: intakeUpdateError.message };
+    if (opportunityUpdateError) return { ok: false, error: opportunityUpdateError.message };
+
+    await logIntakeFieldChange(
+      supabase,
+      oportunidadeId,
+      key,
+      selectedUser.fullName,
+      viewer,
+      "Solicitante interno atualizado",
+    );
+    return { ok: true };
+  }
+
   if (key === "cadastrado_por") {
     if (!trimmed) return { ok: false, error: "Valor inválido.", status: 400 };
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
     if (!emailOk) return { ok: false, error: "E-mail inválido.", status: 400 };
+    const normalizedEmail = trimmed.toLowerCase();
+    const usersByEmail = await fetchAppUsersByEmailLookup(supabase);
+    if (!usersByEmail[normalizedEmail]) {
+      return {
+        ok: false,
+        error: "Selecione um utilizador ativo do CRM para o autor do cadastro.",
+        status: 400,
+      };
+    }
     const { error } = await supabase
       .from("lead_intakes")
-      .update({ cadastrado_por_email: trimmed })
+      .update({ cadastrado_por_email: normalizedEmail })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
-    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed, viewer);
+    await logIntakeFieldChange(supabase, oportunidadeId, key, normalizedEmail, viewer);
     return { ok: true };
   }
 
@@ -740,6 +787,7 @@ async function logIntakeFieldChange(
   const labels: Record<string, string> = {
     email_solicitante: "E-mail do solicitante",
     solicitante_nome: "Nome do lead",
+    solicitante_interno: "Solicitante interno",
     havera_due_diligence: "Due diligence",
     due_diligence_intake: "Due diligence",
     tipo_lead: "Tipo de lead",

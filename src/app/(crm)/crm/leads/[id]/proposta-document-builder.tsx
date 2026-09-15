@@ -11,7 +11,6 @@ import {
   ChevronRight,
   FileDown,
   FileText,
-  History,
   ListChecks,
   Loader2,
   PenLine,
@@ -46,10 +45,10 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import { ProposalDocxPreview } from "@/components/crm/proposal-docx-preview";
 import {
   DocumentBuilderDialogHeader,
   DocumentBuilderHubHeader,
-  DocumentStatusCard,
   documentBuilderDialogClass,
   documentBuilderHubClass,
   documentEmptyStateClass,
@@ -64,12 +63,11 @@ import {
 } from "@/lib/crm/proposta-docx-data";
 import { listProposalPendingFields, type ProposalRequiredField } from "@/lib/crm/proposta-document-validation";
 import {
-  createProposalPdfPreviewController,
+  createProposalDocxPreviewController,
   persistProposalDraft,
   readProposalDocxResponse,
-  readProposalPdfResponse,
   selectProposalDraftValues,
-  type ProposalPdfPreviewState,
+  type ProposalDocxPreviewState,
 } from "@/lib/crm/proposta-document-client";
 import { PropostaEscopoAreaCoordenacao } from "./proposta-escopo-area-coordenacao";
 import { PropostaEscopoPorArea } from "./proposta-escopo-por-area";
@@ -253,6 +251,7 @@ export function PropostaDocumentBuilder({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
+  const autoOpenedRef = useRef(false);
 
   const refreshState = useCallback(async () => {
     setLoading(true);
@@ -284,9 +283,43 @@ export function PropostaDocumentBuilder({
     return () => window.clearTimeout(timer);
   }, [refreshState]);
 
-  const pending = docState?.snapshot.pending ?? [];
-  const versions = docState?.versions ?? [];
+  useEffect(() => {
+    if (loading || !docState || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    setBuilderOpen(true);
+  }, [docState, loading]);
+
   const hasInstance = Boolean(docState?.instance);
+
+  if (loading) {
+    return (
+      <section className={documentBuilderHubClass}>
+        <div className="flex min-h-24 items-center justify-center gap-2 px-5 py-6 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Preparando o editor da proposta…
+        </div>
+      </section>
+    );
+  }
+
+  if (error || !docState) {
+    return (
+      <section className={documentBuilderHubClass}>
+        <div className="flex flex-col items-start gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex min-w-0 items-start gap-2 text-sm text-danger-text">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <div>
+              <p className="font-semibold">Não foi possível abrir a proposta</p>
+              <p className="mt-0.5 text-muted-foreground">{error ?? "Documento indisponível."}</p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refreshState()}>
+            Tentar novamente
+          </Button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className={documentBuilderHubClass}>
@@ -295,8 +328,8 @@ export function PropostaDocumentBuilder({
         title="Workspace de proposta"
         description={
           hasInstance
-            ? "Rascunho em andamento. Clique em \"Elaborar Proposta\" para editar."
-            : "Selecione o modelo, preencha os dados e baixe a prévia em Word."
+            ? "Continue o rascunho diretamente no editor com formulário e prévia lado a lado."
+            : "Crie a proposta diretamente no editor com formulário e prévia lado a lado."
         }
         actions={
           <Button
@@ -304,81 +337,16 @@ export function PropostaDocumentBuilder({
             variant="primary"
             size="sm"
             className="gap-2"
-            disabled={loading}
             onClick={() => setBuilderOpen(true)}
           >
             <PenLine className="size-4" aria-hidden />
-            {hasInstance ? "Continuar Proposta" : "Elaborar Proposta"}
+            Abrir editor
           </Button>
         }
       />
 
-      {/* ── Status overview ── */}
-      <div className="space-y-5 px-5 py-5 sm:px-6">
-        {loading ? (
-          <div className="flex items-center gap-2 rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" aria-hidden />
-            Carregando...
-          </div>
-        ) : error ? (
-          <div className="flex items-center gap-2 rounded-(--radius-v2-xl) border border-danger-border bg-danger-bg p-4 text-sm text-danger-text">
-            <TriangleAlert className="size-4 shrink-0" aria-hidden />
-            {error}
-          </div>
-        ) : null}
-
-        {!loading && docState ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <DocumentStatusCard
-              title={pending.length === 0 ? "Pronto para gerar" : "Pendências"}
-              icon={pending.length === 0 ? CheckCircle2 : TriangleAlert}
-              tone={pending.length === 0 ? "ok" : "warn"}
-            >
-              {pending.length === 0 ? (
-                <p className="text-sm text-foreground">
-                  Todos os campos obrigatórios estão preenchidos.
-                </p>
-              ) : (
-                <ul className="space-y-1 text-sm text-foreground">
-                  {pending.slice(0, 6).map((item) => (
-                    <li key={item}>· {item}</li>
-                  ))}
-                  {pending.length > 6 ? (
-                    <li className="text-xs text-muted-foreground">
-                      + {pending.length - 6} pendências
-                    </li>
-                  ) : null}
-                </ul>
-              )}
-            </DocumentStatusCard>
-
-            <DocumentStatusCard title="Histórico" icon={History} tone="neutral">
-              <div className="space-y-2 text-sm">
-                {versions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma versão gerada ainda.</p>
-                ) : (
-                  versions.slice(0, 4).map((v) => (
-                    <div
-                      key={v.id}
-                      className="flex items-center justify-between rounded-(--radius-v2-md) border border-border bg-surface-subtle px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-xs font-semibold text-foreground">v{v.version_number}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {new Date(v.generated_at).toLocaleString("pt-BR")}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </DocumentStatusCard>
-          </div>
-        ) : null}
-      </div>
-
       {/* ── Dialog split-pane ── */}
-      {builderOpen && docState ? (
+      {builderOpen ? (
         <PropostaBuilderDialog
           lead={lead}
           viewer={viewer}
@@ -460,14 +428,14 @@ function PropostaBuilderDialog({
   const [proposalUsersLoading, setProposalUsersLoading] = useState(true);
   const [generatedAt] = useState(() => new Date().toISOString());
   const [previewing, setPreviewing] = useState(false);
-  const [pdfPreview, setPdfPreview] = useState<ProposalPdfPreviewState>({
-    url: null,
+  const [docxPreview, setDocxPreview] = useState<ProposalDocxPreviewState>({
+    blob: null,
     sourceSha256: null,
     updating: false,
     error: null,
   });
-  const pdfPreviewControllerRef = useRef<ReturnType<
-    typeof createProposalPdfPreviewController
+  const docxPreviewControllerRef = useRef<ReturnType<
+    typeof createProposalDocxPreviewController
   > | null>(null);
   const [scopeSaving, setScopeSaving] = useState(false);
   const operationRef = useRef(false);
@@ -630,7 +598,7 @@ function PropostaBuilderDialog({
 
   // Canônico local usado para validar o rascunho antes de salvar ou gerar.
   // A prévia visual não usa este objeto para desenhar páginas: o servidor
-  // renderiza o Word oficial e converte os bytes resultantes para PDF.
+  // renderiza o Word oficial e o navegador exibe os próprios bytes DOCX.
   const previewCanonical = useMemo<CanonicalProposalData | null>(() => {
     try {
       return buildCanonicalProposalData({
@@ -690,9 +658,9 @@ function PropostaBuilderDialog({
   const activeStepMeta = PROPOSAL_STEPS[activeStepIndex] ?? PROPOSAL_STEPS[0]!;
   const ActiveStepIcon = activeStepMeta.icon;
 
-  const schedulePdfPreview = useCallback(() => {
+  const scheduleDocxPreview = useCallback(() => {
     if (!selectedTemplateId) return;
-    pdfPreviewControllerRef.current?.schedule(
+    docxPreviewControllerRef.current?.schedule(
       `/api/crm/leads/${encodeURIComponent(lead.id)}/document/preview`,
       {
         templateId: selectedTemplateId,
@@ -705,20 +673,20 @@ function PropostaBuilderDialog({
 
   useEffect(() => {
     if (!open) return;
-    const controller = createProposalPdfPreviewController({
-      onState: setPdfPreview,
+    const controller = createProposalDocxPreviewController({
+      onState: setDocxPreview,
     });
-    pdfPreviewControllerRef.current = controller;
+    docxPreviewControllerRef.current = controller;
     return () => {
-      pdfPreviewControllerRef.current = null;
+      docxPreviewControllerRef.current = null;
       controller.dispose();
     };
   }, [open]);
 
   useEffect(() => {
     if (!open || !selectedTemplateId) return;
-    schedulePdfPreview();
-  }, [open, schedulePdfPreview, selectedTemplateId]);
+    scheduleDocxPreview();
+  }, [open, scheduleDocxPreview, selectedTemplateId]);
 
   function fieldChange(code: string, value: string) {
     setDraftValues((prev) => ({ ...prev, [code]: value }));
@@ -763,7 +731,7 @@ function PropostaBuilderDialog({
     }
   }
 
-  async function downloadDocument(format: "docx" | "pdf", preview = false) {
+  async function downloadDocument(preview = false) {
     if (operationRef.current || scopeSaving || !selectedTemplateId || (!preview && pending.length > 0)) return;
     operationRef.current = true;
     setPreviewing(preview);
@@ -779,12 +747,12 @@ function PropostaBuilderDialog({
     };
     try {
       if (!preview && isDirty) await persistAllFields();
-      const response = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/document/${preview ? "preview" : `generate-${format}`}`, {
+      const response = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/document/${preview ? "preview" : "generate-docx"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const { blob, filename } = await (format === "pdf" ? readProposalPdfResponse(response) : readProposalDocxResponse(response));
+      const { blob, filename } = await readProposalDocxResponse(response);
       const url = URL.createObjectURL(blob);
       const timer = setTimeout(() => {
         URL.revokeObjectURL(url);
@@ -796,7 +764,7 @@ function PropostaBuilderDialog({
       anchor.download = filename;
       document.body.appendChild(anchor);
       try { anchor.click(); } finally { anchor.remove(); }
-      setFeedback(preview ? "Prévia Word baixada com o rascunho atual. Os dados não foram salvos." : `Proposta ${format === "pdf" ? "PDF" : "Word"} gerada e baixada.`);
+      setFeedback(preview ? "Prévia Word baixada com o rascunho atual. Os dados não foram salvos." : "Proposta Word gerada e baixada.");
       if (!preview) {
         await onRefresh();
         router.refresh();
@@ -808,10 +776,6 @@ function PropostaBuilderDialog({
       setPreviewing(false);
       operationRef.current = false;
     }
-  }
-
-  function downloadFinal(format: "docx" | "pdf") {
-    return downloadDocument(format);
   }
 
   function handleCloseAttempt() {
@@ -878,7 +842,7 @@ function PropostaBuilderDialog({
                   size="sm"
                   className="gap-1.5"
                   disabled={busy || !selectedTemplateId || pending.length > 0}
-                  onClick={() => void downloadFinal("docx")}
+                  onClick={() => void downloadDocument()}
                 >
                   {generating ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -886,21 +850,6 @@ function PropostaBuilderDialog({
                     <FileDown className="size-3.5" aria-hidden />
                   )}
                   Gerar Word
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={busy || !selectedTemplateId || pending.length > 0}
-                  onClick={() => void downloadFinal("pdf")}
-                >
-                  {generating ? (
-                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                  ) : (
-                    <FileText className="size-3.5" aria-hidden />
-                  )}
-                  Gerar PDF
                 </Button>
               </>
             }
@@ -1314,7 +1263,7 @@ function PropostaBuilderDialog({
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-v2-heading-md text-foreground">Prévia do Word oficial</h3>
-                    {pdfPreview.updating ? (
+                    {docxPreview.updating ? (
                       <span className="inline-flex items-center gap-1 text-v2-caption-medium text-interactive-700">
                         <Loader2 className="size-3 animate-spin" aria-hidden />
                         Atualizando
@@ -1322,22 +1271,22 @@ function PropostaBuilderDialog({
                     ) : null}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground" role="status">
-                    {pdfPreview.url
-                      ? "PDF convertido diretamente do mesmo Word usado na versão final."
-                      : pdfPreview.error
-                        ? "A conversão do Word não pôde ser concluída."
-                        : "Convertendo o modelo Word com o rascunho atual…"}
+                    {docxPreview.blob
+                      ? "Documento Word renderizado diretamente no navegador."
+                      : docxPreview.error
+                        ? "A prévia do Word não pôde ser carregada."
+                        : "Gerando o modelo Word com o rascunho atual…"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {pdfPreview.error ? (
+                  {docxPreview.error ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       className="gap-2"
-                      disabled={pdfPreview.updating || !selectedTemplateId}
-                      onClick={schedulePdfPreview}
+                      disabled={docxPreview.updating || !selectedTemplateId}
+                      onClick={scheduleDocxPreview}
                     >
                       <FileText className="size-3.5" aria-hidden />
                       Tentar novamente
@@ -1349,7 +1298,7 @@ function PropostaBuilderDialog({
                     size="sm"
                     className="gap-2"
                     disabled={busy || !selectedTemplateId}
-                    onClick={() => void downloadDocument("docx", true)}
+                    onClick={() => void downloadDocument(true)}
                   >
                     {previewing ? (
                       <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -1360,36 +1309,31 @@ function PropostaBuilderDialog({
                   </Button>
                 </div>
               </div>
-              {pdfPreview.url ? (
+              {docxPreview.blob ? (
                 <div className="relative min-h-0 flex-1">
-                  <iframe
-                    key={pdfPreview.url}
-                    src={`${pdfPreview.url}#toolbar=0&navpanes=0&view=Fit&zoom=page-fit`}
-                    title="Prévia da proposta convertida do Word oficial"
-                    className="h-full w-full border-0 bg-surface-subtle"
-                  />
-                  {pdfPreview.updating ? (
+                  <ProposalDocxPreview blob={docxPreview.blob} />
+                  {docxPreview.updating ? (
                     <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-2 rounded-(--radius-v2-full) border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground shadow-(--shadow-v2-sm)">
                       <Loader2 className="size-3.5 animate-spin text-interactive-700" aria-hidden />
-                      Convertendo o Word…
+                      Atualizando o Word…
                     </div>
                   ) : null}
                 </div>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
-                  {pdfPreview.updating ? (
+                  {docxPreview.updating ? (
                     <Loader2 className="size-8 animate-spin text-interactive-700" aria-hidden />
                   ) : (
                     <FileText className="size-9" aria-hidden />
                   )}
                   <p className="max-w-md text-sm">
-                    {pdfPreview.error ??
-                      "Aguarde enquanto o Word oficial é convertido para exibição."}
+                    {docxPreview.error ??
+                      "Aguarde enquanto o documento Word é preparado para exibição."}
                   </p>
                 </div>
               )}
               <p className="shrink-0 border-t border-border bg-white px-4 py-2 text-xs text-muted-foreground">
-                Esta visualização não replica o layout: ela é produzida diretamente pelo documento Word oficial.
+                Prévia renderizada no navegador a partir do mesmo arquivo Word disponível para download.
               </p>
             </main>
           </div>

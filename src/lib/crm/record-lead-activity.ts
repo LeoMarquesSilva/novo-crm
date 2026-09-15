@@ -3,6 +3,8 @@ import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
 export type LeadActivityKind =
   | "lead_criado"
+  | "lead_perdido"
+  | "lead_reaberto"
   | "etapa_alterada"
   | "campo_pipeline_alterado"
   | "campo_intake_alterado"

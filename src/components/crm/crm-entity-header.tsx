@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type CrmEntityHeaderContextItem = {
@@ -9,6 +10,7 @@ export type CrmEntityHeaderContextItem = {
 type CrmEntityHeaderProps = {
   breadcrumb?: ReactNode;
   title: string;
+  icon?: LucideIcon;
   subtitle?: ReactNode;
   badges?: ReactNode;
   actions?: ReactNode;
@@ -23,6 +25,7 @@ type CrmEntityHeaderProps = {
 export function CrmEntityHeader({
   breadcrumb,
   title,
+  icon: Icon,
   subtitle,
   badges,
   actions,
@@ -36,9 +39,18 @@ export function CrmEntityHeader({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {badges ? <div className="mb-2 flex flex-wrap items-center gap-2">{badges}</div> : null}
-          <h1 className="break-words text-2xl font-bold leading-tight tracking-tight text-foreground">
-            {title}
-          </h1>
+          <div className="flex min-w-0 items-start gap-2.5">
+            {Icon ? (
+              <Icon
+                className="mt-1 h-5 w-5 shrink-0 text-muted-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+            ) : null}
+            <h1 className="min-w-0 break-words text-2xl font-bold leading-tight tracking-tight text-foreground">
+              {title}
+            </h1>
+          </div>
           {subtitle ? (
             <div className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">{subtitle}</div>
           ) : null}

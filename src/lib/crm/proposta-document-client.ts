@@ -87,6 +87,88 @@ export async function readProposalPdfResponse(response: Response): Promise<{ blo
   return { blob, filename: filename.replace(/[\\/]/g, "_") };
 }
 
+export type ProposalDocxPreviewState = {
+  blob: Blob | null;
+  sourceSha256: string | null;
+  updating: boolean;
+  error: string | null;
+};
+
+/** Debounces DOCX generation and keeps the latest successful document while a new draft is rendered. */
+export function createProposalDocxPreviewController(options: {
+  onState: (state: ProposalDocxPreviewState) => void;
+  request?: typeof fetch;
+}) {
+  const request = options.request ?? fetch;
+  let state: ProposalDocxPreviewState = {
+    blob: null,
+    sourceSha256: null,
+    updating: false,
+    error: null,
+  };
+  let generation = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abortController: AbortController | undefined;
+
+  function cancelPending() {
+    generation += 1;
+    clearTimeout(timer);
+    abortController?.abort();
+  }
+
+  return {
+    schedule(endpoint: string, payload: Record<string, unknown>) {
+      cancelPending();
+      const token = generation;
+      const body = JSON.stringify({ ...payload, format: "docx" });
+      const controller = new AbortController();
+      abortController = controller;
+      state = { ...state, updating: true, error: null };
+      options.onState(state);
+      timer = setTimeout(async () => {
+        try {
+          const response = await request(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+            signal: controller.signal,
+          });
+          const { blob } = await readProposalDocxResponse(response);
+          if (token !== generation || controller.signal.aborted) return;
+          state = {
+            blob,
+            sourceSha256: response.headers.get("X-Document-SHA256"),
+            updating: false,
+            error: null,
+          };
+          options.onState(state);
+        } catch (error) {
+          if (token !== generation || controller.signal.aborted) return;
+          state = {
+            ...state,
+            updating: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Falha ao atualizar a prévia.",
+          };
+          options.onState(state);
+        }
+      }, 600);
+    },
+    cancelPending,
+    dispose() {
+      cancelPending();
+      state = {
+        blob: null,
+        sourceSha256: null,
+        updating: false,
+        error: null,
+      };
+    },
+  };
+}
+
 export type ProposalPdfPreviewState = {
   url: string | null;
   sourceSha256: string | null;

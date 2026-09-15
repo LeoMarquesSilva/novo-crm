@@ -19,7 +19,6 @@ import { Select, SelectTrigger } from "@/components/ui/select";
 
 const DOC_TYPE_LABELS = { CPF: "CPF", CNPJ: "CNPJ" } as const;
 import { maskDocument } from "@/lib/crm/br-document-mask";
-import { cn } from "@/lib/utils";
 import type { LeadIntakeEmpresaRow } from "./lead-intake-types";
 
 type Props = {
@@ -136,11 +135,12 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
   }
 
   return (
-    <div className={cn("rounded-lg border border-white/50 bg-white/60 p-3 sm:col-span-2")}>
+    <div className="bg-white px-4 py-4">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Empresa {initial.index}
-        </p>
+        <div>
+          <p className="text-xs font-semibold text-foreground">Empresa {initial.index}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Dados da parte vinculada a este lead</p>
+        </div>
         {!editing ? (
           <div className="flex shrink-0 items-center gap-0.5">
             {canDelete ? (
@@ -203,18 +203,18 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
       </div>
 
       {!editing ? (
-        <div className="mt-2 space-y-2 text-sm text-foreground">
+        <div className="mt-3 grid gap-3 text-sm text-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-8">
           <div>
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Razão social / nome
             </p>
-            <p className="mt-0.5 font-medium">{initial.razao_social || "—"}</p>
+            <p className="mt-1 font-medium">{initial.razao_social || "—"}</p>
           </div>
-          <div>
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="sm:min-w-48">
+            <p className="text-xs font-medium text-muted-foreground">
               CPF / CNPJ
             </p>
-            <p className="mt-0.5">
+            <p className="mt-1 tabular-nums">
               <span className="font-medium text-foreground">{initial.tipo_documento}</span>{" "}
               {initial.documento || "—"}
             </p>
@@ -223,19 +223,19 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
       ) : (
         <div className="mt-2 space-y-3">
           <div className="space-y-1">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Razão social / nome
             </p>
             <Input
               value={razao}
               onChange={(e) => setRazao(e.target.value)}
               disabled={saving}
-              className="bg-white/80"
+              className="bg-white"
             />
           </div>
           <div className="grid gap-2 sm:grid-cols-[120px_1fr]">
             <div className="space-y-1">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 Tipo
               </p>
               <Select
@@ -243,7 +243,7 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
                 onValueChange={(v) => onTipoChange(v === "CPF" ? "CPF" : "CNPJ")}
                 disabled={saving}
               >
-                <SelectTrigger className="bg-white/80">
+                <SelectTrigger className="bg-white">
                   <CrmSelectValue value={tipo} labels={DOC_TYPE_LABELS} />
                 </SelectTrigger>
                 <CrmSelectContent>
@@ -253,7 +253,7 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
               </Select>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 Número
               </p>
               <Input
@@ -262,7 +262,7 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
                 disabled={saving}
                 inputMode="numeric"
                 autoComplete="off"
-                className="bg-white/80"
+                className="bg-white"
               />
             </div>
           </div>

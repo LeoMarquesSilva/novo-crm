@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createProposalPdfPreviewController, persistProposalDraft, PROPOSAL_DOCX_MIME, readProposalDocxResponse, readProposalPdfResponse, selectProposalDraftValues, type ProposalPdfPreviewState } from "./proposta-document-client";
+import {
+  createProposalDocxPreviewController,
+  createProposalPdfPreviewController,
+  persistProposalDraft,
+  PROPOSAL_DOCX_MIME,
+  readProposalDocxResponse,
+  readProposalPdfResponse,
+  selectProposalDraftValues,
+  type ProposalDocxPreviewState,
+  type ProposalPdfPreviewState,
+} from "./proposta-document-client";
 
 const success = () => Response.json({ ok: true });
 const draft = () => ({
@@ -87,6 +97,73 @@ describe("readProposalDocxResponse", () => {
   it("expõe a mensagem de falha do servidor", async () => {
     await expect(readProposalDocxResponse(Response.json({ error: "Campos pendentes" }, { status: 422 })))
       .rejects.toThrow("Campos pendentes");
+  });
+});
+
+const docxResponse = (hash = "docx-source-sha") =>
+  new Response(new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1]), {
+    headers: {
+      "Content-Type": PROPOSAL_DOCX_MIME,
+      "X-Document-SHA256": hash,
+      "Content-Disposition": 'attachment; filename="Proposta.docx"',
+    },
+  });
+
+describe("automatic DOCX preview", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("aguarda 600 ms e solicita o último rascunho como DOCX", async () => {
+    const request = vi.fn<typeof fetch>().mockImplementation(async () => docxResponse());
+    const onState = vi.fn<(state: ProposalDocxPreviewState) => void>();
+    const controller = createProposalDocxPreviewController({ onState, request });
+
+    controller.schedule("/preview", {
+      draftValues: { cp_cliente_cidade: "Antiga" },
+    });
+    await vi.advanceTimersByTimeAsync(300);
+    controller.schedule("/preview", {
+      draftValues: { cp_cliente_cidade: "Atual" },
+    });
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual({
+      format: "docx",
+      draftValues: { cp_cliente_cidade: "Atual" },
+    });
+    expect(onState).toHaveBeenLastCalledWith({
+      blob: expect.any(Blob),
+      sourceSha256: "docx-source-sha",
+      updating: false,
+      error: null,
+    });
+    controller.dispose();
+  });
+
+  it("mantém o último Word renderizado quando uma atualização falha", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(docxResponse())
+      .mockResolvedValueOnce(
+        Response.json({ error: "Modelo temporariamente indisponível" }, { status: 503 }),
+      );
+    const onState = vi.fn<(state: ProposalDocxPreviewState) => void>();
+    const controller = createProposalDocxPreviewController({ onState, request });
+
+    controller.schedule("/preview", {});
+    await vi.advanceTimersByTimeAsync(600);
+    const firstBlob = onState.mock.calls.at(-1)?.[0].blob;
+    controller.schedule("/preview", { draftValues: { cp_cliente_cidade: "Atual" } });
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(onState).toHaveBeenLastCalledWith({
+      blob: firstBlob,
+      sourceSha256: "docx-source-sha",
+      updating: false,
+      error: "Modelo temporariamente indisponível",
+    });
+    controller.dispose();
   });
 });
 

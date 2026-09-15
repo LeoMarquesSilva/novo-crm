@@ -136,9 +136,9 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
       </PopoverTrigger>
 
       <PopoverContent
-        side="top"
-        align="start"
-        sideOffset={10}
+        side="bottom"
+        align="end"
+        sideOffset={8}
         collisionPadding={12}
         className="w-[min(calc(100vw-1.5rem),380px)] rounded-(--radius-v2-2xl) border border-border bg-white p-0"
       >

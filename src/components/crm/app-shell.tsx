@@ -28,6 +28,7 @@ import {
 
 import { CrmNotificationsBell } from "@/components/crm/crm-notifications-bell";
 import type { CrmSessionUser } from "@/components/crm/crm-session-user";
+import { GlobalLeadSearch } from "@/components/crm/global-lead-search";
 import { SidebarAccountMenu } from "@/components/crm/sidebar-account-menu";
 import { Button } from "@/components/ui/button";
 import {
@@ -357,6 +358,7 @@ export function AppShell({
   const [hoverExpanded, setHoverExpanded] = useState(false);
   const hoverLeaveTimerRef = useRef<number | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [leadSearchOpen, setLeadSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -366,7 +368,6 @@ export function AppShell({
   const [hydratedStorage, setHydratedStorage] = useState(false);
 
   const showAdminNav = sessionUser.role === "admin";
-  const displayName = sessionUser.fullName?.trim() || sessionUser.email || "Conta";
   const workspaceLabel = sessionUser.area?.trim() || "Workspace corporativo";
   const isPinnedExpanded = !collapsed;
   const isHoverOverlay = collapsed && hoverExpanded;
@@ -465,6 +466,18 @@ export function AppShell({
     };
   }, []);
 
+  useEffect(() => {
+    function openSearchFromKeyboard(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setLeadSearchOpen(true);
+      }
+    }
+
+    window.addEventListener("keydown", openSearchFromKeyboard);
+    return () => window.removeEventListener("keydown", openSearchFromKeyboard);
+  }, []);
+
   return (
     <TooltipProvider delayDuration={220} skipDelayDuration={80}>
       <div className="relative min-h-dvh w-full max-w-full overflow-x-hidden bg-[#f8f9fb]">
@@ -482,7 +495,17 @@ export function AppShell({
             <p className="truncate text-sm font-bold tracking-[-0.02em] text-foreground">Bismarchi | Pires</p>
             <p className="truncate text-[11px] text-slate-500">{workspaceLabel}</p>
           </div>
-          <CrmNotificationsBell />
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setLeadSearchOpen(true)}
+              className="flex size-10 items-center justify-center rounded-(--radius-v2-lg) text-muted-foreground transition-colors hover:bg-white hover:text-foreground"
+              aria-label="Pesquisar leads"
+            >
+              <Search className="size-4.5" strokeWidth={1.9} />
+            </button>
+            <CrmNotificationsBell />
+          </div>
         </div>
 
         <AnimatePresence>
@@ -615,23 +638,6 @@ export function AppShell({
               ) : null}
             </div>
 
-            {isPinnedExpanded ? (
-              <div className="mb-4 px-1">
-                <div className="group/search flex h-9 items-center gap-2 rounded-(--radius-v2-md) border border-[#e1e5eb] bg-white px-3 shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-colors hover:border-slate-300">
-                  <Search className="size-4 shrink-0 text-slate-400" strokeWidth={1.9} />
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Buscar..."
-                    className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-slate-400"
-                  />
-                  <kbd className="rounded-md border border-slate-200 bg-[#f8f9fb] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
-                    ⌘K
-                  </kbd>
-                </div>
-              </div>
-            ) : null}
-
             <nav className="crm-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-1 pb-3">
               {isVisuallyExpanded && favoriteItems.length > 0 ? (
                 <section className="space-y-1.5">
@@ -670,30 +676,21 @@ export function AppShell({
               ))}
             </nav>
 
-            <div className={cn("border-t border-[#e6e9ef] pt-3", navCollapsed && "flex flex-col items-center")}>
-              <div className={cn("mb-2 flex items-center", navCollapsed ? "flex-col gap-2" : "justify-between gap-2")}>
-                <CrmNotificationsBell className="hover:bg-white" />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size={navCollapsed ? "icon" : "sm"}
-                  onClick={() => {
-                    setCollapsed((prev) => !prev);
-                    setHoverExpanded(false);
-                  }}
-                  aria-label={collapsed ? "Fixar menu lateral expandido" : "Recolher menu lateral"}
-                  className="border-[#e1e5eb] bg-white text-slate-500 hover:text-foreground"
-                >
-                  {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
-                  {isPinnedExpanded ? <span className="ml-1.5">Recolher</span> : null}
-                </Button>
-              </div>
-              <SidebarAccountMenu sessionUser={sessionUser} collapsed={navCollapsed} />
-              {isPinnedExpanded ? (
-                <p className="mt-2 truncate px-2 text-[11px] text-slate-400" title={displayName}>
-                  Sessão ativa em ambiente seguro
-                </p>
-              ) : null}
+            <div className={cn("flex border-t border-[#e6e9ef] pt-3", navCollapsed ? "justify-center" : "justify-end")}>
+              <Button
+                type="button"
+                variant="ghost"
+                size={navCollapsed ? "icon" : "sm"}
+                onClick={() => {
+                  setCollapsed((prev) => !prev);
+                  setHoverExpanded(false);
+                }}
+                aria-label={collapsed ? "Fixar menu lateral expandido" : "Recolher menu lateral"}
+                className="border-[#e1e5eb] bg-white text-slate-500 hover:text-foreground"
+              >
+                {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
+                {isPinnedExpanded ? <span className="ml-1.5">Recolher</span> : null}
+              </Button>
             </div>
           </div>
         </aside>
@@ -704,8 +701,31 @@ export function AppShell({
             collapsed ? "lg:pl-[72px]" : "lg:pl-[248px]",
           )}
         >
-          <main className="min-h-dvh min-w-0 px-4 py-5 sm:px-6 lg:py-6">{children}</main>
+          <header className="sticky top-0 z-(--z-navigation) hidden h-16 items-center justify-between gap-5 border-b border-[#e6e9ef] bg-[#f8f9fb]/95 px-6 shadow-[0_1px_2px_rgba(16,31,46,0.03)] backdrop-blur-xl lg:flex">
+            <button
+              type="button"
+              onClick={() => setLeadSearchOpen(true)}
+              className="group/search flex h-10 w-full max-w-[420px] items-center gap-2.5 rounded-(--radius-v2-lg) border border-[#e1e5eb] bg-white px-3.5 text-left shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-colors hover:border-slate-300 focus-visible:outline focus-visible:ring-3 focus-visible:ring-primary/20"
+              aria-label="Pesquisar leads"
+            >
+              <Search className="size-4 shrink-0 text-slate-400 transition-colors group-hover/search:text-slate-600" strokeWidth={1.9} />
+              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-400">
+                Pesquisar leads…
+              </span>
+              <kbd className="rounded-(--radius-v2-sm) border border-slate-200 bg-[#f8f9fb] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
+                Ctrl K
+              </kbd>
+            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <CrmNotificationsBell />
+              <SidebarAccountMenu sessionUser={sessionUser} collapsed={false} placement="header" />
+            </div>
+          </header>
+          <main className="min-h-dvh min-w-0 px-4 py-5 sm:px-6 lg:min-h-[calc(100dvh-4rem)] lg:py-6">
+            {children}
+          </main>
         </div>
+        <GlobalLeadSearch open={leadSearchOpen} onOpenChange={setLeadSearchOpen} />
       </div>
     </TooltipProvider>
   );

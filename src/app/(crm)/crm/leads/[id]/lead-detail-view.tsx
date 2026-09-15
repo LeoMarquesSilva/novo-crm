@@ -5,8 +5,10 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import {
+  ArrowLeft,
   BriefcaseBusiness,
   Building2,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
   ExternalLink,
@@ -14,7 +16,6 @@ import {
   FileText,
   Layers3,
   LinkIcon,
-  Mail,
   Presentation,
   ShieldCheck,
   UserRound,
@@ -23,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CrmEntityHeader } from "@/components/crm/crm-entity-header";
+import { LeadStageDurationStrip } from "@/components/crm/lead-stage-duration-strip";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -42,21 +44,17 @@ import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area
 import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-tasks";
 import { resolveRdFieldEditor } from "@/lib/crm/lead-rd-field-editor-map";
 import { resolvePropostaEmpresaPrincipalNome } from "@/lib/crm/proposta-empresa-principal";
-import { getEscopoEntriesForArea, isEscopoAreaComplete } from "@/lib/crm/proposta-escopo-entry";
-import { parseEscopoJson, syncEscopoToAreas } from "@/lib/crm/proposta-escopo-json";
 import { cn } from "@/lib/utils";
 import { useLeadDetailRealtime } from "@/lib/crm/use-lead-detail-realtime";
-import { leadAreas } from "@/modules/crm/application/services/new-lead-payload";
 import type { LeadDetailData, LeadDetailViewer } from "./page";
 import { LeadD4SignPanel } from "./lead-d4sign-panel";
+import { LeadClosingStatusButton } from "./lead-closing-status-button";
 import { LeadDeleteButton } from "./lead-delete-button";
-import { LeadAddEmpresaButton } from "./lead-add-empresa-button";
-import { LeadIntakeEmpresaBlock } from "./lead-intake-empresa-block";
 import {
   LeadDetailFieldEditor,
-  intakeFieldEditorKind,
   pipelineFieldToEditorProps,
 } from "./lead-detail-field-editor";
+import { LeadDetailOverview } from "./lead-detail-overview";
 import { PropostaDocumentBuilder } from "./proposta-document-builder";
 import { ContratoDocumentBuilder } from "./contrato-document-builder";
 import { LeadNotesTab } from "./lead-notes-tab";
@@ -125,17 +123,6 @@ export function LeadDetailView({
     : lead.pipelineFields.filter((f) => !HIDDEN_PIPELINE_CODES.has(f.fieldCode));
 
   const escopoDetalheProposta = isProposalStage ? lead.escopoDetalhe : null;
-  const proposalAreaField = proposalPipelineFields.find((field) => field.fieldCode === "cp_areas_objeto");
-  const selectedAreas = proposalAreaField?.value
-    .split(/[,;\n]/)
-    .map((area) => area.trim())
-    .filter(Boolean) ?? [];
-  const escopoDetalheJson = syncEscopoToAreas(
-    parseEscopoJson(escopoDetalheProposta?.value ?? ""),
-    selectedAreas,
-  );
-  const completedAreaRequests = lead.escopoSolicitacoes?.filter((item) => item.concluidoEm).length ?? 0;
-  const totalAreaRequests = lead.escopoSolicitacoes?.length ?? selectedAreas.length;
   const [activeTab, setActiveTab] = useState<LeadDetailTab>(
     isContractStage ? "contract" : isProposalStage ? "proposal" : "overview",
   );
@@ -158,16 +145,6 @@ export function LeadDetailView({
     setActiveTab(tab);
   };
 
-  const proposalScopeSummary = isProposalStage
-    ? computeProposalScopeSummary(
-        lead,
-        selectedAreas,
-        escopoDetalheJson,
-        completedAreaRequests,
-        totalAreaRequests,
-      )
-    : null;
-
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-5">
       <LeadDetailHero
@@ -177,7 +154,7 @@ export function LeadDetailView({
         ddSimNao={ddSimNao}
         heroContextBadge={heroContextBadge}
         propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
-        proposalScopeSummary={proposalScopeSummary}
+        viewer={viewer}
       />
 
       <main className="min-w-0">
@@ -186,7 +163,7 @@ export function LeadDetailView({
             onValueChange={(value) => handleTabChange(value as LeadDetailTab)}
             className="gap-4"
           >
-            <div className="overflow-x-auto border-b border-border">
+            <div className="overflow-x-auto overflow-y-hidden border-b border-border">
               <TabsList variant="line" className="h-auto min-w-max justify-start bg-transparent p-0">
                 <TabsTrigger value="overview" className="h-10 px-3 text-sm font-medium">
                   Visão geral
@@ -226,119 +203,18 @@ export function LeadDetailView({
               </TabsList>
             </div>
 
-            <TabsContent value="overview" className="mt-4 space-y-5">
-              <section id="resumo" className="scroll-mt-6">
-                <Card className="border-border bg-white p-5 sm:p-6">
-                  <CardHeader className="px-0 pt-0">
-                    <SectionEyebrow icon={UserRound}>Resumo editável</SectionEyebrow>
-                    <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
-                      Identificação e origem
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 px-0 pb-0 sm:grid-cols-2">
-                    <ReadOnlyInfo label="Tipo de lead" value={leadTypeDisplay} />
-                    <ReadOnlyInfo label="Etapa atual" value={etapaLabel} />
-                    <LeadDetailFieldEditor
-                      leadId={lead.id}
-                      scope="intake"
-                      fieldKey="solicitante_nome"
-                      label="Nome no pipeline"
-                      value={lead.solicitante}
-                      kind="text"
-                    />
-                    <LeadDetailFieldEditor
-                      leadId={lead.id}
-                      scope="intake"
-                      fieldKey="havera_due_diligence"
-                      label="Due diligence"
-                      value={ddSimNao}
-                      kind="yesno"
-                    />
-                    {isCrossSellingLead ? (
-                      lead.clienteId ? (
-                        <ReadOnlyInfo label="Cliente vinculado" value={lead.clienteId} />
-                      ) : (
-                        <ReadOnlyInfo label="Cliente vinculado" value="Ainda sem cliente vinculado" muted />
-                      )
-                    ) : null}
-                    <ReadOnlyInfo label="Criado em" value={formatDateTimeBr(lead.criadoEm)} />
-                    <ReadOnlyInfo
-                      label="Atualizado em"
-                      value={lead.atualizadoEm ? formatDateTimeBr(lead.atualizadoEm) : "Sem atualização"}
-                      muted={!lead.atualizadoEm}
-                    />
-                    {lead.rdDealUrl ? (
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Negociação no RD</p>
-                        <Link
-                          href={lead.rdDealUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 inline-flex items-center gap-1.5 text-sm font-bold text-[#173a6a] underline underline-offset-2"
-                        >
-                          Abrir no RD Station
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Link>
-                      </div>
-                    ) : isRdLead ? (
-                      <ReadOnlyInfo label="Negociação no RD" value="Lead RD sem link disponível" muted />
-                    ) : null}
-                  </CardContent>
-                </Card>
-              </section>
-
-              {lead.intakeFields.length > 0 || lead.empresasIntake.length > 0 ? (
-                <section id="cadastro" className="scroll-mt-6">
-                  <Card className="border-border bg-white p-5 sm:p-6">
-                    <CardHeader className="px-0 pt-0">
-                      <SectionEyebrow icon={BriefcaseBusiness}>Cadastro inicial</SectionEyebrow>
-                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
-                        Dados enviados na abertura
-                      </CardTitle>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Dados salvos ao criar a demanda pelo formulário interno. Clique no lápis para ajustar.
-                      </p>
-                    </CardHeader>
-                    <CardContent className="px-0 pb-0">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {lead.intakeFields
-                          .filter((field) => field.key !== "due_diligence_intake" && field.key !== "tipo_lead")
-                          .map((field) => (
-                            <LeadDetailFieldEditor
-                              key={field.key}
-                              leadId={lead.id}
-                              scope="intake"
-                              fieldKey={field.key}
-                              label={field.label}
-                              value={field.value}
-                              kind={intakeFieldEditorKind(field.key)}
-                              selectOptions={field.key === "areas_analise" ? [...leadAreas] : undefined}
-                              resolvedUser={field.resolvedUser}
-                              userIdentityMode={
-                                field.key === "email_solicitante" || field.key === "cadastrado_por"
-                                  ? "email"
-                                  : "uuid"
-                              }
-                            />
-                          ))}
-                        {lead.empresasIntake.map((emp) => (
-                          <LeadIntakeEmpresaBlock
-                            key={`emp-${emp.index}`}
-                            leadId={lead.id}
-                            initial={emp}
-                            canDelete={lead.empresasIntake.length > 1}
-                          />
-                        ))}
-                      </div>
-                      {lead.isSystemCreated ? (
-                        <LeadAddEmpresaButton leadId={lead.id} className="mt-4 border-t border-[#dfe5ee] pt-4" />
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                </section>
-              ) : (
-                <EmptyTabCard icon={BriefcaseBusiness} title="Sem cadastro inicial" description="Não há campos de abertura salvos para este lead." />
-              )}
+            <TabsContent value="overview" className="mt-4">
+              <LeadDetailOverview
+                lead={lead}
+                etapaLabel={etapaLabel}
+                leadTypeDisplay={leadTypeDisplay}
+                dueLabel={ddSimNao}
+                isCrossSellingLead={isCrossSellingLead}
+                isContractStage={isContractStage}
+                showBillingTab={showBillingTab}
+                isRdLead={isRdLead}
+                onNavigate={(tab) => handleTabChange(tab)}
+              />
             </TabsContent>
 
             {lead.haveraDueDiligence ? (
@@ -522,71 +398,22 @@ export function LeadDetailView({
   );
 }
 
-type ProposalScopeAreaStatus = {
-  area: string;
-  status: "complete" | "pending" | "overdue";
-};
-
-type ProposalScopeSummary = {
-  scopeProgressLabel: string;
-  pendingCount: number;
-  areas: ProposalScopeAreaStatus[];
-};
-
-function normalizeAreaMatch(value: string) {
+function normalizeEntityLabel(value: string): string {
   return value
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
-}
-
-function areaKeyMatches(areaKey: string, areaLabel: string) {
-  const key = normalizeAreaMatch(areaKey);
-  const label = normalizeAreaMatch(areaLabel);
-  return key === label || key.includes(label) || label.includes(key);
-}
-
-function computeProposalScopeSummary(
-  lead: LeadDetailData,
-  selectedAreas: string[],
-  escopoDetalhe: ReturnType<typeof parseEscopoJson>,
-  completedAreaRequests: number,
-  totalAreaRequests: number,
-): ProposalScopeSummary | null {
-  if (selectedAreas.length === 0) return null;
-
-  const nowIso = new Date().toISOString();
-  const areaRows = selectedAreas.map((area) => {
-    const request = lead.escopoSolicitacoes?.find((item) => areaKeyMatches(item.areaKey, area)) ?? null;
-    const entries = getEscopoEntriesForArea(escopoDetalhe, area);
-    const scopeComplete = isEscopoAreaComplete(area, entries);
-    const completed = Boolean(request?.concluidoEm) || scopeComplete;
-    const overdue = !completed && request?.prazoAte ? request.prazoAte < nowIso : false;
-    const status: ProposalScopeAreaStatus["status"] = completed
-      ? "complete"
-      : overdue
-        ? "overdue"
-        : "pending";
-    return { area, status };
-  });
-
-  const pendingCount = areaRows.filter((row) => row.status !== "complete").length;
-  const completeCount = areaRows.filter((row) => row.status === "complete").length;
-  const scopeProgressLabel =
-    totalAreaRequests > 0
-      ? `${Math.max(completedAreaRequests, completeCount)}/${totalAreaRequests}`
-      : `${completeCount}/${areaRows.length}`;
-
-  return { scopeProgressLabel, pendingCount, areas: areaRows };
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^\p{Letter}\p{Number}]+/gu, "")
+    .toLocaleLowerCase("pt-BR");
 }
 
 function LeadDetailHero({
   lead,
   etapaLabel,
   leadTypeDisplay,
+  ddSimNao,
   heroContextBadge,
   propostaEmpresaPrincipalNome,
+  viewer,
 }: {
   lead: LeadDetailData;
   etapaLabel: string;
@@ -594,7 +421,7 @@ function LeadDetailHero({
   ddSimNao: string;
   heroContextBadge: { label: string; className: string } | null;
   propostaEmpresaPrincipalNome: string | null;
-  proposalScopeSummary: ProposalScopeSummary | null;
+  viewer: LeadDetailViewer | null;
 }) {
   const isPosVenda = isPosVendaPipelineStage(lead.etapa);
   const pipelineLabel = isPosVenda ? "Pós-venda" : isCadastroLeadOnlyStage(lead.etapa) ? "Pré-funil" : "Funil comercial";
@@ -604,6 +431,25 @@ function LeadDetailHero({
     propostaEmpresaPrincipalNome?.trim() ||
     lead.empresasIntake[0]?.razao_social?.trim() ||
     null;
+  const empresaIsTitle =
+    empresaLabel != null &&
+    normalizeEntityLabel(empresaLabel) === normalizeEntityLabel(lead.solicitante);
+  const canManageLead = viewer?.role === "admin" || viewer?.role === "comercial";
+  const solicitanteNomeField = lead.intakeFields.find(
+    (field) => field.key === "solicitante_nome",
+  );
+  const solicitanteEmailField = lead.intakeFields.find(
+    (field) => field.key === "email_solicitante",
+  );
+  const solicitanteUser =
+    solicitanteNomeField?.resolvedUser ?? solicitanteEmailField?.resolvedUser;
+  const solicitanteInternoNome =
+    solicitanteUser?.fullName?.trim() ||
+    solicitanteNomeField?.value?.trim() ||
+    lead.solicitanteEmail?.trim() ||
+    null;
+  const solicitanteInternoEmail =
+    solicitanteEmailField?.value?.trim() || lead.solicitanteEmail?.trim() || null;
 
   // Nome e avatar vêm sempre da mesma fonte (cadastradoPor.resolvedUser) — nunca
   // misturar fallbacks independentes aqui. `lead.ownerUserName`/`ownerUserAvatarUrl`
@@ -615,45 +461,46 @@ function LeadDetailHero({
   const ownerAvatar = cadastradoPor?.resolvedUser?.avatarUrl ?? null;
 
   return (
-    <CrmEntityHeader
-      breadcrumb={
-        <nav className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground" aria-label="Breadcrumb">
-          <Link href="/crm/leads" className="hover:text-foreground">
-            Leads
-          </Link>
-          <span aria-hidden>/</span>
-          <span className="truncate text-foreground">{lead.solicitante}</span>
-        </nav>
-      }
-      title={lead.solicitante}
-      subtitle={
-        <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-4">
-          {empresaLabel ? (
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="truncate">{empresaLabel}</span>
-            </span>
-          ) : null}
-          {lead.solicitanteEmail ? (
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="truncate">{lead.solicitanteEmail}</span>
-            </span>
-          ) : null}
-          {!empresaLabel && !lead.solicitanteEmail ? (
-            <span>Oportunidade comercial</span>
-          ) : null}
-        </div>
-      }
-      badges={
-        <>
-          <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {pipelineLabel}
-          </span>
-          <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {leadTypeDisplay}
-          </span>
-          {heroContextBadge ? (
+    <div className="space-y-4">
+      <CrmEntityHeader
+        breadcrumb={
+          <nav aria-label="Breadcrumb">
+            <Link
+              href="/crm/leads"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="size-3.5" aria-hidden />
+              Voltar para leads
+            </Link>
+          </nav>
+        }
+        title={lead.solicitante}
+        icon={Building2}
+        subtitle={
+          <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-4">
+            {empresaLabel && !empresaIsTitle ? (
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{empresaLabel}</span>
+              </span>
+            ) : null}
+            {solicitanteInternoNome ? (
+              <CrmUserLabel
+                name={solicitanteInternoNome}
+                avatarUrl={solicitanteUser?.avatarUrl}
+                size="md"
+                variant="stacked"
+                prefix="Solicitante interno"
+                sublabel={solicitanteInternoEmail ?? undefined}
+              />
+            ) : null}
+            {(!empresaLabel || empresaIsTitle) && !solicitanteInternoNome ? (
+              <span>Oportunidade comercial</span>
+            ) : null}
+          </div>
+        }
+        badges={
+          heroContextBadge ? (
             <span
               className={cn(
                 "rounded-full border px-2 py-0.5 text-[11px] font-medium",
@@ -662,50 +509,111 @@ function LeadDetailHero({
             >
               {heroContextBadge.label}
             </span>
-          ) : null}
-        </>
-      }
-      actions={
-        <>
-          {lead.rdDealUrl ? (
-            <Link
-              href={lead.rdDealUrl}
-              target="_blank"
-              rel="noreferrer"
-              className={buttonVariants({ variant: "outline", size: "control" })}
+          ) : undefined
+        }
+        actions={
+          lead.rdDealUrl || canManageLead ? (
+          <div
+            className="flex flex-wrap items-center gap-1.5 rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-1"
+            role="group"
+            aria-label="Ações do lead"
+          >
+            {canManageLead && lead.encerramento !== "ganho" ? (
+              <LeadClosingStatusButton
+                leadId={lead.id}
+                isLost={lead.encerramento === "perdido"}
+              />
+            ) : null}
+            {lead.rdDealUrl ? (
+              <Link
+                href={lead.rdDealUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={buttonVariants({ variant: "outline", size: "control" })}
+              >
+                RD Station
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
+            ) : null}
+            {canManageLead && lead.isSystemCreated ? (
+              <>
+                <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+                <LeadDeleteButton leadId={lead.id} variant="icon" />
+              </>
+            ) : null}
+          </div>
+          ) : undefined
+        }
+      />
+
+      <LeadStageDurationStrip
+        currentStage={lead.etapa}
+        timeline={lead.lifecycleTimeline}
+      />
+
+      <div className="grid gap-px overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-neutral-200 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.15fr_1fr_1.25fr]">
+        <HeaderHighlight icon={BriefcaseBusiness} label="Etapa atual">
+          <span className="font-semibold">{etapaLabel}</span>
+        </HeaderHighlight>
+        <HeaderHighlight icon={UserRound} label="Cadastro realizado por">
+          {ownerName ? (
+            <CrmUserLabel
+              name={ownerName}
+              avatarUrl={ownerAvatar}
+              size="sm"
+              variant="inline"
+            />
+          ) : (
+            <span className="text-muted-foreground">Não identificado</span>
+          )}
+        </HeaderHighlight>
+        <HeaderHighlight icon={CalendarDays} label={lead.atualizadoEm ? "Última atualização" : "Criado em"}>
+          <span className="font-semibold tabular-nums">
+            {formatDateTimeBr(lead.atualizadoEm ?? lead.criadoEm)}
+          </span>
+        </HeaderHighlight>
+        <HeaderHighlight icon={Layers3} label="Origem e tipo">
+          <span className="flex flex-wrap gap-1.5">
+            <Badge variant="outline">{pipelineLabel}</Badge>
+            <Badge variant="outline">{leadTypeDisplay}</Badge>
+            <Badge
+              variant="outline"
+              className={
+                lead.haveraDueDiligence
+                  ? "border-info-border bg-info-bg text-info-text"
+                  : undefined
+              }
             >
-              RD Station
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
-          ) : null}
-          {lead.isSystemCreated ? <LeadDeleteButton leadId={lead.id} className="mt-0" /> : null}
-        </>
-      }
-      context={[
-        { label: "Etapa", value: etapaLabel },
-        ...(ownerName
-          ? [
-              {
-                label: "Responsável",
-                value: (
-                  <CrmUserLabel
-                    name={ownerName}
-                    avatarUrl={ownerAvatar}
-                    size="xs"
-                    variant="inline"
-                  />
-                ),
-              },
-            ]
-          : []),
-        {
-          // Achado da Codex: rótulo fixo "Atualização" mostrando a data de criação
-          // quando não há atualizadoEm era enganoso — label acompanha a fonte real.
-          label: lead.atualizadoEm ? "Atualização" : "Criação",
-          value: formatDateTimeBr(lead.atualizadoEm ?? lead.criadoEm),
-        },
-      ]}
-    />
+              DUE: {ddSimNao}
+            </Badge>
+          </span>
+        </HeaderHighlight>
+      </div>
+    </div>
+  );
+}
+
+function HeaderHighlight({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: LucideIcon;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 bg-white px-4 py-3.5">
+      <div className="flex items-start gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 text-interactive-700">
+          <Icon className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-muted-foreground">{label}</p>
+          <div className="mt-1 min-w-0 text-sm text-foreground">{children}</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1654,15 +1562,6 @@ function SectionEyebrow({
     <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-[#24615b]">
       <Icon className="h-4 w-4" />
       {children}
-    </div>
-  );
-}
-
-function ReadOnlyInfo({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div className="rounded-2xl border border-[#e6e9ef] bg-white p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-      <p className={cn("mt-1 text-sm font-semibold text-[#102033]", muted && "text-slate-400")}>{value}</p>
     </div>
   );
 }

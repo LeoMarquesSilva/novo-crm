@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Pencil, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { TimeInputBr } from "@/components/ui/time-input-br";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,6 @@ const YES_NO_LABELS = { Sim: "Sim", Não: "Não" } as const;
 import { formatDateYmdBr, formatMaybeDateLikeBr, normalizeTimeToHm } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 import {
-  initialsFromFullName,
   type ResolvedAppUser,
 } from "@/lib/crm/resolve-app-user-display";
 import {
@@ -64,6 +63,10 @@ interface LeadDetailFieldEditorProps {
    * `email`: valor = e-mail (intake: solicitante / cadastrado por); PATCH grava e-mail.
    */
   userIdentityMode?: "uuid" | "email";
+  /** Para identidade interna, impede e-mail livre e exige uma opção de `app_users`. */
+  allowExternalUser?: boolean;
+  /** `row` integra o campo numa Surface maior, sem criar um mini-card aninhado. */
+  displayVariant?: "card" | "row";
   className?: string;
   onAfterSave?: () => void;
 }
@@ -170,15 +173,14 @@ function UserAvatarName({
   avatarUrl: string | null | undefined;
 }) {
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-2">
-      <Avatar className="size-6 shrink-0">
-        {avatarUrl ? (
-          <AvatarImage src={avatarUrl} alt="" className="object-cover" />
-        ) : null}
-        <AvatarFallback className="text-[10px]">{initialsFromFullName(name)}</AvatarFallback>
-      </Avatar>
-      <span className="truncate">{name}</span>
-    </span>
+    <CrmUserLabel
+      name={name}
+      avatarUrl={avatarUrl}
+      size="sm"
+      variant="inline"
+      className="w-full flex-1"
+      nameClassName="font-medium"
+    />
   );
 }
 
@@ -195,6 +197,8 @@ export function LeadDetailFieldEditor({
   omitLabel,
   resolvedUser,
   userIdentityMode = "uuid",
+  allowExternalUser = true,
+  displayVariant = "card",
   className,
   onAfterSave,
 }: LeadDetailFieldEditorProps) {
@@ -240,6 +244,23 @@ export function LeadDetailFieldEditor({
     }
     return appUsers.find((u) => u.id === draft) ?? null;
   }, [appUsers, draft, kind, userIdentityMode]);
+
+  const committedAppUser = useMemo(() => {
+    if (kind !== "user") return null;
+    if (userIdentityMode === "email") {
+      const email = committedValue.trim().toLowerCase();
+      return appUsers.find((user) => (user.email ?? "").trim().toLowerCase() === email) ?? null;
+    }
+    return appUsers.find((user) => user.id === committedValue) ?? null;
+  }, [appUsers, committedValue, kind, userIdentityMode]);
+
+  const displayedResolvedUser =
+    committedAppUser != null
+      ? {
+          fullName: committedAppUser.full_name,
+          avatarUrl: committedAppUser.avatar_url,
+        }
+      : resolvedUser;
 
   const usersWithEmail = useMemo(
     () => appUsers.filter((u): u is AppUserOption & { email: string } => Boolean(u.email?.trim())),
@@ -330,13 +351,24 @@ export function LeadDetailFieldEditor({
   return (
     <div
       className={cn(
-        omitLabel ? "" : "rounded-(--radius-v2-md) border border-neutral-200 bg-white p-3",
+        omitLabel
+          ? ""
+          : displayVariant === "row"
+            ? "min-w-0 bg-white px-4 py-3.5"
+            : "rounded-(--radius-v2-md) border border-neutral-200 bg-white p-3",
         className,
       )}
     >
       <div className="flex items-start justify-between gap-2">
         {!omitLabel ? (
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p
+            className={cn(
+              "text-xs font-medium text-muted-foreground",
+              displayVariant === "card" && "uppercase tracking-wide",
+            )}
+          >
+            {label}
+          </p>
         ) : (
           <span className="sr-only">{label}</span>
         )}
@@ -375,18 +407,16 @@ export function LeadDetailFieldEditor({
       </div>
 
       {!editing ? (
-        resolvedUser && committedValue ? (
-          <div className="mt-1 flex items-center gap-2.5">
-            <Avatar className="size-8 shrink-0 border border-border bg-muted/40">
-              {resolvedUser.avatarUrl ? (
-                <AvatarImage src={resolvedUser.avatarUrl} alt="" className="object-cover" />
-              ) : null}
-              <AvatarFallback className="text-[11px] font-medium">
-                {initialsFromFullName(resolvedUser.fullName)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-sm font-medium text-foreground">{resolvedUser.fullName}</span>
-          </div>
+        displayedResolvedUser && committedValue ? (
+          <CrmUserLabel
+            name={displayedResolvedUser.fullName}
+            avatarUrl={displayedResolvedUser.avatarUrl}
+            size={displayVariant === "row" ? "sm" : "md"}
+            variant={userIdentityMode === "email" ? "stacked" : "inline"}
+            sublabel={userIdentityMode === "email" ? committedValue : undefined}
+            className="mt-1"
+            nameClassName="font-medium"
+          />
         ) : kind === "yesno" && committedValue ? (
           <p className="mt-1 text-sm font-medium text-foreground">{normalizeYesNoLabel(committedValue)}</p>
         ) : kind === "multiselect" || kind === "areas" ? (
@@ -561,17 +591,25 @@ export function LeadDetailFieldEditor({
                     ))}
                   </CrmSelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground">
-                  Ou digite um e-mail que não esteja na lista (ex.: contato externo).
-                </p>
-                <Input
-                  type="email"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  disabled={saving}
-                  className="bg-white"
-                  placeholder="nome@empresa.com.br"
-                />
+                {allowExternalUser ? (
+                  <>
+                    <p className="text-[11px] text-muted-foreground">
+                      Ou digite um e-mail que não esteja na lista (ex.: contato externo).
+                    </p>
+                    <Input
+                      type="email"
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      disabled={saving}
+                      className="bg-white"
+                      placeholder="nome@empresa.com.br"
+                    />
+                  </>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Somente utilizadores ativos do CRM podem ser selecionados.
+                  </p>
+                )}
               </div>
             ) : (
               <Select
@@ -699,7 +737,19 @@ export function LeadDetailFieldEditor({
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="cta" disabled={saving} onClick={() => void save()}>
+            <Button
+              type="button"
+              size="sm"
+              variant="cta"
+              disabled={
+                saving ||
+                (kind === "user" &&
+                  userIdentityMode === "email" &&
+                  !allowExternalUser &&
+                  !selectedAppUser)
+              }
+              onClick={() => void save()}
+            >
               <Check className="mr-1 h-3.5 w-3.5" />
               {saving ? "Salvando…" : "Salvar"}
             </Button>

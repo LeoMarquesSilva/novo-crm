@@ -5,9 +5,9 @@ import {
   LEAD_RD_FIELD_LABELS,
 } from "@/lib/crm/lead-rd-field-labels";
 import {
-  fetchAppUsersByEmails,
+  fetchAppUsersByEmailLookup,
   looksLikeUuid,
-  resolvedUserFromEmailMap,
+  resolveSolicitanteInternoDisplay,
   type ResolvedAppUser,
 } from "@/lib/crm/resolve-app-user-display";
 import { appUserAreaCandidatesForScopeKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
@@ -401,16 +401,6 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       ? parseEmpresasIntakeFromRecord(intake as Record<string, unknown>)
       : [];
 
-  const emailsForIntakeUsers: string[] = [];
-  for (const f of intakeFieldsRaw) {
-    if (
-      (f.key === "email_solicitante" || f.key === "cadastrado_por") &&
-      f.value.includes("@")
-    ) {
-      emailsForIntakeUsers.push(f.value.trim());
-    }
-  }
-
   const defIds = [...new Set((fvRows ?? []).map((r) => r.field_definition_id))];
   const wantsEscopoSolicitacoes = etapa === "confeccao_proposta";
   const wantsContrato = ["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(etapa);
@@ -418,13 +408,13 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
   // Segunda leva: depende de `etapa`/`defIds` (calculados acima), mas as 5
   // buscas entre si são independentes — outra vez em paralelo.
   const [
-    intakeEmailMap,
+    intakeUserLookup,
     { data: defRows, error: defErr },
     { data: tribRows, error: tribErr },
     { data: solRows, error: solErr },
     { data: contract, error: contractError },
   ] = await Promise.all([
-    fetchAppUsersByEmails(supabase, emailsForIntakeUsers),
+    fetchAppUsersByEmailLookup(supabase),
     defIds.length > 0
       ? supabase
           .from("field_definitions")
@@ -464,13 +454,30 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
   if (solErr) throw solErr;
   if (contractError) throw contractError;
 
+  const solicitanteCadastroNome =
+    intakeFieldsRaw.find((field) => field.key === "solicitante_nome")?.value ?? null;
+  const solicitanteInterno = resolveSolicitanteInternoDisplay({
+    nomeCadastro: solicitanteCadastroNome,
+    solicitanteEmail,
+    usersByEmail: intakeUserLookup,
+  });
+
   const intakeFields = intakeFieldsRaw
     .filter((f) => !/^empresa_\d+_(razao|doc)$/.test(f.key))
     .map((f) => {
+      if (f.key === "solicitante_nome") {
+        return {
+          ...f,
+          resolvedUser: {
+            fullName: solicitanteInterno.nome,
+            avatarUrl: solicitanteInterno.avatarUrl,
+          },
+        };
+      }
       if (f.key !== "email_solicitante" && f.key !== "cadastrado_por") {
         return { ...f };
       }
-      const ru = resolvedUserFromEmailMap(intakeEmailMap, f.value);
+      const ru = intakeUserLookup[f.value.trim().toLowerCase()];
       return { ...f, ...(ru ? { resolvedUser: ru } : {}) };
     });
 

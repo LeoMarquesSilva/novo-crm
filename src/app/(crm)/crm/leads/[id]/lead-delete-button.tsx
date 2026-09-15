@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 interface LeadDeleteButtonProps {
   leadId: string;
   /** Variante visual quando o botão fica sobre fundo escuro (ex.: header do lead). */
-  variant?: "default" | "onDark";
+  variant?: "default" | "onDark" | "icon";
   className?: string;
 }
 
@@ -66,17 +66,25 @@ export function LeadDeleteButton({ leadId, variant = "default", className }: Lea
       >
         <Button
           type="button"
-          variant={variant === "onDark" ? "outline" : "destructive"}
-          size="sm"
+          variant={variant === "onDark" || variant === "icon" ? "outline" : "destructive"}
+          size={variant === "icon" ? "icon" : "sm"}
           disabled={isDeleting}
           onClick={() => setOpen(true)}
+          aria-label={variant === "icon" ? "Excluir lead" : undefined}
+          title={variant === "icon" ? "Excluir lead" : undefined}
           className={cn(
             variant === "onDark" &&
               "border-[#fecaca] bg-white text-[#b91c1c] shadow-sm hover:bg-[#fef2f2] hover:text-[#991b1b] focus-visible:border-[#fca5a5] focus-visible:ring-[#fecaca]/40",
+            variant === "icon" &&
+              "border-danger-border text-danger-text hover:border-danger-border hover:bg-danger-bg",
           )}
         >
-          <Trash2 className="mr-1.5 h-4 w-4" />
-          {isDeleting ? "Excluindo..." : "Excluir lead"}
+          <Trash2 className={cn("h-4 w-4", variant !== "icon" && "mr-1.5")} />
+          {variant === "icon" ? (
+            <span className="sr-only">{isDeleting ? "Excluindo..." : "Excluir lead"}</span>
+          ) : (
+            isDeleting ? "Excluindo..." : "Excluir lead"
+          )}
         </Button>
         <AlertDialogContent>
           <AlertDialogHeader>

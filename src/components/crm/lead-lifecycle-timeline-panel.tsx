@@ -10,9 +10,11 @@ import {
   ListChecks,
   MessageSquareText,
   PencilLine,
+  RotateCcw,
   Send,
   Sparkles,
   UserRound,
+  XCircle,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDateTimeBr } from "@/lib/format-datetime";
@@ -33,6 +35,8 @@ const ACTIVITY_KIND_META: Record<
   { icon: LucideIcon; tone: string; label: string }
 > = {
   lead_criado: { icon: Sparkles, tone: "bg-violet-bg text-violet-text", label: "Criação" },
+  lead_perdido: { icon: XCircle, tone: "bg-danger-bg text-danger-text", label: "Encerramento" },
+  lead_reaberto: { icon: RotateCcw, tone: "bg-info-bg text-info-text", label: "Reabertura" },
   etapa_alterada: { icon: GitBranch, tone: "bg-info-bg text-info-text", label: "Etapa" },
   campo_pipeline_alterado: { icon: PencilLine, tone: "bg-warning-bg text-warning-text", label: "Campo" },
   campo_intake_alterado: { icon: PencilLine, tone: "bg-warning-bg text-warning-text", label: "Cadastro" },
