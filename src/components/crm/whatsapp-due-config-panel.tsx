@@ -367,7 +367,7 @@ export function WhatsappDueConfigPanel({
             <AlertDialogTitle>Remover destino</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja remover{" "}
-              <span className="font-semibold text-[#102033]">{deleteTarget?.label}</span> dos
+              <span className="font-semibold text-foreground">{deleteTarget?.label}</span> dos
               destinos salvos? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -383,7 +383,7 @@ export function WhatsappDueConfigPanel({
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card className="glass-card glass-card-no-float">
+      <Card>
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -429,9 +429,9 @@ export function WhatsappDueConfigPanel({
           )}
 
           {/* Atribuição de destino por finalidade */}
-          <div className="rounded-2xl border border-[#dfe5ee] bg-white/60 p-4">
+          <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
             <div className="mb-4">
-              <p className="text-sm font-semibold text-[#102033]">Destino por finalidade</p>
+              <p className="text-sm font-semibold text-foreground">Destino por finalidade</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Escolha qual destino salvo usar em cada integração. Pode repetir o mesmo número em
                 várias finalidades (será duplicado o registro). Só um ativo por finalidade.
@@ -449,17 +449,17 @@ export function WhatsappDueConfigPanel({
                   return (
                     <div
                       key={uc}
-                      className={`rounded-xl border p-3 transition-colors ${
+                      className={`rounded-(--radius-v2-xl) border p-3 transition-colors ${
                         active
-                          ? "border-emerald-200 bg-emerald-50/50"
-                          : "border-[#e5e7eb] bg-white/50"
+                          ? "border-success-border bg-success-bg"
+                          : "border-neutral-200 bg-neutral-50"
                       }`}
                     >
                       <div className="mb-2 flex items-center gap-2">
                         <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${active ? "bg-emerald-500" : "bg-slate-300"}`}
+                          className={`h-2 w-2 shrink-0 rounded-full ${active ? "bg-success-text" : "bg-neutral-300"}`}
                         />
-                        <p className="text-xs font-semibold text-[#102033]">
+                        <p className="text-xs font-semibold text-foreground">
                           {USE_CASE_LABELS[uc]}
                         </p>
                         {isActivating && (
@@ -472,7 +472,7 @@ export function WhatsappDueConfigPanel({
                         disabled={isActivating || isPending}
                       >
                         <SelectTrigger className="h-8 w-full bg-white text-xs">
-                          <span className={active ? "truncate text-[#102033]" : "text-muted-foreground"}>
+                          <span className={active ? "truncate text-foreground" : "text-muted-foreground"}>
                             {active
                               ? `${active.label} · ${DESTINATION_TYPE_LABELS[active.destination_type]}`
                               : "Sem destino ativo"}
@@ -507,7 +507,7 @@ export function WhatsappDueConfigPanel({
           {/* Destinos salvos */}
           <div className="space-y-3">
             <div>
-              <p className="text-sm font-bold text-[#102033]">Destinos salvos</p>
+              <p className="text-sm font-bold text-foreground">Destinos salvos</p>
               <p className="text-xs text-muted-foreground">
                 Um destino ativo por finalidade. O mesmo WhatsApp pode aparecer em mais de uma
                 finalidade com registros separados.
@@ -515,7 +515,7 @@ export function WhatsappDueConfigPanel({
             </div>
 
             {configs.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[#d5dbe6] bg-white/45 p-6 text-center text-sm text-muted-foreground">
+              <div className="rounded-(--radius-v2-xl) border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center text-sm text-muted-foreground">
                 Nenhum destino salvo ainda. Clique em &quot;Novo destino&quot; ou salve um contato da Agenda.
               </div>
             ) : (
@@ -523,19 +523,19 @@ export function WhatsappDueConfigPanel({
                 {configs.map((config) => (
                   <div
                     key={config.id}
-                    className={`rounded-2xl border p-4 shadow-sm transition-colors ${
+                    className={`rounded-(--radius-v2-xl) border p-4 transition-colors ${
                       config.is_active
-                        ? "border-emerald-200 bg-emerald-50/50"
-                        : "border-[#dfe5ee] bg-white/70"
+                        ? "border-success-border bg-success-bg"
+                        : "border-neutral-200 bg-white"
                     }`}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-bold text-[#102033]">{config.label}</p>
+                          <p className="font-bold text-foreground">{config.label}</p>
                           {config.is_active && (
-                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            <Badge className="bg-success-bg text-success-text hover:bg-success-bg">
+                              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-success-text" />
                               Ativo
                             </Badge>
                           )}
@@ -546,14 +546,14 @@ export function WhatsappDueConfigPanel({
                             {USE_CASE_LABELS[config.use_case]}
                           </Badge>
                         </div>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           {formatDestination(config.destination, config.destination_type)}
                         </p>
                         <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/60">
                           {config.destination}
                         </p>
                         {config.notes ? (
-                          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                             {config.notes}
                           </p>
                         ) : null}
@@ -601,15 +601,15 @@ export function WhatsappDueConfigPanel({
           </div>
 
           {/* Agenda da Evolution API */}
-          <div className="space-y-3 rounded-2xl border border-[#dfe5ee] bg-white/60 p-4 shadow-sm">
+          <div className="space-y-3 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-(--radius-v2-xl) bg-interactive-50 text-interactive-600">
                   <Wifi className="h-4 w-4" />
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-bold text-[#102033]">Agenda da Evolution API</p>
+                    <p className="text-sm font-bold text-foreground">Agenda da Evolution API</p>
                     {instanceName && (
                       <Badge variant="outline" className="font-mono text-[10px]">
                         {instanceName}
@@ -642,9 +642,9 @@ export function WhatsappDueConfigPanel({
             {(contacts.length > 0 || groups.length > 0) && (
               <div className="grid gap-3 lg:grid-cols-2">
                 {/* Contatos */}
-                <div className="space-y-2 rounded-xl border border-[#e6ebf2] bg-white/70 p-3">
+                <div className="space-y-2 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Contatos ({filteredContacts.length}
                       {contactSearch && `/${contacts.length}`})
                     </p>
@@ -669,10 +669,10 @@ export function WhatsappDueConfigPanel({
                       {filteredContacts.map((contact) => (
                         <div
                           key={contact.id}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-[#eef1f6] bg-white px-2.5 py-2"
+                          className="flex items-center justify-between gap-2 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-2.5 py-2"
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-xs font-medium text-[#102033]">
+                            <p className="truncate text-xs font-medium text-foreground">
                               {contact.label}
                             </p>
                             <p className="truncate text-[11px] text-muted-foreground">
@@ -699,9 +699,9 @@ export function WhatsappDueConfigPanel({
                 </div>
 
                 {/* Grupos */}
-                <div className="space-y-2 rounded-xl border border-[#e6ebf2] bg-white/70 p-3">
+                <div className="space-y-2 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Grupos ({filteredGroups.length}
                       {groupSearch && `/${groups.length}`})
                     </p>
@@ -726,10 +726,10 @@ export function WhatsappDueConfigPanel({
                       {filteredGroups.map((group) => (
                         <div
                           key={group.id}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-[#eef1f6] bg-white px-2.5 py-2"
+                          className="flex items-center justify-between gap-2 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-2.5 py-2"
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-xs font-medium text-[#102033]">
+                            <p className="truncate text-xs font-medium text-foreground">
                               {group.label}
                             </p>
                             <p className="truncate font-mono text-[11px] text-muted-foreground">
@@ -758,7 +758,7 @@ export function WhatsappDueConfigPanel({
             )}
 
             {contacts.length === 0 && groups.length === 0 && (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#dfe5ee] py-6 text-center">
+              <div className="flex flex-col items-center gap-2 rounded-(--radius-v2-xl) border border-dashed border-neutral-300 py-6 text-center">
                 <Wifi className="h-6 w-6 text-muted-foreground/40" />
                 <p className="text-xs text-muted-foreground">
                   Clique em &quot;Atualizar&quot; para carregar a agenda da instância conectada.
@@ -801,7 +801,6 @@ export function WhatsappDueConfigPanel({
                       setModalForm((prev) => ({ ...(prev ?? EMPTY_FORM), label: e.target.value }))
                     }
                     placeholder="Ex.: Grupo Comercial BP"
-                    className="bg-white/70"
                   />
                 </div>
 
@@ -819,7 +818,7 @@ export function WhatsappDueConfigPanel({
                         }
                       }}
                     >
-                      <SelectTrigger className="bg-white/70 text-sm">
+                      <SelectTrigger className="text-sm">
                         <CrmSelectValue
                           value={modalForm?.destination_type}
                           labels={DESTINATION_TYPE_LABELS}
@@ -843,7 +842,7 @@ export function WhatsappDueConfigPanel({
                         }));
                       }}
                     >
-                      <SelectTrigger className="bg-white/70 text-sm">
+                      <SelectTrigger className="text-sm">
                         <CrmSelectValue
                           value={modalForm?.use_case}
                           labels={USE_CASE_LABELS}
@@ -871,12 +870,12 @@ export function WhatsappDueConfigPanel({
                       }))
                     }
                     placeholder="5511999999999@s.whatsapp.net"
-                    className="bg-white/70 font-mono text-xs"
+                    className="font-mono text-xs"
                   />
                   {modalForm?.destination && (
                     <p className="text-[11px] text-muted-foreground">
                       Exibição:{" "}
-                      <span className="font-medium text-[#102033]">
+                      <span className="font-medium text-foreground">
                         {formatDestination(
                           modalForm.destination,
                           modalForm.destination_type ?? "number",
@@ -886,7 +885,7 @@ export function WhatsappDueConfigPanel({
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white/60 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-(--radius-v2-xl) border border-neutral-200 bg-neutral-50 px-3 py-2">
                   <Switch
                     checked={modalForm?.is_active ?? true}
                     onCheckedChange={(value) =>
@@ -904,7 +903,7 @@ export function WhatsappDueConfigPanel({
                       setModalForm((prev) => ({ ...(prev ?? EMPTY_FORM), notes: e.target.value }))
                     }
                     placeholder="Ex.: contato sincronizado da Evolution API."
-                    className="min-h-16 bg-white/70"
+                    className="min-h-16"
                   />
                 </div>
               </div>
@@ -919,7 +918,6 @@ export function WhatsappDueConfigPanel({
                 </Button>
                 <Button
                   type="button"
-                  className="bg-crm-gradient-primary text-white shadow"
                   disabled={
                     isPending || !modalForm?.label?.trim() || !modalForm?.destination?.trim()
                   }

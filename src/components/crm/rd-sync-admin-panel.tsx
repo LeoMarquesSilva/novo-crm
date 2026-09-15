@@ -59,7 +59,7 @@ export function RdSyncAdminPanel() {
   }
 
   return (
-    <Card className="glass-card glass-card-no-float">
+    <Card>
       <CardHeader className="space-y-2">
         <CardTitle className="text-base">RD Station CRM — sincronização</CardTitle>
         <p className="text-xs text-muted-foreground">

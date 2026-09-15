@@ -84,32 +84,20 @@ export function IntegracoesAdminTabs({
       )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)} className="w-full space-y-5">
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted/50 p-1.5 sm:gap-2">
-          <TabsTrigger
-            value="rd"
-            className="gap-1.5 px-3 py-2 text-xs sm:text-sm data-[state=active]:shadow-sm"
-          >
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 sm:gap-2">
+          <TabsTrigger value="rd" className="gap-1.5 px-3 py-2 text-xs sm:text-sm">
             <RefreshCw className="h-3.5 w-3.5 shrink-0 opacity-70" />
             RD Station
           </TabsTrigger>
-          <TabsTrigger
-            value="sharepoint"
-            className="gap-1.5 px-3 py-2 text-xs sm:text-sm data-[state=active]:shadow-sm"
-          >
+          <TabsTrigger value="sharepoint" className="gap-1.5 px-3 py-2 text-xs sm:text-sm">
             <Cloud className="h-3.5 w-3.5 shrink-0 opacity-70" />
             SharePoint
           </TabsTrigger>
-          <TabsTrigger
-            value="email"
-            className="gap-1.5 px-3 py-2 text-xs sm:text-sm data-[state=active]:shadow-sm"
-          >
+          <TabsTrigger value="email" className="gap-1.5 px-3 py-2 text-xs sm:text-sm">
             <Mail className="h-3.5 w-3.5 shrink-0 opacity-70" />
             E-mail (leads)
           </TabsTrigger>
-          <TabsTrigger
-            value="whatsapp"
-            className="gap-1.5 px-3 py-2 text-xs sm:text-sm data-[state=active]:shadow-sm"
-          >
+          <TabsTrigger value="whatsapp" className="gap-1.5 px-3 py-2 text-xs sm:text-sm">
             <MessageCircle className="h-3.5 w-3.5 shrink-0 opacity-70" />
             WhatsApp
           </TabsTrigger>

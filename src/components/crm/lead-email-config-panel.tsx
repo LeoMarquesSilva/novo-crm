@@ -162,7 +162,7 @@ function UsersByAreaSection({ users }: { users: AppUserWithEmail[] }) {
         {areas.map((area) => {
           const IconLabel = <AreaIconLabel area={area} className="text-xs font-semibold text-foreground" />;
           return (
-            <div key={area} className="rounded-lg border bg-card p-3 space-y-2">
+            <div key={area} className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3 space-y-2">
               <div className="flex items-center gap-2 border-b border-border/60 pb-2">{IconLabel}</div>
               <div className="space-y-2">
                 {grouped[area].map((u) => (
@@ -229,7 +229,7 @@ function EmailTemplatesEditor({
   const keysLine = LEAD_EMAIL_TEMPLATE_PLACEHOLDER_KEYS.map((k) => `{{${k}}}`).join(", ");
 
   return (
-    <div className="space-y-4 rounded-lg border bg-card p-4">
+    <div className="space-y-4 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
       <div>
         <h3 className="text-sm font-semibold">Modelos de e-mail (HTML)</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -297,7 +297,7 @@ function EmailTemplatesEditor({
         </TabsContent>
       </Tabs>
 
-      <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+      <div className="space-y-2 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-3">
         <p className="text-xs font-medium text-foreground">Pré-visualização (dados fictícios)</p>
         <p className="text-xs text-muted-foreground">
           Assunto: <span className="font-mono text-foreground">{preview.subject}</span>
@@ -313,7 +313,7 @@ function EmailTemplatesEditor({
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
         <div className="text-sm min-h-[22px]">
           {saveOk && (
-            <span className="flex items-center gap-1.5 text-green-600">
+            <span className="flex items-center gap-1.5 text-success-text">
               <CheckCircle2 className="h-4 w-4" />
               Modelos salvos.
             </span>
@@ -452,8 +452,8 @@ export function LeadEmailConfigPanel() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
-              <Mail className="h-5 w-5 text-blue-600" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-(--radius-v2-xl) bg-interactive-50">
+              <Mail className="h-5 w-5 text-interactive-600" />
             </div>
             <div>
               <CardTitle className="text-base">Notificação por E-mail — Novos Leads</CardTitle>
@@ -468,8 +468,8 @@ export function LeadEmailConfigPanel() {
                 variant="outline"
                 className={
                   outlook.configured
-                    ? "border-green-200 bg-green-50 text-green-700"
-                    : "border-red-200 bg-red-50 text-red-700"
+                    ? "border-success-border bg-success-bg text-success-text"
+                    : "border-danger-border bg-danger-bg text-danger-text"
                 }
               >
                 {outlook.configured ? (
@@ -551,11 +551,11 @@ export function LeadEmailConfigPanel() {
               )}
 
               {outlook?.delegated_connected && outlook.from && (
-                <div className="flex flex-col gap-3 rounded-lg border border-emerald-200/80 bg-emerald-50/40 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 rounded-(--radius-v2-xl) border border-success-border bg-success-bg px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />
+                    <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success-text" />
                     <div>
-                      <p className="font-medium text-emerald-950">OAuth delegado (como no n8n)</p>
+                      <p className="font-medium text-success-text">OAuth delegado (como no n8n)</p>
                       <p className="mt-0.5 text-xs">
                         Remetente: <code className="font-mono text-xs text-foreground">{outlook.from}</code>
                       </p>
@@ -565,7 +565,7 @@ export function LeadEmailConfigPanel() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="shrink-0 border-emerald-300"
+                    className="shrink-0 border-success-border"
                     disabled={isPendingOAuth}
                     onClick={handleDisconnectOutlook}
                   >
@@ -580,7 +580,7 @@ export function LeadEmailConfigPanel() {
               )}
 
               {outlook?.configured && outlook.mode === "application" && outlook.from && (
-                <div className="space-y-2 rounded-lg border bg-muted/40 px-3 py-2">
+                <div className="space-y-2 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Mail className="h-3.5 w-3.5 shrink-0" />
                     <span>
@@ -641,7 +641,7 @@ export function LeadEmailConfigPanel() {
                   </div>
 
                   {fixed.map((row) => (
-                    <div key={row.key} className="rounded-lg border bg-card p-4 space-y-3">
+                    <div key={row.key} className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4 space-y-3">
                       <p className="text-sm font-medium">{row.label}</p>
                       <RecipientEditor
                         recipients={row.recipients}
@@ -653,7 +653,7 @@ export function LeadEmailConfigPanel() {
                   <div className="flex items-center justify-between pt-1">
                     <div className="text-sm min-h-[22px]">
                       {saveOk && (
-                        <span className="flex items-center gap-1.5 text-green-600">
+                        <span className="flex items-center gap-1.5 text-success-text">
                           <CheckCircle2 className="h-4 w-4" />
                           Destinatários fixos salvos.
                         </span>

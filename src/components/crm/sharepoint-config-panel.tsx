@@ -128,11 +128,11 @@ export function SharePointConfigPanel() {
   const isFullyConfigured = status?.configured ?? false;
 
   return (
-    <Card className="glass-card glass-card-no-float">
+    <Card>
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-(--radius-v2-xl) bg-interactive-50 text-interactive-600">
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div>
@@ -142,8 +142,8 @@ export function SharePointConfigPanel() {
                   <Badge
                     className={
                       isFullyConfigured
-                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
-                        : "bg-amber-100 text-amber-700 hover:bg-amber-100"
+                        ? "bg-success-bg text-success-text hover:bg-success-bg"
+                        : "bg-warning-bg text-warning-text hover:bg-warning-bg"
                     }
                   >
                     {isFullyConfigured ? "Configurado" : "Incompleto"}
@@ -153,7 +153,7 @@ export function SharePointConfigPanel() {
               <p className="mt-1 text-xs text-muted-foreground">
                 Integração via Microsoft Graph API. Ao criar um lead com DUE Diligence, cria
                 automaticamente um item na lista{" "}
-                <span className="font-medium text-[#102033]">AGENDAMENTOS / REAGENDAMENTOS</span>{" "}
+                <span className="font-medium text-foreground">AGENDAMENTOS / REAGENDAMENTOS</span>{" "}
                 do SharePoint.
               </p>
             </div>
@@ -215,7 +215,7 @@ export function SharePointConfigPanel() {
         {/* Variáveis de ambiente */}
         {status && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-[#102033]">
+            <p className="text-xs font-semibold text-foreground">
               Variáveis de ambiente (.env)
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -233,23 +233,23 @@ export function SharePointConfigPanel() {
                 return (
                   <div
                     key={key}
-                    className={`rounded-xl border p-3 ${
-                      isSet ? "border-[#e5e7eb] bg-white/60" : "border-amber-200 bg-amber-50/60"
+                    className={`rounded-(--radius-v2-xl) border p-3 ${
+                      isSet ? "border-neutral-200 bg-white" : "border-warning-border bg-warning-bg"
                     }`}
                   >
                     <div className="flex items-center gap-1.5">
                       <span
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${isSet ? "bg-emerald-500" : "bg-amber-400"}`}
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${isSet ? "bg-success-text" : "bg-warning-text"}`}
                       />
-                      <p className="truncate font-mono text-[11px] font-semibold text-[#102033]">
+                      <p className="truncate font-mono text-[11px] font-semibold text-foreground">
                         {key}
                       </p>
                     </div>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">{info?.label}</p>
                     {isSet ? (
-                      <p className="mt-1 truncate font-mono text-[11px] text-slate-500">{value}</p>
+                      <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{value}</p>
                     ) : (
-                      <p className="mt-1 text-[11px] font-medium text-amber-600">Não definida</p>
+                      <p className="mt-1 text-[11px] font-medium text-warning-text">Não definida</p>
                     )}
                     {info?.hint && (
                       <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground/70">
@@ -261,18 +261,18 @@ export function SharePointConfigPanel() {
               })}
 
               {/* Webhook secret */}
-              <div className="rounded-xl border border-[#e5e7eb] bg-white/60 p-3">
+              <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3">
                 <div className="flex items-center gap-1.5">
                   <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.fields.webhookSecret ? "bg-emerald-500" : "bg-slate-300"}`}
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.fields.webhookSecret ? "bg-success-text" : "bg-neutral-300"}`}
                   />
-                  <p className="truncate font-mono text-[11px] font-semibold text-[#102033]">
+                  <p className="truncate font-mono text-[11px] font-semibold text-foreground">
                     SHAREPOINT_INTEGRATION_SECRET
                   </p>
                 </div>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">Segredo do webhook</p>
                 {status.fields.webhookSecret ? (
-                  <p className="mt-1 truncate font-mono text-[11px] text-slate-500">
+                  <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
                     {status.fields.webhookSecret}
                   </p>
                 ) : (
@@ -284,14 +284,14 @@ export function SharePointConfigPanel() {
             </div>
 
             {status.missing.length > 0 && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                <p className="text-xs font-semibold text-amber-700">
+              <div className="rounded-(--radius-v2-xl) border border-warning-border bg-warning-bg p-3">
+                <p className="text-xs font-semibold text-warning-text">
                   {status.missing.length} variável(is) faltando — defina no arquivo{" "}
                   <code className="font-mono">.env</code> e reinicie o servidor:
                 </p>
                 <ul className="mt-1.5 space-y-0.5">
                   {status.missing.map((key) => (
-                    <li key={key} className="font-mono text-[11px] text-amber-700">
+                    <li key={key} className="font-mono text-[11px] text-warning-text">
                       • {key}
                     </li>
                   ))}
@@ -304,27 +304,27 @@ export function SharePointConfigPanel() {
         {/* Site e lista (compacto) */}
         {status?.fields.siteId && (
           <div className="grid gap-2 sm:grid-cols-2">
-            <div className="rounded-xl border border-[#e5e7eb] bg-white/60 p-3">
+            <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3">
               <p className="text-[11px] font-semibold text-muted-foreground">Site SharePoint</p>
-              <p className="mt-0.5 break-all font-mono text-[11px] text-[#102033]">
+              <p className="mt-0.5 break-all font-mono text-[11px] text-foreground">
                 {status.fields.siteId}
               </p>
               <a
                 href={`https://portal.azure.com`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-1 inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline"
+                className="mt-1 inline-flex items-center gap-1 text-[10px] text-interactive-600 hover:underline"
               >
                 Azure Portal
                 <ExternalLink className="h-2.5 w-2.5" />
               </a>
             </div>
             {status.fields.listId && (
-              <div className="rounded-xl border border-[#e5e7eb] bg-white/60 p-3">
+              <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3">
                 <p className="text-[11px] font-semibold text-muted-foreground">
                   Lista — AGENDAMENTOS / REAGENDAMENTOS
                 </p>
-                <p className="mt-0.5 font-mono text-[11px] text-[#102033]">
+                <p className="mt-0.5 font-mono text-[11px] text-foreground">
                   {status.fields.listId}
                 </p>
               </div>
@@ -333,13 +333,13 @@ export function SharePointConfigPanel() {
         )}
 
         {/* Campos mapeados (expansível) */}
-        <div className="rounded-xl border border-[#e5e7eb] bg-white/50">
+        <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
           <button
             type="button"
             className="flex w-full items-center justify-between px-3 py-2.5 text-left"
             onClick={() => setShowFields((v) => !v)}
           >
-            <span className="text-xs font-semibold text-[#102033]">
+            <span className="text-xs font-semibold text-foreground">
               Campos enviados ao SharePoint ({SHAREPOINT_AGENDAMENTO_FIELDS.length})
             </span>
             {showFields ? (
@@ -350,7 +350,7 @@ export function SharePointConfigPanel() {
           </button>
 
           {showFields && (
-            <div className="border-t border-[#e5e7eb] px-3 pb-3 pt-2">
+            <div className="border-t border-neutral-200 px-3 pb-3 pt-2">
               <p className="mb-2 text-[11px] text-muted-foreground">
                 Campos populados automaticamente na criação de um lead com DUE Diligence:
               </p>
@@ -358,13 +358,13 @@ export function SharePointConfigPanel() {
                 {SHAREPOINT_AGENDAMENTO_FIELDS.map((f) => (
                   <div
                     key={f.id}
-                    className="flex items-start gap-2 rounded-lg border border-[#f0f2f5] bg-white px-2.5 py-2"
+                    className="flex items-start gap-2 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-2.5 py-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold text-[#102033]">{f.label}</p>
+                      <p className="text-[11px] font-semibold text-foreground">{f.label}</p>
                       <p className="font-mono text-[10px] text-muted-foreground/60">{f.id}</p>
                     </div>
-                    <p className="shrink-0 max-w-[45%] text-right text-[11px] text-slate-500 truncate">
+                    <p className="shrink-0 max-w-[45%] text-right text-[11px] text-muted-foreground truncate">
                       {f.example}
                     </p>
                   </div>
