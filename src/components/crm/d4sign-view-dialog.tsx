@@ -48,19 +48,19 @@ export function D4SignViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-[1100px] w-[95vw] h-[92vh] p-0 gap-0 overflow-hidden">
+      <DialogContent hideCloseButton className="max-w-[1100px] w-[95vw] h-[92vh] p-0 gap-0 overflow-hidden">
         <DialogTitle className="sr-only">Visualizar contrato D4Sign</DialogTitle>
         <DialogDescription className="sr-only">
           Pré-visualização do documento {documentUuid}.
         </DialogDescription>
 
         {/* Header */}
-        <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5 py-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 border border-teal-200">
-            <FileSignature className="size-5 text-accent-teal" aria-hidden />
+        <div className="flex shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-5 py-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 border border-interactive-300">
+            <FileSignature className="size-5 text-interactive-600" aria-hidden />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="truncate text-sm font-bold text-primary-dark">
+            <h2 className="truncate text-sm font-bold text-foreground">
               {documentName ? documentName.replace(/\.docx?$/i, "") : "Contrato"}
             </h2>
             <p className="font-mono text-[10px] text-muted-foreground">
@@ -73,7 +73,7 @@ export function D4SignViewDialog({
                 href={portalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                className="inline-flex h-8 items-center gap-1.5 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-3 text-[11px] font-semibold text-muted-foreground hover:bg-neutral-50 transition-colors"
               >
                 <ExternalLink className="size-3.5" aria-hidden />
                 Abrir no D4Sign
@@ -93,26 +93,26 @@ export function D4SignViewDialog({
         </div>
 
         {/* Body */}
-        <div className="relative flex-1 overflow-hidden bg-slate-100">
+        <div className="relative flex-1 overflow-hidden bg-neutral-100">
           {/* Loading */}
           {status === "loading" ? (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/80 backdrop-blur-sm pointer-events-none">
-              <Loader2 className="size-8 animate-spin text-accent-teal" />
-              <p className="text-sm font-semibold text-slate-700">Carregando documento…</p>
+              <Loader2 className="size-8 animate-spin text-interactive-600" />
+              <p className="text-sm font-semibold text-foreground">Carregando documento…</p>
             </div>
           ) : null}
 
           {/* Erro */}
           {status === "error" ? (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-rose-50/95 backdrop-blur-sm">
-              <div className="flex size-14 items-center justify-center rounded-full bg-rose-100">
-                <AlertTriangle className="size-7 text-rose-600" />
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-danger-bg/95 backdrop-blur-sm">
+              <div className="flex size-14 items-center justify-center rounded-(--radius-v2-full) bg-danger-bg">
+                <AlertTriangle className="size-7 text-danger-text" />
               </div>
               <div className="max-w-sm text-center">
-                <h3 className="text-base font-extrabold text-rose-900">
+                <h3 className="text-base font-extrabold text-danger-text">
                   Não foi possível carregar o documento
                 </h3>
-                <p className="mt-1 text-sm text-rose-700">
+                <p className="mt-1 text-sm text-danger-text/90">
                   O arquivo pode estar sendo processado ou houve falha na comunicação com a D4Sign.
                 </p>
               </div>
@@ -122,7 +122,7 @@ export function D4SignViewDialog({
                     href={portalUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 hover:bg-rose-50 transition-colors"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-(--radius-v2-md) border border-danger-border bg-white px-4 text-sm font-semibold text-danger-text hover:bg-danger-bg transition-colors"
                   >
                     <ExternalLink className="size-3.5" />
                     Abrir no portal D4Sign
@@ -147,14 +147,14 @@ export function D4SignViewDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-2 text-[11px] text-muted-foreground">
+        <div className="flex shrink-0 items-center justify-between border-t border-neutral-200 bg-neutral-50 px-5 py-2 text-[11px] text-muted-foreground">
           <span>
             Documento via{" "}
             <a
               href="https://d4sign.com.br"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-accent-teal hover:underline inline-flex items-center gap-1"
+              className="font-semibold text-interactive-700 hover:underline inline-flex items-center gap-1"
             >
               D4Sign
               <ExternalLink className="size-2.5" />

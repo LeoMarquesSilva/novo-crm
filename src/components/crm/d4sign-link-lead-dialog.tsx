@@ -116,14 +116,14 @@ export function D4SignLinkLeadDialog({
               <Loader2 className="size-4 animate-spin" /> Buscando…
             </p>
           ) : results.length > 0 ? (
-            <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-1">
+            <ul className="max-h-48 space-y-1 overflow-y-auto rounded-(--radius-v2-md) border border-neutral-200 p-1">
               {results.map((r) => (
                 <li key={r.id}>
                   <button
                     type="button"
                     disabled={linking}
                     onClick={() => void linkTo(r.id)}
-                    className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50"
+                    className="flex w-full items-center justify-between rounded-(--radius-v2-sm) px-3 py-2 text-left text-sm hover:bg-neutral-50"
                   >
                     <span className="font-semibold">{r.solicitante_nome}</span>
                     <span className="text-[10px] text-muted-foreground">{r.etapa.replace(/_/g, " ")}</span>
@@ -135,7 +135,7 @@ export function D4SignLinkLeadDialog({
             <p className="text-sm text-muted-foreground">Nenhum lead encontrado.</p>
           ) : null}
 
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
 
         <DialogFooter className="gap-2 sm:justify-between">
@@ -177,17 +177,17 @@ export function D4SignOriginBadge({
   return (
     <div className="flex flex-wrap gap-1">
       <span
-        className={`rounded-sm px-1.5 py-px text-[8px] font-bold uppercase tracking-wide ${isCrm ? "bg-teal-100 text-teal-700" : "bg-amber-100 text-amber-700"}`}
+        className={`rounded-(--radius-v2-sm) px-1.5 py-px text-[8px] font-bold uppercase tracking-wide ${isCrm ? "bg-interactive-100 text-interactive-700" : "bg-warning-bg text-warning-text"}`}
       >
         {isCrm ? "CRM" : "Cofre"}
       </span>
       {!detailsFetchedAt && !isCrm ? (
-        <span className="rounded-sm bg-violet-100 px-1.5 py-px text-[8px] font-bold uppercase tracking-wide text-violet-700">
+        <span className="rounded-(--radius-v2-sm) bg-violet-bg px-1.5 py-px text-[8px] font-bold uppercase tracking-wide text-violet-text">
           Sem signatários
         </span>
       ) : null}
       {stale ? (
-        <span className="rounded-sm bg-slate-200 px-1.5 py-px text-[8px] font-bold uppercase tracking-wide text-slate-600">
+        <span className="rounded-(--radius-v2-sm) bg-neutral-200 px-1.5 py-px text-[8px] font-bold uppercase tracking-wide text-muted-foreground">
           Desatualizado
         </span>
       ) : null}

@@ -68,6 +68,7 @@ function EmbedSignDialogContent({
   onSigned,
 }: EmbedSignDialogProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const signedHandledRef = useRef(false);
   const [status, setStatus] = useState<"loading" | "ready" | "signed" | "wrong-data" | "error">(
     "loading",
   );
@@ -78,11 +79,16 @@ function EmbedSignDialogContent({
     if (!open) return;
 
     function handleMessage(event: MessageEvent) {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (event.origin !== new URL(embedHost).origin) return;
+
       // D4Sign manda strings simples via postMessage
       const data = event.data;
       if (typeof data !== "string") return;
 
       if (data === "signed") {
+        if (signedHandledRef.current) return;
+        signedHandledRef.current = true;
         setStatus("signed");
         onSigned?.();
       } else if (data === "wrong-data") {
@@ -92,7 +98,7 @@ function EmbedSignDialogContent({
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [open, onSigned]);
+  }, [embedHost, open, onSigned]);
 
   // Monta a URL do iframe
   const iframeSrc = `${embedHost}/${encodeURIComponent(documentUuid)}?email=${encodeURIComponent(signerEmail)}&display_name=${encodeURIComponent(signerDisplayName)}&documentation=${encodeURIComponent(signerDocumentation)}&birthday=${encodeURIComponent(signerBirthday)}&disable_preview=0${signerKeySigner ? `&key_signer=${encodeURIComponent(signerKeySigner)}` : ""}`;
@@ -106,12 +112,12 @@ function EmbedSignDialogContent({
         </DialogDescription>
 
         {/* Header */}
-        <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5 py-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-teal-100">
-            <CheckCircle2 className="size-5 text-accent-teal" aria-hidden />
+        <div className="flex shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-5 py-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-100">
+            <CheckCircle2 className="size-5 text-interactive-600" aria-hidden />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-bold text-primary-dark">Assinar documento</h2>
+            <h2 className="text-sm font-bold text-foreground">Assinar documento</h2>
             <p className="truncate text-[11px] text-muted-foreground">
               {signerEmail} · UUID: <span className="font-mono">{documentUuid.slice(0, 12)}…</span>
             </p>
@@ -129,12 +135,12 @@ function EmbedSignDialogContent({
         </div>
 
         {/* Body */}
-        <div className="relative flex-1 overflow-hidden bg-slate-100">
+        <div className="relative flex-1 overflow-hidden bg-neutral-100">
           {/* Loading overlay */}
           {status === "loading" ? (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/80 backdrop-blur-sm">
-              <Loader2 className="size-8 animate-spin text-accent-teal" />
-              <p className="text-sm font-semibold text-slate-700">
+              <Loader2 className="size-8 animate-spin text-interactive-600" />
+              <p className="text-sm font-semibold text-foreground">
                 Carregando ambiente D4Sign…
               </p>
             </div>
@@ -142,22 +148,22 @@ function EmbedSignDialogContent({
 
           {/* Success overlay */}
           {status === "signed" ? (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-emerald-50/95 backdrop-blur-sm">
-              <div className="flex size-16 items-center justify-center rounded-full bg-emerald-100">
-                <CheckCircle2 className="size-9 text-emerald-600" />
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-success-bg/95 backdrop-blur-sm">
+              <div className="flex size-16 items-center justify-center rounded-(--radius-v2-full) bg-success-bg">
+                <CheckCircle2 className="size-9 text-success-text" />
               </div>
               <div className="text-center">
-                <h3 className="text-xl font-extrabold text-emerald-900">
+                <h3 className="text-xl font-extrabold text-success-text">
                   Documento assinado com sucesso!
                 </h3>
-                <p className="mt-1 text-sm text-emerald-700">
+                <p className="mt-1 text-sm text-success-text">
                   A D4Sign processará a assinatura. Você pode fechar esta janela.
                 </p>
               </div>
               <Button
                 type="button"
                 onClick={() => onOpenChange(false)}
-                className="mt-2 bg-emerald-600 hover:bg-emerald-700"
+                className="mt-2"
               >
                 Fechar
               </Button>
@@ -166,15 +172,15 @@ function EmbedSignDialogContent({
 
           {/* Wrong data overlay */}
           {status === "wrong-data" ? (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-amber-50/95 backdrop-blur-sm">
-              <div className="flex size-16 items-center justify-center rounded-full bg-amber-100">
-                <AlertTriangle className="size-9 text-amber-600" />
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-warning-bg/95 backdrop-blur-sm">
+              <div className="flex size-16 items-center justify-center rounded-(--radius-v2-full) bg-warning-bg">
+                <AlertTriangle className="size-9 text-warning-text" />
               </div>
               <div className="max-w-md text-center">
-                <h3 className="text-xl font-extrabold text-amber-900">
+                <h3 className="text-xl font-extrabold text-warning-text">
                   Dados precisam ser corrigidos
                 </h3>
-                <p className="mt-1 text-sm text-amber-700">
+                <p className="mt-1 text-sm text-warning-text">
                   O signatário indicou que os dados precisam de correção. Por favor,
                   ajuste os dados (e-mail, CPF, nome) e reenvie o contrato.
                 </p>
@@ -182,7 +188,7 @@ function EmbedSignDialogContent({
               <Button
                 type="button"
                 onClick={() => onOpenChange(false)}
-                className="mt-2 bg-amber-600 hover:bg-amber-700"
+                className="mt-2 bg-warning-text hover:bg-warning-text/90"
               >
                 Fechar
               </Button>
@@ -191,16 +197,16 @@ function EmbedSignDialogContent({
 
           {/* Error overlay */}
           {status === "error" && errorMsg ? (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-rose-50/95 backdrop-blur-sm">
-              <div className="flex size-16 items-center justify-center rounded-full bg-rose-100">
-                <AlertTriangle className="size-9 text-rose-600" />
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-danger-bg/95 backdrop-blur-sm">
+              <div className="flex size-16 items-center justify-center rounded-(--radius-v2-full) bg-danger-bg">
+                <AlertTriangle className="size-9 text-danger-text" />
               </div>
               <div className="max-w-md text-center">
-                <h3 className="text-xl font-extrabold text-rose-900">
+                <h3 className="text-xl font-extrabold text-danger-text">
                   Erro ao carregar EMBED
                 </h3>
-                <p className="mt-1 text-sm text-rose-700">{errorMsg}</p>
-                <p className="mt-3 text-[12px] text-rose-600">
+                <p className="mt-1 text-sm text-danger-text">{errorMsg}</p>
+                <p className="mt-3 text-[12px] text-danger-text">
                   Se este erro persistir, verifique se o EMBED está ativado na conta D4Sign
                   (suporte@d4sign.com.br).
                 </p>
@@ -233,14 +239,14 @@ function EmbedSignDialogContent({
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-2 text-[11px] text-muted-foreground">
+        <div className="flex shrink-0 items-center justify-between border-t border-neutral-200 bg-neutral-50 px-5 py-2 text-[11px] text-muted-foreground">
           <span>
             Assinatura processada pela{" "}
             <a
               href="https://d4sign.com.br"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-accent-teal hover:underline inline-flex items-center gap-1"
+              className="font-semibold text-interactive-700 hover:underline inline-flex items-center gap-1"
             >
               D4Sign
               <ExternalLink className="size-2.5" />

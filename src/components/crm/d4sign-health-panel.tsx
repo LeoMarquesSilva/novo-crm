@@ -41,7 +41,7 @@ export function D4SignHealthPanel({ className }: { className?: string }) {
 
   if (loading) {
     return (
-      <div className={cn("flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-muted-foreground", className)}>
+      <div className={cn("flex items-center gap-2 rounded-(--radius-v2-lg) border border-neutral-200 bg-white px-4 py-3 text-sm text-muted-foreground", className)}>
         <Loader2 className="size-4 animate-spin" /> Carregando saúde D4Sign…
       </div>
     );
@@ -54,10 +54,10 @@ export function D4SignHealthPanel({ className }: { className?: string }) {
     renderedAt - new Date(data.webhook.last_at).getTime() > 7 * 24 * 60 * 60 * 1000;
 
   return (
-    <div className={cn("rounded-xl border border-slate-200 bg-white p-4 shadow-sm", className)}>
+    <div className={cn("rounded-(--radius-v2-lg) border border-neutral-200 bg-white p-4", className)}>
       <div className="mb-3 flex items-center gap-2">
-        <Activity className="size-4 text-accent-teal" />
-        <h3 className="text-sm font-bold text-slate-800">Saúde D4Sign</h3>
+        <Activity className="size-4 text-interactive-600" />
+        <h3 className="text-sm font-bold text-foreground">Saúde D4Sign</h3>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="No cofre" value={data.documents.total} detail={`${data.documents.from_vault} histórico · ${data.documents.from_crm} CRM`} />
@@ -70,7 +70,7 @@ export function D4SignHealthPanel({ className }: { className?: string }) {
           <Webhook className="size-3" />
           Webhook: {fmtRel(data.webhook.last_at, renderedAt)}
           {data.webhook.last_type ? ` (${data.webhook.last_type})` : ""}
-          {webhookStale ? <span className="font-semibold text-amber-600"> · verificar config</span> : null}
+          {webhookStale ? <span className="font-semibold text-warning-text"> · verificar config</span> : null}
         </span>
         <span>Última sync: {fmtRel(data.quota.lastSyncedAt, renderedAt)}</span>
       </div>
@@ -90,10 +90,10 @@ function Stat({
   warn?: boolean;
 }) {
   return (
-    <div className={cn("rounded-lg border px-3 py-2", warn ? "border-amber-200 bg-amber-50/50" : "border-slate-100 bg-slate-50/50")}>
-      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={cn("text-xl font-black tabular-nums", warn ? "text-amber-700" : "text-slate-800")}>{value}</p>
-      {detail ? <p className="text-[10px] text-slate-500">{detail}</p> : null}
+    <div className={cn("rounded-(--radius-v2-md) border px-3 py-2", warn ? "border-warning-border bg-warning-bg/50" : "border-neutral-100 bg-neutral-50")}>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={cn("text-xl font-black tabular-nums", warn ? "text-warning-text" : "text-foreground")}>{value}</p>
+      {detail ? <p className="text-[10px] text-muted-foreground">{detail}</p> : null}
     </div>
   );
 }

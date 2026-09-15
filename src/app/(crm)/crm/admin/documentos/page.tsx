@@ -127,12 +127,12 @@ export default async function DocumentosAdminPage() {
           <TemplateCard key={template.id} template={template} />
         ))}
 
-        {templates.length === 0 ? (
-          <div className="rounded-[24px] border border-dashed border-primary-light/25 bg-white/55 p-8 text-center shadow-sm">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-dark/8 text-primary-dark">
+        {!error && templates.length === 0 ? (
+          <div className="rounded-(--radius-v2-xl) border border-dashed border-neutral-300 bg-white p-8 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-(--radius-v2-lg) bg-neutral-100 text-foreground">
               <FileText className="h-5 w-5" />
             </div>
-            <h2 className="mt-4 text-lg font-bold text-primary-dark">Nenhum modelo ativo encontrado</h2>
+            <h2 className="mt-4 text-lg font-bold text-foreground">Nenhum modelo ativo encontrado</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
               Aplique a migration do construtor para criar o modelo padrão e liberar o fluxo de propostas.
             </p>
@@ -149,29 +149,29 @@ function TemplateCard({ template }: { template: PropostaDocumentTemplate }) {
   const description = typeof template.metadata.description === "string" ? template.metadata.description : null;
 
   return (
-    <section className="overflow-hidden rounded-[24px] border border-white/55 bg-white/72 shadow-sm shadow-primary-dark/10">
+    <section className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
       <div className="grid gap-0 lg:grid-cols-[18rem_1fr]">
-        <aside className="border-b border-primary-dark/10 bg-white/58 p-5 lg:border-b-0 lg:border-r">
+        <aside className="border-b border-neutral-200 bg-neutral-50 p-5 lg:border-b-0 lg:border-r">
           <div className="flex items-start justify-between gap-3 lg:block">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className="h-6 rounded-full bg-primary-dark text-white">{template.documentType}</Badge>
+                <Badge className="h-6 bg-brand-navy text-white">{template.documentType}</Badge>
                 <Badge
                   variant="outline"
-                  className="h-6 rounded-full border-accent-teal/35 bg-accent-teal/10 text-primary-dark"
+                  className="h-6 border-interactive-300 bg-interactive-50 text-interactive-700"
                 >
                   v{template.version}
                 </Badge>
               </div>
-              <h2 className="mt-4 text-xl font-bold leading-tight text-primary-dark">{template.name}</h2>
+              <h2 className="mt-4 text-xl font-bold leading-tight text-foreground">{template.name}</h2>
               {description ? <p className="mt-2 text-sm leading-5 text-muted-foreground">{description}</p> : null}
             </div>
             <Badge
               variant="outline"
               className={
                 template.isActive
-                  ? "h-6 rounded-full border-emerald-300 bg-emerald-50 text-emerald-800"
-                  : "h-6 rounded-full border-slate-300 bg-slate-50 text-slate-600"
+                  ? "h-6 border-success-border bg-success-bg text-success-text"
+                  : "h-6 border-neutral-300 bg-neutral-50 text-muted-foreground"
               }
             >
               {template.isActive ? "Ativo" : "Inativo"}
@@ -181,17 +181,17 @@ function TemplateCard({ template }: { template: PropostaDocumentTemplate }) {
           <div className="mt-5 space-y-3 text-sm">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Arquivo base</p>
-              <p className="mt-1 break-all rounded-xl border border-primary-dark/10 bg-white/70 px-3 py-2 font-mono text-xs text-primary-dark">
+              <p className="mt-1 break-all rounded-(--radius-v2-md) border border-neutral-200 bg-white px-3 py-2 font-mono text-xs text-foreground">
                 {template.templatePath}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-primary-dark/10 bg-white/55 p-3">
-                <p className="text-2xl font-bold text-primary-dark">{template.fields.length}</p>
+              <div className="rounded-(--radius-v2-md) border border-neutral-200 bg-white p-3">
+                <p className="text-2xl font-bold text-foreground">{template.fields.length}</p>
                 <p className="text-xs text-muted-foreground">campos</p>
               </div>
-              <div className="rounded-xl border border-primary-dark/10 bg-white/55 p-3">
-                <p className="text-2xl font-bold text-primary-dark">{requiredCount}</p>
+              <div className="rounded-(--radius-v2-md) border border-neutral-200 bg-white p-3">
+                <p className="text-2xl font-bold text-foreground">{requiredCount}</p>
                 <p className="text-xs text-muted-foreground">obrigatórios</p>
               </div>
             </div>
@@ -201,13 +201,13 @@ function TemplateCard({ template }: { template: PropostaDocumentTemplate }) {
         <div className="p-5">
           <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent-teal">Mapa de campos</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-interactive-700">Mapa de campos</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Ordem e origem dos dados usados para preencher o documento.
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CheckCircle2 className="h-4 w-4 text-success-text" />
               Pronto para gerar propostas
             </div>
           </div>
@@ -216,11 +216,11 @@ function TemplateCard({ template }: { template: PropostaDocumentTemplate }) {
             {groupedFields.map((group) => (
               <div key={group.section}>
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-bold text-primary-dark">{labelForSection(group.section)}</h3>
+                  <h3 className="text-sm font-bold text-foreground">{labelForSection(group.section)}</h3>
                   <span className="text-xs text-muted-foreground">{group.fields.length} campos</span>
                 </div>
-                <div className="overflow-hidden rounded-2xl border border-primary-dark/10 bg-white/66">
-                  <div className="hidden grid-cols-[minmax(0,1fr)_8rem_7rem_6rem] gap-3 border-b border-primary-dark/10 bg-primary-dark/[0.03] px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground md:grid">
+                <div className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+                  <div className="hidden grid-cols-[minmax(0,1fr)_8rem_7rem_6rem] gap-3 border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground md:grid">
                     <span>Campo</span>
                     <span>Tipo</span>
                     <span>Origem</span>
@@ -241,14 +241,14 @@ function TemplateCard({ template }: { template: PropostaDocumentTemplate }) {
 
 function FieldRow({ field }: { field: PropostaDocumentTemplateField }) {
   return (
-    <div className="grid gap-3 border-b border-primary-dark/7 px-4 py-3 text-sm last:border-b-0 md:grid-cols-[minmax(0,1fr)_8rem_7rem_6rem] md:items-center">
+    <div className="grid gap-3 border-b border-neutral-100 px-4 py-3 text-sm last:border-b-0 md:grid-cols-[minmax(0,1fr)_8rem_7rem_6rem] md:items-center">
       <div className="min-w-0">
-        <p className="truncate font-semibold text-primary-dark">{field.label}</p>
+        <p className="truncate font-semibold text-foreground">{field.label}</p>
         <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{field.fieldCode}</p>
       </div>
       <div className="flex items-center justify-between gap-3 md:block">
         <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground md:hidden">Tipo</span>
-        <Badge variant="outline" className="h-6 rounded-full border-primary-dark/10 bg-white text-primary-dark">
+        <Badge variant="outline" className="h-6 border-neutral-200 bg-white text-foreground">
           {labelForType(field.fieldType)}
         </Badge>
       </div>
@@ -261,7 +261,7 @@ function FieldRow({ field }: { field: PropostaDocumentTemplateField }) {
       <div className="flex items-center justify-between gap-3 md:block">
         <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground md:hidden">Regra</span>
         {field.isRequired ? (
-          <Badge className="h-6 rounded-full bg-amber-100 text-amber-900">Obrigatório</Badge>
+          <Badge className="h-6 bg-warning-bg text-warning-text">Obrigatório</Badge>
         ) : (
           <span className="text-xs text-muted-foreground">Opcional</span>
         )}
