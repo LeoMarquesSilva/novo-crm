@@ -243,7 +243,7 @@ function SidebarNavItem({
                   <Star className={cn("size-3.5", favorite && "fill-current")} strokeWidth={1.9} />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right" className="w-auto rounded-lg bg-primary-dark px-2 py-1 text-xs text-white">
+              <TooltipContent side="right" className="w-auto rounded-(--radius-v2-md) bg-brand-navy px-2 py-1 text-xs text-white">
                 {favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
               </TooltipContent>
             </Tooltip>
@@ -473,13 +473,13 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="flex size-10 items-center justify-center rounded-xl border border-[#e1e5eb] bg-white text-primary-dark"
+            className="flex size-10 items-center justify-center rounded-(--radius-v2-lg) border border-[#e1e5eb] bg-white text-foreground"
             aria-label="Abrir menu lateral"
           >
             <Menu className="size-5" strokeWidth={2} />
           </button>
           <div className="min-w-0 text-center">
-            <p className="truncate text-sm font-bold tracking-[-0.02em] text-primary-dark">Bismarchi | Pires</p>
+            <p className="truncate text-sm font-bold tracking-[-0.02em] text-foreground">Bismarchi | Pires</p>
             <p className="truncate text-[11px] text-slate-500">{workspaceLabel}</p>
           </div>
           <CrmNotificationsBell />
@@ -491,7 +491,7 @@ export function AppShell({
               <motion.button
                 type="button"
                 aria-label="Fechar menu lateral"
-                className="fixed inset-0 z-(--z-navigation-overlay) bg-primary-dark/25 lg:hidden"
+                className="fixed inset-0 z-(--z-navigation-overlay) bg-brand-navy/25 lg:hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -506,11 +506,11 @@ export function AppShell({
                 transition={{ duration: 0.2, ease: "easeOut" }}
               >
                 <div className="mb-4 flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-[16px] bg-[linear-gradient(135deg,#101F2E_0%,#24615b_58%,#C8A96B_100%)] text-sm font-black tracking-[-0.05em] text-white">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-(--radius-v2-2xl) bg-[linear-gradient(135deg,#101F2E_0%,#24615b_58%,#C8A96B_100%)] text-sm font-black tracking-[-0.05em] text-white">
                     BP
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold tracking-[-0.02em] text-primary-dark">
+                    <p className="truncate text-sm font-bold tracking-[-0.02em] text-foreground">
                       Bismarchi | Pires
                     </p>
                     <p className="truncate text-[11px] font-medium text-slate-500">{workspaceLabel}</p>
@@ -518,7 +518,7 @@ export function AppShell({
                   <button
                     type="button"
                     onClick={() => setMobileOpen(false)}
-                    className="flex size-9 items-center justify-center rounded-xl border border-[#e1e5eb] bg-white text-slate-500"
+                    className="flex size-9 items-center justify-center rounded-(--radius-v2-lg) border border-[#e1e5eb] bg-white text-slate-500"
                     aria-label="Fechar menu lateral"
                   >
                     <X className="size-4" strokeWidth={2} />
@@ -526,13 +526,13 @@ export function AppShell({
                 </div>
 
                 <div className="mb-4">
-                  <div className="flex h-9 items-center gap-2 rounded-[14px] border border-[#e1e5eb] bg-white px-3">
+                  <div className="flex h-9 items-center gap-2 rounded-(--radius-v2-md) border border-[#e1e5eb] bg-white px-3">
                     <Search className="size-4 shrink-0 text-slate-400" strokeWidth={1.9} />
                     <input
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Buscar..."
-                      className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-primary-dark outline-none placeholder:text-slate-400"
+                      className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-slate-400"
                     />
                   </div>
                 </div>
@@ -591,13 +591,13 @@ export function AppShell({
         >
           <div className="flex min-h-0 flex-1 flex-col px-3 py-4">
             <div className={cn("mb-3 flex items-center gap-3 px-1", navCollapsed && "justify-center")}>
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-[16px] bg-[linear-gradient(135deg,#101F2E_0%,#24615b_58%,#C8A96B_100%)] text-sm font-black tracking-[-0.05em] text-white shadow-[0_12px_24px_rgba(16,31,46,0.16)]">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-(--radius-v2-2xl) bg-[linear-gradient(135deg,#101F2E_0%,#24615b_58%,#C8A96B_100%)] text-sm font-black tracking-[-0.05em] text-white shadow-[0_12px_24px_rgba(16,31,46,0.16)]">
                 BP
               </div>
               {isVisuallyExpanded ? (
                 <>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-bold tracking-[-0.02em] text-primary-dark">
+                    <p className="truncate text-[14px] font-bold tracking-[-0.02em] text-foreground">
                       Bismarchi | Pires
                     </p>
                     <p className="truncate text-[11px] font-medium text-slate-500">{workspaceLabel}</p>
@@ -605,7 +605,7 @@ export function AppShell({
                   {!navCompact ? (
                     <button
                       type="button"
-                      className="flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-primary-dark"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-md) text-slate-400 transition-colors hover:bg-white hover:text-foreground"
                       aria-label="Trocar workspace"
                     >
                       <ChevronsUpDown className="size-3.5" strokeWidth={2} />
@@ -617,13 +617,13 @@ export function AppShell({
 
             {isPinnedExpanded ? (
               <div className="mb-4 px-1">
-                <div className="group/search flex h-9 items-center gap-2 rounded-[14px] border border-[#e1e5eb] bg-white px-3 shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-colors hover:border-slate-300">
+                <div className="group/search flex h-9 items-center gap-2 rounded-(--radius-v2-md) border border-[#e1e5eb] bg-white px-3 shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-colors hover:border-slate-300">
                   <Search className="size-4 shrink-0 text-slate-400" strokeWidth={1.9} />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Buscar..."
-                    className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-primary-dark outline-none placeholder:text-slate-400"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-slate-400"
                   />
                   <kbd className="rounded-md border border-slate-200 bg-[#f8f9fb] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
                     ⌘K
@@ -682,7 +682,7 @@ export function AppShell({
                     setHoverExpanded(false);
                   }}
                   aria-label={collapsed ? "Fixar menu lateral expandido" : "Recolher menu lateral"}
-                  className="border-[#e1e5eb] bg-white text-slate-500 hover:text-primary-dark"
+                  className="border-[#e1e5eb] bg-white text-slate-500 hover:text-foreground"
                 >
                   {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
                   {isPinnedExpanded ? <span className="ml-1.5">Recolher</span> : null}

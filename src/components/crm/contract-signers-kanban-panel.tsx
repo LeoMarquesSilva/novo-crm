@@ -50,7 +50,7 @@ function SignerAvatar({
       <Avatar
         className={cn(
           dim,
-          "border-2 border-white shadow-sm ring-1 ring-primary-dark/[0.06]",
+          "border-2 border-white shadow-sm ring-1 ring-neutral-200",
           !signer.signed && "opacity-70 saturate-[0.85]",
         )}
       >
@@ -104,7 +104,7 @@ function SignerRow({
   return (
     <li
       className={cn(
-        "flex items-center gap-2 rounded-[10px] border px-2 py-1.5 transition-colors",
+        "flex items-center gap-2 rounded-(--radius-v2-md) border px-2 py-1.5 transition-colors",
         signed
           ? "border-emerald-200/80 bg-emerald-50/55"
           : isFirmSide
@@ -116,7 +116,7 @@ function SignerRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1">
-          <p className="truncate text-[11px] font-semibold leading-tight text-primary-dark">{label}</p>
+          <p className="truncate text-[11px] font-semibold leading-tight text-foreground">{label}</p>
           {badgeLabel ? (
             <span
               className={cn(
@@ -171,14 +171,14 @@ export function ContractSignersKanbanPanel({
   return (
     <div
       className={cn(
-        "mt-2 overflow-hidden rounded-xl border text-[10px] shadow-sm shadow-primary-dark/[0.03]",
+        "mt-2 overflow-hidden rounded-xl border text-[10px] shadow-sm",
         isCompleted
           ? "border-emerald-300/55 bg-gradient-to-b from-emerald-50/95 to-white/85"
           : "border-sky-300/50 bg-gradient-to-b from-sky-50/90 to-white/80",
       )}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <div className="border-b border-primary-dark/[0.06] px-2.5 py-2">
+      <div className="border-b border-neutral-200 px-2.5 py-2">
         <div className="flex items-start gap-2">
           <span
             className={cn(
@@ -195,11 +195,11 @@ export function ContractSignersKanbanPanel({
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[11px] font-bold tracking-tight text-primary-dark">
+                <p className="text-[11px] font-bold tracking-tight text-foreground">
                   {isCompleted ? "Assinaturas concluídas" : "Aguardando assinaturas"}
                 </p>
                 {sentAt ? (
-                  <p className="mt-0.5 text-[9px] font-medium text-primary-dark/55">
+                  <p className="mt-0.5 text-[9px] font-medium text-muted-foreground">
                     Enviado {formatDateTimeBr(sentAt)}
                   </p>
                 ) : null}
@@ -219,7 +219,7 @@ export function ContractSignersKanbanPanel({
               </span>
             </div>
 
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-primary-dark/[0.06]">
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-100">
               <div
                 className={cn(
                   "h-full rounded-full transition-all duration-500",
@@ -243,7 +243,7 @@ export function ContractSignersKanbanPanel({
                   ))}
                 </div>
                 {!isCompleted && pendingCount > 0 ? (
-                  <p className="ml-2 truncate text-[9px] font-medium text-primary-dark/60">
+                  <p className="ml-2 truncate text-[9px] font-medium text-muted-foreground">
                     {pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`}
                   </p>
                 ) : null}
@@ -258,7 +258,7 @@ export function ContractSignersKanbanPanel({
           className="contract-signers-kanban-details group/details"
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-primary-dark/[0.05] px-2.5 py-1.5 text-[10px] font-semibold text-primary-dark/70 outline-none transition-colors hover:bg-primary-dark/[0.03] [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-neutral-200 px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground outline-none transition-colors hover:bg-neutral-50 [&::-webkit-details-marker]:hidden">
             <span>Ver signatários</span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/details:rotate-180" />
           </summary>
@@ -271,12 +271,12 @@ export function ContractSignersKanbanPanel({
       ) : null}
 
       {linkContrato?.trim() ? (
-        <div className="border-t border-primary-dark/[0.06] px-2.5 py-1.5">
+        <div className="border-t border-neutral-200 px-2.5 py-1.5">
           <a
             href={linkContrato.trim()}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-accent-teal underline-offset-2 hover:underline"
+            className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-600 underline-offset-2 hover:underline"
             title={linkContrato.trim()}
             onPointerDown={(e) => e.stopPropagation()}
           >

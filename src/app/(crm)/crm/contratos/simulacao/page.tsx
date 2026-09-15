@@ -95,7 +95,7 @@ function StepCard({ step }: { step: Step }) {
   return (
     <article className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex items-start gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-dark text-sm font-bold text-white">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-navy text-sm font-bold text-white">
           {step.number}
         </span>
         <div className="min-w-0 flex-1">
@@ -136,7 +136,7 @@ export default function ContractSimulationPage() {
           </div>
           <Link
             href={`/crm/contratos/${SIMULATION_CONTRACT_ID}`}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary-dark px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark/90"
+            className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-4 py-2 text-sm font-semibold text-white hover:bg-brand-navy-hover"
           >
             Abrir contrato de simulação
             <ExternalLink className="size-4" />

@@ -9,10 +9,10 @@ import { cn } from "@/lib/utils";
 const statusVariants = cva("absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white", {
   variants: {
     status: {
-      online: "bg-accent-green",
-      busy: "bg-red-400",
-      away: "bg-accent-yellow-dark",
-      offline: "bg-primary-light/35",
+      online: "bg-success-text",
+      busy: "bg-danger-text",
+      away: "bg-warning-text",
+      offline: "bg-neutral-400",
     },
   },
   defaultVariants: {
@@ -54,7 +54,7 @@ function AvatarFallback({
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "flex h-full w-full items-center justify-center rounded-full bg-primary-dark/15 text-xs font-semibold text-primary-dark",
+        "flex h-full w-full items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-foreground",
         className
       )}
       {...props}

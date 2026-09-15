@@ -138,7 +138,7 @@ export function PropostaEscopoKanbanPanel({
       <span className="min-w-0 truncate">Abrir proposta</span>
     </a>
   ) : allDone ? (
-    <p className="text-[9px] font-semibold text-emerald-800/85">
+    <p className="text-[9px] font-semibold text-success-text">
       Todas as áreas enviaram — pronto para elaborar
     </p>
   ) : pendente > 0 ? (
@@ -330,7 +330,7 @@ export function ContractReviewKanbanPanel({
     }
     if (status === "concluido" && isElaborado) {
       return (
-        <p className="inline-flex items-center gap-1.5 text-[9px] font-semibold text-emerald-800/85">
+        <p className="inline-flex items-center gap-1.5 text-[9px] font-semibold text-success-text">
           <Send className="h-3 w-3 shrink-0" aria-hidden />
           Pronto para enviar via D4Sign
         </p>
@@ -428,11 +428,11 @@ export function DueLevantamentoKanbanPanel({ summary, breakdown }: DueLevantamen
 
   const footer =
     atrasados > 0 ? (
-      <p className="text-[9px] font-semibold text-rose-800/90">
+      <p className="text-[9px] font-semibold text-danger-text">
         {atrasados === 1 ? "1 área em atraso" : `${atrasados} áreas em atraso`}
       </p>
     ) : allDone ? (
-      <p className="text-[9px] font-semibold text-emerald-800/85">Todas as áreas concluíram o levantamento</p>
+      <p className="text-[9px] font-semibold text-success-text">Todas as áreas concluíram o levantamento</p>
     ) : (
       <p className="text-[9px] font-medium text-muted-foreground">
         {total - disponibilizados} área(s) pendente(s)
@@ -486,7 +486,7 @@ export function DueRevisaoKanbanPanel({ summary, breakdown }: DueRevisaoKanbanPa
   const tone: KanbanPanelTone = allDone ? "emerald" : "slate";
 
   const footer = allDone ? (
-    <p className="text-[9px] font-semibold text-emerald-800/85">Todas as áreas revisaram</p>
+    <p className="text-[9px] font-semibold text-success-text">Todas as áreas revisaram</p>
   ) : (
     <p className="text-[9px] font-medium text-muted-foreground">
       {pending === 1 ? "1 área sem revisão" : `${pending} áreas sem revisão`}
@@ -544,11 +544,11 @@ export function DueCompilacaoAdjustmentsKanbanPanel({
   const tone: KanbanPanelTone = allDone ? "emerald" : "amber";
 
   const footer = allDone ? (
-    <p className="text-[9px] font-semibold text-emerald-800/85">
+    <p className="text-[9px] font-semibold text-success-text">
       Todos os ajustes concluídos — pode retornar para Revisão
     </p>
   ) : (
-    <p className="text-[9px] font-medium text-amber-950/75">
+    <p className="text-[9px] font-medium text-warning-text">
       Conclua os ajustes pendentes para voltar à Revisão
     </p>
   );

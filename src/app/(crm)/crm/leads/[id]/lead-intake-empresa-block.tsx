@@ -192,7 +192,7 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary-dark"
+              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
               title="Editar"
               onClick={startEdit}
             >
@@ -203,7 +203,7 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
       </div>
 
       {!editing ? (
-        <div className="mt-2 space-y-2 text-sm text-primary-dark">
+        <div className="mt-2 space-y-2 text-sm text-foreground">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               Razão social / nome
@@ -215,7 +215,7 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
               CPF / CNPJ
             </p>
             <p className="mt-0.5">
-              <span className="font-medium text-primary-dark">{initial.tipo_documento}</span>{" "}
+              <span className="font-medium text-foreground">{initial.tipo_documento}</span>{" "}
               {initial.documento || "—"}
             </p>
           </div>

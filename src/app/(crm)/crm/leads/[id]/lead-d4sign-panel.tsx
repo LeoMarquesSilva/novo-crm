@@ -135,7 +135,7 @@ export function LeadD4SignPanel({
             {loading ? "A enviar…" : "Enviar para D4Sign"}
           </Button>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          {success ? <p className="text-sm text-accent-teal">{success}</p> : null}
+          {success ? <p className="text-sm text-success-text">{success}</p> : null}
         </div>
       </form>
     </div>

@@ -286,44 +286,44 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
 
   return (
     <section id="anotacoes" className="scroll-mt-6 space-y-4">
-      <Card className="glass-card-no-float overflow-hidden border-[#dfe5ee]">
-        <CardHeader className="border-b border-[#e6e9ef] bg-[linear-gradient(135deg,#f8fafc_0%,#fff8e6_100%)] px-5 py-5 sm:px-6">
+      <Card className="overflow-hidden border-neutral-200">
+        <CardHeader className="border-b border-neutral-200 bg-white px-5 py-5 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-[#24615b]">
+              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 <MessageSquareText className="h-4 w-4" />
                 Histórico interno
               </div>
-              <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+              <CardTitle className="text-xl font-extrabold tracking-[-0.035em] text-foreground">
                 Anotações do lead
               </CardTitle>
-              <p className="mt-1 max-w-2xl text-sm text-slate-500">
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                 Registre contexto, combine próximos passos e marque colegas para avisos no CRM.
               </p>
             </div>
-            <Badge variant="outline" className="h-7 border-[#d8bf82]/50 bg-white/70 text-[#73531c]">
+            <Badge variant="outline" className="h-7 border-neutral-200 bg-white text-foreground">
               {notes.length} {notes.length === 1 ? "anotação" : "anotações"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4 px-5 py-5 sm:px-6">
-          <div className="rounded-[22px] border border-[#e6e9ef] bg-white p-4 shadow-[0_12px_30px_rgba(16,31,46,0.04)]">
+          <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
             <Textarea
               value={body}
               onChange={(event) => setBody(event.target.value)}
               placeholder="Escreva uma anotação sobre este lead..."
-              className="min-h-28 resize-y rounded-2xl border-[#dfe5ee] bg-[#f8fafc] px-3 py-3"
+              className="min-h-28 resize-y rounded-(--radius-v2-md) border-neutral-200 bg-neutral-50 px-3 py-3"
               maxLength={4000}
             />
             <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
               <div>
                 <div className="relative">
-                  <AtSign className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <AtSign className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={userQuery}
                     onChange={(event) => setUserQuery(event.target.value)}
                     placeholder="Marcar usuários"
-                    className="h-10 rounded-2xl border-[#dfe5ee] pl-9"
+                    className="h-10 rounded-(--radius-v2-md) border-neutral-200 pl-9"
                   />
                 </div>
                 {selectedUsers.length > 0 ? (
@@ -340,7 +340,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                   </div>
                 ) : null}
                 {filteredUsers.length > 0 ? (
-                  <div className="mt-2 grid gap-1 rounded-2xl border border-[#e6e9ef] bg-[#f8fafc] p-1">
+                  <div className="mt-2 grid gap-1 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-1">
                     {filteredUsers.map((user) => (
                       <UserPickerRow
                         key={user.id}
@@ -359,7 +359,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                   type="button"
                   variant={isPinned ? "secondary" : "outline"}
                   onClick={() => setIsPinned((current) => !current)}
-                  className="h-10 justify-start rounded-2xl"
+                  className="h-10 justify-start"
                 >
                   <Pin className="h-4 w-4" />
                   {isPinned ? "Fixada no topo" : "Fixar anotação"}
@@ -368,20 +368,20 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                   type="button"
                   onClick={() => void submitNote()}
                   disabled={saving || !body.trim()}
-                  className="h-10 rounded-2xl"
+                  className="h-10"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
                   Salvar anotação
                 </Button>
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 text-xs text-muted-foreground">
               Usuários marcados recebem notificação no sino do CRM. O autor, data e horário ficam registrados automaticamente.
             </p>
           </div>
 
           {error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+            <div className="rounded-(--radius-v2-xl) border border-danger-border bg-danger-bg px-4 py-3 text-sm font-semibold text-danger-text">
               {error}
             </div>
           ) : null}
@@ -398,22 +398,22 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                 Menções
               </FilterButton>
             </div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
               <Search className="h-3.5 w-3.5" />
               Mais recentes e fixadas aparecem primeiro
             </div>
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center rounded-2xl border border-dashed border-[#dfe5ee] bg-[#f8fafc] py-10 text-sm font-semibold text-slate-500">
+            <div className="flex items-center justify-center rounded-(--radius-v2-xl) border border-dashed border-neutral-200 bg-neutral-50 py-10 text-sm font-semibold text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Carregando anotações...
             </div>
           ) : visibleNotes.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#dfe5ee] bg-[#f8fafc] px-4 py-10 text-center">
-              <MessageSquareText className="mx-auto h-8 w-8 text-slate-300" />
-              <p className="mt-3 text-sm font-bold text-[#102033]">Nenhuma anotação neste filtro</p>
-              <p className="mt-1 text-xs text-slate-500">
+            <div className="rounded-(--radius-v2-xl) border border-dashed border-neutral-200 bg-neutral-50 px-4 py-10 text-center">
+              <MessageSquareText className="mx-auto h-8 w-8 text-neutral-300" />
+              <p className="mt-3 text-sm font-bold text-foreground">Nenhuma anotação neste filtro</p>
+              <p className="mt-1 text-xs text-muted-foreground">
                 Use a caixa acima para registrar o primeiro contexto importante do lead.
               </p>
             </div>
@@ -426,31 +426,31 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                   <article
                     key={note.id}
                     className={cn(
-                      "rounded-[22px] border bg-white p-4 shadow-[0_12px_30px_rgba(16,31,46,0.04)]",
-                      note.isPinned ? "border-[#d8bf82] bg-[#fffaf0]" : "border-[#e6e9ef]",
+                      "rounded-(--radius-v2-xl) border bg-white p-4",
+                      note.isPinned ? "border-warning-border bg-warning-bg" : "border-neutral-200",
                     )}
                   >
                     <div className="flex gap-3">
-                      <Avatar className="h-10 w-10 shrink-0 border-2 border-white shadow-sm">
+                      <Avatar className="h-10 w-10 shrink-0 border-2 border-white">
                         {note.author?.avatarUrl ? <AvatarImage src={note.author.avatarUrl} alt="" /> : null}
-                        <AvatarFallback className="bg-[#102033] text-xs font-black text-white">
+                        <AvatarFallback className="bg-brand-navy text-xs font-black text-white">
                           {note.author?.fullName ? initialsFromFullName(note.author.fullName) : "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <p className="text-sm font-extrabold text-[#102033]">
+                            <p className="text-sm font-extrabold text-foreground">
                               {note.author?.fullName ?? "Usuário removido"}
                             </p>
-                            <p className="text-xs font-semibold text-slate-400">
+                            <p className="text-xs font-semibold text-muted-foreground">
                               {formatDateTimeBr(note.createdAt)}
                               {note.editedAt ? ` · editada em ${formatDateTimeBr(note.editedAt)}` : null}
                             </p>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5">
                             {note.isPinned ? (
-                              <Badge variant="outline" className="border-[#d8bf82]/60 bg-[#fff7df] text-[#73531c]">
+                              <Badge variant="outline" className="border-warning-border bg-warning-bg text-warning-text">
                                 <Pin className="h-3 w-3" />
                                 Fixada
                               </Badge>
@@ -462,7 +462,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => void togglePinned(note)}
-                                  className="h-8 rounded-xl px-2"
+                                  className="h-8 rounded-(--radius-v2-lg) px-2"
                                   title={note.isPinned ? "Desafixar" : "Fixar"}
                                 >
                                   {note.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
@@ -472,7 +472,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => startEdit(note)}
-                                  className="h-8 rounded-xl px-2"
+                                  className="h-8 rounded-(--radius-v2-lg) px-2"
                                 >
                                   <Edit3 className="h-3.5 w-3.5" />
                                 </Button>
@@ -481,7 +481,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                                   variant="destructive"
                                   size="sm"
                                   onClick={() => void deleteNote(note.id)}
-                                  className="h-8 rounded-xl px-2"
+                                  className="h-8 rounded-(--radius-v2-lg) px-2"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
@@ -495,7 +495,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                             <Textarea
                               value={editingBody}
                               onChange={(event) => setEditingBody(event.target.value)}
-                              className="min-h-24 rounded-2xl border-[#dfe5ee] bg-white"
+                              className="min-h-24 rounded-(--radius-v2-md) border-neutral-200 bg-white"
                               maxLength={4000}
                             />
                             <div className="flex flex-wrap gap-2">
@@ -516,7 +516,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                                     key={user.id}
                                     type="button"
                                     onClick={() => setEditingMentionIds((prev) => [...prev, user.id])}
-                                    className="rounded-full border border-[#dfe5ee] bg-white px-2.5 py-1 text-xs font-bold text-slate-600 hover:border-[#c8a96b]"
+                                    className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-xs font-bold text-muted-foreground hover:border-interactive-300"
                                   >
                                     @{user.fullName}
                                   </button>
@@ -554,7 +554,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
                                   <Badge
                                     key={user.id}
                                     variant="outline"
-                                    className="h-7 border-[#c9d7e8] bg-[#eef5ff] text-[#173a6a]"
+                                    className="h-7 border-info-border bg-info-bg text-info-text"
                                   >
                                     @{user.fullName}
                                   </Badge>
@@ -591,7 +591,7 @@ function FilterButton({
       onClick={onClick}
       className={cn(
         "rounded-full px-3 py-1.5 text-xs font-bold transition-colors",
-        active ? "bg-[#102033] text-white" : "bg-[#f3f5f8] text-slate-600 hover:bg-[#e8edf3]",
+        active ? "bg-brand-navy text-white" : "bg-neutral-100 text-muted-foreground hover:bg-neutral-200",
       )}
     >
       {children}
@@ -604,17 +604,17 @@ function UserPickerRow({ user, onPick }: { user: LeadNoteUser; onPick: () => voi
     <button
       type="button"
       onClick={onPick}
-      className="flex items-center gap-2 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white"
+      className="flex items-center gap-2 rounded-(--radius-v2-md) px-2 py-2 text-left transition-colors hover:bg-white"
     >
       <Avatar className="h-7 w-7">
         {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
-        <AvatarFallback className="bg-[#eef5ff] text-[10px] font-black text-[#173a6a]">
+        <AvatarFallback className="bg-interactive-50 text-[10px] font-black text-interactive-700">
           {initialsFromFullName(user.fullName)}
         </AvatarFallback>
       </Avatar>
       <span className="min-w-0">
-        <span className="block truncate text-xs font-extrabold text-[#102033]">{user.fullName}</span>
-        <span className="block truncate text-[11px] font-semibold text-slate-400">
+        <span className="block truncate text-xs font-extrabold text-foreground">{user.fullName}</span>
+        <span className="block truncate text-[11px] font-semibold text-muted-foreground">
           {[user.area, user.role].filter(Boolean).join(" · ") || "Usuário CRM"}
         </span>
       </span>
@@ -624,12 +624,12 @@ function UserPickerRow({ user, onPick }: { user: LeadNoteUser; onPick: () => voi
 
 function MentionChip({ user, onRemove }: { user: LeadNoteUser; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-[#c9d7e8] bg-[#eef5ff] py-1 pl-2.5 pr-1 text-xs font-bold text-[#173a6a]">
+    <span className="inline-flex items-center gap-1 rounded-full border border-info-border bg-info-bg py-1 pl-2.5 pr-1 text-xs font-bold text-info-text">
       @{user.fullName}
       <button
         type="button"
         onClick={onRemove}
-        className="rounded-full p-0.5 text-[#173a6a]/60 hover:bg-white hover:text-[#173a6a]"
+        className="rounded-full p-0.5 text-info-text/60 hover:bg-white hover:text-info-text"
         aria-label={`Remover ${user.fullName}`}
       >
         <X className="h-3 w-3" />
@@ -641,7 +641,7 @@ function MentionChip({ user, onRemove }: { user: LeadNoteUser; onRemove: () => v
 function NoteBody({ body }: { body: string }) {
   const parts = body.split(/(https?:\/\/[^\s]+)/g);
   return (
-    <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+    <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
       {parts.map((part, index) => {
         if (/^https?:\/\/[^\s]+$/.test(part)) {
           return (
@@ -650,7 +650,7 @@ function NoteBody({ body }: { body: string }) {
               href={part}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 font-bold text-[#173a6a] underline underline-offset-2"
+              className="inline-flex items-center gap-1 font-bold text-interactive-700 underline underline-offset-2"
             >
               {part}
               <LinkIcon className="h-3 w-3" />

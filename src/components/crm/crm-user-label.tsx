@@ -68,7 +68,7 @@ export function CrmUserLabel({
       {avatarUrl?.trim() ? (
         <AvatarImage src={avatarUrl.trim()} alt="" className="object-cover" />
       ) : null}
-      <AvatarFallback className={cn("font-bold text-primary-dark", s.fallback)}>
+      <AvatarFallback className={cn("font-bold text-foreground", s.fallback)}>
         {initialsFromDisplayName(displayName)}
       </AvatarFallback>
     </Avatar>
@@ -81,7 +81,7 @@ export function CrmUserLabel({
           <span className={cn("shrink-0 text-muted-foreground", s.prefix)}>{prefix}</span>
         ) : null}
         {avatar}
-        <span className={cn("truncate font-semibold text-primary-dark", s.name, nameClassName)}>
+        <span className={cn("truncate font-semibold text-foreground", s.name, nameClassName)}>
           {displayName}
         </span>
       </span>
@@ -95,7 +95,7 @@ export function CrmUserLabel({
         {prefix ? (
           <span className={cn("block text-muted-foreground", s.prefix)}>{prefix}</span>
         ) : null}
-        <span className={cn("block truncate font-semibold text-primary-dark", s.name, nameClassName)}>
+        <span className={cn("block truncate font-semibold text-foreground", s.name, nameClassName)}>
           {displayName}
         </span>
         {sublabel ? (

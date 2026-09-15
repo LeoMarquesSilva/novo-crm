@@ -95,11 +95,11 @@ function LossReasonTooltipBody({ motivo }: { motivo: string }) {
   return (
     <div className="px-3.5 py-3">
       <div className="flex items-start gap-2.5">
-        <span className="mt-1 size-2.5 shrink-0 rounded-full bg-rose-600" aria-hidden />
+        <span className="mt-1 size-2.5 shrink-0 rounded-full bg-danger-text" aria-hidden />
         <div className="min-w-0">
           <p className="font-semibold leading-snug text-foreground">Motivo da perda</p>
           <div className="mt-2">
-            <span className="inline-flex rounded-md bg-rose-500/14 px-2 py-0.5 text-[11px] font-semibold tracking-tight text-rose-900">
+            <span className="inline-flex rounded-(--radius-v2-sm) bg-danger-bg px-2 py-0.5 text-[11px] font-semibold tracking-tight text-danger-text">
               Perdida
             </span>
           </div>
@@ -131,7 +131,7 @@ function PipelineRdLeadCardContent({
     <>
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
         <span
-          className="inline-flex items-center rounded-full border border-orange-300/50 bg-orange-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-orange-900"
+          className="inline-flex items-center rounded-full border border-info-border bg-info-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-info-text"
           title="Sincronizado do RD Station — somente visualização no kanban"
         >
           RD Station
@@ -198,14 +198,14 @@ function PipelineRdLeadCardContent({
       ) : null}
 
       {situacaoComercial === "perdidas" && item.motivoPerda?.trim() ? (
-        <p className="mt-2 text-[11px] leading-snug text-rose-900/90">
+        <p className="mt-2 text-[11px] leading-snug text-danger-text">
           Motivo: {item.motivoPerda.trim()}
         </p>
       ) : null}
 
       <DaysInStagePanel item={item} className="mt-2" compact={daysCompact} />
 
-      <p className="mt-2 text-[10px] leading-snug text-orange-900/75">
+      <p className="mt-2 text-[10px] leading-snug text-warning-text">
         Somente visualização — etapa e operação no RD Station.
       </p>
     </>
@@ -299,7 +299,7 @@ export function PipelineLeadCardContent({
           ) : null}
           {item.origemRd ? (
             <span
-              className="inline-flex items-center rounded-full border border-orange-400/40 bg-orange-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-orange-900/90"
+              className="inline-flex items-center rounded-full border border-info-border bg-info-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-info-text"
               title="Negociação sincronizada do RD Station CRM (ver API v1 em developers.rdstation.com)"
             >
               RD Station
@@ -413,7 +413,7 @@ export function PipelineLeadCardContent({
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-start gap-2">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-sky-500/10 text-sky-800">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-v2-md) border border-info-border bg-info-bg text-info-text">
               <Send className="h-3.5 w-3.5" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
@@ -432,7 +432,7 @@ export function PipelineLeadCardContent({
                   href={item.linkContrato.trim()}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-accent-teal underline-offset-2 hover:underline"
+                  className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
                   onPointerDown={(e) => e.stopPropagation()}
                 >
                   <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
@@ -467,8 +467,8 @@ export function PipelineLeadCardContent({
               <button
                 type="button"
                 className={cn(
-                  "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-rose-300/60 bg-rose-100/70 text-rose-900",
-                  "transition-colors hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60 focus-visible:ring-offset-1",
+                  "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-danger-border bg-danger-bg text-danger-text",
+                  "transition-colors hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-border focus-visible:ring-offset-1",
                 )}
                 aria-label="Ver motivo da perda"
                 onPointerDown={(e) => e.stopPropagation()}

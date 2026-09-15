@@ -36,7 +36,7 @@ export default async function PerfilPage() {
         icon={UserRound}
       />
 
-      <Card className="glass-card glass-card-no-float border-white/45 py-0 shadow-xl shadow-primary-dark/15">
+      <Card className="border-neutral-200 py-0">
         <CardContent className="px-5 pb-7 pt-6 sm:px-8 sm:pb-8">
           <ProfileForm
             hasProfileRow={hasProfileRow}

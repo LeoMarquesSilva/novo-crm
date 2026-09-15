@@ -82,7 +82,7 @@ export function EscoposContratadosSection({
                     ) : (
                       <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
                     )}
-                    <span className={scope.missingProfile ? "text-amber-800" : "text-primary-dark"}>
+                    <span className={scope.missingProfile ? "text-amber-800" : "text-foreground"}>
                       {scope.label}
                       {scope.missingProfile ? (
                         <span className="ml-2 text-[11px] font-semibold">Sem perfil contratual</span>
@@ -333,7 +333,7 @@ function ObjectFieldInput({
         isMissing ? "border-amber-200 bg-amber-50/40" : "border-transparent bg-transparent",
       )}
     >
-      <Label htmlFor={inputId} className="text-xs font-semibold text-primary-dark">
+      <Label htmlFor={inputId} className="text-xs font-semibold text-foreground">
         {userFacingFieldLabel(field.label, field.key)}
         {field.required ? <span className="text-rose-500"> *</span> : ""}
       </Label>
@@ -427,7 +427,7 @@ function ObjectBlockPreview({
   return (
     <div className="rounded-(--radius-v2-md) border border-border bg-white p-3">
       <div className="flex items-center gap-2">
-        <p className="min-w-0 flex-1 truncate text-xs font-bold text-primary-dark">
+        <p className="min-w-0 flex-1 truncate text-xs font-bold text-foreground">
           {line.number}.{line.title ? ` ${line.title}.` : ""}
         </p>
         {override ? (
@@ -448,7 +448,7 @@ function ObjectBlockPreview({
       </div>
       {expanded ? (
         <>
-          <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-primary-dark/90">{line.content}</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{line.content}</p>
           <p className="mt-2 text-[10px] text-muted-foreground">
             Origem: perfil contratual · {line.sourceLabel} · v{line.version}
           </p>

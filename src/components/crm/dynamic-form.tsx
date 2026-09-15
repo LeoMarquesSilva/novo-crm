@@ -101,7 +101,6 @@ function CpNomeFocalInput({
         onChange={(e) => handleChange(e.target.value)}
         onBlur={runBlurValidation}
         rows={3}
-        className="bg-white/60"
         aria-invalid={!!displayError}
       />
     ) : (
@@ -111,7 +110,6 @@ function CpNomeFocalInput({
         value={str}
         onChange={(e) => handleChange(e.target.value)}
         onBlur={runBlurValidation}
-        className="bg-white/60"
         aria-invalid={!!displayError}
       />
     );
@@ -120,7 +118,7 @@ function CpNomeFocalInput({
     <div className="space-y-1">
       {control}
       {displayError ? (
-        <p className="text-xs text-red-500" role="alert">
+        <p className="text-xs text-danger-text" role="alert">
           {displayError}
         </p>
       ) : null}
@@ -150,7 +148,7 @@ function SelectField({ field, value, onChange }: FieldProps) {
       value={typeof value === "string" ? value : ""}
       onValueChange={(v) => onChange(field.field_code, v ?? "")}
     >
-      <SelectTrigger className="w-full min-w-0 bg-white/60">
+      <SelectTrigger className="w-full min-w-0">
         <SelectValue placeholder="Selecione..." />
       </SelectTrigger>
       <CrmSelectContent>
@@ -185,10 +183,10 @@ function MultiSelectField({ field, value, onChange }: FieldProps) {
             type="button"
             onClick={() => toggle(opt)}
             className={cn(
-              "rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150",
+              "rounded-(--radius-v2-full) border px-3 py-1 text-xs font-medium transition-colors",
               active
-                ? "border-primary-dark bg-crm-gradient-primary text-white shadow"
-                : "border-white/60 bg-white/50 text-primary-medium hover:bg-white/80",
+                ? "border-brand-navy bg-brand-navy text-white"
+                : "border-neutral-200 bg-white text-foreground hover:bg-neutral-50",
             )}
           >
             {opt}
@@ -269,7 +267,7 @@ function UserSelectField({ field, value, onChange }: FieldProps) {
       onValueChange={(next) => onChange(field.field_code, next ?? "")}
       disabled={loading}
     >
-      <SelectTrigger className="h-auto min-h-8 w-full min-w-0 bg-white/60 py-1.5 [&_[data-slot=select-value]]:w-full [&_[data-slot=select-value]]:min-w-0">
+      <SelectTrigger className="h-auto min-h-8 w-full min-w-0 py-1.5 [&_[data-slot=select-value]]:w-full [&_[data-slot=select-value]]:min-w-0">
         {loading ? (
           <span className="text-muted-foreground">Carregando usuários…</span>
         ) : v && selectedUser ? (
@@ -305,7 +303,7 @@ function PercentField({ field, value, onChange }: FieldProps) {
         value={typeof value === "string" ? value : ""}
         onChange={(e) => onChange(field.field_code, e.target.value)}
         placeholder="0"
-        className="bg-white/60 pr-8"
+        className="pr-8"
       />
       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
         %
@@ -340,7 +338,7 @@ export function DynamicField({
             size="sm"
             variant="outline"
             onClick={() => onChange(field.field_code, MEETING_LOCATION_PENDING)}
-            className="h-7 rounded-full border-[#dfe5ee] bg-white px-2.5 text-[11px] font-semibold text-[#536274] shadow-none hover:border-[#bfd2f6] hover:bg-[#eef5ff] hover:text-[#173a6a]"
+            className="h-7 px-2.5 text-[11px] font-semibold"
           >
             Ainda sem local
           </Button>
@@ -351,7 +349,6 @@ export function DynamicField({
           value={current}
           onChange={(e) => onChange(field.field_code, e.target.value)}
           placeholder={`Ex.: Matriz São Paulo ou ${MEETING_LOCATION_PENDING}`}
-          className="bg-white/60"
         />
       </div>
     );
@@ -364,7 +361,7 @@ export function DynamicField({
         onChange={(hm) => onChange(field.field_code, hm)}
         step={300}
         suggestions={MEETING_TIME_SUGGESTIONS}
-        className="bg-white/60 font-mono"
+        className="font-mono"
       />
     );
   }
@@ -397,7 +394,6 @@ export function DynamicField({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(field.field_code, e.target.value)}
           placeholder="0"
-          className="bg-white/60"
         />
       );
     case "date":
@@ -406,7 +402,6 @@ export function DynamicField({
         <DateInputBr
           value={typeof value === "string" ? value : ""}
           onChange={(ymd) => onChange(field.field_code, ymd)}
-          className="bg-white/60"
         />
       );
     case "time":
@@ -414,7 +409,6 @@ export function DynamicField({
         <TimeInputBr
           value={typeof value === "string" ? value : ""}
           onChange={(hm) => onChange(field.field_code, hm)}
-          className="bg-white/60"
         />
       );
     case "user":
@@ -426,7 +420,6 @@ export function DynamicField({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(field.field_code, e.target.value)}
           placeholder="nome@exemplo.com.br"
-          className="bg-white/60"
         />
       );
     case "phone":
@@ -441,7 +434,6 @@ export function DynamicField({
             onChange(field.field_code, formatted);
           }}
           placeholder="(11) 99999-9999"
-          className="bg-white/60"
         />
       );
     case "url":
@@ -451,7 +443,6 @@ export function DynamicField({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(field.field_code, e.target.value)}
           placeholder="https://..."
-          className="bg-white/60"
         />
       );
     case "textarea":
@@ -460,7 +451,6 @@ export function DynamicField({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(field.field_code, e.target.value)}
           rows={3}
-          className="bg-white/60"
         />
       );
     default:
@@ -469,7 +459,6 @@ export function DynamicField({
           type="text"
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(field.field_code, e.target.value)}
-          className="bg-white/60"
         />
       );
   }
@@ -567,11 +556,11 @@ export function DynamicForm({
         <div key={field.field_code} className="space-y-1.5">
           <Label
             htmlFor={field.field_code}
-            className="flex items-center gap-1.5 text-sm font-medium text-primary-dark"
+            className="flex items-center gap-1.5 text-sm font-medium text-foreground"
           >
             {userFacingFieldLabel(field.label, field.field_code)}
             {field.is_required && (
-              <span className="text-red-500" aria-hidden>
+              <span className="text-danger-text" aria-hidden>
                 *
               </span>
             )}
@@ -589,7 +578,7 @@ export function DynamicForm({
             onCommitValidation={handleCommitValidation}
           />
           {field.field_code !== "cp_nome_focal" && errors[field.field_code] ? (
-            <p className="text-xs text-red-500">{errors[field.field_code]}</p>
+            <p className="text-xs text-danger-text">{errors[field.field_code]}</p>
           ) : null}
         </div>
       ))}
@@ -598,7 +587,7 @@ export function DynamicForm({
         <Button
           type="submit"
           disabled={submitting}
-          className="w-full bg-crm-gradient-primary text-white shadow-md shadow-primary-dark/25"
+          className="w-full"
         >
           {submitting ? "Salvando..." : submitLabel}
         </Button>

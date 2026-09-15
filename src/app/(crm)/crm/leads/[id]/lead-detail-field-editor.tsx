@@ -330,7 +330,7 @@ export function LeadDetailFieldEditor({
   return (
     <div
       className={cn(
-        omitLabel ? "" : "rounded-lg border border-white/50 bg-white/60 p-3",
+        omitLabel ? "" : "rounded-(--radius-v2-md) border border-neutral-200 bg-white p-3",
         className,
       )}
     >
@@ -343,7 +343,7 @@ export function LeadDetailFieldEditor({
         {!editing ? (
           <div className="flex shrink-0 items-center gap-1">
             {showRdBadge ? (
-              <span className="rounded bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-teal-900">
+              <span className="rounded-(--radius-v2-sm) bg-info-bg px-1.5 py-0.5 text-[10px] font-semibold text-info-text">
                 Ajustado no CRM
               </span>
             ) : null}
@@ -364,7 +364,7 @@ export function LeadDetailFieldEditor({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-primary-dark"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
               title="Editar"
               onClick={startEdit}
             >
@@ -385,41 +385,41 @@ export function LeadDetailFieldEditor({
                 {initialsFromFullName(resolvedUser.fullName)}
               </AvatarFallback>
             </Avatar>
-            <span className="text-sm font-medium text-primary-dark">{resolvedUser.fullName}</span>
+            <span className="text-sm font-medium text-foreground">{resolvedUser.fullName}</span>
           </div>
         ) : kind === "yesno" && committedValue ? (
-          <p className="mt-1 text-sm font-medium text-primary-dark">{normalizeYesNoLabel(committedValue)}</p>
+          <p className="mt-1 text-sm font-medium text-foreground">{normalizeYesNoLabel(committedValue)}</p>
         ) : kind === "multiselect" || kind === "areas" ? (
           parseMultiselectStored(committedValue).length > 0 ? (
             <div className="mt-1 flex flex-wrap gap-1.5">
               {parseMultiselectStored(committedValue).map((p) => (
                 <span
                   key={p}
-                  className="rounded-full border border-white/60 bg-white/40 px-2.5 py-0.5 text-xs font-medium text-primary-dark"
+                  className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-0.5 text-xs font-medium text-foreground"
                 >
                   {p}
                 </span>
               ))}
             </div>
           ) : (
-            <p className="mt-1 text-sm text-primary-dark">—</p>
+            <p className="mt-1 text-sm text-foreground">—</p>
           )
         ) : kind === "select" && committedValue ? (
-          <p className="mt-1 text-sm text-primary-dark break-words">
+          <p className="mt-1 text-sm text-foreground break-words">
             {looksLikeUuid(committedValue) ? "Valor técnico não resolvido" : committedValue}
           </p>
         ) : kind === "user" && committedValue && !resolvedUser ? (
           <p
             className={
               userIdentityMode === "email"
-                ? "mt-1 text-sm text-primary-dark break-all"
+                ? "mt-1 text-sm text-foreground break-all"
                 : "mt-1 font-mono text-xs text-muted-foreground break-all"
             }
           >
             {looksLikeUuid(committedValue) ? "Usuário não localizado" : committedValue}
           </p>
         ) : (
-          <p className="mt-1 text-sm text-primary-dark break-words whitespace-pre-wrap">
+          <p className="mt-1 text-sm text-foreground break-words whitespace-pre-wrap">
             {committedValue
               ? kind === "date"
                 ? formatDateYmdBr(committedValue.slice(0, 10)) || committedValue
@@ -437,7 +437,7 @@ export function LeadDetailFieldEditor({
         <div className="mt-2 space-y-2">
           {kind === "textarea" ? (
             <textarea
-              className="flex min-h-[88px] w-full rounded-md border border-input bg-white/80 px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-dark/25"
+              className="flex min-h-[88px] w-full rounded-(--radius-v2-md) border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-interactive-600/25"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               disabled={saving}
@@ -449,7 +449,7 @@ export function LeadDetailFieldEditor({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               disabled={saving}
-              className="bg-white/80"
+              className="bg-white"
             />
           ) : null}
           {kind === "date" ? (
@@ -457,7 +457,7 @@ export function LeadDetailFieldEditor({
               value={draft.slice(0, 10)}
               onChange={(ymd) => setDraft(ymd)}
               disabled={saving}
-              className="bg-white/80"
+              className="bg-white"
             />
           ) : null}
           {kind === "time" ? (
@@ -465,7 +465,7 @@ export function LeadDetailFieldEditor({
               value={draft}
               onChange={(hm) => setDraft(hm)}
               disabled={saving}
-              className="bg-white/80"
+              className="bg-white"
             />
           ) : null}
           {kind === "yesno" ? (
@@ -474,7 +474,7 @@ export function LeadDetailFieldEditor({
               onValueChange={(v) => setDraft(v === "Sim" ? "Sim" : "Não")}
               disabled={saving}
             >
-              <SelectTrigger className="bg-white/80">
+              <SelectTrigger className="bg-white">
                 <CrmSelectValue
                   value={normalizeYesNoForSelect(draft)}
                   labels={YES_NO_LABELS}
@@ -493,7 +493,7 @@ export function LeadDetailFieldEditor({
               onValueChange={(v) => setDraft(v ?? "")}
               disabled={saving}
             >
-              <SelectTrigger className="bg-white/80">
+              <SelectTrigger className="bg-white">
                 <SelectValue placeholder="Selecione…" />
               </SelectTrigger>
               <CrmSelectContent className="max-h-[min(280px,50dvh)]">
@@ -518,8 +518,8 @@ export function LeadDetailFieldEditor({
                     className={cn(
                       "rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150",
                       active
-                        ? "border-primary-dark bg-crm-gradient-primary text-white shadow"
-                        : "border-white/60 bg-white/50 text-primary-medium hover:bg-white/80",
+                        ? "border-brand-navy bg-brand-navy text-white"
+                        : "border-neutral-200 bg-white text-muted-foreground hover:bg-neutral-50",
                     )}
                   >
                     {opt}
@@ -537,7 +537,7 @@ export function LeadDetailFieldEditor({
                   onValueChange={(v) => setDraft(v ?? "")}
                   disabled={saving || usersLoading}
                 >
-                  <SelectTrigger className="h-auto min-h-9 w-full min-w-0 bg-white/80 py-1.5 [&_[data-slot=select-value]]:w-full [&_[data-slot=select-value]]:min-w-0">
+                  <SelectTrigger className="h-auto min-h-9 w-full min-w-0 bg-white py-1.5 [&_[data-slot=select-value]]:w-full [&_[data-slot=select-value]]:min-w-0">
                     {usersLoading ? (
                       <span className="text-muted-foreground">Carregando usuários…</span>
                     ) : draft && selectedAppUser ? (
@@ -546,7 +546,7 @@ export function LeadDetailFieldEditor({
                         avatarUrl={selectedAppUser.avatar_url}
                       />
                     ) : draft && draft.includes("@") && !selectedAppUser ? (
-                      <span className="truncate text-sm text-primary-dark">{draft}</span>
+                      <span className="truncate text-sm text-foreground">{draft}</span>
                     ) : draft && !selectedAppUser ? (
                       <span className="truncate text-muted-foreground">E-mail não associado a um usuário</span>
                     ) : (
@@ -569,7 +569,7 @@ export function LeadDetailFieldEditor({
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   disabled={saving}
-                  className="bg-white/80"
+                  className="bg-white"
                   placeholder="nome@empresa.com.br"
                 />
               </div>
@@ -580,7 +580,7 @@ export function LeadDetailFieldEditor({
                 onValueChange={(v) => setDraft(v ?? "")}
                 disabled={saving || usersLoading}
               >
-                <SelectTrigger className="h-auto min-h-9 w-full min-w-0 bg-white/80 py-1.5 [&_[data-slot=select-value]]:w-full [&_[data-slot=select-value]]:min-w-0">
+                <SelectTrigger className="h-auto min-h-9 w-full min-w-0 bg-white py-1.5 [&_[data-slot=select-value]]:w-full [&_[data-slot=select-value]]:min-w-0">
                   {usersLoading ? (
                     <span className="text-muted-foreground">Carregando usuários…</span>
                   ) : draft && selectedAppUser ? (
@@ -615,7 +615,7 @@ export function LeadDetailFieldEditor({
                 onChange={(e) => setDraft(e.target.value)}
                 disabled={saving}
                 placeholder="0"
-                className="bg-white/80 pr-8"
+                className="bg-white pr-8"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                 %
@@ -629,7 +629,7 @@ export function LeadDetailFieldEditor({
               onChange={(e) => setDraft(e.target.value)}
               disabled={saving}
               placeholder="0"
-              className="bg-white/80"
+              className="bg-white"
             />
           ) : null}
           {kind === "phone" ? (
@@ -644,7 +644,7 @@ export function LeadDetailFieldEditor({
               }}
               disabled={saving}
               placeholder="(11) 99999-9999"
-              className="bg-white/80"
+              className="bg-white"
             />
           ) : null}
           {kind === "url" ? (
@@ -654,12 +654,12 @@ export function LeadDetailFieldEditor({
               onChange={(e) => setDraft(e.target.value)}
               disabled={saving}
               placeholder="https://…"
-              className="bg-white/80"
+              className="bg-white"
             />
           ) : null}
           {kind === "leadType" ? (
             <Select value={draft} onValueChange={(v) => setDraft(v ?? "")} disabled={saving}>
-              <SelectTrigger className="bg-white/80">
+              <SelectTrigger className="bg-white">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <CrmSelectContent>
@@ -677,7 +677,7 @@ export function LeadDetailFieldEditor({
               onValueChange={(v) => setDraft(v === "__empty__" || v == null ? "" : v)}
               disabled={saving}
             >
-              <SelectTrigger className="bg-white/80">
+              <SelectTrigger className="bg-white">
                 <CrmSelectValue
                   value={draft || "__empty__"}
                   labels={{

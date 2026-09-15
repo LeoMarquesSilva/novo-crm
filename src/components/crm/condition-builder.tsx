@@ -69,9 +69,9 @@ export function ConditionBuilder({
   const condition = value!;
 
   return (
-    <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+    <div className="space-y-2 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-primary-dark">
+        <span className="text-xs font-medium text-foreground">
           Exibir quando
         </span>
         <Button

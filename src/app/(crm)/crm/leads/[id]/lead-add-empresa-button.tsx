@@ -45,7 +45,7 @@ export function LeadAddEmpresaButton({ leadId, className }: Props) {
         type="button"
         variant="outline"
         size="sm"
-        className="w-full border-dashed border-primary-dark/40 bg-white/50 text-primary-dark hover:bg-white/80 sm:w-auto"
+        className="w-full border-dashed border-neutral-300 bg-white text-foreground hover:bg-neutral-50 sm:w-auto"
         disabled={loading}
         onClick={() => void add()}
       >

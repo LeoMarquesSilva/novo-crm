@@ -142,34 +142,34 @@ const LEAD_TYPE_TONES: Record<
   { card: string; icon: string; badge: string; accent: string }
 > = {
   Indicacao: {
-    card: "border-amber-200 bg-[#fff8e6]",
-    icon: "border-amber-200 bg-white text-amber-700",
-    badge: "border-amber-200 bg-amber-100 text-amber-800",
-    accent: "bg-amber-400",
+    card: "border-warning-border bg-warning-bg",
+    icon: "border-warning-border bg-white text-warning-text",
+    badge: "border-warning-border bg-warning-bg text-warning-text",
+    accent: "bg-warning-text",
   },
   "Lead Ativa": {
-    card: "border-blue-200 bg-blue-50",
-    icon: "border-blue-200 bg-white text-blue-700",
-    badge: "border-blue-200 bg-blue-100 text-blue-800",
-    accent: "bg-blue-500",
+    card: "border-info-border bg-info-bg",
+    icon: "border-info-border bg-white text-info-text",
+    badge: "border-info-border bg-info-bg text-info-text",
+    accent: "bg-info-text",
   },
   "Lead Digital": {
-    card: "border-violet-200 bg-violet-50",
-    icon: "border-violet-200 bg-white text-violet-700",
-    badge: "border-violet-200 bg-violet-100 text-violet-800",
-    accent: "bg-violet-500",
+    card: "border-violet-border bg-violet-bg",
+    icon: "border-violet-border bg-white text-violet-text",
+    badge: "border-violet-border bg-violet-bg text-violet-text",
+    accent: "bg-violet-text",
   },
   "Lead Passiva": {
-    card: "border-slate-200 bg-slate-50",
-    icon: "border-slate-200 bg-white text-slate-700",
-    badge: "border-slate-200 bg-slate-100 text-slate-800",
-    accent: "bg-slate-400",
+    card: "border-neutral-200 bg-neutral-50",
+    icon: "border-neutral-200 bg-white text-foreground",
+    badge: "border-neutral-200 bg-neutral-100 text-foreground",
+    accent: "bg-neutral-400",
   },
   "Cross Selling": {
-    card: "border-emerald-200 bg-emerald-50",
-    icon: "border-emerald-200 bg-white text-emerald-700",
-    badge: "border-emerald-200 bg-emerald-100 text-emerald-800",
-    accent: "bg-emerald-500",
+    card: "border-success-border bg-success-bg",
+    icon: "border-success-border bg-white text-success-text",
+    badge: "border-success-border bg-success-bg text-success-text",
+    accent: "bg-success-text",
   },
 };
 
@@ -238,7 +238,7 @@ function CurrentUserSummary({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-[14px] border border-border bg-surface-subtle p-4">
+    <div className="rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -251,9 +251,9 @@ function CurrentUserSummary({
       </div>
 
       {loading ? (
-        <div className="h-14 animate-pulse rounded-xl bg-[#f3f4f6]" />
+        <div className="h-14 animate-pulse rounded-(--radius-v2-md) bg-neutral-100" />
       ) : user ? (
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-white px-3 py-3">
+        <div className="flex items-center gap-3 rounded-(--radius-v2-md) border border-border bg-white px-3 py-3">
           <Avatar className="h-10 w-10 border border-border">
             <AvatarImage src={user.avatarUrl} alt={user.name} />
             <AvatarFallback>{initialsFromName(user.name)}</AvatarFallback>
@@ -264,7 +264,7 @@ function CurrentUserSummary({
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+        <div className="rounded-(--radius-v2-md) border border-warning-border bg-warning-bg px-3 py-3 text-sm text-warning-text">
           Não foi possível identificar o usuário logado para preencher este campo.
         </div>
       )}
@@ -309,8 +309,8 @@ function ReviewItem({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-[14px] border border-border bg-white px-4 py-3 shadow-sm", className)}>
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8a94a6]">{label}</p>
+    <div className={cn("rounded-(--radius-v2-xl) border border-border bg-white px-4 py-3", className)}>
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold leading-relaxed text-foreground">{value || "Não informado"}</p>
     </div>
   );
@@ -1091,7 +1091,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
 
               <div
                 className={cn(
-                  "relative overflow-hidden rounded-[16px] border p-4 shadow-[0_14px_30px_rgba(16,31,46,0.06)] sm:p-5",
+                  "relative overflow-hidden rounded-(--radius-v2-xl) border p-4 sm:p-5",
                   selectedLeadTone.card,
                 )}
               >
@@ -1104,7 +1104,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                 <div className="mb-4 flex items-start gap-3">
                   <span
                     className={cn(
-                      "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm",
+                      "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-(--radius-v2-lg) border",
                       selectedLeadTone.icon,
                     )}
                   >
@@ -1290,7 +1290,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             subtitle="Informe a entidade principal do lead. Para Cross Selling, esses dados vêm do cliente escolhido no fluxo selecionado."
           >
             {isCrossSelling ? (
-              <div className="rounded-[14px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              <div className="rounded-(--radius-v2-xl) border border-success-border bg-success-bg px-4 py-3 text-sm text-success-text">
                 Cross Selling usa o cliente selecionado no bloco de origem e preenche a
                 primeira empresa automaticamente.
               </div>
@@ -1300,7 +1300,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               {empresas.map((company, index) => (
                 <div
                   key={`company-${index}`}
-                  className="rounded-[14px] border border-border bg-white p-4 shadow-sm"
+                  className="rounded-(--radius-v2-xl) border border-border bg-white p-4"
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
@@ -1621,11 +1621,11 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               </div>
 
               {!canSubmitLead ? (
-                <div className="rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                <div className="rounded-(--radius-v2-xl) border border-warning-border bg-warning-bg px-4 py-3 text-sm text-warning-text">
                   Ainda há pendências em etapas anteriores. Use Voltar ou clique na etapa marcada para corrigir antes de salvar.
                 </div>
               ) : (
-                <div className="rounded-[14px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+                <div className="rounded-(--radius-v2-xl) border border-success-border bg-success-bg px-4 py-3 text-sm text-success-text">
                   Tudo pronto para abrir o lead com seu usuário autenticado.
                 </div>
               )}

@@ -1478,7 +1478,7 @@ function D4SignSendSection({
           {isSigned ? <CheckCircle2 className="size-4" aria-hidden /> : <Send className="size-4" aria-hidden />}
         </span>
         <div>
-          <p className="text-sm font-bold text-primary-dark">Assinatura Digital — D4Sign</p>
+          <p className="text-sm font-bold text-foreground">Assinatura Digital — D4Sign</p>
           {statusInfo ? (
             <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold", statusInfo.color)}>
               {statusInfo.label}
@@ -1654,7 +1654,7 @@ function D4SignSendSection({
                           .toUpperCase()}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold text-primary-dark">{s.name}</p>
+                        <p className="truncate text-xs font-bold text-foreground">{s.name}</p>
                         <p className="truncate text-[10px] text-muted-foreground">
                           {s.email}
                           {s.oab ? <span className="ml-2 text-interactive-700">· {s.oab}</span> : null}
@@ -1760,7 +1760,7 @@ function D4SignSendSection({
 
             {/* ── Mensagem opcional ────────────────────────────────────── */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-primary-dark">
+              <Label className="text-xs font-medium text-foreground">
                 Mensagem (opcional)
               </Label>
               <Input
@@ -1918,7 +1918,7 @@ function SignerRow({
 
       {/* Info */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-bold text-primary-dark leading-tight">
+        <p className="truncate text-xs font-bold text-foreground leading-tight">
           {displayName ?? signer.email}
         </p>
         {displayName ? (
@@ -2098,7 +2098,7 @@ function ReviewTaskCard({
           <ClipboardList className="size-4" aria-hidden />
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-primary-dark">Revisão do Contrato — Societário e Contratos</p>
+          <p className="text-sm font-bold text-foreground">Revisão do Contrato — Societário e Contratos</p>
           <span className={cn("text-[11px] font-semibold", cfg.color)}>{cfg.label}</span>
         </div>
         {reviewTask.notificado_em && (
@@ -2114,7 +2114,7 @@ function ReviewTaskCard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Prazo</p>
-              <p className={cn("text-sm font-bold", atrasado ? "text-rose-600" : "text-primary-dark")}>
+              <p className={cn("text-sm font-bold", atrasado ? "text-rose-600" : "text-foreground")}>
                 {prazoStr}
                 {diasRestantes !== null && reviewTask.status !== "concluido" && (
                   <span className={cn("ml-2 text-xs font-normal", atrasado ? "text-rose-500" : "text-muted-foreground")}>
@@ -2334,7 +2334,7 @@ function ClausulasSection({
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">
           <BookText className="size-3.5" aria-hidden />
         </span>
-        <h3 className="text-sm font-bold tracking-[-0.01em] text-primary-dark">
+        <h3 className="text-sm font-bold tracking-[-0.01em] text-foreground">
           Cláusulas Adicionais
         </h3>
         {selected.length > 0 ? (
@@ -2486,7 +2486,7 @@ function ClauseRowItem({
           >
             {inContractNow ? <Check className="size-2.5" aria-hidden /> : <Lock className="size-2.5" aria-hidden />}
           </span>
-          <span className="flex-1 truncate text-xs font-semibold text-primary-dark">{row.title}</span>
+          <span className="flex-1 truncate text-xs font-semibold text-foreground">{row.title}</span>
           <Tooltip>
             <TooltipTrigger asChild>
               <span
@@ -2546,7 +2546,7 @@ function ClauseRowItem({
         ) : (
           <span className="size-4 shrink-0 rounded-full border-2 border-slate-300" aria-hidden />
         )}
-        <span className="flex-1 truncate text-xs font-semibold text-primary-dark">{row.title}</span>
+        <span className="flex-1 truncate text-xs font-semibold text-foreground">{row.title}</span>
         {row.isAdded ? (
           <>
             <Button
@@ -2643,7 +2643,7 @@ function PinsSection({
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">
           <MapPin className="size-3.5" aria-hidden />
         </span>
-        <h3 className="text-sm font-bold tracking-[-0.01em] text-primary-dark">
+        <h3 className="text-sm font-bold tracking-[-0.01em] text-foreground">
           Posicionar Assinaturas
         </h3>
         {pins.length > 0 ? (
@@ -3021,7 +3021,7 @@ function CcFieldInput({
   const label = userFacingFieldLabel(field.label, field.fieldCode);
   const isRequired = requiredOverride ?? field.required;
   const labelNode = (
-    <Label className="flex items-center gap-1 text-xs font-medium text-primary-dark">
+    <Label className="flex items-center gap-1 text-xs font-medium text-foreground">
       {label}
       {isRequired ? <span className="text-rose-500" aria-hidden>*</span> : null}
       {isRequired ? <span className="sr-only"> (obrigatório)</span> : null}

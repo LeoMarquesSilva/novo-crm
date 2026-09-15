@@ -138,7 +138,7 @@ export function KanbanPanelShell({
       </div>
       {children}
       {footer ? (
-        <div className="border-t border-primary-dark/[0.06] px-2.5 py-1.5">{footer}</div>
+        <div className="border-t border-neutral-200 px-2.5 py-1.5">{footer}</div>
       ) : null}
     </div>
   );
@@ -167,7 +167,7 @@ export function KanbanPanelDetails({
     >
       <summary
         className={cn(
-          "flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold text-primary-dark/70 outline-none transition-colors [&::-webkit-details-marker]:hidden",
+          "flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground outline-none transition-colors [&::-webkit-details-marker]:hidden",
           styles.summaryHover,
         )}
       >
@@ -189,15 +189,15 @@ type KanbanPanelInfoRowProps = {
 export function KanbanPanelInfoRow({ icon, label, value, muted }: KanbanPanelInfoRowProps) {
   return (
     <div className="flex items-start gap-2 rounded-(--radius-v2-lg) border border-border bg-white px-2 py-1.5">
-      <span className="mt-0.5 shrink-0 text-primary-dark/45" aria-hidden>
+      <span className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden>
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[9px] font-semibold uppercase tracking-wide text-primary-dark/45">{label}</p>
+        <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
         <p
           className={cn(
             "truncate text-[11px] font-semibold leading-tight",
-            muted ? "text-primary-dark/45" : "text-primary-dark",
+            muted ? "text-muted-foreground" : "text-foreground",
           )}
         >
           {value}
@@ -227,37 +227,37 @@ export function KanbanAreaRow({
   return (
     <li
       className={cn(
-        "flex items-start gap-2 rounded-[10px] border px-2 py-1.5 text-[10px] font-medium leading-snug",
+        "flex items-start gap-2 rounded-(--radius-v2-lg) border px-2 py-1.5 text-[10px] font-medium leading-snug",
         done
-          ? "border-emerald-200/80 bg-emerald-50/55 text-primary-dark/85"
+          ? "border-success-border bg-success-bg text-foreground"
           : tone === "danger"
-            ? "border-rose-200/70 bg-rose-50/40 text-primary-dark/85"
+            ? "border-danger-border bg-danger-bg text-foreground"
             : tone === "warning"
-              ? "border-amber-200/70 bg-amber-50/40 text-primary-dark/85"
-              : "border-primary-dark/[0.08] bg-white/55 text-primary-dark/85",
+              ? "border-warning-border bg-warning-bg text-foreground"
+              : "border-neutral-200 bg-white text-foreground",
       )}
     >
       <span className="mt-0.5 shrink-0" aria-hidden>
         {done ? (
-          <Check className="h-3.5 w-3.5 text-emerald-600" strokeWidth={2.5} />
+          <Check className="h-3.5 w-3.5 text-success-text" strokeWidth={2.5} />
         ) : tone === "danger" ? (
-          <AlertCircle className="h-3.5 w-3.5 text-rose-600" strokeWidth={2.5} />
+          <AlertCircle className="h-3.5 w-3.5 text-danger-text" strokeWidth={2.5} />
         ) : (
-          <Clock className="h-3.5 w-3.5 text-amber-600" strokeWidth={2.5} />
+          <Clock className="h-3.5 w-3.5 text-warning-text" strokeWidth={2.5} />
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="font-bold text-primary-dark">{areaKey}</span>
+        <span className="font-bold text-foreground">{areaKey}</span>
         <span
           className={
-            done ? " text-emerald-900/85" : tone === "danger" ? " text-rose-900/85" : " text-amber-950/80"
+            done ? " text-success-text" : tone === "danger" ? " text-danger-text" : " text-warning-text"
           }
         >
           {" "}
           — {done ? doneLabel : pendingLabel}
         </span>
         {extra ? (
-          <span className="block pt-0.5 font-normal text-primary-dark/65">{extra}</span>
+          <span className="block pt-0.5 font-normal text-muted-foreground">{extra}</span>
         ) : null}
       </span>
     </li>

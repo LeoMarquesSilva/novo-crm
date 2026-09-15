@@ -10,20 +10,8 @@
   --font-sans: var(--font-plus-jakarta);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
-  --color-primary-dark: var(--primary-dark);
-  --color-primary-medium: var(--primary-medium);
-  --color-primary-light: var(--primary-light);
-  --color-accent-teal: var(--accent-teal);
   --color-accent-yellow: var(--accent-yellow);
   --color-accent-yellow-dark: var(--accent-yellow-dark);
-  --color-accent-pink: var(--accent-pink);
-  --color-accent-green: var(--accent-green);
-  --color-crm-surface-warm: var(--crm-surface-warm);
-  --color-crm-surface-warm-muted: var(--crm-surface-warm-muted);
-  --color-crm-border-warm: var(--crm-border-warm);
-  --color-crm-border-warm-strong: var(--crm-border-warm-strong);
-  --background-image-gradient-primary: var(--gradient-primary);
-  --background-image-gradient-dark: var(--gradient-dark);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -122,28 +110,13 @@
 }
 
 :root {
-  --primary-dark: #172033;
-  --primary-medium: #2c3a52;
-  --primary-light: #65758f;
-  --gradient-primary: linear-gradient(135deg, #17322f 0%, #0f766e 48%, #15b8a6 100%);
-  --gradient-dark: linear-gradient(135deg, #f8f9fb 0%, #f4f6f8 46%, #fbfaf7 100%);
-  --accent-teal: #0f9f8f;
   --accent-yellow: #fff2c7;
   --accent-yellow-dark: #d89d19;
-  --accent-pink: #ffe2ea;
-  --accent-green: #35c68a;
-  --crm-surface-warm: #f8f6ef;
-  --crm-surface-warm-muted: #f4f0e6;
-  --crm-border-warm: #ded8c8;
-  --crm-border-warm-strong: #d8ded8;
-  --glass-white: #ffffff;
-  --glass-blur: 0px;
-  --glass-border: rgba(16, 31, 46, 0.09);
 
-  /* Tokens semânticos V2 (§7.2 do DESIGN_SYSTEM_V2_CRM_BP.md) — fonte de verdade a
-     partir da Fase 1. Sidebar e superfícies com estética navy/teal só migram nas
-     Fases 3/6; até lá continuam usando os tokens --sidebar-* e --primary-dark/--accent-teal
-     definidos acima, preservados de propósito. */
+  /* Tokens semânticos V2 (§7.2 do DESIGN_SYSTEM_V2_CRM_BP.md) — fonte de verdade
+     desde a Fase 1. primary-dark, accent-teal, os tokens glass e crm-surface-warm
+     e os demais aliases legados de cor foram removidos na Fase 7 (Limpeza):
+     zero consumidores restantes depois da Fase 6 migrar todas as telas. */
   --background: #f7f8fa;
   --foreground: #182230;
   --card: #ffffff;
@@ -326,13 +299,6 @@
 }
 
 @layer utilities {
-  .bg-crm-gradient-dark {
-    background-image: var(--gradient-dark);
-  }
-  .bg-crm-gradient-primary {
-    background-image: var(--gradient-primary);
-  }
-
   .heading-xl {
     font-size: clamp(2rem, 3vw, 3rem);
     font-weight: 800;
@@ -399,32 +365,6 @@
     font-size: 12px;
     line-height: 18px;
     font-weight: 600;
-  }
-
-  .glass-card {
-    background: #ffffff;
-    border: 1px solid var(--glass-border);
-    box-shadow:
-      0 1px 2px rgba(16, 31, 46, 0.035),
-      0 14px 34px rgba(16, 31, 46, 0.055);
-    border-radius: 18px;
-    transition:
-      border-color 0.15s ease,
-      box-shadow 0.15s ease,
-      transform 0.15s ease;
-  }
-
-  .glass-card:hover {
-    /* Design System V2 (§11.2/§35): cards não sobem no hover. Deslocamento removido
-       na Fase 1; cor/sombra/raio do Card seguem os valores legados até a Fase 2. */
-    border-color: rgba(16, 31, 46, 0.13);
-    box-shadow:
-      0 2px 5px rgba(16, 31, 46, 0.045),
-      0 18px 42px rgba(16, 31, 46, 0.075);
-  }
-
-  .glass-card-no-float:hover {
-    transform: none;
   }
 
   /* Design System V2 (§31): scrollbar neutra e discreta, sem gradiente teal. */

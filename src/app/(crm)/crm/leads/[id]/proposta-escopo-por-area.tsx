@@ -440,7 +440,7 @@ export function PropostaEscopoPorArea({
   if (areas.length === 0) {
     return (
       <div className={cn("rounded-lg border border-dashed border-white/40 bg-white/40 p-4 sm:col-span-2", className)}>
-        <p className="text-sm font-medium text-primary-dark">Escopo por área</p>
+        <p className="text-sm font-medium text-foreground">Escopo por área</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Selecione ao menos uma área em &quot;Áreas de escopo&quot; para definir tipo e subtipo.
         </p>
@@ -495,7 +495,7 @@ export function PropostaEscopoPorArea({
                 className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-muted-foreground"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <AreaIconLabel area={normalizePracticeAreaKey(area)} size="sm" nameClassName="font-extrabold text-primary-dark" />
+                  <AreaIconLabel area={normalizePracticeAreaKey(area)} size="sm" nameClassName="font-extrabold text-foreground" />
                   <Badge variant="outline" className="border-slate-300 bg-white text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">
                     Sem acesso
                   </Badge>
@@ -940,7 +940,7 @@ function EscopoAreaBlock({
             className={cn("size-5 shrink-0 text-amber-800/80 transition-transform", panelOpen && "rotate-180")}
             aria-hidden
           />
-          <AreaIconLabel area={areaLabel} size="md" nameClassName="text-base font-semibold text-primary-dark" />
+          <AreaIconLabel area={areaLabel} size="md" nameClassName="text-base font-semibold text-foreground" />
         </button>
         {panelOpen ? (
           <div className="border-t border-amber-200/80 px-4 py-3">
@@ -1131,7 +1131,7 @@ function AreaSummaryCard({
           <PracticeAreaIconBadge area={areaLabel} size="lg" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-base font-extrabold tracking-[-0.02em] text-primary-dark">{areaLabel}</p>
+              <p className="text-base font-extrabold tracking-[-0.02em] text-foreground">{areaLabel}</p>
               {scopeCount > 1 ? (
                 <Badge variant="outline" className="h-6 border-slate-200 bg-white text-[10px] font-bold text-slate-600">
                   {scopeCount} escopos
@@ -1234,7 +1234,7 @@ function EscopoModalHeader({
                 {statusLabel}
               </span>
             </div>
-            <DialogTitle className="text-xl font-extrabold tracking-[-0.035em] text-primary-dark sm:text-2xl">
+            <DialogTitle className="text-xl font-extrabold tracking-[-0.035em] text-foreground sm:text-2xl">
               {areaLabel}
             </DialogTitle>
             <DialogDescription className="mt-1 flex max-w-2xl flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-relaxed text-slate-500">
@@ -1291,7 +1291,7 @@ function HeaderMeta({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
       <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">{label}</p>
-      <div className="mt-1 truncate text-xs font-bold text-primary-dark">{value}</div>
+      <div className="mt-1 truncate text-xs font-bold text-foreground">{value}</div>
     </div>
   );
 }
@@ -1302,7 +1302,7 @@ function ReadOnlyPair({ label, value, dark }: { label: string; value: string; da
       <p className={cn("text-[10px] font-black uppercase tracking-[0.14em]", dark ? "text-white/45" : "text-slate-400")}>
         {label}
       </p>
-      <p className={cn("mt-1 text-sm font-bold", dark ? "text-white" : "text-primary-dark")}>{value}</p>
+      <p className={cn("mt-1 text-sm font-bold", dark ? "text-white" : "text-foreground")}>{value}</p>
     </div>
   );
 }
@@ -1321,7 +1321,7 @@ function PreviewGrid({ escopo }: { escopo: string }) {
           Word
         </span>
       </div>
-      <div className="crm-scrollbar max-h-[min(42vh,300px)] min-w-0 overflow-auto rounded-xl border border-[#edf0f4] bg-[#fbfcfd] p-3.5 text-xs leading-relaxed text-primary-dark">
+      <div className="crm-scrollbar max-h-[min(42vh,300px)] min-w-0 overflow-auto rounded-xl border border-[#edf0f4] bg-[#fbfcfd] p-3.5 text-xs leading-relaxed text-foreground">
         {escopo.trim() ? (
           <JustifiedDocumentText text={escopo} />
         ) : (

@@ -21,18 +21,18 @@ const STATUS_COPY: Record<
 };
 
 const STATUS_BADGE: Record<DwellTrafficStatus, string> = {
-  ok: "bg-emerald-500/14 text-emerald-950",
-  warning: "bg-amber-500/16 text-amber-950",
-  critical: "bg-red-500/14 text-red-950",
-  unknown: "bg-slate-400/18 text-slate-800",
+  ok: "bg-success-bg text-success-text",
+  warning: "bg-warning-bg text-warning-text",
+  critical: "bg-danger-bg text-danger-text",
+  unknown: "bg-neutral-100 text-muted-foreground",
 };
 
 /** Apenas o ponto semáforo — sem borda lateral colorida. */
 const DOT_SOLID: Record<DwellTrafficStatus, string> = {
-  ok: "bg-emerald-500",
-  warning: "bg-amber-500",
-  critical: "bg-red-600",
-  unknown: "bg-slate-400",
+  ok: "bg-success-text",
+  warning: "bg-warning-text",
+  critical: "bg-danger-text",
+  unknown: "bg-neutral-400",
 };
 
 function stageTitle(etapa: Oportunidade["etapa"]): string {
@@ -80,19 +80,19 @@ function DwellStageTooltipBody({ item }: { item: Oportunidade }) {
           aria-hidden
         />
         <div className="min-w-0">
-          <p className="font-semibold leading-snug text-primary-dark">{stageTitle(item.etapa)}</p>
+          <p className="font-semibold leading-snug text-foreground">{stageTitle(item.etapa)}</p>
           <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span
               className={cn(
-                "inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold tracking-tight",
+                "inline-flex rounded-(--radius-v2-sm) px-2 py-0.5 text-[11px] font-semibold tracking-tight",
                 STATUS_BADGE[status],
               )}
             >
               {copy.badge}
             </span>
-            <span className="text-[12px] leading-snug text-slate-600">{copy.headline}</span>
+            <span className="text-[12px] leading-snug text-muted-foreground">{copy.headline}</span>
           </div>
-          <p className="mt-3 text-[13px] leading-snug text-primary-dark/90">{dwellPrimaryLine(item)}</p>
+          <p className="mt-3 text-[13px] leading-snug text-foreground">{dwellPrimaryLine(item)}</p>
         </div>
       </div>
     </div>
@@ -111,9 +111,9 @@ export function DaysInStagePanel({ item, className, compact }: DaysInStagePanelP
   const aria = shortAriaSummary(item, status);
 
   const triggerClass = cn(
-    "inline-flex cursor-default items-center gap-1.5 rounded-md border border-slate-400/35 bg-white/70 px-2 py-1 shadow-sm",
-    "text-primary-dark outline-none transition-[background-color,border-color] hover:border-slate-500/45 hover:bg-white/90",
-    "focus-visible:border-accent-teal/45 focus-visible:ring-2 focus-visible:ring-accent-teal/30 focus-visible:ring-offset-1",
+    "inline-flex cursor-default items-center gap-1.5 rounded-(--radius-v2-md) border border-neutral-300 bg-white px-2 py-1",
+    "text-foreground outline-none transition-[background-color,border-color] hover:border-neutral-400 hover:bg-neutral-50",
+    "focus-visible:border-interactive-600 focus-visible:ring-2 focus-visible:ring-interactive-500/30 focus-visible:ring-offset-1",
     compact ? "px-1.5 py-0.5" : "py-1",
     className,
   );
@@ -137,7 +137,7 @@ export function DaysInStagePanel({ item, className, compact }: DaysInStagePanelP
           />
           <span
             className={cn(
-              "font-semibold tabular-nums tracking-tight text-primary-dark/75",
+              "font-semibold tabular-nums tracking-tight text-muted-foreground",
               compact ? "text-[10px]" : "text-[11px]",
             )}
           >
