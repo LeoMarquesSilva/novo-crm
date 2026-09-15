@@ -36,8 +36,6 @@ import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import {
   isCadastroLeadOnlyStage,
   isPosVendaPipelineStage,
-  POS_VENDA_PIPELINE_COLUMNS,
-  SALES_PIPELINE_COLUMNS,
 } from "@/lib/crm/pipeline-board-config";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
@@ -587,10 +585,8 @@ function LeadDetailHero({
   lead,
   etapaLabel,
   leadTypeDisplay,
-  ddSimNao,
   heroContextBadge,
   propostaEmpresaPrincipalNome,
-  proposalScopeSummary,
 }: {
   lead: LeadDetailData;
   etapaLabel: string;
@@ -601,11 +597,7 @@ function LeadDetailHero({
   proposalScopeSummary: ProposalScopeSummary | null;
 }) {
   const isPosVenda = isPosVendaPipelineStage(lead.etapa);
-  const pipelineColumns = isPosVenda ? POS_VENDA_PIPELINE_COLUMNS : SALES_PIPELINE_COLUMNS;
-  const stageIndex = pipelineColumns.findIndex((column) => column.stage === lead.etapa);
   const pipelineLabel = isPosVenda ? "Pós-venda" : isCadastroLeadOnlyStage(lead.etapa) ? "Pré-funil" : "Funil comercial";
-  const pipelineStepLabel =
-    stageIndex >= 0 ? `${stageIndex + 1}/${pipelineColumns.length}` : null;
 
   const cadastradoPor = lead.intakeFields.find((field) => field.key === "cadastrado_por");
   const empresaLabel =
@@ -658,6 +650,9 @@ function LeadDetailHero({
           <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
             {pipelineLabel}
           </span>
+          <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            {leadTypeDisplay}
+          </span>
           {heroContextBadge ? (
             <span
               className={cn(
@@ -688,7 +683,6 @@ function LeadDetailHero({
       }
       context={[
         { label: "Etapa", value: etapaLabel },
-        { label: "Tipo", value: leadTypeDisplay },
         ...(ownerName
           ? [
               {
@@ -710,11 +704,6 @@ function LeadDetailHero({
           label: lead.atualizadoEm ? "Atualização" : "Criação",
           value: formatDateTimeBr(lead.atualizadoEm ?? lead.criadoEm),
         },
-        ...(lead.haveraDueDiligence ? [{ label: "DUE", value: ddSimNao }] : []),
-        ...(pipelineStepLabel ? [{ label: "Funil", value: pipelineStepLabel }] : []),
-        ...(proposalScopeSummary
-          ? [{ label: "Escopos", value: proposalScopeSummary.scopeProgressLabel }]
-          : []),
       ]}
     />
   );
