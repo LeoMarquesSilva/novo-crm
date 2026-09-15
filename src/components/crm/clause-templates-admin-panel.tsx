@@ -119,12 +119,12 @@ function categoryLabel(category: string) {
 
 function statusBadgeClass(status: string | null | undefined) {
   if (status === "approved") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-success-border bg-success-bg text-success-text";
   }
   if (status === "retired") {
-    return "border-slate-200 bg-slate-50 text-slate-500";
+    return "border-neutral-200 bg-neutral-50 text-muted-foreground";
   }
-  return "border-amber-200 bg-amber-50 text-amber-800";
+  return "border-warning-border bg-warning-bg text-warning-text";
 }
 
 export function ClauseTemplatesAdminPanel({
@@ -304,10 +304,10 @@ export function ClauseTemplatesAdminPanel({
       {(feedback ?? error) ? (
         <div
           className={cn(
-            "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold",
+            "flex items-center justify-between rounded-(--radius-v2-lg) px-4 py-3 text-sm font-semibold",
             error
-              ? "border border-rose-200 bg-rose-50 text-rose-700"
-              : "border border-emerald-200 bg-emerald-50 text-emerald-700",
+              ? "border border-danger-border bg-danger-bg text-danger-text"
+              : "border border-success-border bg-success-bg text-success-text",
           )}
         >
           <span>{error ?? feedback}</span>
@@ -324,8 +324,8 @@ export function ClauseTemplatesAdminPanel({
         </div>
       ) : null}
 
-      <section className="overflow-hidden rounded-[24px] border border-white/55 bg-white/72 shadow-sm shadow-primary-dark/10">
-        <div className="flex flex-col gap-3 border-b border-primary-dark/10 bg-white/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <section className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+        <div className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             {clauses.length === 0
               ? "Nenhuma cláusula cadastrada ainda."
@@ -337,14 +337,14 @@ export function ClauseTemplatesAdminPanel({
           </Button>
         </div>
 
-        <div className="flex flex-col gap-2 border-b border-primary-dark/8 px-4 py-3 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 border-b border-neutral-200 px-4 py-3 sm:flex-row sm:items-center">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar por título, chave, texto ou área…"
-              className="h-9 border-primary-dark/15 bg-white pl-9 text-sm"
+              className="h-9 pl-9 text-sm"
             />
           </div>
         </div>
@@ -357,7 +357,7 @@ export function ClauseTemplatesAdminPanel({
             onToggle={toggleActive}
           />
         ) : (
-          <div className="divide-y divide-primary-dark/8">
+          <div className="divide-y divide-neutral-200">
             {liveTree.transversalClauses.length > 0 ? (
               <TransversalSection
                 clauses={liveTree.transversalClauses}
@@ -395,8 +395,8 @@ export function ClauseTemplatesAdminPanel({
             if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
           }}
         >
-          <header className="border-b border-primary-dark/10 px-5 py-4">
-            <DialogTitle className="text-base font-extrabold text-primary-dark">
+          <header className="border-b border-neutral-200 px-5 py-4">
+            <DialogTitle className="text-base font-extrabold text-foreground">
               {editingId ? "Editar cláusula" : "Nova cláusula"}
             </DialogTitle>
             <DialogDescription className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -408,18 +408,18 @@ export function ClauseTemplatesAdminPanel({
 
           <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-5">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-primary-dark">Título</Label>
+              <Label className="text-xs font-semibold">Título</Label>
               <Input
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 placeholder="Ex: Foro de eleição"
-                className="h-10 border-primary-dark/15 bg-white text-sm"
+                className="h-10 text-sm"
                 autoFocus
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-primary-dark">Abrangência</Label>
+              <Label className="text-xs font-semibold">Abrangência</Label>
               <div className="flex flex-wrap gap-1.5">
                 {(
                   [
@@ -435,8 +435,8 @@ export function ClauseTemplatesAdminPanel({
                     className={cn(
                       "rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors",
                       form.scopeKind === kind
-                        ? "border-primary-dark/70 bg-primary-dark text-white"
-                        : "border-primary-dark/15 bg-white text-primary-dark/70 hover:bg-primary-dark/5",
+                        ? "border-brand-navy bg-brand-navy text-white"
+                        : "border-neutral-200 bg-white text-muted-foreground hover:bg-neutral-50",
                     )}
                   >
                     {label}
@@ -447,13 +447,13 @@ export function ClauseTemplatesAdminPanel({
 
             {form.scopeKind === "area" ? (
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-primary-dark">Área</Label>
+                <Label className="text-xs font-semibold">Área</Label>
                 <Select
                   items={Object.fromEntries(CRM_PRACTICE_AREAS.map((a) => [a, a]))}
                   value={form.areaKey || undefined}
                   onValueChange={(next) => setForm((f) => ({ ...f, areaKey: next ?? "" }))}
                 >
-                  <SelectTrigger className="h-10 w-full border-primary-dark/15 bg-white">
+                  <SelectTrigger className="h-10 w-full">
                     <CrmSelectValue
                       value={form.areaKey}
                       labels={Object.fromEntries(CRM_PRACTICE_AREAS.map((a) => [a, a]))}
@@ -473,7 +473,7 @@ export function ClauseTemplatesAdminPanel({
 
             {form.scopeKind === "subtype" ? (
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-primary-dark">Subtipo</Label>
+                <Label className="text-xs font-semibold">Subtipo</Label>
                 {scopeOptions.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
                     Nenhum subtipo com perfil de contrato disponível ainda.
@@ -484,7 +484,7 @@ export function ClauseTemplatesAdminPanel({
                     value={form.subtypeKey || undefined}
                     onValueChange={(next) => setForm((f) => ({ ...f, subtypeKey: next ?? "" }))}
                   >
-                    <SelectTrigger className="h-10 w-full border-primary-dark/15 bg-white">
+                    <SelectTrigger className="h-10 w-full">
                       <CrmSelectValue
                         value={form.subtypeKey}
                         labels={Object.fromEntries(scopeOptions.map((o) => [o.value, o.label]))}
@@ -504,12 +504,12 @@ export function ClauseTemplatesAdminPanel({
             ) : null}
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-primary-dark">Categoria</Label>
+              <Label className="text-xs font-semibold">Categoria</Label>
               <Input
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 placeholder="Ex: PADRÃO BP, Foro, Sigilo…"
-                className="h-10 border-primary-dark/15 bg-white text-sm"
+                className="h-10 text-sm"
               />
               <p className="text-[10px] text-muted-foreground">
                 Sub-agrupamento livre dentro da abrangência escolhida acima.
@@ -517,7 +517,7 @@ export function ClauseTemplatesAdminPanel({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-primary-dark">
+              <Label className="text-xs font-semibold">
                 Conteúdo modelo{" "}
                 <span className="text-muted-foreground">(opcional)</span>
               </Label>
@@ -525,43 +525,45 @@ export function ClauseTemplatesAdminPanel({
                 value={form.content}
                 onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
                 placeholder="Texto da cláusula. Pode ser editado individualmente por contrato no builder."
-                className="min-h-[140px] resize-y border-primary-dark/15 bg-white font-mono text-[12.5px] leading-relaxed"
+                className="min-h-[140px] resize-y font-mono text-[12.5px] leading-relaxed"
               />
             </div>
 
             <div className="flex flex-wrap items-end gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-primary-dark">Ordem</Label>
+                <Label className="text-xs font-semibold">Ordem</Label>
                 <Input
                   type="number"
                   value={form.sort_order}
                   onChange={(e) => setForm((f) => ({ ...f, sort_order: parseInt(e.target.value) || 0 }))}
-                  className="h-10 w-24 border-primary-dark/15 bg-white text-center text-sm tabular-nums"
+                  className="h-10 w-24 text-center text-sm tabular-nums"
                 />
                 <p className="text-[10px] text-muted-foreground">Menor = primeiro</p>
               </div>
 
-              <label className="mb-0.5 inline-flex cursor-pointer items-center gap-2 rounded-full border border-primary-dark/10 bg-white px-3 py-2 text-[11px] font-semibold text-primary-dark transition-colors hover:bg-primary-dark/5">
+              <label className="mb-0.5 inline-flex cursor-pointer items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-[11px] font-semibold text-foreground transition-colors hover:bg-neutral-50">
                 <input
                   type="checkbox"
                   checked={form.is_active}
                   onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
-                  className="size-3 accent-emerald-600"
+                  className="size-3 accent-success-text"
                 />
                 {form.is_active ? (
-                  <span className="text-emerald-700">Ativa</span>
+                  <span className="text-success-text">Ativa</span>
                 ) : (
-                  <span className="text-slate-500">Inativa</span>
+                  <span className="text-muted-foreground">Inativa</span>
                 )}
               </label>
             </div>
 
             {error ? (
-              <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+              <div className="rounded-(--radius-v2-md) border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
             ) : null}
           </div>
 
-          <footer className="flex items-center justify-end gap-2 border-t border-primary-dark/10 bg-slate-50/60 px-5 py-3">
+          <footer className="flex items-center justify-end gap-2 border-t border-neutral-200 bg-neutral-50 px-5 py-3">
             <Button
               type="button"
               variant="outline"
@@ -601,7 +603,7 @@ export function ClauseTemplatesAdminPanel({
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-rose-600 hover:bg-rose-700"
+              className="bg-destructive text-white hover:bg-destructive/90"
             >
               Excluir
             </AlertDialogAction>
@@ -624,7 +626,7 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
   return (
     <div
       className={cn(
-        "flex items-start gap-4 px-5 py-4 transition-colors hover:bg-white/60",
+        "flex items-start gap-4 px-5 py-4 transition-colors hover:bg-neutral-50",
         !clause.is_active && "opacity-50",
       )}
     >
@@ -635,8 +637,8 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
         className={cn(
           "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
           clause.is_active
-            ? "border-emerald-400 bg-emerald-50 text-emerald-600 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-500"
-            : "border-primary-dark/20 bg-white text-transparent hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-600",
+            ? "border-success-border bg-success-bg text-success-text hover:border-danger-border hover:bg-danger-bg hover:text-danger-text"
+            : "border-neutral-300 bg-white text-transparent hover:border-success-border hover:bg-success-bg hover:text-success-text",
         )}
       >
         <Check className="size-3" aria-hidden />
@@ -644,11 +646,11 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold text-primary-dark">{clause.title}</p>
+          <p className="truncate text-sm font-semibold text-foreground">{clause.title}</p>
           {!clause.is_active ? (
             <Badge
               variant="outline"
-              className="h-5 rounded-full border-slate-200 px-1.5 text-[9px] font-bold uppercase text-slate-400"
+              className="h-5 rounded-full border-neutral-200 px-1.5 text-[9px] font-bold uppercase text-muted-foreground"
             >
               Inativa
             </Badge>
@@ -664,7 +666,7 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
           {clause.role ? (
             <Badge
               variant="outline"
-              className="h-5 rounded-full border-primary-dark/10 px-1.5 text-[9px] font-bold uppercase text-primary-dark/55"
+              className="h-5 rounded-full border-neutral-200 px-1.5 text-[9px] font-bold uppercase text-muted-foreground"
             >
               {ROLE_LABELS[clause.role] ?? clause.role}
             </Badge>
@@ -672,14 +674,14 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
           {clause.is_required ? (
             <Badge
               variant="outline"
-              className="h-5 rounded-full border-sky-200 bg-sky-50 px-1.5 text-[9px] font-bold uppercase text-sky-700"
+              className="h-5 rounded-full border-info-border bg-info-bg px-1.5 text-[9px] font-bold uppercase text-info-text"
             >
               Obrigatória
             </Badge>
           ) : null}
           <Badge
             variant="outline"
-            className="h-5 rounded-full border-primary-dark/10 px-1.5 text-[9px] font-bold uppercase text-primary-dark/40"
+            className="h-5 rounded-full border-neutral-200 px-1.5 text-[9px] font-bold uppercase text-muted-foreground"
           >
             {categoryLabel(clause.category)}
           </Badge>
@@ -697,7 +699,7 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
           type="button"
           size="sm"
           variant="ghost"
-          className="size-8 p-0 text-primary-dark/50 hover:bg-primary-dark/8 hover:text-primary-dark"
+          className="size-8 p-0 text-muted-foreground hover:bg-neutral-100 hover:text-foreground"
           onClick={() => onEdit(clause)}
           title="Editar"
         >
@@ -707,7 +709,7 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
           type="button"
           size="sm"
           variant="ghost"
-          className="size-8 p-0 text-rose-400 hover:bg-rose-50 hover:text-rose-600"
+          className="size-8 p-0 text-muted-foreground hover:bg-danger-bg hover:text-danger-text"
           onClick={() => onDelete(clause.id)}
           title="Excluir"
         >
@@ -728,7 +730,7 @@ function SearchResultsList({
     return <div className="p-10 text-center text-sm text-muted-foreground">Nenhuma cláusula corresponde à busca.</div>;
   }
   return (
-    <div className="divide-y divide-primary-dark/5">
+    <div className="divide-y divide-neutral-200">
       {results.map((clause) => (
         <ClauseListItem key={clause.id} clause={clause} onEdit={onEdit} onDelete={onDelete} onToggle={onToggle} />
       ))}
@@ -755,7 +757,7 @@ function TransversalSection({
         addLabel="Cláusula transversal"
       />
       {open ? (
-        <div className="divide-y divide-primary-dark/5 border-t border-primary-dark/8">
+        <div className="divide-y divide-neutral-200 border-t border-neutral-200">
           {clauses.map((clause) => (
             <ClauseListItem key={clause.id} clause={clause} {...handlers} />
           ))}
@@ -798,10 +800,10 @@ function AreaSection({
         addLabel="Cláusula da área"
       />
       {open && !isEmpty ? (
-        <div className="space-y-3 border-t border-primary-dark/8 bg-primary-dark/[0.015] px-5 py-4">
+        <div className="space-y-3 border-t border-neutral-200 bg-neutral-50 px-5 py-4">
           {area.types.map((type) => (
             <div key={type.typeKey} className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-primary-dark/50">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
                 {type.typeLabel}
               </p>
               {type.subtypes.map((subtype) => (
@@ -815,16 +817,16 @@ function AreaSection({
             </div>
           ))}
           {area.areaWideClauses.length > 0 ? (
-            <div className="overflow-hidden rounded-2xl border border-primary-dark/10 bg-white">
-              <div className="flex items-center justify-between border-b border-primary-dark/8 bg-primary-dark/[0.03] px-4 py-2">
-                <p className="text-[11px] font-bold text-primary-dark/70">
+            <div className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+              <div className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50 px-4 py-2">
+                <p className="text-[11px] font-bold text-muted-foreground">
                   Cláusulas da área inteira (sem subtipo específico)
                 </p>
-                <span className="rounded-full bg-primary-dark/8 px-2 py-0.5 text-[9px] font-bold tabular-nums text-primary-dark/50">
+                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold tabular-nums text-muted-foreground">
                   {area.areaWideClauses.length}
                 </span>
               </div>
-              <div className="divide-y divide-primary-dark/5">
+              <div className="divide-y divide-neutral-200">
                 {area.areaWideClauses.map((clause) => (
                   <ClauseListItem key={clause.id} clause={clause} {...handlers} />
                 ))}
@@ -847,10 +849,10 @@ function SubtypeCard({
 } & ClauseListHandlers) {
   const [objectOpen, setObjectOpen] = useState(false);
   return (
-    <div className="overflow-hidden rounded-2xl border border-primary-dark/10 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary-dark/8 px-4 py-2.5">
+    <div className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 px-4 py-2.5">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-primary-dark">{subtype.subtypeLabel}</p>
+          <p className="text-sm font-semibold text-foreground">{subtype.subtypeLabel}</p>
           <p className="font-mono text-[10px] text-muted-foreground/80">{subtype.subtypeKey}</p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -867,7 +869,7 @@ function SubtypeCard({
           ) : (
             <Badge
               variant="outline"
-              className="h-5 gap-1 rounded-full border-amber-200 bg-amber-50 px-1.5 text-[9px] font-bold uppercase text-amber-800"
+              className="h-5 gap-1 rounded-full border-warning-border bg-warning-bg px-1.5 text-[9px] font-bold uppercase text-warning-text"
             >
               <AlertCircle className="size-2.5" aria-hidden />
               Sem perfil de contrato
@@ -877,7 +879,7 @@ function SubtypeCard({
             type="button"
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 px-2 text-[11px] font-semibold text-primary-dark/60 hover:bg-primary-dark/8 hover:text-primary-dark"
+            className="h-7 gap-1 px-2 text-[11px] font-semibold text-muted-foreground hover:bg-neutral-100 hover:text-foreground"
             onClick={onAdd}
           >
             <Plus className="size-3" aria-hidden />
@@ -887,26 +889,26 @@ function SubtypeCard({
       </div>
 
       {subtype.objectTemplates.length > 0 ? (
-        <div className="border-b border-primary-dark/8">
+        <div className="border-b border-neutral-200">
           <button
             type="button"
             onClick={() => setObjectOpen((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-[11px] font-semibold text-primary-dark/60 hover:bg-primary-dark/[0.03]"
+            className="flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-[11px] font-semibold text-muted-foreground hover:bg-neutral-50"
           >
             <span>Modelos de Objeto ({subtype.objectTemplates.length}) — somente leitura</span>
             <ChevronDown className={cn("size-3.5 transition-transform", objectOpen && "rotate-180")} aria-hidden />
           </button>
-          <p className="border-t border-dashed border-amber-200 bg-amber-50 px-4 py-2 text-[10px] leading-relaxed text-amber-800">
+          <p className="border-t border-dashed border-warning-border bg-warning-bg px-4 py-2 text-[10px] leading-relaxed text-warning-text">
             Estes modelos têm prioridade sobre cláusulas de Objeto/Escopo/Limites/Natureza deste
             subtipo: editar uma cláusula desses papéis abaixo não muda o contrato gerado enquanto
             este motor de Objeto cobrir o subtipo. Só Exclusão, Pagamento e Cláusulas
             Padrão/Transversais são lidas do banco na geração.
           </p>
           {objectOpen ? (
-            <div className="space-y-2 bg-primary-dark/[0.02] px-4 py-3">
+            <div className="space-y-2 bg-neutral-50 px-4 py-3">
               {subtype.objectTemplates.map((template) => (
-                <div key={template.stableKey} className="rounded-lg border border-primary-dark/8 bg-white px-3 py-2">
-                  <p className="text-xs font-semibold text-primary-dark">{template.title}</p>
+                <div key={template.stableKey} className="rounded-(--radius-v2-md) border border-neutral-200 bg-white px-3 py-2">
+                  <p className="text-xs font-semibold text-foreground">{template.title}</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{template.content}</p>
                 </div>
               ))}
@@ -918,7 +920,7 @@ function SubtypeCard({
       {subtype.clauses.length === 0 ? (
         <p className="px-4 py-3 text-xs text-muted-foreground">Nenhuma cláusula cadastrada para este subtipo.</p>
       ) : (
-        <div className="divide-y divide-primary-dark/5">
+        <div className="divide-y divide-neutral-200">
           {subtype.clauses.map((clause) => (
             <ClauseListItem key={clause.id} clause={clause} {...handlers} />
           ))}
@@ -948,26 +950,26 @@ function SectionHeader({
   addLabel: string;
 }) {
   return (
-    <div className="flex items-center gap-3 bg-white/70 px-5 py-3.5">
+    <div className="flex items-center gap-3 bg-white px-5 py-3.5">
       <button type="button" onClick={onToggle} className="flex flex-1 items-center gap-3 text-left">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl border border-zinc-200/90 bg-white text-zinc-700 shadow-sm">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-xl) border border-neutral-200 bg-white text-muted-foreground">
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-extrabold text-primary-dark">{title}</p>
+          <p className="text-sm font-extrabold text-foreground">{title}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</p>
         </div>
-        <span className="rounded-full bg-primary-dark/8 px-2 py-0.5 text-[10px] font-bold tabular-nums text-primary-dark/60">
+        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
           {count}
         </span>
-        <ChevronDown className={cn("size-4 text-primary-dark/40 transition-transform", open && "rotate-180")} aria-hidden />
+        <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
       </button>
       {onAdd ? (
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 gap-1.5 border-primary-dark/15 text-[11px] font-semibold"
+          className="h-8 gap-1.5 text-[11px] font-semibold"
           onClick={onAdd}
         >
           <Plus className="size-3" aria-hidden />

@@ -105,22 +105,6 @@ const ENTITY_NAME_LABELS: Record<string, string> = {
   contratos: "Contratos",
 };
 
-const TYPE_BADGE_COLOR: Record<string, string> = {
-  text: "bg-slate-100 text-slate-700",
-  email: "bg-blue-100 text-blue-700",
-  phone: "bg-green-100 text-green-700",
-  url: "bg-cyan-100 text-cyan-700",
-  number: "bg-orange-100 text-orange-700",
-  percent: "bg-yellow-100 text-yellow-700",
-  date: "bg-purple-100 text-purple-700",
-  date_br: "bg-violet-100 text-violet-800",
-  time: "bg-fuchsia-100 text-fuchsia-800",
-  user: "bg-indigo-100 text-indigo-800",
-  select: "bg-pink-100 text-pink-700",
-  multiselect: "bg-rose-100 text-rose-700",
-  textarea: "bg-teal-100 text-teal-700",
-};
-
 // ─── Field Row ────────────────────────────────────────────────────────────────
 
 interface FieldRowProps {
@@ -137,25 +121,24 @@ function FieldRow({
   onDelete,
 }: FieldRowProps) {
   const [isPending, startTransition] = useTransition();
-  const typeBadge = TYPE_BADGE_COLOR[field.field_type] ?? "bg-white text-slate-700";
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-all ${
+      className={`flex items-center gap-3 rounded-(--radius-v2-md) border px-3 py-2.5 transition-all ${
         field.is_active
-          ? "border-slate-200 bg-white shadow-sm"
-          : "border-slate-200 bg-white/95 opacity-70"
+          ? "border-neutral-200 bg-white"
+          : "border-neutral-200 bg-neutral-50 opacity-70"
       }`}
     >
       <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground" />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-primary-dark">
+          <span className="truncate text-sm font-medium text-foreground">
             {field.label}
           </span>
           {field.is_required && (
-            <span className="text-xs text-red-500" title="Obrigatório">
+            <span className="text-xs text-danger-text" title="Obrigatório">
               *
             </span>
           )}
@@ -169,9 +152,7 @@ function FieldRow({
           <code className="text-[10px] text-muted-foreground">
             {field.field_code}
           </code>
-          <span
-            className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${typeBadge}`}
-          >
+          <span className="inline-flex rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700">
             {FIELD_TYPE_LABELS[field.field_type] ?? field.field_type}
           </span>
         </div>
@@ -192,10 +173,10 @@ function FieldRow({
           onClick={() => startTransition(() => onToggle(field.id, !field.is_active))}
           disabled={isPending}
           title={field.is_active ? "Desativar" : "Ativar"}
-          className="text-muted-foreground hover:text-primary-dark"
+          className="text-muted-foreground hover:text-foreground"
         >
           {field.is_active ? (
-            <ToggleRight className="h-5 w-5 text-green-500" />
+            <ToggleRight className="h-5 w-5 text-success-text" />
           ) : (
             <ToggleLeft className="h-5 w-5" />
           )}
@@ -207,7 +188,7 @@ function FieldRow({
               type="button"
               disabled={isPending}
               title="Excluir"
-              className="text-muted-foreground hover:text-red-500"
+              className="text-muted-foreground hover:text-danger-text"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -224,7 +205,7 @@ function FieldRow({
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction
-                className="bg-red-600 text-white hover:bg-red-700"
+                className="bg-destructive text-white hover:bg-destructive/90"
                 onClick={() => startTransition(() => onDelete(field.id))}
               >
                 Excluir
@@ -258,14 +239,14 @@ function StageSection({
   const activeCount = fields.filter((f) => f.is_active).length;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50"
+        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-neutral-50"
       >
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-primary-dark">
+          <span className="font-semibold text-foreground">
             {STAGE_LABELS[stageCode] ?? stageCode}
           </span>
           <Badge variant="secondary" className="text-xs">
@@ -391,18 +372,18 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
   return (
     <Dialog modal={false} open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" className="bg-crm-gradient-primary text-white shadow">
+        <Button size="sm">
           <Plus className="mr-1.5 h-4 w-4" />
           Novo Campo
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="max-h-[min(90vh,720px)] max-w-lg gap-0 overflow-y-auto border-slate-200 bg-white p-0 sm:rounded-2xl"
+        className="max-h-[min(90vh,720px)] max-w-lg gap-0 overflow-y-auto p-0"
         onPointerDownOutside={(event) => {
           if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
         }}
       >
-        <div className="border-b border-slate-100 px-6 py-4">
+        <div className="border-b border-neutral-200 px-6 py-4">
           <DialogHeader className="space-y-1 text-left sm:text-left">
             <DialogTitle>Novo Campo</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -417,8 +398,8 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
           onSubmit={handleSubmit}
           className="space-y-4 px-6 py-4"
         >
-          <div className="space-y-3 rounded-xl border border-white/50 bg-white/65 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary-dark">
+          <div className="space-y-3 rounded-(--radius-v2-lg) border border-neutral-200 bg-neutral-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
               Identificação
             </p>
             <div className="space-y-1">
@@ -427,21 +408,21 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
                 value={form.label}
                 onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))}
                 placeholder="Ex.: Data da reunião comercial"
-                className="bg-white/70 text-sm"
+                className="text-sm"
                 required
                 autoComplete="off"
               />
               <p className="text-[11px] text-muted-foreground">
                 Código técnico (automático, único por entidade):{" "}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-primary-dark">
+                <code className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] text-foreground">
                   {form.label.trim() ? previewFieldCode : "—"}
                 </code>
               </p>
             </div>
           </div>
 
-          <div className="space-y-3 rounded-xl border border-white/50 bg-white/65 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary-dark">
+          <div className="space-y-3 rounded-(--radius-v2-lg) border border-neutral-200 bg-neutral-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
               Tipo e contexto
             </p>
             <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
@@ -453,7 +434,7 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
                   value={form.field_type}
                   onValueChange={(v) => setForm((p) => ({ ...p, field_type: v ?? "" }))}
                 >
-                  <SelectTrigger className="h-9 w-full min-w-0 bg-white/70 text-sm">
+                  <SelectTrigger className="h-9 w-full min-w-0 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <CrmSelectContent>
@@ -473,7 +454,7 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
                   value={form.entity_name}
                   onValueChange={(v) => setForm((p) => ({ ...p, entity_name: v ?? "" }))}
                 >
-                  <SelectTrigger className="h-9 w-full min-w-0 bg-white/70 text-sm">
+                  <SelectTrigger className="h-9 w-full min-w-0 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <CrmSelectContent>
@@ -491,7 +472,7 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
                   value={form.stage_code}
                   onValueChange={(v) => setForm((p) => ({ ...p, stage_code: v ?? "" }))}
                 >
-                  <SelectTrigger className="h-9 w-full min-w-0 bg-white/70 text-sm">
+                  <SelectTrigger className="h-9 w-full min-w-0 text-sm">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <CrmSelectContent className="max-h-[min(320px,60dvh)]">
@@ -507,8 +488,8 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
           </div>
 
           {(form.field_type === "select" || form.field_type === "multiselect") && (
-            <div className="space-y-3 rounded-xl border border-white/50 bg-white/65 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary-dark">
+            <div className="space-y-3 rounded-(--radius-v2-lg) border border-neutral-200 bg-neutral-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
                 Opções da lista
               </p>
               <div className="space-y-1">
@@ -517,13 +498,13 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
                   value={form.field_options_raw}
                   onChange={(e) => setForm((p) => ({ ...p, field_options_raw: e.target.value }))}
                   placeholder="Opção 1, Opção 2, Opção 3"
-                  className="bg-white/70 text-sm"
+                  className="text-sm"
                 />
               </div>
             </div>
           )}
 
-          <div className="flex items-center gap-2 rounded-xl border border-white/50 bg-white/65 px-3 py-2.5">
+          <div className="flex items-center gap-2 rounded-(--radius-v2-lg) border border-neutral-200 bg-neutral-50 px-3 py-2.5">
             <Switch
               id="required"
               checked={form.is_required}
@@ -544,20 +525,17 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
           </div>
 
           {error ? (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>
+            <p className="rounded-(--radius-v2-md) border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {error}
+            </p>
           ) : null}
         </form>
 
-        <DialogFooter className="flex-col gap-2 border-t border-slate-100 px-6 py-4 sm:flex-row sm:justify-end">
+        <DialogFooter className="flex-col gap-2 border-t border-neutral-200 px-6 py-4 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
-          <Button
-            type="submit"
-            form="new-field-form"
-            disabled={loading}
-            className="bg-crm-gradient-primary text-white shadow"
-          >
+          <Button type="submit" form="new-field-form" disabled={loading}>
             {loading ? "Criando..." : "Criar Campo"}
           </Button>
         </DialogFooter>
@@ -627,8 +605,8 @@ export function FieldConfigPanel({ initialFields, pipelineCode }: FieldConfigPan
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Settings2 className="h-5 w-5 text-primary-medium" />
-          <span className="text-sm font-semibold text-primary-dark">
+          <Settings2 className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm font-semibold text-foreground">
             {fields.length} campos configurados
             {isPending && (
               <span className="ml-2 text-xs text-muted-foreground">Salvando...</span>

@@ -72,16 +72,16 @@ export default async function CamposAdminPage() {
       )}
 
       <Tabs defaultValue="vendas">
-        <TabsList className="border border-slate-200 bg-white shadow-sm">
+        <TabsList className="border border-neutral-200 bg-white">
           <TabsTrigger value="vendas">
             Funil de Vendas
-            <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-primary-dark ring-1 ring-slate-200">
+            <span className="ml-2 rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-xs text-foreground">
               {vendas.fields.length}
             </span>
           </TabsTrigger>
           <TabsTrigger value="pos_venda">
             Pós-Venda
-            <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-primary-dark ring-1 ring-slate-200">
+            <span className="ml-2 rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-xs text-foreground">
               {posVenda.fields.length}
             </span>
           </TabsTrigger>
