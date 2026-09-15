@@ -11,10 +11,10 @@ export const APP_USER_AREA_FORM_ITEMS: Record<string, string> = Object.fromEntri
 
 /** Labels e estilos de badge para `app_users.role`. */
 export const APP_USER_ROLE_LABELS: Record<string, { label: string; color: string }> = {
-  admin: { label: "Admin", color: "bg-red-100 text-red-700" },
-  comercial: { label: "Comercial", color: "bg-sky-100 text-sky-700" },
-  controladoria: { label: "Controladoria", color: "bg-violet-100 text-violet-700" },
-  financeiro: { label: "Financeiro", color: "bg-emerald-100 text-emerald-700" },
+  admin: { label: "Admin", color: "bg-danger-bg text-danger-text" },
+  comercial: { label: "Comercial", color: "bg-info-bg text-info-text" },
+  controladoria: { label: "Controladoria", color: "bg-violet-bg text-violet-text" },
+  financeiro: { label: "Financeiro", color: "bg-success-bg text-success-text" },
 };
 
 export const APP_USER_ROLE_SELECT_ITEMS: Record<string, string> = Object.fromEntries(

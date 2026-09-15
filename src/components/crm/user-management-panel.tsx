@@ -102,7 +102,7 @@ const AREA_META: Record<
   "Operacoes Legais": { color: "bg-green-100 text-green-800", icon: Briefcase },
   "Tributário": { color: "bg-yellow-100 text-yellow-800", icon: Scale },
   "Recuperação de Créditos": { color: "bg-amber-100 text-amber-900", icon: Landmark },
-  Outro: { color: "bg-slate-100 text-slate-700", icon: Circle },
+  Outro: { color: "bg-neutral-100 text-muted-foreground", icon: Circle },
 };
 
 const PRACTICE_AREA_SET = new Set<string>(CRM_PRACTICE_AREAS);
@@ -117,7 +117,7 @@ function userCapability(user: AppUser) {
     return {
       label: "Gestor de proposta",
       description: "Preenche escopo, recebe notificações e aparece como responsável da área.",
-      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      className: "border-success-border bg-success-bg text-success-text",
       icon: CheckCircle2,
     };
   }
@@ -125,7 +125,7 @@ function userCapability(user: AppUser) {
     return {
       label: "Comercial geral",
       description: "Pode atuar no comercial, mas não será gestor automático de escopo por área.",
-      className: "border-sky-200 bg-sky-50 text-sky-800",
+      className: "border-info-border bg-info-bg text-info-text",
       icon: Briefcase,
     };
   }
@@ -133,14 +133,14 @@ function userCapability(user: AppUser) {
     return {
       label: "Área interna",
       description: "Perfil interno sem fila própria de escopo de proposta.",
-      className: "border-slate-200 bg-slate-50 text-slate-700",
+      className: "border-neutral-200 bg-neutral-50 text-foreground",
       icon: Circle,
     };
   }
   return {
     label: user.role === "admin" ? "Administração" : "Acesso operacional",
     description: "Permissões definidas pela role do usuário.",
-    className: "border-slate-200 bg-white text-slate-700",
+    className: "border-neutral-200 bg-white text-foreground",
     icon: ShieldCheck,
   };
 }
@@ -250,7 +250,7 @@ function UserFormDialog({
   return (
     <Dialog modal={false} open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
-        className="max-h-[92vh] max-w-[min(720px,calc(100vw-2rem))] overflow-hidden rounded-[28px] border-[#dfe5ee] bg-[#f8fafc] p-0 shadow-[0_36px_100px_rgba(16,31,46,0.22)]"
+        className="max-h-[92vh] max-w-[min(720px,calc(100vw-2rem))] overflow-hidden p-0"
         onPointerDownOutside={(event) => {
           if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
         }}
@@ -258,17 +258,16 @@ function UserFormDialog({
           if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
         }}
       >
-        <DialogHeader className="relative overflow-hidden border-b border-[#dfe5ee] bg-[linear-gradient(135deg,#ffffff_0%,#f7f9fc_58%,#eef5f3_100%)] px-6 py-5">
-          <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[#d8bf82]/20 blur-3xl" />
-          <div className="relative flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#102033] text-white shadow-md shadow-slate-900/15">
+        <DialogHeader className="border-b border-neutral-200 px-6 py-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-(--radius-v2-xl) bg-brand-navy text-white">
               <UserPlus className="h-5 w-5" />
             </span>
             <div>
-          <DialogTitle className="text-xl font-extrabold tracking-[-0.035em] text-[#102033]">
+          <DialogTitle className="text-v2-heading-md">
               {mode === "create" ? "Novo usuário" : "Editar usuário"}
           </DialogTitle>
-          <DialogDescription className="mt-1 text-sm text-slate-500">
+          <DialogDescription className="mt-1">
             {mode === "create"
               ? "Defina identidade, acesso e atuação operacional no CRM."
               : "Atualize dados, permissões e responsabilidade por área."}
@@ -278,16 +277,15 @@ function UserFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="crm-scrollbar max-h-[calc(92vh-140px)] space-y-4 overflow-y-auto px-6 py-5">
-          <div className="rounded-[22px] border border-[#dfe5ee] bg-white p-4 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#24615b]">Identidade</p>
+          <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Identidade</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-slate-500">Nome completo *</Label>
+            <Label>Nome completo *</Label>
             <Input
               value={form.full_name}
               onChange={(e) => set("full_name", e.target.value)}
               placeholder="Nome Sobrenome"
-              className="border-[#dfe5ee] bg-[#fbfcfd] shadow-sm"
               required
             />
           </div>
@@ -295,25 +293,23 @@ function UserFormDialog({
           {mode === "create" && (
             <>
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-500">E-mail *</Label>
+                <Label>E-mail *</Label>
                 <Input
                   type="email"
                   value={form.email}
                   onChange={(e) => set("email", e.target.value)}
                   placeholder="nome@bismarchipires.com.br"
-                  className="border-[#dfe5ee] bg-[#fbfcfd] shadow-sm"
                   required
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-500">Senha inicial</Label>
+                <Label>Senha inicial</Label>
                 <Input
                   type="password"
                   autoComplete="new-password"
                   value={form.password}
                   onChange={(e) => set("password", e.target.value)}
                   placeholder="Mínimo 12 caracteres"
-                  className="border-[#dfe5ee] bg-[#fbfcfd] shadow-sm"
                   minLength={12}
                   maxLength={128}
                   required
@@ -328,18 +324,18 @@ function UserFormDialog({
             </div>
           </div>
 
-          <div className="rounded-[22px] border border-[#dfe5ee] bg-white p-4 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#24615b]">Acesso e atuação</p>
+          <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Acesso e atuação</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-500">Role</Label>
+              <Label>Role</Label>
               <Select
                 modal={false}
                 items={APP_USER_ROLE_SELECT_ITEMS}
                 value={form.role}
                 onValueChange={(v) => set("role", v ?? form.role)}
               >
-                <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-[#fbfcfd] text-sm shadow-sm">
+                <SelectTrigger className="w-full min-w-0">
                   <CrmSelectValue value={form.role} labels={APP_USER_ROLE_SELECT_ITEMS} />
                 </SelectTrigger>
                 <CrmSelectContent>
@@ -352,14 +348,14 @@ function UserFormDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-500">Área</Label>
+              <Label>Área</Label>
               <Select
                 modal={false}
                 items={APP_USER_AREA_FORM_ITEMS}
                 value={form.area}
                 onValueChange={(v) => set("area", v ?? form.area)}
               >
-                <SelectTrigger className="h-10 w-full min-w-0 border-[#dfe5ee] bg-[#fbfcfd] text-sm shadow-sm">
+                <SelectTrigger className="w-full min-w-0">
                   <CrmSelectValue
                     value={form.area}
                     labels={APP_USER_AREA_FORM_ITEMS}
@@ -371,9 +367,9 @@ function UserFormDialog({
                     <CrmSelectItem key={a} value={a}>
                       <span className="inline-flex items-center gap-2">
                         {PRACTICE_AREA_SET.has(a) ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          <CheckCircle2 className="h-3.5 w-3.5 text-success-text" />
                         ) : (
-                          <Circle className="h-3.5 w-3.5 text-slate-400" />
+                          <Circle className="h-3.5 w-3.5 text-muted-foreground" />
                         )}
                         {a}
                       </span>
@@ -383,7 +379,7 @@ function UserFormDialog({
               </Select>
             </div>
             </div>
-            <div className={cn("mt-4 rounded-2xl border p-3", capability.className)}>
+            <div className={cn("mt-4 rounded-(--radius-v2-xl) border p-3", capability.className)}>
               <div className="flex items-center gap-2">
                 <CapabilityIcon className="h-4 w-4" />
                 <p className="text-sm font-extrabold">{capability.label}</p>
@@ -392,23 +388,22 @@ function UserFormDialog({
             </div>
           </div>
 
-          <div className="rounded-[22px] border border-[#dfe5ee] bg-white p-4 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#24615b]">Avatar</p>
+          <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Avatar</p>
           <div className="mt-4 space-y-1.5">
-            <Label className="text-xs font-bold text-slate-500">URL do Avatar</Label>
+            <Label>URL do Avatar</Label>
             <Input
               type="url"
               value={form.avatar_url}
               onChange={(e) => set("avatar_url", e.target.value)}
               placeholder="https://..."
-              className="border-[#dfe5ee] bg-[#fbfcfd] shadow-sm"
             />
           </div>
 
           {/* Preview do avatar */}
           {form.avatar_url && (
-            <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#edf0f4] bg-[#f8fafc] p-2">
-              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white/60">
+            <div className="mt-3 flex items-center gap-2 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-2">
+              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-neutral-200">
                 <Image
                   src={form.avatar_url}
                   alt="Preview"
@@ -425,12 +420,12 @@ function UserFormDialog({
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+            <p className="rounded-(--radius-v2-md) border border-danger-border bg-danger-bg px-3 py-2 text-xs text-danger-text">
               {error}
             </p>
           )}
 
-          <DialogFooter className="sticky bottom-0 -mx-6 border-t border-[#dfe5ee] bg-white/95 px-6 py-4 backdrop-blur">
+          <DialogFooter className="sticky bottom-0 -mx-6 border-t border-neutral-200 bg-white px-6 py-4">
             <Button
               type="button"
               variant="outline"
@@ -444,7 +439,6 @@ function UserFormDialog({
               type="submit"
               size="sm"
               disabled={loading}
-              className="bg-[#102033] text-white shadow hover:bg-[#17324a]"
             >
               {loading
                 ? mode === "create"
@@ -499,10 +493,10 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
   return (
     <div
       className={cn(
-        "group grid gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80",
+        "group grid gap-3 px-4 py-3.5 transition-colors hover:bg-neutral-50",
         "xl:grid-cols-[minmax(250px,1.45fr)_minmax(150px,0.75fr)_minmax(170px,0.9fr)_minmax(165px,0.85fr)_112px] xl:items-center xl:gap-4",
-        !user.hasAccess && "bg-slate-50/50",
-        user.orqestraiActive === false && "bg-rose-50/40 hover:bg-rose-50/60",
+        !user.hasAccess && "bg-neutral-50",
+        user.orqestraiActive === false && "bg-danger-bg",
       )}
     >
       <div className="min-w-0">
@@ -516,14 +510,14 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
           nameClassName="text-[13px]"
         />
         {(user.department || user.position) ? (
-          <p className="mt-1 truncate pl-[42px] text-[11px] text-slate-500">
+          <p className="mt-1 truncate pl-[42px] text-[11px] text-muted-foreground">
             {[user.position, user.department].filter(Boolean).join(" · ")}
           </p>
         ) : null}
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-2 xl:block">
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 xl:hidden">
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground xl:hidden">
           Acesso
         </span>
         {user.hasAccess ? (
@@ -536,7 +530,7 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
             >
               <SelectTrigger
                 aria-label={`Perfil de acesso de ${user.full_name}`}
-                className="h-8 w-[148px] min-w-0 border-slate-200 bg-white text-xs shadow-none xl:w-full"
+                className="h-8 w-[148px] min-w-0 text-xs xl:w-full"
               >
                 <CrmSelectValue value={user.role} labels={APP_USER_ROLE_SELECT_ITEMS} />
               </SelectTrigger>
@@ -548,13 +542,13 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
               </CrmSelectContent>
             </Select>
             {savedRole ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-label="Salvo" />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-success-text" aria-label="Salvo" />
             ) : null}
           </div>
         ) : (
           <Badge
             variant="outline"
-            className="h-6 border-dashed border-slate-300 bg-white text-[10px] font-semibold text-slate-600"
+            className="h-6 border-dashed border-neutral-300 bg-white text-[10px] font-semibold text-muted-foreground"
           >
             <UserX className="mr-1 h-3 w-3" />
             Sem acesso
@@ -563,13 +557,13 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-2 xl:block">
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 xl:hidden">
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground xl:hidden">
           Área
         </span>
         <span
           className={cn(
             "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-            user.hasAccess ? areaMeta.color : "bg-slate-100 text-slate-600",
+            user.hasAccess ? areaMeta.color : "bg-neutral-100 text-muted-foreground",
           )}
           title={areaLabel ?? user.department ?? "Sem área vinculada"}
         >
@@ -579,13 +573,13 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-2 xl:block">
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 xl:hidden">
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground xl:hidden">
           Situação
         </span>
         {user.orqestraiActive === false ? (
           <Badge
             variant="outline"
-            className="h-6 border-rose-200 bg-rose-50 text-[10px] font-semibold text-rose-700"
+            className="h-6 border-danger-border bg-danger-bg text-[10px] font-semibold text-danger-text"
             title="Inativo no RH, mas ainda com login no CRM"
           >
             <AlertTriangle className="mr-1 h-3 w-3" />
@@ -603,19 +597,19 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
             <span className="truncate">{capability.label}</span>
           </span>
         ) : (
-          <span className="text-right text-[11px] text-slate-500 xl:text-left">
+          <span className="text-right text-[11px] text-muted-foreground xl:text-left">
             Disponível no quadro do RH
           </span>
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-1 border-t border-slate-100 pt-2 xl:border-0 xl:pt-0">
+      <div className="flex items-center justify-end gap-1 border-t border-neutral-200 pt-2 xl:border-0 xl:pt-0">
         {!user.hasAccess ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 gap-1.5 border-primary-dark/20 px-2.5 text-[11px] text-primary-dark"
+            className="h-8 gap-1.5 px-2.5 text-[11px]"
             onClick={() => onGrantAccess(user)}
           >
             <UserPlus className="h-3.5 w-3.5" />
@@ -626,7 +620,7 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-slate-500 hover:bg-slate-100 hover:text-primary-dark"
+              className="h-8 w-8 text-muted-foreground hover:bg-neutral-100 hover:text-foreground"
               onClick={() => onEdit(user)}
               title="Editar usuário"
             >
@@ -637,7 +631,7 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                  className="h-8 w-8 text-muted-foreground hover:bg-danger-bg hover:text-danger-text"
                   title="Excluir usuário"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -654,7 +648,7 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-red-600 text-white hover:bg-red-700"
+                    className="bg-danger-text text-white hover:bg-danger-text/90"
                     onClick={() => onDelete(user.id)}
                   >
                     Excluir
@@ -794,27 +788,27 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between md:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-dark text-white shadow-sm">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-(--radius-v2-lg) bg-brand-navy text-white">
               <UsersRound className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#24615b]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
                 Administração de acesso
               </p>
-              <h1 className="mt-0.5 text-xl font-bold tracking-[-0.025em] text-primary-dark">
+              <h1 className="mt-0.5 text-v2-heading-lg text-foreground">
                 Usuários do sistema
               </h1>
-              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
                 Gerencie acessos, funções e responsáveis por área sem sair da lista.
               </p>
             </div>
           </div>
           <Button
             size="sm"
-            className="h-9 shrink-0 gap-2 rounded-xl bg-primary-dark px-4 text-white shadow-sm hover:bg-[#17324a]"
+            className="h-9 shrink-0 gap-2"
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="h-4 w-4" />
@@ -822,7 +816,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 border-t border-slate-100 bg-slate-50/55 sm:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 border-t border-neutral-200 bg-neutral-50 sm:grid-cols-3 xl:grid-cols-6">
           {[
             { label: "Pessoas", value: users.length },
             { label: "Comercial", value: comercialCount },
@@ -833,15 +827,15 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
           ].map((metric) => (
             <div
               key={metric.label}
-              className="flex items-baseline justify-between gap-3 border-b border-r border-slate-100 px-4 py-3 last:border-r-0 sm:block xl:border-b-0"
+              className="flex items-baseline justify-between gap-3 border-b border-r border-neutral-200 px-4 py-3 last:border-r-0 sm:block xl:border-b-0"
             >
-              <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-slate-400">
+              <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-muted-foreground">
                 {metric.label}
               </p>
               <p
                 className={cn(
-                  "mt-1 text-lg font-bold tabular-nums text-primary-dark",
-                  metric.alert && "text-rose-700",
+                  "mt-1 text-lg font-bold tabular-nums text-foreground",
+                  metric.alert && "text-danger-text",
                 )}
               >
                 {metric.value}
@@ -851,15 +845,15 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
         </div>
       </section>
 
-      <section className="rounded-[20px] border border-slate-200/80 bg-white p-3 shadow-sm">
+      <section className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.35fr)_minmax(150px,0.72fr)_minmax(185px,0.9fr)_minmax(185px,0.9fr)_minmax(170px,0.8fr)_auto]">
             <div className="relative sm:col-span-2 xl:col-span-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar nome, e-mail, cargo ou área..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-9 w-full border-slate-200 bg-slate-50/60 pl-9 text-sm shadow-none"
+                className="h-9 w-full bg-neutral-50 pl-9 text-sm"
               />
             </div>
           <Select
@@ -867,7 +861,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             value={roleFilter}
             onValueChange={(v) => setRoleFilter(v ?? "all")}
           >
-            <SelectTrigger className="h-9 w-full border-slate-200 bg-slate-50/60 text-xs shadow-none">
+            <SelectTrigger className="h-9 w-full bg-neutral-50 text-xs">
               <CrmSelectValue
                 value={roleFilter}
                 labels={roleFilterItems}
@@ -888,7 +882,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             value={areaFilter}
             onValueChange={(v) => setAreaFilter(v ?? "all")}
           >
-            <SelectTrigger className="h-9 w-full border-slate-200 bg-slate-50/60 text-xs shadow-none">
+            <SelectTrigger className="h-9 w-full bg-neutral-50 text-xs">
               <CrmSelectValue
                 value={areaFilter}
                 labels={areaFilterItems}
@@ -917,7 +911,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             value={managerFilter}
             onValueChange={(v) => setManagerFilter(v ?? "all")}
           >
-            <SelectTrigger className="h-9 w-full border-slate-200 bg-slate-50/60 text-xs shadow-none">
+            <SelectTrigger className="h-9 w-full bg-neutral-50 text-xs">
               <CrmSelectValue
                 value={managerFilter}
                 labels={managerFilterItems}
@@ -936,7 +930,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             value={accessFilter}
             onValueChange={(v) => setAccessFilter(v ?? "all")}
           >
-            <SelectTrigger className="h-9 w-full border-slate-200 bg-slate-50/60 text-xs shadow-none">
+            <SelectTrigger className="h-9 w-full bg-neutral-50 text-xs">
               <CrmSelectValue
                 value={accessFilter}
                 labels={accessFilterItems}
@@ -953,7 +947,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             type="button"
             variant="ghost"
             size="sm"
-            className="h-9 px-3 text-xs text-slate-500"
+            className="h-9 px-3 text-xs text-muted-foreground"
             disabled={!hasActiveFilters}
             onClick={() => {
               setSearch("");
@@ -968,21 +962,21 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-[20px] border border-slate-200/80 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-          <p className="text-sm font-semibold text-primary-dark">
+      <section className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+        <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">
             {filtered.length} {filtered.length === 1 ? "pessoa" : "pessoas"}
           </p>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-muted-foreground">
             {hasActiveFilters ? `de ${users.length} no total` : "Acesso e função editáveis na lista"}
           </p>
         </div>
-        <div className="hidden grid-cols-[minmax(250px,1.45fr)_minmax(150px,0.75fr)_minmax(170px,0.9fr)_minmax(165px,0.85fr)_112px] gap-4 border-b border-slate-100 bg-slate-50/70 px-4 py-2 xl:grid">
+        <div className="hidden grid-cols-[minmax(250px,1.45fr)_minmax(150px,0.75fr)_minmax(170px,0.9fr)_minmax(165px,0.85fr)_112px] gap-4 border-b border-neutral-200 bg-neutral-50 px-4 py-2 xl:grid">
           {["Pessoa", "Perfil de acesso", "Área", "Situação", "Ações"].map((label, index) => (
             <span
               key={label}
               className={cn(
-                "text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400",
+                "text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground",
                 index === 4 && "text-right",
               )}
             >
@@ -990,7 +984,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             </span>
           ))}
         </div>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-neutral-200">
           {filtered.map((user) => (
             <UserRow
               key={user.id}
@@ -1004,11 +998,11 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
         </div>
         {filtered.length === 0 && (
           <div className="flex flex-col items-center px-6 py-14 text-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 text-muted-foreground">
               <Search className="h-4 w-4" />
             </div>
-            <p className="mt-3 text-sm font-semibold text-primary-dark">Nenhuma pessoa encontrada</p>
-            <p className="mt-1 text-xs text-slate-500">Altere a busca ou limpe os filtros aplicados.</p>
+            <p className="mt-3 text-sm font-semibold text-foreground">Nenhuma pessoa encontrada</p>
+            <p className="mt-1 text-xs text-muted-foreground">Altere a busca ou limpe os filtros aplicados.</p>
             {hasActiveFilters ? (
               <Button
                 type="button"
