@@ -68,7 +68,7 @@ export function IndicatorApprovalQueue({ items }: IndicatorApprovalQueueProps) {
   }
 
   return (
-    <Card className="hover:shadow-xl hover:shadow-primary-dark/20">
+    <Card>
       <CardHeader>
         <CardTitle>Fila de aprovação de indicadores</CardTitle>
       </CardHeader>
@@ -79,7 +79,7 @@ export function IndicatorApprovalQueue({ items }: IndicatorApprovalQueueProps) {
           queue.map((item) => (
             <div
               key={item.id}
-              className="flex items-center justify-between rounded-xl border border-white/35 bg-white/60 p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5"
+              className="flex items-center justify-between rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-3"
             >
               <div>
                 <p className="font-medium">{item.nome}</p>

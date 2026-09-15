@@ -28,9 +28,9 @@ export default async function CrmDashboardPage() {
 
       <KpiCards overview={overview} />
 
-      <Card className="glass-card-no-float p-6">
+      <Card className="p-6">
         <CardHeader className="px-0">
-          <CardTitle className="heading-lg">Oportunidades por etapa</CardTitle>
+          <CardTitle className="text-v2-heading-lg">Oportunidades por etapa</CardTitle>
         </CardHeader>
         <CardContent className="px-0">
           <DashboardEtapaDistribution countsByEtapa={countsByEtapa} />

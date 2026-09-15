@@ -25,12 +25,12 @@ export function DashboardEtapaDistribution({
         return (
           <li
             key={etapa}
-            className="flex items-center justify-between rounded-2xl border border-primary-dark/10 bg-white/60 px-4 py-3 text-sm shadow-sm shadow-primary-dark/[0.03]"
+            className="flex items-center justify-between rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm"
           >
-            <span className="font-semibold tracking-[-0.01em] text-primary-dark">
+            <span className="font-semibold tracking-[-0.01em] text-foreground">
               {OPPORTUNITY_STAGE_LABELS[stage] ?? etapa}
             </span>
-            <span className="rounded-full border border-accent-teal/20 bg-accent-teal/10 px-2.5 py-1 text-xs font-bold tabular-nums text-accent-teal">
+            <span className="rounded-(--radius-v2-full) bg-interactive-100 px-2.5 py-1 text-xs font-bold tabular-nums text-interactive-700">
               {count}
             </span>
           </li>
