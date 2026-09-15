@@ -48,7 +48,7 @@ function NotificationCards({
 }) {
   if (items.length === 0) {
     return (
-      <Card className="glass-card-no-float border-white/30">
+      <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground">
           <p>Nenhuma notificação nesta categoria.</p>
           {emptyHint ? <p className="mt-3 max-w-md text-xs leading-relaxed text-muted-foreground/90">{emptyHint}</p> : null}
@@ -91,11 +91,11 @@ function NotificationCards({
         return (
           <li key={n.id}>
             <Card
-              className={`glass-card-no-float transition-colors ${n.lida_em ? "opacity-80" : "border-primary-dark/20 bg-white/55"}`}
+              className={`transition-colors ${n.lida_em ? "opacity-80" : "border-interactive-300 bg-interactive-50"}`}
             >
               <CardHeader className="pb-2">
                 <div className="flex flex-wrap items-start gap-3">
-                  <Avatar className="size-10 shrink-0 border border-[#e1e5eb]">
+                  <Avatar className="size-10 shrink-0 border border-neutral-200">
                     {face?.avatar_url ? (
                       <AvatarImage src={face.avatar_url} alt="" />
                     ) : null}
@@ -134,7 +134,7 @@ function NotificationCards({
                       </span>
                     </CardDescription>
                     {contextoDatas ? (
-                      <div className="mt-2 space-y-1 rounded-lg border border-primary-dark/10 bg-white/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+                      <div className="mt-2 space-y-1 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
                         <p>
                           <span className="font-semibold text-foreground/85">Lead criado: </span>
                           {formatContextoDateTimePtBr(contextoDatas.lead_criado_em) ?? "—"}
@@ -155,14 +155,14 @@ function NotificationCards({
                   <p className="pt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
                 ) : null}
                 {dueLevantamento && dueLevantamento.areas.length > 0 ? (
-                  <details className="due-kanban-details mt-3 rounded-lg border border-primary-dark/10 bg-white/70 open:bg-white/90">
+                  <details className="due-kanban-details mt-3 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 open:bg-white">
                     <summary
-                      className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-primary-dark/75 outline-none transition-colors hover:bg-primary-dark/[0.04] [&::-webkit-details-marker]:hidden"
+                      className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-(--radius-v2-md) px-2 py-1.5 text-[11px] font-semibold text-foreground outline-none transition-colors hover:bg-neutral-100 [&::-webkit-details-marker]:hidden"
                       title="Abrir ou fechar o detalhe por área"
                     >
                       <span className="inline-flex min-w-0 items-center gap-1.5">
                         <ChevronDown
-                          className="due-kanban-chevron h-3.5 w-3.5 shrink-0 text-primary-dark/45 transition-transform duration-200"
+                          className="due-kanban-chevron h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200"
                           aria-hidden
                         />
                         <span className="truncate">Levantamento DUE</span>
@@ -171,42 +171,42 @@ function NotificationCards({
                         {dueLevantamento.disponibilizados}/{dueLevantamento.total}
                       </span>
                     </summary>
-                    <ul className="space-y-1.5 border-t border-primary-dark/10 px-2 pb-2.5 pt-2">
+                    <ul className="space-y-1.5 border-t border-neutral-200 px-2 pb-2.5 pt-2">
                       {dueLevantamento.areas.map((row) => (
                         <li
                           key={row.areaKey}
-                          className="flex items-start gap-2 text-[10px] font-medium leading-snug text-primary-dark/85"
+                          className="flex items-start gap-2 text-[10px] font-medium leading-snug text-foreground/85"
                         >
                           <span className="mt-0.5 shrink-0" aria-hidden>
                             {row.entregue ? (
-                              <Check className="h-3.5 w-3.5 text-emerald-600" strokeWidth={2.5} />
+                              <Check className="h-3.5 w-3.5 text-success-text" strokeWidth={2.5} />
                             ) : row.emAtraso ? (
-                              <AlertCircle className="h-3.5 w-3.5 text-rose-600" strokeWidth={2.5} />
+                              <AlertCircle className="h-3.5 w-3.5 text-danger-text" strokeWidth={2.5} />
                             ) : (
-                              <Clock className="h-3.5 w-3.5 text-amber-600" strokeWidth={2.5} />
+                              <Clock className="h-3.5 w-3.5 text-warning-text" strokeWidth={2.5} />
                             )}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="font-bold text-primary-dark">{row.areaKey}</span>
+                            <span className="font-semibold text-foreground">{row.areaKey}</span>
                             {row.entregue ? (
-                              <span className="text-emerald-900/85">
+                              <span className="text-success-text">
                                 {" "}
                                 — concluída
                                 {row.semProcessosAtivos ? (
-                                  <span className="font-normal text-primary-dark/65"> (sem proc. ativos)</span>
+                                  <span className="font-normal text-muted-foreground"> (sem proc. ativos)</span>
                                 ) : null}
                               </span>
                             ) : row.emAtraso ? (
-                              <span className="text-rose-900/85"> — em atraso</span>
+                              <span className="text-danger-text"> — em atraso</span>
                             ) : (
-                              <span className="text-amber-950/80"> — pendente</span>
+                              <span className="text-warning-text"> — pendente</span>
                             )}
                           </span>
                         </li>
                       ))}
                     </ul>
                     {dueLevantamento.atrasados > 0 ? (
-                      <p className="border-t border-primary-dark/10 px-2 pb-2 text-[10px] font-bold text-rose-700">
+                      <p className="border-t border-neutral-200 px-2 pb-2 text-[10px] font-bold text-danger-text">
                         {dueLevantamento.atrasados} área(s) em atraso
                       </p>
                     ) : null}
@@ -216,7 +216,7 @@ function NotificationCards({
               <CardContent className="flex flex-wrap items-center gap-3 pt-0">
                 <Link
                   href={href}
-                  className="text-sm font-medium text-primary-dark underline-offset-4 hover:underline"
+                  className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
                 >
                   Abrir oportunidade
                 </Link>
@@ -310,7 +310,7 @@ export function NotificationList({ initial }: { initial: Row[] }) {
 
   if (items.length === 0) {
     return (
-      <Card className="glass-card-no-float border-white/30">
+      <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground">
           Nenhuma notificação por agora.
         </CardContent>
@@ -324,12 +324,12 @@ export function NotificationList({ initial }: { initial: Row[] }) {
       onValueChange={(v) => setActiveTab(v as NotificationTabGroupId)}
       className="gap-4"
     >
-      <div className="overflow-x-auto rounded-xl border border-[#e1e5eb] bg-white/80 p-1.5 shadow-sm">
+      <div className="overflow-x-auto rounded-(--radius-v2-lg) border border-neutral-200 bg-white p-1.5">
         <TabsList variant="line" className="h-auto min-w-max gap-0.5 bg-transparent p-0">
-          <TabsTrigger value="todas" className="shrink-0 rounded-lg px-3 py-2 text-xs sm:text-sm">
+          <TabsTrigger value="todas" className="shrink-0 rounded-(--radius-v2-md) px-3 py-2 text-xs sm:text-sm">
             Todas
             {totalUnread > 0 ? (
-              <span className="ml-1 rounded-full bg-primary-dark/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary-dark">
+              <span className="ml-1 rounded-(--radius-v2-full) bg-interactive-100 px-1.5 py-0.5 text-[10px] font-semibold text-interactive-700">
                 {totalUnread}
               </span>
             ) : null}
@@ -337,7 +337,7 @@ export function NotificationList({ initial }: { initial: Row[] }) {
           {NOTIFICATION_TAB_GROUPS.map(({ id, label }) => {
             const c = countsByGroup.get(id) ?? { total: 0, unread: 0 };
             return (
-              <TabsTrigger key={id} value={id} className="shrink-0 rounded-lg px-3 py-2 text-xs sm:text-sm">
+              <TabsTrigger key={id} value={id} className="shrink-0 rounded-(--radius-v2-md) px-3 py-2 text-xs sm:text-sm">
                 {label}
                 <span className="ml-1 text-[10px] font-normal text-muted-foreground">
                   ({c.total}
@@ -347,7 +347,7 @@ export function NotificationList({ initial }: { initial: Row[] }) {
             );
           })}
           {hasOutras ? (
-            <TabsTrigger value="outras" className="shrink-0 rounded-lg px-3 py-2 text-xs sm:text-sm">
+            <TabsTrigger value="outras" className="shrink-0 rounded-(--radius-v2-md) px-3 py-2 text-xs sm:text-sm">
               Outras
               <span className="ml-1 text-[10px] font-normal text-muted-foreground">
                 ({outrasCount.total}

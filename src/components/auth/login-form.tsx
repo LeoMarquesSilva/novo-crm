@@ -51,9 +51,7 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
       <div className="space-y-2">
-        <Label htmlFor="email" className="text-xs font-bold uppercase tracking-[0.16em] text-primary-light">
-          E-mail
-        </Label>
+        <Label htmlFor="email">E-mail</Label>
         <div className="relative">
           <Mail
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -67,16 +65,14 @@ export function LoginForm() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="h-12 border-primary-dark/10 bg-white/80 pl-10 text-[15px] shadow-inner shadow-primary-dark/[0.03]"
+            className="h-11 pl-10"
             placeholder="nome@empresa.com.br"
           />
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="password" className="text-xs font-bold uppercase tracking-[0.16em] text-primary-light">
-          Senha
-        </Label>
+        <Label htmlFor="password">Senha</Label>
         <div className="relative">
           <Lock
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -90,7 +86,7 @@ export function LoginForm() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="h-12 border-primary-dark/10 bg-white/80 pl-10 text-[15px] shadow-inner shadow-primary-dark/[0.03]"
+            className="h-11 pl-10"
             placeholder="••••••••"
           />
         </div>
@@ -98,14 +94,14 @@ export function LoginForm() {
 
       {error ? (
         <p
-          className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="rounded-(--radius-v2-md) border border-destructive/35 bg-destructive/10 px-3 py-2 text-v2-body-sm text-destructive"
           role="alert"
         >
           {error}
         </p>
       ) : null}
 
-      <Button type="submit" disabled={loading} size="lg" className="h-12 w-full">
+      <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

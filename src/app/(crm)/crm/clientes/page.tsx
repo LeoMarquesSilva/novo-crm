@@ -35,7 +35,7 @@ export default async function ClientesPage() {
 
       <Card className="p-6">
         <CardHeader>
-          <CardTitle className="heading-lg">Clientes cadastrados</CardTitle>
+          <CardTitle className="text-v2-heading-lg">Clientes cadastrados</CardTitle>
         </CardHeader>
         <CardContent>
           {error ? (
