@@ -129,9 +129,9 @@ export function CatalogTypeEditor({
 
   return (
     <div className="flex h-full min-h-[400px] flex-col gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-dark/10 bg-white px-4 py-3 shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-3 rounded-(--radius-v2-xl) border border-neutral-200 bg-white px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary-dark/8 text-primary-dark">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-lg) bg-neutral-100 text-foreground">
             <AreaIcon className="size-4" aria-hidden />
           </span>
           <div className="min-w-0">
@@ -141,7 +141,7 @@ export function CatalogTypeEditor({
                 ? ` · ${mode.breadcrumb.slice(0, -1).join(" › ")}`
                 : null}
             </p>
-            <h2 className="truncate text-base font-extrabold text-primary-dark">{draft.label}</h2>
+            <h2 className="truncate text-base font-extrabold text-foreground">{draft.label}</h2>
           </div>
         </div>
 
@@ -155,22 +155,22 @@ export function CatalogTypeEditor({
             disabled={saving}
           />
 
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-primary-dark/10 bg-white px-3 py-1.5 text-[11px] font-semibold text-primary-dark transition-colors hover:bg-primary-dark/5">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-full) border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-neutral-50">
             <input
               type="checkbox"
               checked={draft.isActive}
               onChange={(e) => setDraft((p) => ({ ...p, isActive: e.target.checked }))}
-              className="size-3 accent-emerald-600"
+              className="size-3"
             />
             {draft.isActive ? (
-              <span className="text-emerald-700">Ativo</span>
+              <span className="text-success-text">Ativo</span>
             ) : (
-              <span className="text-slate-500">Inativo</span>
+              <span className="text-muted-foreground">Inativo</span>
             )}
           </label>
 
           {isDirty ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800">
+            <span className="inline-flex items-center gap-1 rounded-(--radius-v2-full) bg-warning-bg px-2.5 py-1 text-[10px] font-bold text-warning-text">
               <Sparkles className="size-3" aria-hidden />
               Não salvo
             </span>
@@ -197,8 +197,8 @@ export function CatalogTypeEditor({
       {(feedback ?? error) ? (
         <div
           className={cn(
-            "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold",
-            error ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700",
+            "flex items-center gap-2 rounded-(--radius-v2-md) px-3 py-2 text-sm font-semibold",
+            error ? "bg-danger-bg text-danger-text" : "bg-success-bg text-success-text",
           )}
         >
           {error ? (
@@ -210,12 +210,12 @@ export function CatalogTypeEditor({
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-primary-dark/10 bg-white p-5 shadow-sm">
+      <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-5">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            O <strong className="text-primary-dark">tipo</strong> agrupa os subtipos na árvore. Os
-            textos de <strong className="text-primary-dark">escopo</strong> ficam em cada subtipo desta aba;{" "}
-            <strong className="text-primary-dark">honorários</strong> na aba Investimentos. Selecione um subtipo na
+            O <strong className="text-foreground">tipo</strong> agrupa os subtipos na árvore. Os
+            textos de <strong className="text-foreground">escopo</strong> ficam em cada subtipo desta aba;{" "}
+            <strong className="text-foreground">honorários</strong> na aba Investimentos. Selecione um subtipo na
             lista à esquerda ou use o botão + ao lado do tipo.
           </p>
           {onAddSubtype ? (
@@ -223,7 +223,7 @@ export function CatalogTypeEditor({
               type="button"
               size="sm"
               variant="outline"
-              className="h-9 shrink-0 gap-1.5 border-primary-dark/15 text-primary-dark hover:bg-primary-dark/5"
+              className="h-9 shrink-0 gap-1.5"
               onClick={onAddSubtype}
             >
               <Plus className="size-3.5" aria-hidden />
@@ -234,23 +234,23 @@ export function CatalogTypeEditor({
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-primary-dark">Nome do tipo</Label>
+            <Label className="text-xs font-semibold text-foreground">Nome do tipo</Label>
             <Input
               value={draft.label}
               onChange={(e) => setDraft((p) => ({ ...p, label: e.target.value }))}
               disabled={saving}
-              className="h-10 border-primary-dark/15 bg-white text-sm"
+              className="h-10 text-sm"
             />
           </div>
 
           {mode.kind === "scope" ? (
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-primary-dark">Área de atuação</Label>
+              <Label className="text-xs font-semibold text-foreground">Área de atuação</Label>
               <select
                 value={draft.areaKey}
                 onChange={(e) => setDraft((p) => ({ ...p, areaKey: e.target.value }))}
                 disabled={saving}
-                className="h-10 w-full max-w-sm rounded-xl border border-primary-dark/15 bg-white px-3 text-sm text-primary-dark shadow-sm"
+                className="h-10 w-full max-w-sm rounded-(--radius-v2-md) border border-input bg-white px-3 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/20"
               >
                 {PROPOSTA_AREA_OPTIONS.map((a) => (
                   <option key={a} value={a}>
@@ -262,7 +262,7 @@ export function CatalogTypeEditor({
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
-            <Label className="text-xs font-semibold text-primary-dark">Ordem</Label>
+            <Label className="text-xs font-semibold text-foreground">Ordem</Label>
             <Button
               type="button"
               size="icon"
@@ -279,7 +279,7 @@ export function CatalogTypeEditor({
               value={draft.sortOrder}
               onChange={(e) => setDraft((p) => ({ ...p, sortOrder: Number(e.target.value) || 0 }))}
               disabled={saving}
-              className="h-8 w-20 border-primary-dark/15 bg-white text-center text-sm tabular-nums"
+              className="h-8 w-20 text-center text-sm tabular-nums"
             />
             <Button
               type="button"
@@ -297,9 +297,9 @@ export function CatalogTypeEditor({
             </span>
           </div>
 
-          <p className="rounded-xl border border-primary-dark/8 bg-slate-50/80 px-3 py-2 text-[11px] text-muted-foreground">
+          <p className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] text-muted-foreground">
             Chave técnica:{" "}
-            <code className="font-mono text-primary-dark/80">{mode.row.typeKey}</code>
+            <code className="font-mono text-foreground">{mode.row.typeKey}</code>
           </p>
         </div>
       </div>

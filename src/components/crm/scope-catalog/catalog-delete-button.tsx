@@ -94,7 +94,7 @@ export function CatalogDeleteButton({
           size="sm"
           variant="outline"
           disabled={disabled || deleting}
-          className="h-9 gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+          className="h-9 gap-1.5 border-danger-border text-danger-text hover:bg-danger-bg"
         >
           <Trash2 className="size-3.5" aria-hidden />
           Excluir
@@ -106,11 +106,11 @@ export function CatalogDeleteButton({
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>
-                O item <strong className="text-primary-dark">{itemLabel}</strong> será removido do
+                O item <strong className="text-foreground">{itemLabel}</strong> será removido do
                 catálogo. Esta ação não pode ser desfeita.
               </p>
               {hasChildren ? (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">
+                <p className="rounded-(--radius-v2-md) bg-warning-bg px-3 py-2 text-warning-text">
                   Também serão excluídos{" "}
                   <strong>
                     {childSubtypeCount} subtipo{childSubtypeCount === 1 ? "" : "s"}
@@ -118,7 +118,7 @@ export function CatalogDeleteButton({
                   vinculado{childSubtypeCount === 1 ? "" : "s"} a este tipo.
                 </p>
               ) : null}
-              {error ? <p className="text-rose-700">{error}</p> : null}
+              {error ? <p className="text-danger-text">{error}</p> : null}
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -126,7 +126,7 @@ export function CatalogDeleteButton({
           <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
             disabled={deleting}
-            className="bg-rose-600 hover:bg-rose-700"
+            className="bg-danger-text hover:bg-danger-text/90"
             onClick={(e) => {
               e.preventDefault();
               void confirmDelete();

@@ -12,8 +12,8 @@ export function CatalogEmptyDetail({ tab, onCreateType }: CatalogEmptyDetailProp
   const isScope = tab === "scope";
 
   return (
-    <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-primary-dark/15 bg-white p-10 text-center">
-      <div className="flex size-14 items-center justify-center rounded-2xl bg-primary-dark/8 text-primary-dark">
+    <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-4 rounded-(--radius-v2-xl) border border-dashed border-neutral-200 bg-white p-10 text-center">
+      <div className="flex size-14 items-center justify-center rounded-(--radius-v2-xl) bg-neutral-100 text-foreground">
         {isScope ? (
           <BookOpenText className="size-6" aria-hidden />
         ) : (
@@ -21,12 +21,12 @@ export function CatalogEmptyDetail({ tab, onCreateType }: CatalogEmptyDetailProp
         )}
       </div>
       <div className="max-w-xs">
-        <h3 className="text-base font-bold text-primary-dark">
+        <h3 className="text-base font-bold text-foreground">
           Selecione um {isScope ? "escopo" : "investimento"}
         </h3>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-          Clique em um <strong className="font-semibold text-primary-dark">tipo</strong> para editar
-          nome, área e ordem; em um <strong className="font-semibold text-primary-dark">subtipo</strong>{" "}
+          Clique em um <strong className="font-semibold text-foreground">tipo</strong> para editar
+          nome, área e ordem; em um <strong className="font-semibold text-foreground">subtipo</strong>{" "}
           para editar textos, placeholders e preview ao vivo.
         </p>
       </div>

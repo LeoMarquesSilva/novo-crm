@@ -38,7 +38,8 @@ type InvestmentTypeForm = { label: string; typeKey: string };
 const blankScopeType: ScopeTypeForm = { areaKey: PROPOSTA_AREA_OPTIONS[0] ?? "Cível", label: "", typeKey: "" };
 const blankInvestmentType: InvestmentTypeForm = { label: "", typeKey: "" };
 const fieldLabelClassName = "text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
-const selectClassName = "h-10 w-full rounded-xl border border-input bg-white/85 px-3 text-sm text-primary-dark shadow-sm";
+const selectClassName =
+  "h-10 w-full rounded-(--radius-v2-md) border border-input bg-white px-3 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/20";
 
 function placeholdersRaw(keys: string[]) {
   return keys.join(", ");
@@ -131,14 +132,14 @@ export function ProposalCatalogAdminPanel({ initialData }: { initialData: Propos
   const emptyDatabase = data.adminRows.scopeTypes.length === 0 && data.adminRows.investmentTypes.length === 0;
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-white/55 bg-white/72 shadow-sm shadow-primary-dark/10">
-      <div className="border-b border-primary-dark/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(236,248,247,0.72))] px-5 py-5">
+    <section className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+      <div className="border-b border-neutral-200 bg-neutral-50 px-5 py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="inline-flex rounded-full border border-accent-teal/20 bg-accent-teal/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-primary-dark">
+            <p className="inline-flex rounded-(--radius-v2-full) bg-interactive-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-interactive-700">
               Catálogo editável
             </p>
-            <h2 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-primary-dark">Escopo e investimento</h2>
+            <h2 className="mt-3 text-v2-heading-xl text-foreground">Escopo e investimento</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Cada área tem seus próprios tipos e subtipos de escopo. Investimentos ficam em um catálogo separado,
               com modelos de honorários reaproveitáveis nas propostas.
@@ -154,7 +155,7 @@ export function ProposalCatalogAdminPanel({ initialData }: { initialData: Propos
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="h-7 rounded-full border-primary-dark/10 bg-white px-3 text-primary-dark">
+          <Badge variant="outline" className="h-7 border-neutral-200 bg-white text-foreground">
             {data.source === "database" ? "Banco de dados" : "Fallback do código"}
           </Badge>
           {emptyDatabase ? (
@@ -169,9 +170,13 @@ export function ProposalCatalogAdminPanel({ initialData }: { initialData: Propos
               Inicializar padrão
             </Button>
           ) : null}
-          {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+          {error ? (
+            <p className="rounded-(--radius-v2-md) border border-destructive/35 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
           {message ? (
-            <p className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            <p className="inline-flex items-center gap-2 rounded-(--radius-v2-md) border border-success-border bg-success-bg px-3 py-2 text-sm text-success-text">
               <Check className="h-4 w-4" />
               {message}
             </p>
@@ -180,7 +185,7 @@ export function ProposalCatalogAdminPanel({ initialData }: { initialData: Propos
       </div>
 
       <Tabs defaultValue="escopo" className="p-5">
-        <TabsList className="grid h-auto w-full grid-cols-2 border border-primary-dark/10 bg-white p-1 shadow-sm md:w-fit">
+        <TabsList className="grid h-auto w-full grid-cols-2 border border-neutral-200 bg-white p-1 md:w-fit">
           <TabsTrigger value="escopo" className="gap-2 px-4 py-2">
             <BookOpenText className="h-4 w-4" />
             Escopos por área
@@ -325,9 +330,9 @@ export function ProposalCatalogAdminPanel({ initialData }: { initialData: Propos
 
 function CatalogMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-primary-dark/10 bg-white/75 p-3 shadow-sm">
+    <div className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold tracking-[-0.04em] text-primary-dark">{value}</p>
+      <p className="mt-1 text-2xl font-bold tracking-[-0.04em] text-foreground">{value}</p>
     </div>
   );
 }
@@ -344,10 +349,10 @@ function FormShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[22px] border border-primary-dark/10 bg-white/72 p-4 shadow-sm">
+    <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
       <div className="mb-4 flex flex-col gap-1">
-        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-accent-teal">{eyebrow}</p>
-        <h3 className="text-lg font-bold text-primary-dark">{title}</h3>
+        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-interactive-700">{eyebrow}</p>
+        <h3 className="text-lg font-bold text-foreground">{title}</h3>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
       {children}
@@ -367,22 +372,22 @@ function AreaSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[24px] border border-primary-dark/10 bg-white/58 shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-primary-dark/10 bg-white/70 px-4 py-3 md:flex-row md:items-center md:justify-between">
+    <section className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+      <div className="flex flex-col gap-3 border-b border-neutral-200 bg-neutral-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent-teal/10 text-accent-teal">
+          <div className="flex h-10 w-10 items-center justify-center rounded-(--radius-v2-lg) bg-interactive-100 text-interactive-700">
             <Layers3 className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="font-bold text-primary-dark">{area}</h3>
+            <h3 className="font-bold text-foreground">{area}</h3>
             <p className="text-xs text-muted-foreground">Escopos separados por tipo e subtipo</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="outline" className="rounded-full bg-white">
+          <Badge variant="outline" className="border-neutral-200 bg-white">
             {typeCount} tipos
           </Badge>
-          <Badge variant="outline" className="rounded-full bg-white">
+          <Badge variant="outline" className="border-neutral-200 bg-white">
             {subtypeCount} subtipos
           </Badge>
         </div>
@@ -394,7 +399,7 @@ function AreaSection({
 
 function EmptyCatalogState({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-primary-dark/15 bg-slate-50/70 px-4 py-5 text-sm text-muted-foreground">
+    <div className="rounded-(--radius-v2-md) border border-dashed border-neutral-200 bg-neutral-50 px-4 py-5 text-sm text-muted-foreground">
       {text}
     </div>
   );
@@ -406,8 +411,8 @@ function StatusBadge({ active }: { active: boolean }) {
       variant="outline"
       className={
         active
-          ? "h-6 rounded-full border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "h-6 rounded-full border-slate-200 bg-slate-50 text-slate-600"
+          ? "h-6 border-success-border bg-success-bg text-success-text"
+          : "h-6 border-neutral-200 bg-neutral-50 text-muted-foreground"
       }
     >
       {active ? "Ativo" : "Inativo"}
@@ -437,15 +442,15 @@ function ScopeTypeCard({
   });
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-primary-dark/10 bg-white/78 shadow-sm">
-      <div className="grid gap-4 border-b border-primary-dark/10 bg-white/70 px-4 py-4 lg:grid-cols-[1fr_auto]">
+    <div className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+      <div className="grid gap-4 border-b border-neutral-200 bg-neutral-50 px-4 py-4 lg:grid-cols-[1fr_auto]">
         <div className="grid gap-3 md:grid-cols-[1.1fr_0.9fr_7rem]">
           <div className="space-y-1.5">
             <Label className={fieldLabelClassName}>Tipo de escopo</Label>
             <Input
               value={draft.label}
               onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
-              className="bg-white font-semibold text-primary-dark"
+              className="font-semibold"
             />
           </div>
           <div className="space-y-1.5">
@@ -468,7 +473,6 @@ function ScopeTypeCard({
               type="number"
               value={draft.sortOrder}
               onChange={(event) => setDraft((prev) => ({ ...prev, sortOrder: event.target.value }))}
-              className="bg-white"
             />
           </div>
         </div>
@@ -513,8 +517,8 @@ function ScopeTypeCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-primary-dark/10 bg-slate-50/60 px-4 py-2 text-xs text-muted-foreground">
-        <code className="rounded-full bg-white px-2 py-1 text-[11px] text-primary-dark">{type.typeKey}</code>
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-xs text-muted-foreground">
+        <code className="rounded-(--radius-v2-full) bg-white px-2 py-1 text-[11px] text-foreground">{type.typeKey}</code>
         <span>{subtypes.length} subtipos cadastrados</span>
       </div>
 
@@ -522,7 +526,7 @@ function ScopeTypeCard({
         <ScopeSubtypeForm scopeTypeId={type.id} onMutate={onMutate} isPending={isPending} />
       ) : null}
 
-      <div className="divide-y divide-primary-dark/10">
+      <div className="divide-y divide-neutral-200">
         {subtypes.length ? (
           subtypes.map((subtype) => (
             <ScopeSubtypeEditor key={subtype.id} subtype={subtype} onMutate={onMutate} isPending={isPending} />
@@ -568,9 +572,9 @@ function ScopeSubtypeForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4 border-b border-primary-dark/10 bg-accent-teal/5 p-4">
-      <div className="flex items-center gap-2 text-sm font-semibold text-primary-dark">
-        <Pencil className="h-4 w-4 text-accent-teal" />
+    <form onSubmit={submit} className="grid gap-4 border-b border-neutral-200 bg-interactive-50 p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Pencil className="h-4 w-4 text-interactive-700" />
         Novo subtipo de escopo
       </div>
       <div className="grid gap-3 md:grid-cols-2">
@@ -641,12 +645,12 @@ function ScopeSubtypeEditor({
             <Input
               value={draft.label}
               onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
-              className="bg-white/90 font-semibold text-primary-dark"
+              className="font-semibold"
             />
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <StatusBadge active={subtype.isActive} />
-            <code className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-muted-foreground">
+            <code className="rounded-(--radius-v2-full) bg-neutral-100 px-2 py-1 text-[11px] text-muted-foreground">
               {subtype.subtypeKey}
             </code>
           </div>
@@ -723,15 +727,15 @@ function InvestmentTypeCard({
   });
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-primary-dark/10 bg-white/78 shadow-sm">
-      <div className="grid gap-4 border-b border-primary-dark/10 bg-white/70 px-4 py-4 lg:grid-cols-[1fr_auto]">
+    <div className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+      <div className="grid gap-4 border-b border-neutral-200 bg-neutral-50 px-4 py-4 lg:grid-cols-[1fr_auto]">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_8rem]">
           <div className="space-y-1.5">
             <Label className={fieldLabelClassName}>Tipo de investimento</Label>
             <Input
               value={draft.label}
               onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
-              className="bg-white font-semibold text-primary-dark"
+              className="font-semibold"
             />
           </div>
           <div className="space-y-1.5">
@@ -740,7 +744,6 @@ function InvestmentTypeCard({
               type="number"
               value={draft.sortOrder}
               onChange={(event) => setDraft((prev) => ({ ...prev, sortOrder: event.target.value }))}
-              className="bg-white"
             />
           </div>
         </div>
@@ -783,8 +786,8 @@ function InvestmentTypeCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-primary-dark/10 bg-slate-50/60 px-4 py-2 text-xs text-muted-foreground">
-        <code className="rounded-full bg-white px-2 py-1 text-[11px] text-primary-dark">{type.typeKey}</code>
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-xs text-muted-foreground">
+        <code className="rounded-(--radius-v2-full) bg-white px-2 py-1 text-[11px] text-foreground">{type.typeKey}</code>
         <span>{subtypes.length} modelos de honorários</span>
       </div>
 
@@ -792,7 +795,7 @@ function InvestmentTypeCard({
         <InvestmentSubtypeForm investmentTypeId={type.id} onMutate={onMutate} isPending={isPending} />
       ) : null}
 
-      <div className="divide-y divide-primary-dark/10">
+      <div className="divide-y divide-neutral-200">
         {subtypes.length ? (
           subtypes.map((subtype) => (
             <InvestmentSubtypeEditor key={subtype.id} subtype={subtype} onMutate={onMutate} isPending={isPending} />
@@ -834,9 +837,9 @@ function InvestmentSubtypeForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4 border-b border-primary-dark/10 bg-accent-teal/5 p-4">
-      <div className="flex items-center gap-2 text-sm font-semibold text-primary-dark">
-        <SlidersHorizontal className="h-4 w-4 text-accent-teal" />
+    <form onSubmit={submit} className="grid gap-4 border-b border-neutral-200 bg-interactive-50 p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <SlidersHorizontal className="h-4 w-4 text-interactive-700" />
         Novo subtipo de investimento
       </div>
       <div className="grid gap-3 md:grid-cols-2">
@@ -914,12 +917,12 @@ function InvestmentSubtypeEditor({
             <Input
               value={draft.label}
               onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))}
-              className="bg-white/90 font-semibold text-primary-dark"
+              className="font-semibold"
             />
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <StatusBadge active={subtype.isActive} />
-            <code className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-muted-foreground">
+            <code className="rounded-(--radius-v2-full) bg-neutral-100 px-2 py-1 text-[11px] text-muted-foreground">
               {subtype.subtypeKey}
             </code>
           </div>
@@ -1006,7 +1009,7 @@ function TextAreaField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className={`${minHeight} bg-white/85 leading-6`}
+        className={`${minHeight} leading-6`}
       />
       <p className="text-xs leading-5 text-muted-foreground">{help}</p>
     </div>

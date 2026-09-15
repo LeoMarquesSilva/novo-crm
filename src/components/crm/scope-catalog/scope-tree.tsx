@@ -140,7 +140,7 @@ export function ScopeTree({
   return (
     <div className="flex h-full flex-col">
       {/* Busca */}
-      <div className="shrink-0 space-y-1.5 border-b border-primary-dark/10 bg-white p-2.5">
+      <div className="shrink-0 space-y-1.5 border-b border-neutral-200 bg-white p-2.5">
         <div className="relative">
           <Search
             className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
@@ -150,7 +150,7 @@ export function ScopeTree({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar..."
-            className="h-9 border-primary-dark/15 bg-white pl-8 text-sm"
+            className="h-9 pl-8 text-sm"
           />
         </div>
 
@@ -160,10 +160,10 @@ export function ScopeTree({
               type="button"
               onClick={() => onAreaFilterChange!([])}
               className={cn(
-                "shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors",
+                "shrink-0 rounded-(--radius-v2-md) px-2 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors",
                 allAreasSelected
-                  ? "bg-primary-dark text-white"
-                  : "bg-primary-dark/8 text-primary-dark/70 hover:bg-primary-dark/12",
+                  ? "bg-brand-navy text-white"
+                  : "bg-neutral-100 text-muted-foreground hover:bg-neutral-200",
               )}
             >
               Todas
@@ -186,10 +186,10 @@ export function ScopeTree({
                     onAreaFilterChange!(next.length === areaOptions!.length ? [] : next);
                   }}
                   className={cn(
-                    "shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold transition-colors",
+                    "shrink-0 rounded-(--radius-v2-md) px-2 py-1 text-[10px] font-bold transition-colors",
                     selected
                       ? cn(colors.bg, colors.text, "ring-1", colors.ring)
-                      : "bg-primary-dark/5 text-primary-dark/55 hover:bg-primary-dark/10",
+                      : "bg-neutral-50 text-muted-foreground hover:bg-neutral-100",
                   )}
                 >
                   {area}
@@ -221,11 +221,11 @@ export function ScopeTree({
                   <button
                     type="button"
                     onClick={() => toggleL1(g.key)}
-                    className="group flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-primary-dark/5"
+                    className="group flex w-full min-w-0 items-center gap-1.5 rounded-(--radius-v2-md) px-1.5 py-1.5 text-left transition-colors hover:bg-neutral-50"
                   >
                     <span
                       className={cn(
-                        "flex size-6 shrink-0 items-center justify-center rounded-lg ring-1",
+                        "flex size-6 shrink-0 items-center justify-center rounded-(--radius-v2-md) ring-1",
                         areaColors.bg,
                         areaColors.ring,
                       )}
@@ -233,7 +233,7 @@ export function ScopeTree({
                       <AreaIcon className={cn("size-3.5", areaColors.text)} aria-hidden />
                     </span>
 
-                    <span className="min-w-0 flex-1 truncate text-[11px] font-black uppercase tracking-[0.08em] text-primary-dark">
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-black uppercase tracking-[0.08em] text-foreground">
                       {g.label}
                     </span>
 
@@ -248,9 +248,9 @@ export function ScopeTree({
                     </span>
 
                     {isOpen ? (
-                      <ChevronDown className="size-3 shrink-0 text-primary-dark/40" aria-hidden />
+                      <ChevronDown className="size-3 shrink-0 text-muted-foreground" aria-hidden />
                     ) : (
-                      <ChevronRight className="size-3 shrink-0 text-primary-dark/40" aria-hidden />
+                      <ChevronRight className="size-3 shrink-0 text-muted-foreground" aria-hidden />
                     )}
                   </button>
                 ) : null}
@@ -262,17 +262,17 @@ export function ScopeTree({
                         {/* L2 — Tipo */}
                         <div
                           className={cn(
-                            "flex min-w-0 items-center gap-0.5 rounded-md px-0.5 py-0.5 transition-colors",
+                            "flex min-w-0 items-center gap-0.5 rounded-(--radius-v2-md) px-0.5 py-0.5 transition-colors",
                             it.isActive ? "" : "opacity-60",
                             isTypeSelected(selection, it.key)
-                              ? "border-l-2 border-primary-dark bg-primary-dark/10 pl-0.5"
-                              : "hover:bg-primary-dark/5",
+                              ? "border-l-2 border-interactive-600 bg-interactive-50 pl-0.5"
+                              : "hover:bg-neutral-50",
                           )}
                         >
                           <button
                             type="button"
                             onClick={() => toggleL2(`${g.key}/${it.key}`)}
-                            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-primary-dark/50 hover:bg-primary-dark/8 hover:text-primary-dark"
+                            className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-v2-md) text-muted-foreground hover:bg-neutral-100 hover:text-foreground"
                             aria-label={isL2Open(`${g.key}/${it.key}`) ? "Recolher" : "Expandir"}
                           >
                             {isL2Open(`${g.key}/${it.key}`) ? (
@@ -287,16 +287,16 @@ export function ScopeTree({
                             onClick={() => handleSelectType(it, g)}
                             title={it.label}
                             className={cn(
-                              "min-w-0 flex-1 truncate rounded-md px-1 py-0.5 text-left text-xs font-semibold",
-                              it.isActive ? "text-primary-dark" : "text-muted-foreground",
-                              isTypeSelected(selection, it.key) && "text-primary-dark",
+                              "min-w-0 flex-1 truncate rounded-(--radius-v2-md) px-1 py-0.5 text-left text-xs font-semibold",
+                              it.isActive ? "text-foreground" : "text-muted-foreground",
+                              isTypeSelected(selection, it.key) && "text-foreground",
                             )}
                           >
                             {it.label}
                           </button>
 
                           <div className="flex shrink-0 items-center gap-0.5 pl-0.5">
-                            <span className="rounded bg-primary-dark/8 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-primary-dark/60">
+                            <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-muted-foreground">
                               {it.subtypes.length}
                             </span>
 
@@ -308,7 +308,7 @@ export function ScopeTree({
                                   onCreateSubtype(it.key, it.label);
                                 }}
                                 title={`Novo subtipo em ${it.label}`}
-                                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:border-accent-teal/30 hover:bg-accent-teal hover:text-white"
+                                className="inline-flex size-6 shrink-0 items-center justify-center rounded-(--radius-v2-full) border border-transparent text-muted-foreground transition-colors hover:border-interactive-300 hover:bg-interactive-600 hover:text-white"
                                 aria-label={`Novo subtipo em ${it.label}`}
                               >
                                 <Plus className="size-3.5" aria-hidden />
@@ -319,7 +319,7 @@ export function ScopeTree({
 
                         {/* L3 — Subtipos */}
                         {isL2Open(`${g.key}/${it.key}`) && it.subtypes.length > 0 ? (
-                          <ul className="mb-0.5 ml-3 space-y-px border-l-2 border-primary-dark/10 pl-1.5">
+                          <ul className="mb-0.5 ml-3 space-y-px border-l-2 border-neutral-200 pl-1.5">
                             {it.subtypes.map((s) => {
                               const isSelected = isSubtypeSelected(selection, s.key);
                               return (
@@ -329,12 +329,12 @@ export function ScopeTree({
                                     onClick={() => handleSelectSubtype(s)}
                                     title={s.label}
                                     className={cn(
-                                      "flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11.5px] transition-colors",
+                                      "flex w-full min-w-0 items-center gap-1.5 rounded-(--radius-v2-md) px-2 py-1 text-left text-[11.5px] transition-colors",
                                       isSelected
-                                        ? "border-l-2 border-accent-teal bg-accent-teal font-semibold text-white shadow-sm"
+                                        ? "border-l-2 border-interactive-600 bg-interactive-600 font-semibold text-white"
                                         : s.isActive
-                                          ? "text-slate-700 hover:bg-primary-dark/5"
-                                          : "text-slate-400 hover:bg-slate-100/60",
+                                          ? "text-foreground hover:bg-neutral-50"
+                                          : "text-muted-foreground hover:bg-neutral-100",
                                     )}
                                   >
                                     <span className="min-w-0 flex-1 truncate leading-snug">{s.label}</span>
@@ -344,7 +344,7 @@ export function ScopeTree({
                                           "shrink-0 rounded px-1 py-px text-[8px] font-black uppercase tracking-wide",
                                           isSelected
                                             ? "bg-white/20 text-white/80"
-                                            : "bg-slate-200 text-slate-500",
+                                            : "bg-neutral-200 text-muted-foreground",
                                         )}
                                       >
                                         off

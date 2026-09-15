@@ -110,9 +110,9 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="z-[130] max-w-lg gap-0 p-0" overlayClassName="z-[120]">
-        <header className="border-b border-primary-dark/10 px-5 py-4">
-          <DialogTitle className="text-base font-extrabold text-primary-dark">{title}</DialogTitle>
+      <DialogContent className="max-w-lg gap-0 p-0">
+        <header className="border-b border-neutral-200 px-5 py-4">
+          <DialogTitle className="text-base font-extrabold text-foreground">{title}</DialogTitle>
           <DialogDescription className="mt-1 text-xs leading-relaxed text-muted-foreground">
             {descriptionForKind(kind)}
           </DialogDescription>
@@ -122,12 +122,12 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
           {/* Área (só scope_type) */}
           {kind.type === "scope_type" ? (
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-primary-dark">Área de atuação</Label>
+              <Label className="text-xs font-semibold text-foreground">Área de atuação</Label>
               <select
                 value={areaKey}
                 onChange={(e) => setAreaKey(e.target.value)}
                 disabled={saving}
-                className="h-10 w-full rounded-xl border border-primary-dark/15 bg-white px-3 text-sm text-primary-dark shadow-sm"
+                className="h-10 w-full rounded-(--radius-v2-md) border border-input bg-white px-3 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/20"
               >
                 {PROPOSTA_AREA_OPTIONS.map((a) => (
                   <option key={a} value={a}>
@@ -140,21 +140,21 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
 
           {/* Parent breadcrumb (subtipos) */}
           {kind.type === "scope_subtype" || kind.type === "investment_subtype" ? (
-            <div className="rounded-xl border border-primary-dark/10 bg-slate-50 px-3 py-2 text-[11px]">
+            <div className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px]">
               <p className="font-bold uppercase tracking-[0.12em] text-muted-foreground">Será criado em</p>
-              <p className="mt-0.5 font-semibold text-primary-dark">{kind.parentLabel}</p>
+              <p className="mt-0.5 font-semibold text-foreground">{kind.parentLabel}</p>
             </div>
           ) : null}
 
           {/* Label */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-primary-dark">Nome</Label>
+            <Label className="text-xs font-semibold text-foreground">Nome</Label>
             <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               disabled={saving}
               placeholder={placeholderForKind(kind)}
-              className="h-10 border-primary-dark/15 bg-white text-sm"
+              className="h-10 text-sm"
               autoFocus
             />
             <p className="text-[10px] text-muted-foreground">
@@ -165,7 +165,7 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
           {/* Conteúdo inicial (subtipos) */}
           {kind.type === "scope_subtype" ? (
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-primary-dark">
+              <Label className="text-xs font-semibold text-foreground">
                 Texto do escopo <span className="text-muted-foreground">(opcional)</span>
               </Label>
               <TemplateTextareaField
@@ -184,7 +184,7 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
           {kind.type === "investment_subtype" ? (
             <>
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-primary-dark">
+                <Label className="text-xs font-semibold text-foreground">
                   Conceito <span className="text-muted-foreground">(opcional)</span>
                 </Label>
                 <Textarea
@@ -192,11 +192,11 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
                   onChange={(e) => setConceito(e.target.value)}
                   disabled={saving}
                   placeholder="Breve explicação do tipo de cobrança."
-                  className="min-h-[60px] resize-y border-primary-dark/15 bg-white text-sm"
+                  className="min-h-[60px] resize-y text-sm"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-primary-dark">
+                <Label className="text-xs font-semibold text-foreground">
                   Texto do investimento <span className="text-muted-foreground">(opcional)</span>
                 </Label>
                 <TemplateTextareaField
@@ -211,11 +211,11 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
           ) : null}
 
           {error ? (
-            <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+            <div className="rounded-(--radius-v2-md) bg-danger-bg px-3 py-2 text-sm text-danger-text">{error}</div>
           ) : null}
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t border-primary-dark/10 bg-slate-50/60 px-5 py-3">
+        <footer className="flex items-center justify-end gap-2 border-t border-neutral-200 bg-neutral-50 px-5 py-3">
           <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
@@ -293,7 +293,7 @@ export function NewItemButton({
           onClick();
         }}
         title={label}
-        className="ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent-teal hover:text-white"
+        className="ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded-(--radius-v2-full) text-muted-foreground transition-colors hover:bg-interactive-600 hover:text-white"
         aria-label={label}
       >
         <Plus className="size-3" aria-hidden />
@@ -307,7 +307,7 @@ export function NewItemButton({
       variant="outline"
       onClick={onClick}
       className={cn(
-        "h-9 gap-1.5 border-accent-teal/35 bg-white text-accent-teal hover:bg-accent-teal hover:text-white",
+        "h-9 gap-1.5 border-interactive-300 bg-white text-interactive-700 hover:bg-interactive-600 hover:text-white",
       )}
     >
       <Plus className="size-3.5" aria-hidden />

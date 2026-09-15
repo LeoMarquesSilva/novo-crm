@@ -208,17 +208,17 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
   return (
     <div className="flex h-full min-h-[560px] flex-col gap-4">
       {/* Header com breadcrumb + ações */}
-      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-dark/10 bg-white/85 px-4 py-3 shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-3 rounded-(--radius-v2-xl) border border-neutral-200 bg-white px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           {/* Ícone da área */}
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary-dark/8 text-primary-dark">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-lg) bg-neutral-100 text-foreground">
             <AreaIcon className="size-4" aria-hidden />
           </span>
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
               {mode.breadcrumb.slice(0, -1).join(" › ")}
             </p>
-            <h2 className="truncate text-base font-extrabold text-primary-dark">{draft.label}</h2>
+            <h2 className="truncate text-base font-extrabold text-foreground">{draft.label}</h2>
           </div>
         </div>
 
@@ -232,22 +232,22 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
           />
 
           {/* Toggle ativo/inativo */}
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-primary-dark/10 bg-white px-3 py-1.5 text-[11px] font-semibold text-primary-dark transition-colors hover:bg-primary-dark/5">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-full) border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-neutral-50">
             <input
               type="checkbox"
               checked={draft.isActive}
               onChange={(e) => setDraft((p) => ({ ...p, isActive: e.target.checked }))}
-              className="size-3 accent-emerald-600"
+              className="size-3"
             />
             {draft.isActive ? (
-              <span className="text-emerald-700">Ativo</span>
+              <span className="text-success-text">Ativo</span>
             ) : (
-              <span className="text-slate-500">Inativo</span>
+              <span className="text-muted-foreground">Inativo</span>
             )}
           </label>
 
           {isDirty ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800">
+            <span className="inline-flex items-center gap-1 rounded-(--radius-v2-full) bg-warning-bg px-2.5 py-1 text-[10px] font-bold text-warning-text">
               <Sparkles className="size-3" aria-hidden />
               Não salvo
             </span>
@@ -275,8 +275,8 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
       {(feedback ?? error) ? (
         <div
           className={cn(
-            "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold",
-            error ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700",
+            "flex items-center gap-2 rounded-(--radius-v2-md) px-3 py-2 text-sm font-semibold",
+            error ? "bg-danger-bg text-danger-text" : "bg-success-bg text-success-text",
           )}
         >
           {error ? (
@@ -291,23 +291,23 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
       {/* Split: editor + preview */}
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
         {/* Editor */}
-        <div className="crm-scrollbar min-h-0 overflow-y-auto rounded-2xl border border-primary-dark/10 bg-white/85 shadow-sm">
+        <div className="crm-scrollbar min-h-0 overflow-y-auto rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
           {/* Cabeçalho do painel */}
-          <div className="flex items-center gap-2 border-b border-primary-dark/8 px-4 py-2.5">
-            <Pencil className="size-3.5 shrink-0 text-primary-dark/50" aria-hidden />
-            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary-dark/50">
+          <div className="flex items-center gap-2 border-b border-neutral-200 px-4 py-2.5">
+            <Pencil className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
               Editor
             </span>
           </div>
           <div className="space-y-4 p-4">
             {/* Label */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-primary-dark">Nome (label)</Label>
+              <Label className="text-xs font-semibold text-foreground">Nome (label)</Label>
               <Input
                 value={draft.label}
                 onChange={(e) => setDraft((p) => ({ ...p, label: e.target.value }))}
                 disabled={saving}
-                className="h-10 border-primary-dark/15 bg-white text-sm"
+                className="h-10 text-sm"
               />
             </div>
 
@@ -358,7 +358,7 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
 
             {/* Ordem */}
             <div className="flex items-center gap-2">
-              <Label className="text-xs font-semibold text-primary-dark">Ordem</Label>
+              <Label className="text-xs font-semibold text-foreground">Ordem</Label>
               <Button
                 type="button"
                 size="icon"
@@ -375,7 +375,7 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
                 value={draft.sortOrder}
                 onChange={(e) => setDraft((p) => ({ ...p, sortOrder: Number(e.target.value) || 0 }))}
                 disabled={saving}
-                className="h-8 w-20 border-primary-dark/15 bg-white text-center text-sm tabular-nums"
+                className="h-8 w-20 text-center text-sm tabular-nums"
               />
               <Button
                 type="button"
@@ -396,18 +396,18 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
         </div>
 
         {/* Preview */}
-        <div className="crm-scrollbar min-h-0 overflow-y-auto rounded-2xl border border-primary-dark/10 bg-gradient-to-br from-[#f9f7f2] to-[#ede9dd] shadow-inner">
+        <div className="crm-scrollbar min-h-0 overflow-y-auto rounded-(--radius-v2-xl) border border-neutral-200 bg-neutral-50">
           {/* Cabeçalho do painel */}
-          <div className="flex items-center justify-between gap-2 border-b border-[#24615b]/15 px-4 py-2.5">
+          <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-4 py-2.5">
             <div className="flex items-center gap-2">
-              <Eye className="size-3.5 shrink-0 text-[#24615b]/60" aria-hidden />
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#24615b]/70">
+              <Eye className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 Preview
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
-              <span className="text-[9px] text-[#24615b]/50">ao vivo</span>
+              <span className="size-1.5 rounded-(--radius-v2-full) bg-success-text" aria-hidden />
+              <span className="text-[9px] text-muted-foreground">ao vivo</span>
             </div>
           </div>
           <div className="p-4">
@@ -448,9 +448,9 @@ function FieldTextarea({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-xs font-semibold text-primary-dark">{label}</Label>
+        <Label className="text-xs font-semibold text-foreground">{label}</Label>
         {legacy ? (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800">
+          <span className="shrink-0 rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-warning-text">
             Legado
           </span>
         ) : null}
@@ -464,7 +464,7 @@ function FieldTextarea({
           minHeightClass="min-h-[120px]"
           className={cn(
             "text-[12.5px]",
-            legacy && "bg-amber-50/40",
+            legacy && "bg-warning-bg/40",
           )}
         />
       ) : (
@@ -473,8 +473,8 @@ function FieldTextarea({
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           className={cn(
-            "min-h-[120px] resize-y border-primary-dark/15 bg-white font-mono text-[12.5px] leading-relaxed",
-            legacy && "bg-amber-50/40",
+            "min-h-[120px] resize-y font-mono text-[12.5px] leading-relaxed",
+            legacy && "bg-warning-bg/40",
           )}
         />
       )}
@@ -503,15 +503,15 @@ function PlaceholdersSection({
     onChange(declared.filter((k) => k !== key));
   }
   return (
-    <div className="space-y-2 rounded-xl border border-primary-dark/10 bg-slate-50/60 p-3">
+    <div className="space-y-2 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label className="text-xs font-semibold text-primary-dark">Placeholders</Label>
+        <Label className="text-xs font-semibold text-foreground">Placeholders</Label>
         {needsSync ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="h-7 gap-1.5 border-accent-teal/40 px-2.5 text-[11px] font-semibold text-accent-teal hover:bg-accent-teal hover:text-white"
+            className="h-7 gap-1.5 border-interactive-300 px-2.5 text-[11px] font-semibold text-interactive-700 hover:bg-interactive-600 hover:text-white"
             onClick={onSync}
           >
             <Sparkles className="size-3" aria-hidden />
@@ -528,15 +528,15 @@ function PlaceholdersSection({
           let icon: React.ReactNode = null;
           let title = "";
           if (isDetected && isDeclared) {
-            cls = "border-emerald-300 bg-emerald-50 text-emerald-800";
+            cls = "border-success-border bg-success-bg text-success-text";
             icon = <CheckCircle2 className="size-2.5" aria-hidden />;
             title = "Declarado e usado no texto";
           } else if (isDetected) {
-            cls = "border-amber-300 bg-amber-50 text-amber-800";
+            cls = "border-warning-border bg-warning-bg text-warning-text";
             icon = <Sparkles className="size-2.5" aria-hidden />;
             title = "Detectado no texto, mas não declarado";
           } else {
-            cls = "border-rose-200 bg-rose-50 text-rose-700 line-through";
+            cls = "border-danger-border bg-danger-bg text-danger-text line-through";
             icon = <AlertTriangle className="size-2.5" aria-hidden />;
             title = "Declarado mas não aparece no texto — pode remover";
           }
@@ -545,7 +545,7 @@ function PlaceholdersSection({
               key={key}
               title={title}
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                "inline-flex items-center gap-1 rounded-(--radius-v2-full) border px-2 py-0.5 text-[10px] font-bold",
                 cls,
               )}
             >
@@ -555,7 +555,7 @@ function PlaceholdersSection({
                 <button
                   type="button"
                   onClick={() => removeDeclared(key)}
-                  className="ml-0.5 rounded-full px-1 text-rose-600 hover:bg-rose-200"
+                  className="ml-0.5 rounded-(--radius-v2-full) px-1 text-danger-text hover:bg-danger-bg"
                   aria-label={`Remover ${key}`}
                 >
                   ×
@@ -571,9 +571,9 @@ function PlaceholdersSection({
         ) : null}
       </div>
       <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
-        <Legend color="bg-emerald-500" label="Usado e declarado" />
-        <Legend color="bg-amber-500" label="Detectado mas não declarado" />
-        <Legend color="bg-rose-500" label="Declarado mas não usado" />
+        <Legend color="bg-success-text" label="Usado e declarado" />
+        <Legend color="bg-warning-text" label="Detectado mas não declarado" />
+        <Legend color="bg-danger-text" label="Declarado mas não usado" />
       </div>
     </div>
   );
@@ -582,7 +582,7 @@ function PlaceholdersSection({
 function Legend({ color, label }: { color: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-1">
-      <span className={cn("size-2 rounded-full", color)} aria-hidden />
+      <span className={cn("size-2 rounded-(--radius-v2-full)", color)} aria-hidden />
       {label}
     </span>
   );
@@ -602,7 +602,7 @@ function PreviewSection({
       <p
         className={cn(
           "mb-2 text-[9px] font-black uppercase tracking-[0.2em]",
-          labelColor ?? "text-[#24615b]/60",
+          labelColor ?? "text-muted-foreground",
         )}
       >
         {label}
@@ -614,12 +614,12 @@ function PreviewSection({
 
 function ScopePreview({ escopo }: { escopo: string }) {
   return (
-    <div className="space-y-4 rounded-xl bg-white/92 p-4 text-[13px] leading-[1.65] text-primary-dark shadow-sm ring-1 ring-primary-dark/8">
+    <div className="space-y-4 rounded-(--radius-v2-lg) border border-neutral-200 bg-white p-4 text-[13px] leading-[1.65] text-foreground">
       <PreviewSection label="Texto do escopo">
         {escopo.trim() ? (
           <JustifiedDocumentText text={escopo} />
         ) : (
-          <p className="italic text-slate-400">Nenhum texto definido ainda.</p>
+          <p className="italic text-muted-foreground">Nenhum texto definido ainda.</p>
         )}
       </PreviewSection>
     </div>
@@ -628,21 +628,21 @@ function ScopePreview({ escopo }: { escopo: string }) {
 
 function InvestmentPreview({ conceito, template }: { conceito: string; template: string }) {
   return (
-    <div className="space-y-4 rounded-xl bg-white/92 p-4 text-[13px] leading-[1.65] text-primary-dark shadow-sm ring-1 ring-primary-dark/8">
+    <div className="space-y-4 rounded-(--radius-v2-lg) border border-neutral-200 bg-white p-4 text-[13px] leading-[1.65] text-foreground">
       {conceito.trim() ? (
         <PreviewSection label="Conceito">
           <JustifiedDocumentText
             text={conceito}
-            paragraphClassName="italic text-slate-600"
+            paragraphClassName="italic text-muted-foreground"
           />
         </PreviewSection>
       ) : null}
-      <div className={cn(conceito.trim() ? "border-t border-primary-dark/8 pt-4" : "")}>
+      <div className={cn(conceito.trim() ? "border-t border-neutral-200 pt-4" : "")}>
         <PreviewSection label="Texto renderizado">
           {template.trim() ? (
             <JustifiedDocumentText text={template} />
           ) : (
-            <p className="italic text-slate-400">Nenhum texto definido ainda.</p>
+            <p className="italic text-muted-foreground">Nenhum texto definido ainda.</p>
           )}
         </PreviewSection>
       </div>

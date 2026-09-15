@@ -68,7 +68,7 @@ export function TemplatePlaceholderInsertBar({ kind, disabled, onInsert }: Props
               size="sm"
               variant="outline"
               disabled={disabled}
-              className="h-7 gap-1 border-primary-dark/15 px-2 text-[11px] font-semibold text-primary-dark"
+              className="h-7 gap-1 px-2 text-[11px] font-semibold text-foreground"
             >
               <Braces className="size-3 shrink-0" aria-hidden />
               Inserir variável
@@ -81,7 +81,7 @@ export function TemplatePlaceholderInsertBar({ kind, disabled, onInsert }: Props
             className="w-[min(100vw-2rem,20rem)] p-0"
             onOpenAutoFocus={(e) => e.preventDefault()}
           >
-            <div className="border-b border-primary-dark/10 p-2">
+            <div className="border-b border-neutral-200 p-2">
               <div className="relative">
                 <Search
                   className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground"
@@ -91,7 +91,7 @@ export function TemplatePlaceholderInsertBar({ kind, disabled, onInsert }: Props
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Buscar variável..."
-                  className="h-8 border-primary-dark/15 bg-white pl-7 text-xs"
+                  className="h-8 pl-7 text-xs"
                   autoFocus
                 />
               </div>
@@ -104,10 +104,10 @@ export function TemplatePlaceholderInsertBar({ kind, disabled, onInsert }: Props
                   <li key={opt.key}>
                     <button
                       type="button"
-                      className="flex w-full flex-col gap-0.5 px-3 py-2 text-left transition-colors hover:bg-primary-dark/5"
+                      className="flex w-full flex-col gap-0.5 px-3 py-2 text-left transition-colors hover:bg-neutral-50"
                       onClick={() => pick(opt.key)}
                     >
-                      <span className="text-xs font-semibold text-primary-dark">{opt.label}</span>
+                      <span className="text-xs font-semibold text-foreground">{opt.label}</span>
                       <span className="font-mono text-[10px] text-muted-foreground">
                         {formatPropostaPlaceholderToken(opt.key)}
                       </span>
@@ -127,8 +127,8 @@ export function TemplatePlaceholderInsertBar({ kind, disabled, onInsert }: Props
             title={`Inserir ${formatPropostaPlaceholderToken(opt.key)}`}
             onClick={() => onInsert(opt.key)}
             className={cn(
-              "inline-flex max-w-[9rem] items-center rounded-full border border-primary-dark/12 bg-white px-2 py-0.5",
-              "text-[10px] font-semibold text-primary-dark transition-colors hover:border-accent-teal/40 hover:bg-accent-teal/8",
+              "inline-flex max-w-[9rem] items-center rounded-(--radius-v2-full) border border-neutral-200 bg-white px-2 py-0.5",
+              "text-[10px] font-semibold text-foreground transition-colors hover:border-interactive-300 hover:bg-interactive-50",
               "disabled:pointer-events-none disabled:opacity-50",
             )}
           >

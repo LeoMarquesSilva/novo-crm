@@ -57,7 +57,7 @@ export function TemplateTextareaField({
         disabled={disabled}
         placeholder={placeholder}
         className={cn(
-          "resize-y border-primary-dark/15 bg-white font-mono text-[12px] leading-relaxed",
+          "resize-y font-mono text-[12px] leading-relaxed",
           minHeightClass,
           className,
         )}

@@ -237,11 +237,11 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
   }, [tab, investmentSelection, data.adminRows.investmentTypes]);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-primary-dark/10 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
       {/* ── Toolbar: Tabs + ação primária ── */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-primary-dark/10 bg-white px-4 py-2.5">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-neutral-200 bg-white px-4 py-2.5">
         {/* Tabs */}
-        <div className="flex items-center gap-1 rounded-xl bg-primary-dark/5 p-1">
+        <div className="flex items-center gap-1 rounded-(--radius-v2-lg) bg-neutral-100 p-1">
           <TabButton
             active={tab === "scope"}
             onClick={() => requestTabSwitch("scope")}
@@ -269,21 +269,21 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
 
       {/* ── Banner: catálogo vazio ── */}
       {isEmpty ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/80 bg-amber-50 px-4 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-warning-border bg-warning-bg px-4 py-2.5">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-white text-warning-text">
               <Sparkles className="size-3.5" aria-hidden />
             </span>
             <div>
-              <p className="text-sm font-bold text-amber-900">Catálogo vazio</p>
-              <p className="text-xs text-amber-800/80">
+              <p className="text-sm font-bold text-warning-text">Catálogo vazio</p>
+              <p className="text-xs text-warning-text/80">
                 Importe os modelos padrão para começar — pode editar ou desativar qualquer item depois.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {seedError ? (
-              <span className="text-xs text-rose-700">{seedError}</span>
+              <span className="text-xs text-danger-text">{seedError}</span>
             ) : null}
             <Button
               type="button"
@@ -307,7 +307,7 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
       {/* ── Master-detail ── */}
       <div className="grid min-h-[640px] min-w-0 gap-0 lg:grid-cols-[minmax(13rem,20rem)_minmax(0,1fr)]">
         {/* Sidebar — árvore */}
-        <aside className="flex min-w-0 max-h-[calc(100dvh-12rem)] flex-col border-b border-primary-dark/10 bg-white lg:border-b-0 lg:border-r">
+        <aside className="flex min-w-0 max-h-[calc(100dvh-12rem)] flex-col border-b border-neutral-200 bg-white lg:border-b-0 lg:border-r">
           <ScopeTree
             key={tab}
             groups={activeTree}
@@ -455,18 +455,18 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-bold transition-all",
+        "inline-flex items-center gap-2 rounded-(--radius-v2-md) px-3.5 py-1.5 text-sm font-bold transition-all",
         active
-          ? "bg-primary-dark text-white shadow-sm"
-          : "text-primary-dark/60 hover:bg-primary-dark/8 hover:text-primary-dark",
+          ? "bg-brand-navy text-white"
+          : "text-muted-foreground hover:bg-neutral-100 hover:text-foreground",
       )}
     >
       <Icon className="size-4 shrink-0" aria-hidden />
       {label}
       <span
         className={cn(
-          "min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-[10px] font-black tabular-nums",
-          active ? "bg-white/20 text-white" : "bg-primary-dark/10 text-primary-dark",
+          "min-w-[1.25rem] rounded-(--radius-v2-full) px-1.5 py-0.5 text-center text-[10px] font-black tabular-nums",
+          active ? "bg-white/20 text-white" : "bg-neutral-100 text-foreground",
         )}
       >
         {count}
