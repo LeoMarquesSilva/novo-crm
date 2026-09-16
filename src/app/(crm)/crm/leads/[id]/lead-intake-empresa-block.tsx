@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Pencil, Trash2, X } from "lucide-react";
+import { Building2, Check, IdCard, Pencil, Trash2, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -137,9 +137,16 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
   return (
     <div className="bg-white px-4 py-4">
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-xs font-semibold text-foreground">Empresa {initial.index}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Dados da parte vinculada a este lead</p>
+        <div className="flex min-w-0 items-start gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-neutral-100 text-muted-foreground">
+            <Building2 className="size-4" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-foreground">Empresa {initial.index}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Dados da parte vinculada a este lead
+            </p>
+          </div>
         </div>
         {!editing ? (
           <div className="flex shrink-0 items-center gap-0.5">
@@ -205,13 +212,15 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
       {!editing ? (
         <div className="mt-3 grid gap-3 text-sm text-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-8">
           <div>
-            <p className="text-xs font-medium text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Building2 className="size-3.5 shrink-0" aria-hidden />
               Razão social / nome
             </p>
             <p className="mt-1 font-medium">{initial.razao_social || "—"}</p>
           </div>
           <div className="sm:min-w-48">
-            <p className="text-xs font-medium text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <IdCard className="size-3.5 shrink-0" aria-hidden />
               CPF / CNPJ
             </p>
             <p className="mt-1 tabular-nums">
@@ -223,7 +232,8 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
       ) : (
         <div className="mt-2 space-y-3">
           <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Building2 className="size-3.5 shrink-0" aria-hidden />
               Razão social / nome
             </p>
             <Input
@@ -235,7 +245,8 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
           </div>
           <div className="grid gap-2 sm:grid-cols-[120px_1fr]">
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <IdCard className="size-3.5 shrink-0" aria-hidden />
                 Tipo
               </p>
               <Select
@@ -253,7 +264,8 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
               </Select>
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <IdCard className="size-3.5 shrink-0" aria-hidden />
                 Número
               </p>
               <Input

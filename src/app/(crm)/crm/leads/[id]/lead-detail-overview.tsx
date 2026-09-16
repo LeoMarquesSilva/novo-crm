@@ -1,13 +1,15 @@
 "use client";
 
-import { createElement, type ReactNode } from "react";
+import { createElement, useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
   Building2,
+  CalendarClock,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Cloud,
   ExternalLink,
@@ -15,8 +17,10 @@ import {
   FileText,
   GitBranch,
   History,
+  Handshake,
   Info,
   Layers3,
+  MapPin,
   MessageSquareText,
   RotateCcw,
   ShieldCheck,
@@ -144,7 +148,7 @@ export function LeadDetailOverview({
           </CardHeader>
           <CardContent className="grid px-0 sm:grid-cols-2">
             <OverviewValue label="Tipo de lead" value={leadTypeDisplay} />
-            <OverviewValue label="Etapa atual" value={etapaLabel} />
+            <OverviewValue label="Etapa atual" value={etapaLabel} icon={GitBranch} />
             <LeadDetailFieldEditor
               leadId={lead.id}
               scope="intake"
@@ -152,6 +156,7 @@ export function LeadDetailOverview({
               label="Empresa / nome do lead"
               value={lead.solicitante}
               kind="text"
+              labelIcon={Building2}
               displayVariant="row"
               className="border-t border-neutral-200 sm:border-r"
             />
@@ -172,10 +177,16 @@ export function LeadDetailOverview({
                 muted={!lead.clienteId}
               />
             ) : null}
-            <OverviewValue label="Criado em" value={formatDateTimeBr(lead.criadoEm)} tabular />
+            <OverviewValue
+              label="Criado em"
+              value={formatDateTimeBr(lead.criadoEm)}
+              icon={CalendarDays}
+              tabular
+            />
             <OverviewValue
               label="Atualizado em"
               value={lead.atualizadoEm ? formatDateTimeBr(lead.atualizadoEm) : "Sem atualização"}
+              icon={CalendarDays}
               muted={!lead.atualizadoEm}
               tabular
             />
@@ -200,6 +211,7 @@ export function LeadDetailOverview({
               <IntakeFieldGroup
                 title="Solicitante e cadastro"
                 description="Quem solicitou e quem registrou a demanda."
+                icon={UserRound}
                 fields={groups.requester}
                 leadId={lead.id}
                 mergeSolicitanteIdentity
@@ -207,28 +219,32 @@ export function LeadDetailOverview({
               <IntakeFieldGroup
                 title="Prazos e reunião"
                 description="Agenda prevista para entrega, encontro e próximos marcos."
+                icon={CalendarClock}
                 fields={groups.schedule}
                 leadId={lead.id}
               />
               <IntakeFieldGroup
                 title="Escopo e indicação"
                 description="Áreas envolvidas e contexto comercial da oportunidade."
+                icon={Handshake}
                 fields={groups.commercial}
                 leadId={lead.id}
               />
               <IntakeFieldGroup
                 title="Outras informações"
                 description="Dados adicionais enviados no cadastro."
+                icon={Layers3}
                 fields={groups.other}
                 leadId={lead.id}
               />
 
               {lead.empresasIntake.length > 0 || lead.isSystemCreated ? (
-                <section className="border-t-[6px] border-neutral-100">
-                  <GroupHeader
+                <CollapsibleGroup
                     title="Empresas"
                     description="Partes e documentos associados ao lead."
-                  />
+                    icon={Building2}
+                    className="border-t-[6px] border-neutral-100"
+                  >
                   {lead.empresasIntake.length > 0 ? (
                     <div className="divide-y divide-neutral-200">
                       {lead.empresasIntake.map((empresa) => (
@@ -251,7 +267,7 @@ export function LeadDetailOverview({
                       className="border-t border-neutral-200 px-4 py-4"
                     />
                   ) : null}
-                </section>
+                </CollapsibleGroup>
               ) : null}
 
               {groups.integration.length > 0 ? (
@@ -315,15 +331,20 @@ function OverviewValue({
   value,
   muted = false,
   tabular = false,
+  icon: Icon,
 }: {
   label: string;
   value: string;
   muted?: boolean;
   tabular?: boolean;
+  icon?: LucideIcon;
 }) {
   return (
     <div className="min-w-0 border-t border-neutral-200 bg-white px-4 py-3.5 sm:odd:border-r">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
+        {label}
+      </p>
       <p
         className={cn(
           "mt-1 break-words text-sm font-medium text-foreground",
@@ -357,18 +378,18 @@ function OverviewLink({ label, href }: { label: string; href: string }) {
 function IntakeFieldGroup({
   title,
   description,
+  icon,
   fields,
   leadId,
   mergeSolicitanteIdentity = false,
 }: {
   title: string;
   description: string;
+  icon: LucideIcon;
   fields: IntakeField[];
   leadId: string;
   mergeSolicitanteIdentity?: boolean;
 }) {
-  if (fields.length === 0) return null;
-
   const solicitanteNameField = mergeSolicitanteIdentity
     ? fields.find((field) => field.key === "solicitante_nome")
     : undefined;
@@ -382,10 +403,22 @@ function IntakeFieldGroup({
     : fields;
   const solicitanteResolvedUser =
     solicitanteNameField?.resolvedUser ?? solicitanteEmailField?.resolvedUser;
+  const indicationTypeFromFields = fields.find((field) => field.key === "tipo_indicacao")?.value;
+  const [indicationType, setIndicationType] = useState(indicationTypeFromFields);
+
+  useEffect(() => {
+    setIndicationType(indicationTypeFromFields);
+  }, [indicationTypeFromFields]);
+
+  if (fields.length === 0) return null;
 
   return (
-    <section className="border-t-[6px] border-neutral-100 first:border-t-0">
-      <GroupHeader title={title} description={description} />
+    <CollapsibleGroup
+      title={title}
+      description={description}
+      icon={icon}
+      className="border-t-[6px] border-neutral-100 first:border-t-0"
+    >
       <div className="grid sm:grid-cols-2">
         {mergeSolicitanteIdentity && (solicitanteNameField || solicitanteEmailField) ? (
           <LeadDetailFieldEditor
@@ -398,31 +431,114 @@ function IntakeFieldGroup({
             resolvedUser={solicitanteResolvedUser}
             userIdentityMode="email"
             allowExternalUser={false}
+            labelIcon={UserRound}
             displayVariant="row"
             className="border-t border-neutral-200 sm:border-r"
           />
         ) : null}
         {visibleFields.map((field) => (
-          <EditableIntakeField key={field.key} field={field} leadId={leadId} />
+          <EditableIntakeField
+            key={field.key}
+            field={field}
+            leadId={leadId}
+            indicationType={indicationType}
+            onAfterSave={
+              field.key === "tipo_indicacao" ? (savedValue) => setIndicationType(savedValue) : undefined
+            }
+          />
         ))}
       </div>
+    </CollapsibleGroup>
+  );
+}
+
+function CollapsibleGroup({
+  title,
+  description,
+  icon,
+  className,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  className?: string;
+  children: ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const contentId = useId();
+
+  return (
+    <section className={className}>
+      <GroupHeader
+        title={title}
+        description={description}
+        icon={icon}
+        expanded={expanded}
+        contentId={contentId}
+        onToggle={() => setExpanded((current) => !current)}
+      />
+      {expanded ? <div id={contentId}>{children}</div> : null}
     </section>
   );
 }
 
-function GroupHeader({ title, description }: { title: string; description: string }) {
+function GroupHeader({
+  title,
+  description,
+  icon: Icon,
+  expanded,
+  contentId,
+  onToggle,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  expanded: boolean;
+  contentId: string;
+  onToggle: () => void;
+}) {
   return (
-    <header className="flex items-stretch gap-3 border-b border-neutral-200 bg-neutral-50 px-5 py-4">
-      <span className="w-1 shrink-0 rounded-full bg-interactive-600" aria-hidden />
-      <div className="min-w-0">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p>
+    <header className="border-b border-neutral-200 bg-gradient-to-r from-neutral-50 to-white px-4 py-3 sm:px-5">
+      <div className="flex items-center gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-lg) border border-interactive-100 bg-interactive-50 text-interactive-700 shadow-sm">
+          <Icon className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold leading-5 text-foreground">{title}</h3>
+          <p className="mt-0.5 text-xs leading-4 text-muted-foreground">{description}</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="shrink-0 gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={onToggle}
+        >
+          <span className="hidden sm:inline">{expanded ? "Recolher" : "Expandir"}</span>
+          <ChevronDown
+            className={cn("size-4 transition-transform duration-200", expanded && "rotate-180")}
+            aria-hidden
+          />
+        </Button>
       </div>
     </header>
   );
 }
 
-function EditableIntakeField({ field, leadId }: { field: IntakeField; leadId: string }) {
+function EditableIntakeField({
+  field,
+  leadId,
+  indicationType,
+  onAfterSave,
+}: {
+  field: IntakeField;
+  leadId: string;
+  indicationType?: string;
+  onAfterSave?: (savedValue: string) => void;
+}) {
   const long = LONG_FIELD_KEYS.has(field.key);
   return (
     <LeadDetailFieldEditor
@@ -433,6 +549,9 @@ function EditableIntakeField({ field, leadId }: { field: IntakeField; leadId: st
       value={field.value}
       kind={intakeKind(field)}
       selectOptions={field.key === "areas_analise" ? [...leadAreas] : undefined}
+      labelIcon={intakeFieldIcon(field.key)}
+      indicationType={field.key === "nome_indicacao" ? indicationType : undefined}
+      onAfterSave={onAfterSave}
       resolvedUser={field.resolvedUser}
       userIdentityMode={
         field.key === "email_solicitante" || field.key === "cadastrado_por" ? "email" : "uuid"
@@ -447,6 +566,22 @@ function EditableIntakeField({ field, leadId }: { field: IntakeField; leadId: st
   );
 }
 
+function intakeFieldIcon(fieldKey: string): LucideIcon | undefined {
+  if (fieldKey.startsWith("data_")) return CalendarDays;
+  if (fieldKey.startsWith("horario_")) return Clock3;
+  if (fieldKey === "areas_analise") return Layers3;
+  if (fieldKey === "local_reuniao") return MapPin;
+  if (fieldKey === "tipo_indicacao" || fieldKey === "nome_indicacao") return Handshake;
+  if (
+    fieldKey === "solicitante_nome" ||
+    fieldKey === "email_solicitante" ||
+    fieldKey === "cadastrado_por"
+  ) {
+    return UserRound;
+  }
+  return undefined;
+}
+
 function intakeKind(field: IntakeField): LeadFieldEditorKind {
   if (field.key === "sharepoint_agendamento_error") return "textarea";
   if (field.key.endsWith("_url")) return "url";
@@ -459,11 +594,12 @@ function IntegrationSummary({ leadId, fields }: { leadId: string; fields: Intake
   const createdField = fields.find((field) => field.key === "sharepoint_agendamento_created_at");
 
   return (
-    <section className="border-t-[6px] border-neutral-100">
-      <GroupHeader
+    <CollapsibleGroup
+      className="border-t-[6px] border-neutral-100"
         title="Integração SharePoint"
         description="Estado técnico do agendamento criado a partir deste cadastro."
-      />
+        icon={Cloud}
+      >
       <div className="p-4">
         <div
           className={cn(
@@ -519,7 +655,7 @@ function IntegrationSummary({ leadId, fields }: { leadId: string; fields: Intake
           </details>
         </div>
       </div>
-    </section>
+    </CollapsibleGroup>
   );
 }
 

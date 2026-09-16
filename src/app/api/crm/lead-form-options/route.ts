@@ -24,8 +24,7 @@ export async function GET() {
       supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
       supabase
         .from("indicadores")
-        .select("nome")
-        .eq("status", "aprovado")
+        .select("nome, status")
         .order("nome", { ascending: true }),
       getOrqestraiColaboradoresLocal(supabase),
     ]);
@@ -112,7 +111,12 @@ export async function GET() {
         // Fallback pros usuários do próprio CRM se o banco do ORQESTRAI estiver fora do ar.
         orqestraiCollaborators:
           orqestraiActiveCollaborators.length > 0 ? orqestraiActiveCollaborators : systemUsers,
-        approvedIndicators: (indicators ?? []).map((item) => item.nome),
+        approvedIndicators: (indicators ?? [])
+          .filter((item) => item.status === "aprovado")
+          .map((item) => item.nome),
+        registeredIndicators: Array.from(
+          new Set((indicators ?? []).map((item) => item.nome.trim()).filter(Boolean)),
+        ),
       },
     });
   } catch (error) {

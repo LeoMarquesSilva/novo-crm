@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Pencil, RotateCcw, X } from "lucide-react";
+import { Check, Pencil, RotateCcw, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PracticeAreaIconBadge } from "@/lib/crm/area-lucide-icon";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { TimeInputBr } from "@/components/ui/time-input-br";
@@ -31,6 +32,7 @@ export type LeadFieldEditorKind =
   | "yesno"
   | "leadType"
   | "indicationType"
+  | "indicationName"
   /** @deprecated use `multiselect` + `selectOptions={leadAreas}` */
   | "areas"
   | "select"
@@ -65,10 +67,14 @@ interface LeadDetailFieldEditorProps {
   userIdentityMode?: "uuid" | "email";
   /** Para identidade interna, impede e-mail livre e exige uma opção de `app_users`. */
   allowExternalUser?: boolean;
+  /** Ícone semântico exibido junto ao rótulo do campo. */
+  labelIcon?: LucideIcon;
+  /** Tipo escolhido no campo irmão, usado para definir o catálogo da indicação. */
+  indicationType?: string;
   /** `row` integra o campo numa Surface maior, sem criar um mini-card aninhado. */
   displayVariant?: "card" | "row";
   className?: string;
-  onAfterSave?: () => void;
+  onAfterSave?: (savedValue: string) => void;
 }
 
 type AppUserOption = {
@@ -76,6 +82,16 @@ type AppUserOption = {
   full_name: string;
   avatar_url: string | null;
   email: string | null;
+};
+
+type LeadFormOptionsPayload = {
+  orqestraiCollaborators?: Array<{
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl: string;
+  }>;
+  registeredIndicators?: string[];
 };
 
 function digitsOnly(s: string): string {
@@ -198,6 +214,8 @@ export function LeadDetailFieldEditor({
   resolvedUser,
   userIdentityMode = "uuid",
   allowExternalUser = true,
+  labelIcon: LabelIcon,
+  indicationType,
   displayVariant = "card",
   className,
   onAfterSave,
@@ -209,6 +227,8 @@ export function LeadDetailFieldEditor({
   const [saving, setSaving] = useState(false);
   const [appUsers, setAppUsers] = useState<AppUserOption[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [registeredIndicators, setRegisteredIndicators] = useState<string[]>([]);
+  const [indicationOptionsLoading, setIndicationOptionsLoading] = useState(false);
 
   useEffect(() => {
     setCommittedValue(value);
@@ -235,6 +255,61 @@ export function LeadDetailFieldEditor({
       cancelled = true;
     };
   }, [kind]);
+
+  useEffect(() => {
+    if (kind !== "indicationName") return;
+    let cancelled = false;
+    setIndicationOptionsLoading(true);
+    fetch("/api/crm/lead-form-options", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((json: { data?: LeadFormOptionsPayload }) => {
+        if (cancelled) return;
+        setAppUsers(
+          (json.data?.orqestraiCollaborators ?? []).map((user) => ({
+            id: user.id,
+            full_name: user.name,
+            avatar_url: user.avatarUrl,
+            email: user.email,
+          })),
+        );
+        setRegisteredIndicators(json.data?.registeredIndicators ?? []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAppUsers([]);
+        setRegisteredIndicators([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIndicationOptionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kind]);
+
+  const isCollaboratorIndication = indicationType?.trim().toLowerCase() === "colaborador";
+  const selectedIndicationUser = useMemo(() => {
+    if (kind !== "indicationName" || !isCollaboratorIndication) return null;
+    const normalizedDraft = draft.trim().toLocaleLowerCase("pt-BR");
+    return (
+      appUsers.find(
+        (user) => user.full_name.trim().toLocaleLowerCase("pt-BR") === normalizedDraft,
+      ) ?? null
+    );
+  }, [appUsers, draft, isCollaboratorIndication, kind]);
+  const committedIndicationUser = useMemo(() => {
+    if (kind !== "indicationName" || !isCollaboratorIndication) return null;
+    const normalizedValue = committedValue.trim().toLocaleLowerCase("pt-BR");
+    return (
+      appUsers.find(
+        (user) => user.full_name.trim().toLocaleLowerCase("pt-BR") === normalizedValue,
+      ) ?? null
+    );
+  }, [appUsers, committedValue, isCollaboratorIndication, kind]);
+  const indicationCatalog = useMemo(() => {
+    const unique = new Set(registeredIndicators.map((item) => item.trim()).filter(Boolean));
+    return [...unique].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [registeredIndicators]);
 
   const selectedAppUser = useMemo(() => {
     if (kind !== "user") return null;
@@ -330,7 +405,7 @@ export function LeadDetailFieldEditor({
       }
       setCommittedValue(nextValue);
       setEditing(false);
-      onAfterSave?.();
+      onAfterSave?.(nextValue);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao salvar.");
     } finally {
@@ -363,10 +438,11 @@ export function LeadDetailFieldEditor({
         {!omitLabel ? (
           <p
             className={cn(
-              "text-xs font-medium text-muted-foreground",
+              "flex items-center gap-1.5 text-xs font-medium text-muted-foreground",
               displayVariant === "card" && "uppercase tracking-wide",
             )}
           >
+            {LabelIcon ? <LabelIcon className="size-3.5 shrink-0" aria-hidden /> : null}
             {label}
           </p>
         ) : (
@@ -407,7 +483,19 @@ export function LeadDetailFieldEditor({
       </div>
 
       {!editing ? (
-        displayedResolvedUser && committedValue ? (
+        kind === "indicationName" &&
+        isCollaboratorIndication &&
+        committedIndicationUser &&
+        committedValue ? (
+          <CrmUserLabel
+            name={committedIndicationUser.full_name}
+            avatarUrl={committedIndicationUser.avatar_url}
+            size="sm"
+            variant="inline"
+            className="mt-1"
+            nameClassName="font-medium"
+          />
+        ) : displayedResolvedUser && committedValue ? (
           <CrmUserLabel
             name={displayedResolvedUser.fullName}
             avatarUrl={displayedResolvedUser.avatarUrl}
@@ -425,8 +513,14 @@ export function LeadDetailFieldEditor({
               {parseMultiselectStored(committedValue).map((p) => (
                 <span
                   key={p}
-                  className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-0.5 text-xs font-medium text-foreground"
+                  className={cn(
+                    "inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 text-xs font-medium text-foreground",
+                    fieldKey === "areas_analise" ? "gap-1.5 py-1 pl-1 pr-2.5" : "px-2.5 py-0.5",
+                  )}
                 >
+                  {fieldKey === "areas_analise" ? (
+                    <PracticeAreaIconBadge area={p} size="xs" />
+                  ) : null}
                   {p}
                 </span>
               ))}
@@ -552,6 +646,9 @@ export function LeadDetailFieldEditor({
                         : "border-neutral-200 bg-white text-muted-foreground hover:bg-neutral-50",
                     )}
                   >
+                    {fieldKey === "areas_analise" ? (
+                      <PracticeAreaIconBadge area={opt} size="xs" className="mr-1.5 align-middle" />
+                    ) : null}
                     {opt}
                   </button>
                 );
@@ -735,6 +832,54 @@ export function LeadDetailFieldEditor({
               </CrmSelectContent>
             </Select>
           ) : null}
+          {kind === "indicationName" ? (
+            <Select
+              modal={false}
+              value={
+                isCollaboratorIndication
+                  ? selectedIndicationUser?.full_name
+                  : indicationCatalog.includes(draft)
+                    ? draft
+                    : undefined
+              }
+              onValueChange={(nextValue) => setDraft(nextValue ?? "")}
+              disabled={saving || indicationOptionsLoading}
+            >
+              <SelectTrigger className="h-auto min-h-9 w-full min-w-0 bg-white py-1.5 [&_[data-slot=select-value]]:w-full [&_[data-slot=select-value]]:min-w-0">
+                {indicationOptionsLoading ? (
+                  <span className="text-muted-foreground">Carregando opções…</span>
+                ) : isCollaboratorIndication && selectedIndicationUser ? (
+                  <UserAvatarName
+                    name={selectedIndicationUser.full_name}
+                    avatarUrl={selectedIndicationUser.avatar_url}
+                  />
+                ) : (
+                  <CrmSelectValue
+                    value={indicationCatalog.includes(draft) ? draft : null}
+                    labels={Object.fromEntries(indicationCatalog.map((name) => [name, name]))}
+                    placeholder={
+                      isCollaboratorIndication
+                        ? "Selecione um utilizador do CRM…"
+                        : "Selecione um indicador cadastrado…"
+                    }
+                  />
+                )}
+              </SelectTrigger>
+              <CrmSelectContent className="max-h-72">
+                {isCollaboratorIndication
+                  ? appUsers.map((user) => (
+                      <CrmSelectItem key={user.id} value={user.full_name} className="py-1.5">
+                        <UserAvatarName name={user.full_name} avatarUrl={user.avatar_url} />
+                      </CrmSelectItem>
+                    ))
+                  : indicationCatalog.map((name) => (
+                      <CrmSelectItem key={name} value={name}>
+                        {name}
+                      </CrmSelectItem>
+                    ))}
+              </CrmSelectContent>
+            </Select>
+          ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button
@@ -746,7 +891,12 @@ export function LeadDetailFieldEditor({
                 (kind === "user" &&
                   userIdentityMode === "email" &&
                   !allowExternalUser &&
-                  !selectedAppUser)
+                  !selectedAppUser) ||
+                (kind === "indicationName" &&
+                  (indicationOptionsLoading ||
+                    (isCollaboratorIndication
+                      ? !selectedIndicationUser
+                      : !indicationCatalog.includes(draft))))
               }
               onClick={() => void save()}
             >
@@ -771,6 +921,7 @@ export function intakeFieldEditorKind(fieldKey: string): LeadFieldEditorKind {
   if (fieldKey === "email_solicitante" || fieldKey === "cadastrado_por") return "user";
   if (fieldKey === "tipo_lead") return "leadType";
   if (fieldKey === "tipo_indicacao") return "indicationType";
+  if (fieldKey === "nome_indicacao") return "indicationName";
   if (fieldKey === "areas_analise") return "multiselect";
   if (fieldKey === "contexto_comercial") return "textarea";
   return "text";
