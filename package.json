@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "audit:document-storage": "tsx scripts/audit-document-storage.ts",
     "verify:sheet": "vitest run src/scripts/verify-leads-vs-sheet.test.ts",
     "test:lead-email": "tsx scripts/send-test-lead-email.ts",
     "import:tipos-propostas": "node scripts/import-tipos-propostas.mjs",

@@ -3,7 +3,7 @@
 import { type ReactNode } from "react";
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { notFound, useRouter } from "next/navigation";
+import { notFound, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -33,6 +33,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isHttpUrl } from "@/lib/crm/is-http-url";
+import {
+  resolveLeadDetailTab,
+  type LeadDetailTab,
+} from "@/lib/crm/lead-detail-tabs";
 import { uploadDuePpt } from "@/lib/crm/upload-due-ppt";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import {
@@ -65,16 +69,17 @@ import { ContractBillingOnboardingPanel } from "./contract-billing-onboarding-pa
 /** Renderizado à parte (JSON); não repetir como campo genérico. */
 const HIDDEN_PIPELINE_CODES = new Set(["cp_escopo_detalhe_json"]);
 const PROPOSAL_FIELD_ORDER = ["cp_qualificacao", "cp_areas_objeto", "cp_objeto_proposta"];
-type LeadDetailTab = "overview" | "proposal" | "contract" | "billing" | "due" | "crm" | "notes" | "signature" | "history";
 
 export function LeadDetailView({
   lead,
   viewer,
   appUsersByEmail = {},
+  initialTab = null,
 }: {
   lead: LeadDetailData | null;
   viewer: LeadDetailViewer | null;
   appUsersByEmail?: Record<string, { avatarUrl: string | null; fullName: string }>;
+  initialTab?: string | null;
 }) {
   if (lead == null) {
     notFound();
@@ -123,26 +128,25 @@ export function LeadDetailView({
     : lead.pipelineFields.filter((f) => !HIDDEN_PIPELINE_CODES.has(f.fieldCode));
 
   const escopoDetalheProposta = isProposalStage ? lead.escopoDetalhe : null;
-  const [activeTab, setActiveTab] = useState<LeadDetailTab>(
-    isContractStage ? "contract" : isProposalStage ? "proposal" : "overview",
-  );
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useLeadDetailRealtime(lead.id, () => router.refresh());
 
-  const visibleTab =
-    !lead.haveraDueDiligence && activeTab === "due" ? "overview" : activeTab;
+  const visibleTab = resolveLeadDetailTab({
+    requested: searchParams.get("tab") ?? initialTab,
+    hasDueDiligence: lead.haveraDueDiligence,
+    isProposalStage,
+    isContractStage,
+    showBilling: showBillingTab,
+    isRdLead,
+  });
 
   const handleTabChange = (tab: LeadDetailTab) => {
-    if (tab === "crm" && !isRdLead) {
-      setActiveTab("overview");
-      return;
-    }
-    if (tab === "due" && !lead.haveraDueDiligence) {
-      setActiveTab("overview");
-      return;
-    }
-    setActiveTab(tab);
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", tab);
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
   return (

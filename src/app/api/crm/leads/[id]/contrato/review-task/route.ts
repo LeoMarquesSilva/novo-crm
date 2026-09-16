@@ -14,6 +14,7 @@ import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
 import { loadDefaultContratoTemplate } from "@/lib/crm/proposta-document-data";
+import { hasStoredGeneratedDocument } from "@/lib/crm/workflow-transition-evidence";
 
 const upsertSchema = z.object({
   prazoRevisao: z.string().min(1).optional().nullable(),
@@ -188,6 +189,25 @@ export async function PATCH(
     const { id: rawId } = await params;
     const oportunidadeId = decodeURIComponent(rawId);
     const supabase = createSupabaseAdminClient();
+
+    if (parsed.data.status === "concluido") {
+      const hasStoredContract = await hasStoredGeneratedDocument(
+        supabase,
+        oportunidadeId,
+        "contrato",
+      );
+      if (!hasStoredContract) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Gere e armazene uma versão do contrato antes de concluir a revisão.",
+            code: "CONTRACT_ARTIFACT_REQUIRED",
+          },
+          { status: 422 },
+        );
+      }
+    }
 
     const updateData: {
       status?: string;

@@ -39,10 +39,12 @@ export function buildContractTransitionBlocker(
   };
 }
 
-const stageRequirements: Partial<Record<OpportunityStage, (keyof TransitionPayload)[]>> = {
-  contrato_elaborado: ["linkContrato"],
-  contrato_assinado: ["linkContrato"],
-};
+/**
+ * Arquivos de proposta/contrato e estados da D4Sign são validados como
+ * evidências persistidas na API de transição. URLs digitadas pelo usuário não
+ * são pré-condições válidas para nenhuma etapa.
+ */
+const stageRequirements: Partial<Record<OpportunityStage, (keyof TransitionPayload)[]>> = {};
 
 function payloadFieldPresent(
   payload: TransitionPayload,

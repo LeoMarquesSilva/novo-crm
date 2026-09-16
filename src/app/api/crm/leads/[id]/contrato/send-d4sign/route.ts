@@ -3,13 +3,13 @@ import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import {
   buildContratoDocumentSnapshot,
-  buildGeneratedDocxFilePath,
+  buildGeneratedContratoDocxFilePath,
   loadDefaultContratoTemplate,
   loadDocumentTemplateById,
   sanitizeFilenamePart,
 } from "@/lib/crm/proposta-document-data";
 import { formatPropostaFileStamp } from "@/lib/crm/proposta-docx-data";
-import { backupGeneratedDocument } from "@/lib/crm/generated-document-storage";
+import { persistGeneratedDocumentVersion } from "@/lib/crm/persist-generated-document-version";
 import {
   buildContratoDocxTemplateData,
   buildContratoDocumentPagePreview,
@@ -170,6 +170,15 @@ export async function POST(
       .eq("oportunidade_id", oportunidadeId)
       .eq("template_id", template.id)
       .maybeSingle();
+    if (!instanceRow) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Inicialize e salve o contrato no builder antes de enviá-lo para assinatura.",
+        },
+        { status: 422 },
+      );
+    }
     const instanceDataJson =
       instanceRow?.data_json && typeof instanceRow.data_json === "object" && !Array.isArray(instanceRow.data_json)
         ? (instanceRow.data_json as Record<string, unknown>)
@@ -237,8 +246,14 @@ export async function POST(
     // nenhuma, usava sanitização diferente do botão "Gerar Word" (cortava
     // espaços/acentos em "_") e usava o horário local do servidor em vez do
     // fuso do Brasil (diferente da proposta, que já fazia certo).
-    const nextVersion = Number(instanceRow?.current_version ?? 0) + 1;
+    const nextVersion = Number(instanceRow.current_version ?? 0) + 1;
     const filename = `Contrato-${sanitizeFilenamePart(solicitanteNome)}-v${nextVersion}-${formatPropostaFileStamp(generatedAt)}.docx`;
+    const filePath = buildGeneratedContratoDocxFilePath({
+      oportunidadeId,
+      versionNumber: nextVersion,
+      generatedAt,
+      baseName: solicitanteNome,
+    });
 
     // ── Monta a lista final de signatários ──────────────────────────────
     // 1) Sócios da firma (CONTRATADA) — sempre incluídos por padrão
@@ -310,6 +325,25 @@ export async function POST(
     } catch (e) {
       console.warn("[send-d4sign] resolveClientFolder falhou (não crítico):", e instanceof Error ? e.message : e);
     }
+
+    const generatedSnapshot: Json = {
+      templateId: template.id,
+      templateName: template.name,
+      fields: fieldByCode as unknown as Json,
+      sentToD4Sign: false,
+      signerEmail: parsed.data.signerEmail,
+    };
+    const storedVersion = await persistGeneratedDocumentVersion({
+      supabase,
+      instanceId: instanceRow.id,
+      versionNumber: nextVersion,
+      dataSnapshot: generatedSnapshot,
+      filePath,
+      bytes: new Uint8Array(docxBuffer),
+      contentType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      generatedBy: auth.profile.id,
+    });
 
     const result = await connector.sendDocumentForSignature({
       safeUuid: d4Env.safeUuid,
@@ -383,45 +417,22 @@ export async function POST(
       });
     }
 
-    // Salvar versão gerada (reaproveita instanceRow/nextVersion já lidos acima
-    // — mesmo número de versão do nome do arquivo, sem reconsultar o banco)
-    if (instanceRow) {
-      const filePath = buildGeneratedDocxFilePath({
-        oportunidadeId,
-        versionNumber: nextVersion,
-        generatedAt,
-        baseName: solicitanteNome,
-      });
-      const dataSnapshot: Json = {
-        templateId: template.id,
-        templateName: template.name,
-        fields: fieldByCode as unknown as Json,
-        sentToD4Sign: true,
-        d4signDocumentUuid: result.documentUuid,
-        signerEmail: parsed.data.signerEmail,
-      };
-      await supabase.from("document_versions").insert({
-        instance_id: instanceRow.id,
-        version_number: nextVersion,
-        data_snapshot: dataSnapshot,
-        generated_file_path: filePath,
-        generated_by: auth.profile.id,
-      });
-      await supabase
-        .from("document_instances")
-        .update({ current_version: nextVersion, status: "sent" })
-        .eq("id", instanceRow.id);
+    const sentSnapshot: Json = {
+      ...generatedSnapshot,
+      sentToD4Sign: true,
+      d4signDocumentUuid: result.documentUuid,
+    };
+    const { error: sentVersionError } = await supabase
+      .from("document_versions")
+      .update({ data_snapshot: sentSnapshot })
+      .eq("id", storedVersion.versionId);
+    if (sentVersionError) throw sentVersionError;
 
-      // Cópia própria no Storage — antes, o único "arquivo de registro" do
-      // contrato enviado era o que ficava só na D4Sign (e nem estava na pasta
-      // certa, ver correção da pasta abaixo).
-      await backupGeneratedDocument(
-        supabase,
-        filePath,
-        new Uint8Array(docxBuffer),
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      );
-    }
+    const { error: sentInstanceError } = await supabase
+      .from("document_instances")
+      .update({ status: "sent" })
+      .eq("id", instanceRow.id);
+    if (sentInstanceError) throw sentInstanceError;
 
     // Inserir/atualizar em d4sign_documents (fonte de verdade)
     await supabase.from("d4sign_documents").upsert(

@@ -91,15 +91,18 @@ export class SupabaseCrmRepository implements CrmRepository {
     }
 
     const creatorIds = Array.from(new Set((opportunities ?? []).map((row) => row.criado_por).filter(Boolean)));
-    const creatorsById = new Map<string, string>();
+    const creatorsById = new Map<string, { fullName: string; avatarUrl: string | null }>();
     if (creatorIds.length > 0) {
       const { data: creators, error: creatorsError } = await this.supabase
         .from("app_users")
-        .select("id, full_name")
+        .select("id, full_name, avatar_url")
         .in("id", creatorIds as string[]);
       if (creatorsError) throw creatorsError;
       for (const creator of creators ?? []) {
-        creatorsById.set(creator.id, creator.full_name);
+        creatorsById.set(creator.id, {
+          fullName: creator.full_name,
+          avatarUrl: creator.avatar_url,
+        });
       }
     }
 
@@ -111,7 +114,10 @@ export class SupabaseCrmRepository implements CrmRepository {
         status: row.status,
         leadNome: linkedOpportunity?.solicitante_nome ?? null,
         solicitanteNome: linkedOpportunity?.criado_por
-          ? creatorsById.get(linkedOpportunity.criado_por) ?? null
+          ? creatorsById.get(linkedOpportunity.criado_por)?.fullName ?? null
+          : null,
+        solicitanteAvatarUrl: linkedOpportunity?.criado_por
+          ? creatorsById.get(linkedOpportunity.criado_por)?.avatarUrl ?? null
           : null,
         solicitadoEm: linkedOpportunity?.created_at ?? row.criado_em ?? null,
         oportunidadeId: linkedOpportunity?.id ?? null,

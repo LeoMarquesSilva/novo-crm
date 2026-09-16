@@ -110,37 +110,30 @@ export function MeetingKanbanPanel({ item }: MeetingKanbanPanelProps) {
 }
 
 type PropostaEscopoKanbanPanelProps = {
+  leadId: string;
   summary: NonNullable<Oportunidade["propostaEscopoSummary"]>;
   breakdown: Oportunidade["propostaEscopoBreakdown"];
-  linkProposta?: string | null;
 };
 
 export function PropostaEscopoKanbanPanel({
+  leadId,
   summary,
   breakdown,
-  linkProposta,
 }: PropostaEscopoKanbanPanelProps) {
   const { total, concluido, pendente } = summary;
   const progressPct = total > 0 ? Math.round((concluido / total) * 100) : 0;
   const allDone = pendente === 0 && total > 0;
   const tone = allDone ? "emerald" : "indigo";
 
-  const footer = linkProposta?.trim() ? (
-    <a
-      href={linkProposta.trim()}
-      target="_blank"
-      rel="noreferrer"
+  const footer = allDone ? (
+    <Link
+      href={`/crm/leads/${encodeURIComponent(leadId)}?tab=proposal`}
       className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
-      title={linkProposta.trim()}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
-      <span className="min-w-0 truncate">Abrir proposta</span>
-    </a>
-  ) : allDone ? (
-    <p className="text-[9px] font-semibold text-success-text">
-      Todas as áreas enviaram — pronto para elaborar
-    </p>
+      <FileText className="h-3 w-3 shrink-0" aria-hidden />
+      <span className="min-w-0 truncate">Abrir editor da proposta</span>
+    </Link>
   ) : pendente > 0 ? (
     <p className="text-[9px] font-medium text-muted-foreground">
       {pendente === 1 ? "1 área pendente de envio" : `${pendente} áreas pendentes de envio`}
@@ -188,34 +181,26 @@ export function PropostaEscopoKanbanPanel({
 }
 
 type PropostaEnviadaKanbanPanelProps = {
-  linkProposta?: string | null;
+  leadId: string;
 };
 
-export function PropostaEnviadaKanbanPanel({ linkProposta }: PropostaEnviadaKanbanPanelProps) {
-  const hasLink = Boolean(linkProposta?.trim());
-
+export function PropostaEnviadaKanbanPanel({ leadId }: PropostaEnviadaKanbanPanelProps) {
   return (
     <KanbanPanelShell
       tone="sky"
       icon={<Send className="h-3.5 w-3.5" />}
       title="Proposta enviada"
-      subtitle="Aguardando retorno do cliente"
-      badge={hasLink ? "Enviada" : undefined}
-      className={!hasLink ? "border-dashed" : undefined}
+      subtitle="Acompanhe o documento e o retorno na ficha"
+      badge="Enviada"
       footer={
-        hasLink ? (
-          <a
-            href={linkProposta!.trim()}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
-            title={linkProposta!.trim()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
-            <span className="min-w-0 truncate">Abrir proposta</span>
-          </a>
-        ) : undefined
+        <Link
+          href={`/crm/leads/${encodeURIComponent(leadId)}?tab=proposal`}
+          className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <FileText className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="min-w-0 truncate">Abrir ficha da proposta</span>
+        </Link>
       }
     />
   );
@@ -259,7 +244,7 @@ export function ContractReviewKanbanPanel({
         className="border-dashed"
         footer={
           <Link
-            href={`/crm/leads/${encodeURIComponent(leadId)}`}
+            href={`/crm/leads/${encodeURIComponent(leadId)}?tab=contract`}
             onPointerDown={(e) => e.stopPropagation()}
             className={cn(
               "flex w-full items-center justify-center gap-1.5 rounded-lg",
@@ -339,7 +324,7 @@ export function ContractReviewKanbanPanel({
     if (etapa === "confeccao_contrato") {
       return (
         <Link
-          href={`/crm/leads/${encodeURIComponent(leadId)}`}
+          href={`/crm/leads/${encodeURIComponent(leadId)}?tab=contract`}
           onPointerDown={(e) => e.stopPropagation()}
           className={cn(
             "flex w-full items-center justify-center gap-1.5 rounded-lg",

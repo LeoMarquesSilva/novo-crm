@@ -11,6 +11,7 @@ import {
   ChevronRight,
   FileDown,
   FileText,
+  History,
   ListChecks,
   Loader2,
   PenLine,
@@ -45,6 +46,7 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import { GeneratedDocumentVersionList } from "@/components/crm/generated-document-version-list";
 import { ProposalDocxPreview } from "@/components/crm/proposal-docx-preview";
 import {
   DocumentBuilderDialogHeader,
@@ -123,6 +125,7 @@ type DocumentState = {
     version_number: number;
     generated_file_path: string | null;
     generated_at: string;
+    file_available: boolean;
   }>;
   snapshot: {
     responsavel: string;
@@ -344,6 +347,16 @@ export function PropostaDocumentBuilder({
           </Button>
         }
       />
+
+      {docState.versions.length > 0 ? (
+        <div className="border-t border-border px-5 py-4 sm:px-6">
+          <div className="mb-3 flex items-center gap-2">
+            <History className="size-4 text-muted-foreground" aria-hidden />
+            <h3 className="text-sm font-semibold text-foreground">Versões geradas</h3>
+          </div>
+          <GeneratedDocumentVersionList leadId={lead.id} versions={docState.versions} />
+        </div>
+      ) : null}
 
       {/* ── Dialog split-pane ── */}
       {builderOpen ? (

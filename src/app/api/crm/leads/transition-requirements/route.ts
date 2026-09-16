@@ -26,6 +26,10 @@ import {
   type ContractBillingTransitionState,
   type ContractTransitionBlocker,
 } from "@/modules/crm/domain/workflow-rules";
+import {
+  loadWorkflowEvidenceBlocker,
+  type WorkflowEvidenceBlocker,
+} from "@/lib/crm/workflow-transition-evidence";
 
 export type EmpresaIntakeForModal = {
   index: number;
@@ -187,7 +191,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let transitionBlocker: ContractTransitionBlocker | null = null;
+    let transitionBlocker:
+      | ContractTransitionBlocker
+      | WorkflowEvidenceBlocker
+      | null = null;
     if (row.etapa === "inclusao_faturamento" && nextStage === "boas_vindas") {
       const dateParts = Object.fromEntries(
         new Intl.DateTimeFormat("en-US", {
@@ -218,6 +225,14 @@ export async function GET(request: NextRequest) {
         opportunityId,
       );
     }
+
+    const workflowEvidenceBlocker = await loadWorkflowEvidenceBlocker({
+      supabase,
+      oportunidadeId: opportunityId,
+      currentStage: row.etapa as OpportunityStage,
+      nextStage: nextStage as OpportunityStage,
+    });
+    transitionBlocker = workflowEvidenceBlocker ?? transitionBlocker;
 
     const links = linkFieldsMissing({
       nextStage: nextStage as OpportunityStage,

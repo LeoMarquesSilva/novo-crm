@@ -313,18 +313,18 @@ export default async function CrmDueDiligencePage() {
       <CrmPageHeader
         eyebrow="Operações"
         title="Due diligence"
-        description="Acompanhe cada negociação com due diligence: em que fase está, se o prazo combinado foi cumprido e quais documentos já foram anexados."
+        description="Acompanhe prazos, fases, áreas e arquivos das due diligences abertas pelo cadastro deste CRM."
         icon={ClipboardList}
         badges={[
-          { label: "Cadastro neste CRM", icon: ShieldCheck },
-          { label: "Importações RD fora desta lista", icon: FileCheck2 },
+          { label: "Escopo: cadastros deste CRM", icon: ShieldCheck },
+          { label: "Histórico importado do RD não incluído", icon: FileCheck2 },
         ]}
         stats={[
-          { label: "Total", value: leads.length },
+          { label: "DUEs operacionais", value: leads.length },
           {
-            label: "Em andamento",
+            label: "Abertas",
             value: emAndamento,
-            detail: "Ainda não finalizada no funil",
+            detail: "Inclui casos dentro e fora do prazo",
           },
           {
             label: "Em atraso",

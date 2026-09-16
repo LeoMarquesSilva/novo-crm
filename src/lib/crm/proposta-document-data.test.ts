@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildGeneratedDocxFilePath, sanitizeFilenamePart } from "./proposta-document-data";
+import {
+  buildGeneratedContratoDocxFilePath,
+  buildGeneratedDocxFilePath,
+  sanitizeFilenamePart,
+} from "./proposta-document-data";
 
 describe("proposta document data", () => {
   it("sanitiza nomes de arquivo", () => {
@@ -15,5 +19,18 @@ describe("proposta document data", () => {
         baseName: "ACME Ltda",
       }),
     ).toBe("documentos/propostas/00000000-0000-0000-0000-000000000001/v3-ACME Ltda-2026-04-24-1230.docx");
+  });
+
+  it("separa contratos novos da pasta de propostas", () => {
+    expect(
+      buildGeneratedContratoDocxFilePath({
+        oportunidadeId: "00000000-0000-0000-0000-000000000001",
+        versionNumber: 2,
+        generatedAt: new Date("2026-04-24T12:30:00"),
+        baseName: "ACME Ltda",
+      }),
+    ).toBe(
+      "documentos/contratos/00000000-0000-0000-0000-000000000001/v2-ACME Ltda-2026-04-24-1230.docx",
+    );
   });
 });

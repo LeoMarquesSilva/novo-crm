@@ -183,20 +183,12 @@ type TransitionModalState = {
 
 function stageLikelyNeedsRequiredModal(
   nextStage: OpportunityStage,
-  item: Oportunidade,
 ): boolean {
   if (
     nextStage === "reuniao" ||
     nextStage === "confeccao_proposta" ||
     nextStage === "confeccao_contrato" ||
     nextStage === "due_diligence_finalizada"
-  ) {
-    return true;
-  }
-  if (nextStage === "proposta_enviada" && !item.linkProposta?.trim()) return true;
-  if (
-    (nextStage === "contrato_elaborado" || nextStage === "contrato_assinado") &&
-    !item.linkContrato?.trim()
   ) {
     return true;
   }
@@ -728,7 +720,7 @@ export function PipelineBoard({
     }
 
     applyOptimisticMove(item.id, sourceStage, targetStage);
-    if (stageLikelyNeedsRequiredModal(targetStage, item)) {
+    if (stageLikelyNeedsRequiredModal(targetStage)) {
       setModalError(null);
       setTransitionModal(emptyTransitionModal(item, sourceStage, targetStage));
     }
@@ -760,9 +752,9 @@ export function PipelineBoard({
           fieldValues?: Record<string, string | string[] | undefined>;
           warnings?: string[];
           transitionBlocker?: {
-            code: "contract_billing_setup_required";
+            code: string;
             message: string;
-            contractId: string | null;
+            contractId?: string | null;
             actionHref: string;
           } | null;
         };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
+import { enrichGeneratedDocumentVersions } from "@/lib/crm/generated-document-storage";
 import {
   buildPropostaDocumentSnapshot,
   loadDefaultDocumentTemplate,
@@ -83,6 +84,10 @@ export async function GET(
       .eq("instance_id", instance.id)
       .order("version_number", { ascending: false });
     if (versionsErr) throw versionsErr;
+    const versionsWithAvailability = await enrichGeneratedDocumentVersions(
+      supabase,
+      versions ?? [],
+    );
 
     const snapshot = await buildPropostaDocumentSnapshot({
       supabase,
@@ -96,7 +101,7 @@ export async function GET(
       data: {
         template,
         instance,
-        versions: versions ?? [],
+        versions: versionsWithAvailability,
         snapshot,
       },
     });

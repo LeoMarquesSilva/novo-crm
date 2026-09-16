@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import {
   buildContratoDocumentSnapshot,
-  buildGeneratedDocxFilePath,
+  buildGeneratedContratoDocxFilePath,
   loadDefaultContratoTemplate,
   loadDocumentTemplateById,
   sanitizeFilenamePart,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/crm/contrato-docx-data";
 import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-principal";
 import { renderContratoDocx } from "@/lib/crm/render-contrato-docx";
-import { backupGeneratedDocument } from "@/lib/crm/generated-document-storage";
+import { persistGeneratedDocumentVersion } from "@/lib/crm/persist-generated-document-version";
 import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
 import { listForbiddenDraftTokens } from "@/lib/crm/contract-engine/placeholders";
 import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
@@ -166,7 +166,7 @@ export async function POST(
     });
 
     const nextVersion = Number(instance.current_version ?? 0) + 1;
-    const filePath = buildGeneratedDocxFilePath({
+    const filePath = buildGeneratedContratoDocxFilePath({
       oportunidadeId,
       versionNumber: nextVersion,
       generatedAt,
@@ -181,21 +181,6 @@ export async function POST(
       templateData: templateData as unknown as Json,
       canonical: (storedEngine.build?.data ?? null) as unknown as Json,
     };
-
-    const { error: versionErr } = await supabase.from("document_versions").insert({
-      instance_id: instance.id,
-      version_number: nextVersion,
-      data_snapshot: dataSnapshot,
-      generated_file_path: filePath,
-      generated_by: auth.profile.id,
-    });
-    if (versionErr) throw versionErr;
-
-    const { error: instanceErr } = await supabase
-      .from("document_instances")
-      .update({ current_version: nextVersion, status: "generated" })
-      .eq("id", instance.id);
-    if (instanceErr) throw instanceErr;
 
     // Gera DOCX programaticamente (sem arquivo de template) para que o Word
     // reflita exatamente os dados preenchidos no builder e no preview ao vivo.
@@ -216,12 +201,17 @@ export async function POST(
     const base = sanitizeFilenamePart(String(op.solicitante_nome ?? "contrato"));
     const filename = `Contrato-${base}-v${nextVersion}-${formatPropostaFileStamp(generatedAt)}.docx`;
 
-    await backupGeneratedDocument(
+    await persistGeneratedDocumentVersion({
       supabase,
+      instanceId: instance.id,
+      versionNumber: nextVersion,
+      dataSnapshot,
       filePath,
-      new Uint8Array(outBuf),
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    );
+      bytes: new Uint8Array(outBuf),
+      contentType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      generatedBy: auth.profile.id,
+    });
 
     return new NextResponse(new Uint8Array(outBuf), {
       status: 200,

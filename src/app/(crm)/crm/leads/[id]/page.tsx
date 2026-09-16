@@ -856,11 +856,15 @@ async function getAppUsersByEmail(): Promise<Record<string, { avatarUrl: string 
 
 export default async function LeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
   const { id: rawId } = await params;
+  const query = await searchParams;
   const id = decodeURIComponent(rawId);
+  const initialTab = typeof query.tab === "string" ? query.tab : null;
 
   const authSupabase = await createSupabaseServerClient();
   const {
@@ -889,5 +893,12 @@ export default async function LeadDetailPage({
     }
   }
 
-  return <LeadDetailView lead={lead} viewer={viewer} appUsersByEmail={appUsersByEmail} />;
+  return (
+    <LeadDetailView
+      lead={lead}
+      viewer={viewer}
+      appUsersByEmail={appUsersByEmail}
+      initialTab={initialTab}
+    />
+  );
 }

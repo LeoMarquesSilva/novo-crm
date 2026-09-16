@@ -54,6 +54,15 @@ type FakeDatabaseQuery = {
   then: Promise<FakeDatabaseResult>["then"];
 };
 const mutations = vi.fn<(operation: string, table: string, value: unknown) => void>();
+const uploadGeneratedDocument = vi
+  .fn<
+    (
+      path: string,
+      bytes: Uint8Array,
+      options: { contentType: string; upsert: boolean },
+    ) => Promise<{ error: { message: string } | null }>
+  >()
+  .mockResolvedValue({ error: null });
 const from = vi.fn((table: string) => {
   const data = table === "oportunidades"
     ? { id: leadId, solicitante_nome: "ACME" }
@@ -70,7 +79,14 @@ const from = vi.fn((table: string) => {
   };
   return query;
 });
-const supabase = { from } as unknown as ReturnType<typeof createSupabaseAdminClient>;
+const supabase = {
+  from,
+  storage: {
+    from: vi.fn(() => ({
+      upload: uploadGeneratedDocument,
+    })),
+  },
+} as unknown as ReturnType<typeof createSupabaseAdminClient>;
 
 function snapshot(pending: string[] = []): PropostaDocumentSnapshot {
   return { canonical, pending, responsavel: "Maria Silva", templateData: canonical.templateData,
@@ -85,6 +101,7 @@ const context = () => ({ params: Promise.resolve({ id: leadId }) });
 
 beforeEach(() => {
   vi.resetAllMocks();
+  uploadGeneratedDocument.mockResolvedValue({ error: null });
   vi.mocked(resolveProposalPdfProvider).mockReturnValue({ kind: "word" });
   vi.mocked(convertProposalDocxToPdf).mockResolvedValue(Buffer.from("%PDF-1.7 fixture"));
   vi.mocked(requireAuthApi).mockResolvedValue({
@@ -129,6 +146,17 @@ describe("proposal document route and engine flow", () => {
     expect(mutations.mock.calls.map(([operation, table]) => [operation, table])).toEqual([
       ["insert", "document_versions"], ["update", "document_instances"],
     ]);
+    expect(uploadGeneratedDocument).toHaveBeenCalledWith(
+      "documentos/propostas/lead/v3.docx",
+      Buffer.from(wordBytes),
+      {
+        contentType: PROPOSAL_DOCX_MIME,
+        upsert: true,
+      },
+    );
+    expect(uploadGeneratedDocument.mock.invocationCallOrder[0]).toBeLessThan(
+      mutations.mock.invocationCallOrder[0],
+    );
     expect(mutations.mock.calls[0][2]).toMatchObject({ version_number: 3, data_snapshot: { canonical, generatedAt } });
     expect(vi.mocked(renderCanonicalProposalDocx).mock.invocationCallOrder[0]).toBeLessThan(mutations.mock.invocationCallOrder[0]);
   });
@@ -172,6 +200,24 @@ describe("proposal document route and engine flow", () => {
     expect(convertProposalDocxToPdf).toHaveBeenCalledWith(Buffer.from(wordBytes), expect.any(AbortSignal));
     expect(mutations.mock.calls[0][2]).toMatchObject({ generated_file_path: "documentos/propostas/lead/v3.pdf", data_snapshot: { format: "pdf" } });
     expect(vi.mocked(convertProposalDocxToPdf).mock.invocationCallOrder[0]).toBeLessThan(mutations.mock.invocationCallOrder[0]);
+  });
+
+  it("não cria versão quando o Storage recusa o arquivo oficial", async () => {
+    uploadGeneratedDocument.mockResolvedValueOnce({
+      error: { message: "bucket indisponível" },
+    });
+
+    const response = await generateProposal(
+      request({ templateId, generatedAt }),
+      context(),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Não foi possível armazenar o documento gerado: bucket indisponível",
+    });
+    expect(mutations).not.toHaveBeenCalled();
   });
 
   it("falha do conversor não cria versão e retorna erro explicativo", async () => {

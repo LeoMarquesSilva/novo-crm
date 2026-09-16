@@ -51,6 +51,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { GeneratedDocumentVersionList } from "@/components/crm/generated-document-version-list";
 import {
   DocumentBuilderDialogHeader,
   DocumentBuilderHubHeader,
@@ -194,6 +195,7 @@ type ContratoState = {
     version_number: number;
     generated_file_path: string | null;
     generated_at: string;
+    file_available: boolean;
   }>;
   pending: ContratoPendingField[];
   snapshot: {
@@ -244,6 +246,105 @@ const EXITO_CONFIG: InclusionToggle = {
   label: "Honorários de êxito",
   detailCodes: ["cc_exito_percentual"],
 };
+
+type ContractWorkflowStepState = "done" | "active" | "pending";
+
+function ContractWorkflowRail({
+  currentVersion,
+  reviewStatus,
+  sent,
+  signed,
+}: {
+  currentVersion: number;
+  reviewStatus:
+    | NonNullable<ContratoState["reviewTask"]>["status"]
+    | undefined;
+  sent: boolean;
+  signed: boolean;
+}) {
+  const generated = currentVersion > 0;
+  const reviewDone = reviewStatus === "concluido";
+  const reviewStarted = reviewStatus === "pendente" || reviewStatus === "em_revisao";
+  const steps: Array<{
+    label: string;
+    detail: string;
+    state: ContractWorkflowStepState;
+  }> = [
+    {
+      label: "Elaboração",
+      detail: generated ? `Versão v${currentVersion}` : "Rascunho",
+      state: generated ? "done" : "active",
+    },
+    {
+      label: "Revisão",
+      detail:
+        reviewStatus === "concluido"
+          ? "Concluída"
+          : reviewStatus === "em_revisao"
+            ? "Em análise"
+            : reviewStatus === "pendente"
+              ? "Aguardando"
+              : "Não solicitada",
+      state: reviewDone ? "done" : reviewStarted || generated ? "active" : "pending",
+    },
+    {
+      label: "Envio",
+      detail: sent ? "D4Sign" : "Não enviado",
+      state: sent ? "done" : reviewDone ? "active" : "pending",
+    },
+    {
+      label: "Assinatura",
+      detail: signed ? "Concluída" : sent ? "Em andamento" : "Aguardando",
+      state: signed ? "done" : sent ? "active" : "pending",
+    },
+  ];
+
+  return (
+    <ol
+      className="grid overflow-hidden rounded-(--radius-v2-xl) border border-border bg-surface-subtle sm:grid-cols-2 lg:grid-cols-4"
+      aria-label="Andamento do contrato"
+    >
+      {steps.map((step, index) => (
+        <li
+          key={step.label}
+          className={cn(
+            "flex min-w-0 items-center gap-3 px-4 py-3",
+            index > 0 && "border-t border-border sm:border-l",
+            index === 1 && "sm:border-t-0",
+            index >= 2 && "lg:border-t-0",
+            step.state === "active" && "bg-white",
+          )}
+        >
+          <span
+            className={cn(
+              "flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-full) border text-[11px] font-semibold tabular-nums",
+              step.state === "done" &&
+                "border-success-border bg-success-bg text-success-text",
+              step.state === "active" &&
+                "border-interactive-300 bg-interactive-50 text-interactive-700",
+              step.state === "pending" &&
+                "border-border bg-white text-text-muted-v2",
+            )}
+          >
+            {step.state === "done" ? (
+              <Check className="size-3.5" aria-hidden />
+            ) : (
+              index + 1
+            )}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-xs font-semibold text-foreground">
+              {step.label}
+            </span>
+            <span className="block truncate text-[10px] text-muted-foreground">
+              {step.detail}
+            </span>
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -298,6 +399,31 @@ export function ContratoDocumentBuilder({
   const pending = contratoState?.pending ?? [];
   const versions = contratoState?.versions ?? [];
   const hasInstance = Boolean(contratoState?.instance);
+  const currentVersion = Number(contratoState?.instance?.current_version ?? 0);
+  const reviewStatus = contratoState?.reviewTask?.status;
+  const contractSigned =
+    lead.etapa === "contrato_assinado" ||
+    Boolean(
+      lead.d4signSigners?.length &&
+        lead.d4signSigners.every((signer) => signer.signed),
+    );
+  const contractSent =
+    contractSigned ||
+    lead.etapa === "contrato_enviado" ||
+    Boolean(lead.d4signDocumentUuid);
+  const contractElaborated =
+    contractSent ||
+    lead.etapa === "contrato_elaborado" ||
+    reviewStatus === "concluido";
+  const hubDescription = contractSigned
+    ? "Assinatura concluída. Consulte o documento, os signatários e o histórico de versões."
+    : contractSent
+      ? "Documento enviado à D4Sign. Acompanhe as assinaturas e consulte a versão enviada."
+      : contractElaborated
+        ? "Revisão concluída. Confira os signatários e envie o contrato para assinatura."
+        : hasInstance
+          ? "Continue a elaboração, resolva as pendências e gere uma versão para revisão."
+          : "Preencha os dados do contrato e acompanhe cada etapa até a assinatura.";
   const inheritedFields = lead.pipelineFields.filter((f) =>
     ["cp_cliente_cidade", "cp_cliente_uf", "cp_investimento_resumo"].includes(f.fieldCode),
   );
@@ -314,13 +440,17 @@ export function ContratoDocumentBuilder({
   return (
     <section className={documentBuilderHubClass}>
       <DocumentBuilderHubHeader
-        eyebrow="Elaboração de Contrato"
-        title="Workspace de contrato"
-        description={
-          hasInstance
-            ? "Rascunho em andamento. Clique em “Continuar Elaboração” para editar."
-            : "Selecione o modelo, preencha os dados e visualize o preview ao vivo."
+        eyebrow="Documentos / Contrato"
+        title={
+          contractSigned
+            ? "Contrato assinado"
+            : contractSent
+              ? "Contrato em assinatura"
+              : contractElaborated
+                ? "Contrato elaborado"
+                : "Elaboração do contrato"
         }
+        description={hubDescription}
         actions={
           <Button
             type="button"
@@ -330,8 +460,16 @@ export function ContratoDocumentBuilder({
             disabled={loading}
             onClick={() => setBuilderOpen(true)}
           >
-            <PenLine className="size-4" aria-hidden />
-            {hasInstance ? "Continuar Elaboração" : "Elaborar Contrato"}
+            {contractSent ? (
+              <Eye className="size-4" aria-hidden />
+            ) : (
+              <PenLine className="size-4" aria-hidden />
+            )}
+            {contractSent
+              ? "Abrir workspace"
+              : hasInstance
+                ? "Continuar elaboração"
+                : "Elaborar contrato"}
           </Button>
         }
       />
@@ -350,17 +488,30 @@ export function ContratoDocumentBuilder({
           </div>
         ) : null}
 
+        {!loading && contratoState ? (
+          <ContractWorkflowRail
+            currentVersion={currentVersion}
+            reviewStatus={reviewStatus}
+            sent={contractSent}
+            signed={contractSigned}
+          />
+        ) : null}
+
         {/* Dados herdados */}
         {(propostaEmpresaPrincipalNome || inheritedFields.length > 0) && !loading ? (
-          <div className="rounded-(--radius-v2-xl) border border-info-border bg-info-bg p-4">
+          <div className="rounded-(--radius-v2-xl) border border-border bg-white p-4">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Building2 className="size-4 text-info-text" aria-hidden />
-              <h3 className="text-v2-heading-md text-foreground">Dados da proposta</h3>
+              <span className="flex size-8 items-center justify-center rounded-(--radius-v2-md) border border-border bg-surface-subtle text-interactive-700">
+                <Building2 className="size-4" aria-hidden />
+              </span>
+              <h3 className="text-v2-heading-md text-foreground">
+                Dados herdados da proposta
+              </h3>
               <DocumentInheritedBadge />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2.5 sm:grid-cols-3">
               {propostaEmpresaPrincipalNome ? (
-                <div className="rounded-(--radius-v2-md) border border-border bg-white p-3 sm:col-span-2">
+                <div className="rounded-(--radius-v2-md) bg-surface-subtle p-3">
                   <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
                     Empresa principal
                   </p>
@@ -370,7 +521,7 @@ export function ContratoDocumentBuilder({
                 </div>
               ) : null}
               {inheritedFields.map((f) => (
-                <div key={f.definitionId} className="rounded-(--radius-v2-md) border border-border bg-white p-3">
+                <div key={f.definitionId} className="rounded-(--radius-v2-md) bg-surface-subtle p-3">
                   <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
                     {userFacingFieldLabel(f.label, f.fieldCode)}
                   </p>
@@ -385,13 +536,46 @@ export function ContratoDocumentBuilder({
 
         {/* Status cards */}
         {!loading && contratoState ? (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
             <DocumentStatusCard
-              title={pending.length === 0 ? "Pronto para gerar" : "Pendências"}
-              icon={pending.length === 0 ? CheckCircle2 : TriangleAlert}
-              tone={pending.length === 0 ? "ok" : "warn"}
+              title={
+                contractSigned
+                  ? "Assinatura concluída"
+                  : contractSent
+                    ? "Documento enviado"
+                    : pending.length === 0
+                      ? "Pronto para gerar"
+                      : "Pendências"
+              }
+              icon={
+                contractSigned || contractSent || pending.length === 0
+                  ? CheckCircle2
+                  : TriangleAlert
+              }
+              tone={
+                contractSigned || contractSent || pending.length === 0
+                  ? "ok"
+                  : "warn"
+              }
             >
-              {pending.length === 0 ? (
+              {contractSigned ? (
+                <p className="text-sm text-foreground">
+                  Todos os signatários concluíram a assinatura do contrato.
+                </p>
+              ) : contractSent ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-foreground">
+                    A versão v{currentVersion || versions[0]?.version_number || 1} está em acompanhamento pela D4Sign.
+                  </p>
+                  {pending.length > 0 ? (
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      O rascunho atual possui {pending.length}{" "}
+                      {pending.length === 1 ? "ajuste pendente" : "ajustes pendentes"}.
+                      Eles só entram no documento após gerar e enviar uma nova versão.
+                    </p>
+                  ) : null}
+                </div>
+              ) : pending.length === 0 ? (
                 <p className="text-sm text-foreground">
                   Todos os campos obrigatórios estão preenchidos.
                 </p>
@@ -423,25 +607,7 @@ export function ContratoDocumentBuilder({
             </DocumentStatusCard>
 
             <DocumentStatusCard title="Histórico" icon={History} tone="neutral">
-              <div className="space-y-2 text-sm">
-                {versions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma versão gerada ainda.</p>
-                ) : (
-                  versions.slice(0, 4).map((v) => (
-                    <div
-                      key={v.id}
-                      className="flex items-center justify-between rounded-(--radius-v2-md) border border-border bg-surface-subtle px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-xs font-semibold text-foreground">v{v.version_number}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {new Date(v.generated_at).toLocaleString("pt-BR")}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              <GeneratedDocumentVersionList leadId={lead.id} versions={versions} />
             </DocumentStatusCard>
           </div>
         ) : null}

@@ -43,6 +43,7 @@ import {
   CONTRACT_BILLING_BLOCKER_MESSAGE,
   type ContractTransitionBlocker,
 } from "@/modules/crm/domain/workflow-rules";
+import { loadWorkflowEvidenceBlocker } from "@/lib/crm/workflow-transition-evidence";
 
 type OportunidadeUpdate = Database["public"]["Tables"]["oportunidades"]["Update"];
 
@@ -166,6 +167,23 @@ export async function POST(request: Request) {
       Boolean(reconRow?.detalhes),
       reconRow?.detalhes,
     );
+    const workflowEvidenceBlocker = await loadWorkflowEvidenceBlocker({
+      supabase,
+      oportunidadeId: opportunityId,
+      currentStage,
+      nextStage: nextStage as OpportunityStage,
+    });
+    if (workflowEvidenceBlocker) {
+      return NextResponse.json(
+        {
+          ok: false,
+          errors: [workflowEvidenceBlocker.message],
+          transitionBlocker: workflowEvidenceBlocker,
+        },
+        { status: 422 },
+      );
+    }
+
     const rowProposta = trimOrEmpty(row.link_proposta as string | null | undefined);
     const rowContrato = trimOrEmpty(row.link_contrato as string | null | undefined);
     const inProposta = bodyLink(linkProposta);

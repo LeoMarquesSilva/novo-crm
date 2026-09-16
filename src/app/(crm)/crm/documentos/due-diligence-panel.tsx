@@ -25,14 +25,15 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import { DueTimelineSection } from "@/components/crm/due-timeline-section";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { matchesDueDiligenceTextQuery } from "@/lib/crm/due-diligence-filters";
 import type { DueDiligenceTimeline } from "@/lib/crm/due-diligence-timeline";
 import type { DuePunctuality } from "@/lib/crm/due-diligence-deadline";
 import { formatDateTimeBr } from "@/lib/format-datetime";
-import { DueTimelineSection } from "./due-timeline-ui";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -422,7 +423,7 @@ function DueDocumentRow({
         type="button"
         size="sm"
         variant="ghost"
-        className="h-8 shrink-0 gap-1.5 px-2.5 text-xs font-semibold opacity-0 transition-opacity group-hover:opacity-100"
+        className="h-8 shrink-0 gap-1.5 px-2.5 text-xs font-semibold"
         onClick={handleDownload}
         disabled={loading}
       >
@@ -510,48 +511,6 @@ function DueGuideBanner() {
         )}
       </AnimatePresence>
     </div>
-  );
-}
-
-function QuickFilterChip({
-  label,
-  value,
-  active,
-  tone,
-  onClick,
-}: {
-  label: string;
-  value: number;
-  active: boolean;
-  tone: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex min-w-[7.5rem] flex-1 flex-col rounded-(--radius-v2-xl) border px-3 py-2.5 text-left transition-colors sm:min-w-0 sm:flex-none",
-        active ? "border-brand-navy bg-brand-navy text-white" : cn("bg-card hover:border-neutral-300", tone),
-      )}
-    >
-      <span
-        className={cn(
-          "text-[10px] font-bold uppercase tracking-[0.14em]",
-          active ? "text-white/75" : "text-muted-foreground",
-        )}
-      >
-        {label}
-      </span>
-      <span
-        className={cn(
-          "mt-0.5 text-2xl font-extrabold tabular-nums tracking-[-0.04em]",
-          active ? "text-white" : "text-foreground",
-        )}
-      >
-        {value}
-      </span>
-    </button>
   );
 }
 
@@ -648,10 +607,10 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
           <div className="flex shrink-0 flex-col items-end gap-2">
             <PunctualityBadge p={lead.punctuality} />
             <Link
-              href={`/crm/leads/${encodeURIComponent(lead.oportunidadeId)}`}
+              href={`/crm/leads/${encodeURIComponent(lead.oportunidadeId)}?tab=due`}
               className="inline-flex items-center gap-1 rounded-(--radius-v2-lg) border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-interactive-700 transition-colors hover:bg-muted"
             >
-              Abrir no funil
+              Abrir Due diligence
               <ExternalLink className="h-3 w-3 opacity-60" aria-hidden />
             </Link>
           </div>
@@ -1011,26 +970,9 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
     return c;
   }, [leads]);
 
-  const stats = useMemo(
-    () => ({
-      total: leads.length,
-      emAndamento: leads.filter((L) => !L.dueFinalizadaEmIso).length,
-      emAtraso: leads.filter((L) => L.punctuality.kind === "em_atraso").length,
-      finalizadas: leads.filter((L) => !!L.dueFinalizadaEmIso).length,
-    }),
-    [leads],
-  );
-
   const filtered = useMemo(() => {
-    const q = leadQuery.trim().toLowerCase();
     return leads.filter((L) => {
-      if (
-        q &&
-        !L.leadName.toLowerCase().includes(q) &&
-        !L.solicitanteNome.toLowerCase().includes(q) &&
-        !L.oportunidadeId.toLowerCase().includes(q)
-      )
-        return false;
+      if (!matchesDueDiligenceTextQuery(L, leadQuery)) return false;
       if (phaseFilter !== "all" && getDuePhase(L) !== phaseFilter) return false;
       if (punctualityFilter !== "all" && L.punctuality.kind !== punctualityFilter) return false;
       return true;
@@ -1059,65 +1001,30 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
     setPunctualityFilter("all");
   };
 
-  const togglePunctuality = (kind: string) => {
-    setPunctualityFilter((cur) => (cur === kind ? "all" : kind));
-  };
-
   return (
     <div className="space-y-5">
       <DueGuideBanner />
 
-      <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4 space-y-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-            Filtrar por situação
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <QuickFilterChip
-              label="Todas"
-              value={stats.total}
-              active={punctualityFilter === "all" && phaseFilter === "all" && !leadQuery}
-              tone="border-border"
-              onClick={clearFilters}
-            />
-            <QuickFilterChip
-              label="Em andamento"
-              value={stats.emAndamento}
-              active={punctualityFilter === "em_andamento"}
-              tone="border-info-border"
-              onClick={() => togglePunctuality("em_andamento")}
-            />
-            <QuickFilterChip
-              label="Em atraso"
-              value={stats.emAtraso}
-              active={punctualityFilter === "em_atraso"}
-              tone="border-destructive/30"
-              onClick={() => togglePunctuality("em_atraso")}
-            />
-            <QuickFilterChip
-              label="Finalizadas"
-              value={stats.finalizadas}
-              active={phaseFilter === "finalizada"}
-              tone="border-success-border"
-              onClick={() => setPhaseFilter((f) => (f === "finalizada" ? "all" : "finalizada"))}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
+      <div className="space-y-4 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
+        <div className="flex flex-wrap items-end gap-3">
           <div className="relative min-w-[200px] flex-1">
+            <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              Negociação ou arquivo
+            </span>
+            <div className="relative">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60"
               aria-hidden
             />
             <input
               type="text"
-              placeholder="Buscar por nome do lead ou solicitante…"
+              placeholder="Buscar por lead, solicitante ou arquivo…"
               value={leadQuery}
               onChange={(e) => setLeadQuery(e.target.value)}
               className="h-10 w-full rounded-(--radius-v2-md) border border-border bg-muted/40 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary focus:ring-3 focus:ring-ring/20"
               aria-label="Buscar negociação"
             />
+            </div>
           </div>
           <div className="flex w-full min-w-[220px] flex-col gap-1.5 sm:w-auto">
             <span

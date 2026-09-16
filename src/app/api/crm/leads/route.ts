@@ -7,6 +7,8 @@ import {
   getDueAreaTasksSummaryWithBreakdown,
   type DueAreaTaskSummary,
 } from "@/lib/crm/due-area-tasks";
+import { resolveSolicitanteInternoDisplay } from "@/lib/crm/resolve-app-user-display";
+import type { SignerAppUserLookup } from "@/lib/crm/signer-avatar-catalog";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 import type { Oportunidade } from "@/modules/crm/domain/entities";
@@ -302,26 +304,41 @@ export async function GET() {
       }
     }
 
-    function resolveSolicitanteUsuario(
-      criadoPor: string | null,
-      solicitanteEmail: string | null,
-    ): { id: string | null; nome: string | null; avatarUrl: string | null } {
-      if (criadoPor && userRowById.has(criadoPor)) {
-        const u = userRowById.get(criadoPor)!;
-        return { id: criadoPor, nome: u.full_name, avatarUrl: u.avatar_url };
+    const usersByEmail: SignerAppUserLookup = {};
+    for (const [email, user] of ownerByEmail) {
+      usersByEmail[email] = {
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+      };
+    }
+
+    const opportunityIds = (opportunitiesRows ?? []).map((row) => row.id);
+    const { data: leadIntakeRows, error: leadIntakeError } = await supabase
+      .from("lead_intakes")
+      .select(
+        "oportunidade_id, solicitante_nome, local_reuniao, data_reuniao, horario_reuniao",
+      )
+      .in("oportunidade_id", opportunityIds);
+    if (leadIntakeError) throw leadIntakeError;
+
+    const leadIntakeByOpportunity = new Map<
+      string,
+      {
+        solicitanteNome: string | null;
+        localReuniao: string | null;
+        dataReuniao: string | null;
+        horarioReuniao: string | null;
       }
-      const emailKey = solicitanteEmail?.trim().toLowerCase();
-      if (emailKey) {
-        const byMail = ownerByEmail.get(emailKey);
-        if (byMail) {
-          return {
-            id: byMail.id,
-            nome: byMail.fullName,
-            avatarUrl: byMail.avatarUrl,
-          };
-        }
-      }
-      return { id: null, nome: null, avatarUrl: null };
+    >();
+    for (const row of leadIntakeRows ?? []) {
+      leadIntakeByOpportunity.set(String(row.oportunidade_id), {
+        solicitanteNome: row.solicitante_nome ? String(row.solicitante_nome) : null,
+        localReuniao: row.local_reuniao ? String(row.local_reuniao) : null,
+        dataReuniao: row.data_reuniao ? String(row.data_reuniao) : null,
+        horarioReuniao: row.horario_reuniao
+          ? String(row.horario_reuniao).slice(0, 5)
+          : null,
+      });
     }
 
     const reconciliationByOpportunity = new Map<string, unknown>();
@@ -355,10 +372,16 @@ export async function GET() {
           : null;
       const rdOwnerEmail = rdOwnerEmailRaw ? rdOwnerEmailRaw.toLowerCase() : null;
       const mappedOwner = rdOwnerEmail ? ownerByEmail.get(rdOwnerEmail) : null;
-      const solicitanteUsuario = resolveSolicitanteUsuario(
-        row.criado_por ?? null,
-        row.solicitante_email ?? null,
-      );
+      const solicitanteEmail = row.solicitante_email?.trim().toLowerCase() ?? null;
+      const solicitanteByEmail = solicitanteEmail
+        ? ownerByEmail.get(solicitanteEmail)
+        : null;
+      const solicitanteDisplay = resolveSolicitanteInternoDisplay({
+        nomeCadastro:
+          leadIntakeByOpportunity.get(row.id)?.solicitanteNome ?? null,
+        solicitanteEmail,
+        usersByEmail,
+      });
 
       const etapa = resolvePipelineEtapaFromDbAndRd(
         row.etapa,
@@ -374,31 +397,15 @@ export async function GET() {
         ownerUserId: mappedOwner?.id ?? null,
         ownerUserName: mappedOwner?.fullName ?? null,
         ownerUserAvatarUrl: mappedOwner?.avatarUrl ?? null,
-        solicitanteUsuarioId: solicitanteUsuario.id,
-        solicitanteUsuarioNome: solicitanteUsuario.nome,
-        solicitanteUsuarioAvatarUrl: solicitanteUsuario.avatarUrl,
+        solicitanteUsuarioId: solicitanteByEmail?.id ?? null,
+        solicitanteUsuarioNome:
+          solicitanteDisplay.nome === "—" ? null : solicitanteDisplay.nome,
+        solicitanteUsuarioAvatarUrl: solicitanteDisplay.avatarUrl,
         origemRd,
         rdDealAtualizadoEm,
         motivoPerda,
       });
     });
-
-    const opportunityIds = opportunities.map((op) => op.id);
-    const { data: leadIntakeRows } = await supabase
-      .from("lead_intakes")
-      .select("oportunidade_id, local_reuniao, data_reuniao, horario_reuniao")
-      .in("oportunidade_id", opportunityIds);
-    const leadIntakeByOpportunity = new Map<
-      string,
-      { localReuniao: string | null; dataReuniao: string | null; horarioReuniao: string | null }
-    >();
-    for (const row of leadIntakeRows ?? []) {
-      leadIntakeByOpportunity.set(String(row.oportunidade_id), {
-        localReuniao: row.local_reuniao ? String(row.local_reuniao) : null,
-        dataReuniao: row.data_reuniao ? String(row.data_reuniao) : null,
-        horarioReuniao: row.horario_reuniao ? String(row.horario_reuniao).slice(0, 5) : null,
-      });
-    }
 
     const dueOpportunityIds = opportunities.filter((op) => op.haveraDueDiligence).map((op) => op.id);
     const cycleByOpportunityId = new Map<string, number>();

@@ -126,14 +126,14 @@ describe("linkFieldsMissing", () => {
     ).toEqual({ linkProposta: false, linkContrato: false });
   });
 
-  it("requires a contract link when entering contrato_elaborado", () => {
+  it("does not treat a contract URL as transition evidence", () => {
     expect(
       linkFieldsMissing({
         nextStage: "contrato_elaborado",
         linkProposta: null,
         linkContrato: null,
       }),
-    ).toEqual({ linkProposta: false, linkContrato: true });
+    ).toEqual({ linkProposta: false, linkContrato: false });
   });
 });
 

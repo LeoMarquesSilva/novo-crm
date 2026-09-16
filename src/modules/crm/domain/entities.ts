@@ -67,10 +67,12 @@ export interface Oportunidade {
   /** Foto do responsável interno (`app_users.avatar_url`), via e-mail do RD. */
   ownerUserAvatarUrl?: string | null;
   /**
-   * Usuário interno ligado ao solicitante: `criado_por` ou mesmo e-mail em `app_users` / Auth
-   * (`solicitante_email`). Não confundir com `solicitante` (nome do lead no cadastro).
+   * Solicitante interno selecionado no cadastro, resolvido por
+   * `lead_intakes.solicitante_nome` + `oportunidades.solicitante_email`.
+   * Não confundir com `criado_por` (quem cadastrou) nem com `solicitante`
+   * (razão social / empresa usada como título do lead).
    */
-  /** `app_users.id` quando `criado_por` ou resolvido por e-mail do solicitante. */
+  /** `app_users.id` quando o e-mail do solicitante corresponde a um usuário interno. */
   solicitanteUsuarioId?: string | null;
   solicitanteUsuarioNome?: string | null;
   solicitanteUsuarioAvatarUrl?: string | null;
@@ -156,6 +158,7 @@ export interface Indicador {
   nome: string;
   status: "pendente_aprovacao" | "aprovado" | "mesclado";
   solicitanteNome?: string | null;
+  solicitanteAvatarUrl?: string | null;
   leadNome?: string | null;
   solicitadoEm?: string | null;
   oportunidadeId?: string | null;

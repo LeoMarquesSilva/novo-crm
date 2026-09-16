@@ -4,10 +4,10 @@ import {
   FileText,
   Layers3,
   Library,
-  Route,
 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/server";
 import { loadDocumentTemplates } from "@/lib/crm/proposta-document-data";
+import { resolveModeloPropostaTemplatePath } from "@/lib/crm/render-proposta-docx";
 import type { PropostaDocumentTemplate, PropostaDocumentTemplateField } from "@/lib/crm/proposta-document-data";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -38,16 +38,16 @@ function labelForType(fieldType: string) {
   return fieldTypeLabels[fieldType] ?? fieldType;
 }
 
-function getStats(templates: PropostaDocumentTemplate[]) {
+function getStats(templates: PropostaDocumentTemplate[], templateFileAvailable: boolean) {
   const fields = templates.flatMap((template) => template.fields);
   const requiredFields = fields.filter((field) => field.isRequired).length;
   const sections = new Set(fields.map((field) => field.section));
 
   return [
     {
-      label: "Modelos ativos",
+      label: "Modelo oficial",
       value: templates.length,
-      detail: "Disponíveis no construtor",
+      detail: "Proposta ativa no construtor",
       icon: Library,
     },
     {
@@ -57,10 +57,10 @@ function getStats(templates: PropostaDocumentTemplate[]) {
       icon: Layers3,
     },
     {
-      label: "Seções do DOCX",
-      value: sections.size,
-      detail: "Organização do formulário",
-      icon: Route,
+      label: "Arquivo-base",
+      value: templateFileAvailable ? "Disponível" : "Ausente",
+      detail: `${sections.size} seções no DOCX`,
+      icon: templateFileAvailable ? CheckCircle2 : AlertCircle,
     },
   ];
 }
@@ -81,12 +81,20 @@ async function getTemplates() {
   try {
     const supabase = createSupabaseAdminClient();
     const templates = await loadDocumentTemplates(supabase);
-    return { templates, error: null };
+    let templateFileAvailable = false;
+    try {
+      resolveModeloPropostaTemplatePath();
+      templateFileAvailable = true;
+    } catch {
+      templateFileAvailable = false;
+    }
+    return { templates, templateFileAvailable, error: null };
   } catch (error) {
     const err = error as { message?: string; code?: string; details?: string; hint?: string };
     const parts = [err.code, err.message, err.details, err.hint].filter(Boolean);
     return {
       templates: [],
+      templateFileAvailable: false,
       error: parts.length ? parts.join(" - ") : "Erro ao carregar modelos de documentos.",
     };
   }
@@ -95,15 +103,15 @@ async function getTemplates() {
 export default async function DocumentosAdminPage() {
   await requireAdmin("/crm/admin/documentos");
 
-  const { templates, error } = await getTemplates();
-  const stats = getStats(templates);
+  const { templates, templateFileAvailable, error } = await getTemplates();
+  const stats = getStats(templates, templateFileAvailable);
 
   return (
     <div className="space-y-6">
       <CrmPageHeader
         eyebrow="Administração"
-        title="Modelos de documentos"
-        description="Controle os modelos DOCX, os campos obrigatórios e a estrutura que alimenta o construtor de propostas."
+        title="Modelo da proposta"
+        description="Consulte o template oficial, os campos obrigatórios e a estrutura usada pelo construtor de propostas."
         icon={FileText}
         stats={stats}
       />
@@ -115,7 +123,7 @@ export default async function DocumentosAdminPage() {
           <AlertDescription>
             {error}
             <span className="mt-2 block text-xs">
-              Se a mensagem mencionar <code>document_templates</code>, aplique a migration{" "}
+              Se a mensagem mencionar <code>document_templates</code>, confira a migration{" "}
               <code>20260424170000_document_builder_templates_versions.sql</code> no Supabase.
             </span>
           </AlertDescription>
@@ -124,7 +132,11 @@ export default async function DocumentosAdminPage() {
 
       <div className="grid gap-5">
         {templates.map((template) => (
-          <TemplateCard key={template.id} template={template} />
+          <TemplateCard
+            key={template.id}
+            template={template}
+            templateFileAvailable={templateFileAvailable}
+          />
         ))}
 
         {!error && templates.length === 0 ? (
@@ -143,7 +155,13 @@ export default async function DocumentosAdminPage() {
   );
 }
 
-function TemplateCard({ template }: { template: PropostaDocumentTemplate }) {
+function TemplateCard({
+  template,
+  templateFileAvailable,
+}: {
+  template: PropostaDocumentTemplate;
+  templateFileAvailable: boolean;
+}) {
   const groupedFields = groupFieldsBySection(template.fields);
   const requiredCount = template.fields.filter((field) => field.isRequired).length;
   const description = typeof template.metadata.description === "string" ? template.metadata.description : null;
@@ -207,8 +225,14 @@ function TemplateCard({ template }: { template: PropostaDocumentTemplate }) {
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-success-text" />
-              Pronto para gerar propostas
+              {templateFileAvailable ? (
+                <CheckCircle2 className="h-4 w-4 text-success-text" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-danger-text" />
+              )}
+              {templateFileAvailable
+                ? "Arquivo oficial disponível"
+                : "Arquivo oficial ausente no servidor"}
             </div>
           </div>
 

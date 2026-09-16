@@ -7,7 +7,7 @@ import {
   ExternalLink,
   Send,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { cn } from "@/lib/utils";
 import { DaysInStagePanel } from "@/components/crm/days-in-stage-panel";
 import { ContractSignersKanbanPanel } from "@/components/crm/contract-signers-kanban-panel";
@@ -27,18 +27,7 @@ import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { getLeadPipelineSituation } from "@/modules/crm/application/lead-pipeline-situation";
 import type { DemandType, Oportunidade } from "@/modules/crm/domain/entities";
 import { formatDateTimeBr } from "@/lib/format-datetime";
-import {
-  latestSignerSignedAt,
-} from "@/lib/crm/d4sign-kanban-signers";
-
-function initialsFromName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  const a = parts[0][0];
-  const b = parts[parts.length - 1][0];
-  return `${a}${b}`.toUpperCase();
-}
+import { latestSignerSignedAt } from "@/lib/crm/d4sign-kanban-signers";
 
 function normalizePersonName(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -67,20 +56,15 @@ function AvatarNameBlock({
   imageUrl?: string | null;
 }) {
   return (
-    <div className="flex items-start gap-2">
-      <Avatar className="h-7 w-7 shrink-0 border border-border">
-        {imageUrl ? (
-          <AvatarImage src={imageUrl} alt="" className="object-cover" />
-        ) : null}
-        <AvatarFallback className="text-[10px]">{initialsFromName(name)}</AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </p>
-        <p className="truncate text-[12px] font-semibold leading-snug tracking-tight text-foreground">{name}</p>
-      </div>
-    </div>
+    <CrmUserLabel
+      name={name}
+      avatarUrl={imageUrl}
+      size="sm"
+      variant="stacked"
+      prefix={label}
+      className="w-full"
+      nameClassName="leading-snug tracking-tight"
+    />
   );
 }
 
@@ -377,14 +361,14 @@ export function PipelineLeadCardContent({
 
       {showPropostaEscopoDetails && item.propostaEscopoSummary ? (
         <PropostaEscopoKanbanPanel
+          leadId={item.id}
           summary={item.propostaEscopoSummary}
           breakdown={item.propostaEscopoBreakdown}
-          linkProposta={item.linkProposta}
         />
       ) : null}
 
       {showPropostaEnviadaPanel ? (
-        <PropostaEnviadaKanbanPanel linkProposta={item.linkProposta} />
+        <PropostaEnviadaKanbanPanel leadId={item.id} />
       ) : null}
 
       {showContractElaborationPanel ? (

@@ -386,6 +386,20 @@ export function buildGeneratedDocxFilePath(params: {
   )}.docx`;
 }
 
+export function buildGeneratedContratoDocxFilePath(params: {
+  oportunidadeId: string;
+  versionNumber: number;
+  generatedAt: Date;
+  baseName: string;
+  fileStamp?: string;
+}): string {
+  const base = sanitizeFilenamePart(params.baseName);
+  return `documentos/contratos/${params.oportunidadeId}/v${params.versionNumber}-${base}-${params.fileStamp ?? format(
+    params.generatedAt,
+    "yyyy-MM-dd-HHmm",
+  )}.docx`;
+}
+
 export function buildGeneratedPdfFilePath(params: {
   oportunidadeId: string;
   versionNumber: number;

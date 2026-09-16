@@ -42,7 +42,7 @@ describe("transitionOpportunity", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("requires a contract link when entering contrato elaborado", () => {
+  it("does not use a manually typed contract link as domain evidence", () => {
     const result = transitionOpportunity({
       opportunityId: "opp_1",
       currentStage: "confeccao_contrato",
@@ -52,8 +52,7 @@ describe("transitionOpportunity", () => {
       payload: {},
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.errors[0]).toContain("linkContrato");
+    expect(result.ok).toBe(true);
   });
 
   it("returns audit record for valid transition", () => {
@@ -63,9 +62,7 @@ describe("transitionOpportunity", () => {
       nextStage: "proposta_enviada",
       hasDueDiligence: false,
       changedBy: "user_1",
-      payload: {
-        linkProposta: "https://sharepoint.local/proposta-1",
-      },
+      payload: {},
     });
 
     expect(result.ok).toBe(true);

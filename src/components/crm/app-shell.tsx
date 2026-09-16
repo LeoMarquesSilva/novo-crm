@@ -37,6 +37,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { normalizeSidebarFavoriteHrefs } from "@/lib/crm/sidebar-route-aliases";
 import { cn } from "@/lib/utils";
 
 type SidebarItem = {
@@ -72,9 +73,9 @@ const mainItems: SidebarItem[] = [
     icon: BriefcaseBusiness,
   },
   {
-    href: "/crm/documentos",
+    href: "/crm/due-diligence",
     label: "Due diligence",
-    description: "Prazos, marcos e arquivos da DUE",
+    description: "Prazos, fases e atrasos",
     icon: Presentation,
   },
   {
@@ -105,9 +106,9 @@ const adminItems: SidebarItem[] = [
     icon: Layers,
   },
   {
-    href: "/crm/admin/documentos",
-    label: "Documentos",
-    description: "Modelos e proposta",
+    href: "/crm/admin/modelo-proposta",
+    label: "Modelo da proposta",
+    description: "Template e campos do DOCX",
     icon: FileText,
   },
   {
@@ -143,7 +144,10 @@ function readStringArray(key: string): string[] {
   if (typeof window === "undefined") return [];
   try {
     const parsed = JSON.parse(window.localStorage.getItem(key) ?? "[]") as unknown;
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+    if (!Array.isArray(parsed)) return [];
+    return normalizeSidebarFavoriteHrefs(
+      parsed.filter((x): x is string => typeof x === "string"),
+    );
   } catch {
     return [];
   }
@@ -368,6 +372,8 @@ export function AppShell({
   const [hydratedStorage, setHydratedStorage] = useState(false);
 
   const showAdminNav = sessionUser.role === "admin";
+  const canViewDueDiligence =
+    sessionUser.role === "admin" || sessionUser.role === "comercial";
   const workspaceLabel = sessionUser.area?.trim() || "Workspace corporativo";
   const isPinnedExpanded = !collapsed;
   const isHoverOverlay = collapsed && hoverExpanded;
@@ -377,10 +383,16 @@ export function AppShell({
 
   const groups = useMemo<SidebarGroup[]>(
     () => [
-      { id: "commercial", title: "Comercial", items: mainItems },
+      {
+        id: "commercial",
+        title: "Comercial",
+        items: canViewDueDiligence
+          ? mainItems
+          : mainItems.filter((item) => item.href !== "/crm/due-diligence"),
+      },
       ...(showAdminNav ? [{ id: "admin", title: "Configurações", items: adminItems }] : []),
     ],
-    [showAdminNav],
+    [canViewDueDiligence, showAdminNav],
   );
 
   const allItems = useMemo(() => groups.flatMap((group) => group.items), [groups]);
