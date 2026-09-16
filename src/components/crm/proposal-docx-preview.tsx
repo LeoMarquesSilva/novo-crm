@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FileText, Loader2, Minus, MoveHorizontal, Plus, Scan } from "lucide-react";
+import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
 import { cn } from "@/lib/utils";
 
 type ProposalDocxPreviewProps = {
@@ -27,6 +28,33 @@ function isBlankWordPage(page: HTMLElement) {
   );
 
   return getWordPageBodyText(page).length === 0 && !hasVisualContent;
+}
+
+function isScopeWordPage(page: HTMLElement) {
+  if (page.querySelector('[class*="BPScope"]')) return true;
+
+  const areaLabels = new Set(
+    CRM_PRACTICE_AREAS.map((area) => area.toLocaleLowerCase("pt-BR")),
+  );
+  return getWordPageBody(page).some((article) =>
+    Array.from(article.querySelectorAll("p")).some((paragraph) =>
+      areaLabels.has(
+        (paragraph.textContent ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLocaleLowerCase("pt-BR"),
+      ),
+    ),
+  );
+}
+
+function getCompactPageLabel(page: HTMLElement, index: number) {
+  const text = getWordPageBodyText(page);
+  if (index === 0 || /\bPROPOSTA(?:\s+DE)?\b/i.test(text)) return "Capa";
+  if (/QUEM SOMOS|NOSSO ESCRITÓRIO|SOBRE NÓS/i.test(text)) return "Institucional";
+  if (/INVESTIMENTO|HONORÁRIOS/i.test(text)) return "Investimento";
+  if (/VIGÊNCIA|CORDIALMENTE|ASSINATURA/i.test(text)) return "Fechamento";
+  return `Página ${index + 1}`;
 }
 
 function replaceWordPageWithPlaceholder(
@@ -64,33 +92,21 @@ function replaceWordPageWithPlaceholder(
   page.style.overflow = "visible";
 }
 
-function compactUnsupportedWordPages(pages: HTMLElement[]) {
-  const blankPages = pages.map(isBlankWordPage);
-  const firstPageText = pages[0] ? getWordPageBodyText(pages[0]) : "";
-  const hasCover = /\bPROPOSTA(?:\s+DE)?\b/i.test(firstPageText);
-
-  if (hasCover && pages[0]) {
-    replaceWordPageWithPlaceholder(
-      pages[0],
-      "Capa",
-      "A capa foi ocultada apenas nesta visualização para evitar quebras do navegador. Ela permanece completa no Word baixado.",
-    );
-  }
-
+function compactNonScopeWordPages(pages: HTMLElement[]) {
   pages.forEach((page, index) => {
-    if (!blankPages[index]) return;
+    if (isScopeWordPage(page)) return;
 
-    // Algumas capas com elementos absolutos geram uma segunda folha vazia
-    // apenas no docx-preview. Ela não precisa ocupar espaço no navegador.
-    if (hasCover && index === 1) {
+    // Folhas vazias são artefatos das quebras de seção do Word e não
+    // representam conteúdo útil para a prévia.
+    if (isBlankWordPage(page)) {
       page.remove();
       return;
     }
 
     replaceWordPageWithPlaceholder(
       page,
-      `Página ${index + 1}`,
-      "Esta página não pôde ser representada com fidelidade no navegador. O conteúdo permanece no Word baixado.",
+      getCompactPageLabel(page, index),
+      "Esta seção foi ocultada no preview para preservar o layout. Ela permanece completa no Word baixado.",
     );
   });
 }
@@ -218,7 +234,7 @@ export function ProposalDocxPreview({ blob }: ProposalDocxPreviewProps) {
           page.style.boxShadow =
             "0 2px 4px rgba(16, 31, 46, 0.08), 0 18px 42px rgba(16, 31, 46, 0.12)";
         }
-        compactUnsupportedWordPages(pages);
+        compactNonScopeWordPages(pages);
 
         documentContainer.replaceChildren(...Array.from(staging.childNodes));
         setPageCount(
