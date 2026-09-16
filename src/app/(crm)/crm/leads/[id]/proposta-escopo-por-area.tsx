@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Loader2, Pencil, Plus, Save, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -324,7 +324,7 @@ export function PropostaEscopoPorArea({
     });
   }, [areasDisplay]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!onEscopoDraftChange) return;
     const normalized = syncEscopoToAreas(escopo, parseAreasList(areasDisplay));
     const json = stringifyEscopoJsonWithMeta(normalized, investimentoMetaRef.current);
