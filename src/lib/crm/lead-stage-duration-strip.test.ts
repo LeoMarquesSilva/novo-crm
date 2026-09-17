@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { LeadLifecycleTimeline } from "@/lib/crm/lead-lifecycle-timeline";
-import { buildLeadStageDurationItems } from "./lead-stage-duration-strip";
+import {
+  buildLeadStageDurationItems,
+  getNextLeadStage,
+} from "./lead-stage-duration-strip";
 
 function timeline(
   periods: LeadLifecycleTimeline["periods"],
@@ -86,5 +89,24 @@ describe("buildLeadStageDurationItems", () => {
       durationLabel: "2 dias",
       isCurrent: true,
     });
+  });
+});
+
+describe("getNextLeadStage", () => {
+  it("respeita a jornada com Due diligence", () => {
+    expect(getNextLeadStage("cadastro_lead", true)).toBe(
+      "levantamento_dados",
+    );
+    expect(getNextLeadStage("revisao", true)).toBe(
+      "due_diligence_finalizada",
+    );
+  });
+
+  it("pula as etapas de Due quando a negociação não possui Due diligence", () => {
+    expect(getNextLeadStage("cadastro_lead", false)).toBe("reuniao");
+  });
+
+  it("não oferece avanço depois da etapa final", () => {
+    expect(getNextLeadStage("reuniao_kickoff", false)).toBeNull();
   });
 });

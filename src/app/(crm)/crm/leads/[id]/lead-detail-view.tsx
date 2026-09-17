@@ -24,7 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CrmEntityHeader } from "@/components/crm/crm-entity-header";
-import { LeadStageDurationStrip } from "@/components/crm/lead-stage-duration-strip";
+import { LeadDetailStageAdvance } from "@/components/crm/lead-detail-stage-advance";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -37,6 +37,7 @@ import {
   resolveLeadDetailTab,
   type LeadDetailTab,
 } from "@/lib/crm/lead-detail-tabs";
+import { isProposalDocumentAvailable } from "@/lib/crm/proposal-document-availability";
 import { uploadDuePpt } from "@/lib/crm/upload-due-ppt";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import {
@@ -93,6 +94,7 @@ export function LeadDetailView({
   const etapaLabel = OPPORTUNITY_STAGE_LABELS[lead.etapa] ?? lead.etapa;
   const ddSimNao = lead.haveraDueDiligence ? "Sim" : "Não";
   const isProposalStage = lead.etapa === "confeccao_proposta";
+  const proposalDocumentAvailable = isProposalDocumentAvailable(lead.etapa);
   const isContractStage = [
     "confeccao_contrato",
     "contrato_elaborado",
@@ -231,13 +233,15 @@ export function LeadDetailView({
 
             <TabsContent value="proposal" className="mt-4 space-y-5">
               <section id="proposta" className="scroll-mt-6">
-                {isProposalStage && proposalPipelineFields.length > 0 ? (
+                {proposalDocumentAvailable &&
+                (!isProposalStage || proposalPipelineFields.length > 0) ? (
                   <PropostaDocumentBuilder
                     lead={lead}
                     viewer={viewer}
                     proposalPipelineFields={proposalPipelineFields}
                     escopoDetalhe={escopoDetalheProposta}
                     propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
+                    readOnly={!isProposalStage}
                   />
                 ) : null}
 
@@ -255,7 +259,7 @@ export function LeadDetailView({
                   </Card>
                 ) : null}
 
-                {!isProposalStage ? (
+                {!proposalDocumentAvailable ? (
                   <Card className="border-border bg-white p-6">
                     <CardHeader className="px-0 pt-0">
                       <SectionEyebrow icon={FileText}>Documentos / Propostas</SectionEyebrow>
@@ -263,7 +267,7 @@ export function LeadDetailView({
                         Proposta ainda não habilitada
                       </CardTitle>
                       <p className="mt-1 text-sm text-slate-500">
-                        Esta área fica disponível quando o lead entra na etapa de elaboração de proposta.
+                        Esta área fica disponível quando o lead entra na etapa de elaboração da proposta.
                       </p>
                     </CardHeader>
                   </Card>
@@ -550,9 +554,17 @@ function LeadDetailHero({
         }
       />
 
-      <LeadStageDurationStrip
+      <LeadDetailStageAdvance
+        leadId={lead.id}
         currentStage={lead.etapa}
+        hasDueDiligence={lead.haveraDueDiligence}
         timeline={lead.lifecycleTimeline}
+        canAdvance={
+          lead.encerramento == null &&
+          Boolean(viewer && ["admin", "comercial"].includes(viewer.role))
+        }
+        linkProposta={lead.linkProposta ?? null}
+        linkContrato={lead.linkContrato ?? null}
       />
 
       <div className="grid gap-px overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-neutral-200 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.15fr_1fr_1.25fr]">

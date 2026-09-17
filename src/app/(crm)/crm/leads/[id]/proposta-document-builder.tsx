@@ -242,12 +242,14 @@ export function PropostaDocumentBuilder({
   proposalPipelineFields,
   escopoDetalhe,
   propostaEmpresaPrincipalNome,
+  readOnly = false,
 }: {
   lead: LeadDetailData;
   viewer: LeadDetailViewer | null;
   proposalPipelineFields: LeadDetailData["pipelineFields"];
   escopoDetalhe: LeadDetailData["escopoDetalhe"];
   propostaEmpresaPrincipalNome: string | null;
+  readOnly?: boolean;
 }) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [docState, setDocState] = useState<DocumentState | null>(null);
@@ -287,10 +289,10 @@ export function PropostaDocumentBuilder({
   }, [refreshState]);
 
   useEffect(() => {
-    if (loading || !docState || autoOpenedRef.current) return;
+    if (readOnly || loading || !docState || autoOpenedRef.current) return;
     autoOpenedRef.current = true;
     setBuilderOpen(true);
-  }, [docState, loading]);
+  }, [docState, loading, readOnly]);
 
   const hasInstance = Boolean(docState?.instance);
 
@@ -327,24 +329,30 @@ export function PropostaDocumentBuilder({
   return (
     <section className={documentBuilderHubClass}>
       <DocumentBuilderHubHeader
-        eyebrow="Documentos / Propostas"
-        title="Workspace de proposta"
+        eyebrow="Documentos / Proposta"
+        title={readOnly ? "Proposta gerada" : "Workspace de proposta"}
         description={
-          hasInstance
+          readOnly
+            ? docState.versions.length > 0
+              ? "Consulte e baixe as versões oficiais geradas durante a elaboração da proposta."
+              : "Nenhuma versão oficial da proposta foi encontrada para esta negociação."
+            : hasInstance
             ? "Continue o rascunho diretamente no editor com formulário e prévia lado a lado."
             : "Crie a proposta diretamente no editor com formulário e prévia lado a lado."
         }
         actions={
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            className="gap-2"
-            onClick={() => setBuilderOpen(true)}
-          >
-            <PenLine className="size-4" aria-hidden />
-            Abrir editor
-          </Button>
+          readOnly ? undefined : (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="gap-2"
+              onClick={() => setBuilderOpen(true)}
+            >
+              <PenLine className="size-4" aria-hidden />
+              Abrir editor
+            </Button>
+          )
         }
       />
 
@@ -356,10 +364,14 @@ export function PropostaDocumentBuilder({
           </div>
           <GeneratedDocumentVersionList leadId={lead.id} versions={docState.versions} />
         </div>
+      ) : readOnly ? (
+        <div className="border-t border-border px-5 py-4 text-sm text-muted-foreground sm:px-6">
+          O histórico ficará disponível aqui assim que uma proposta oficial for gerada.
+        </div>
       ) : null}
 
       {/* ── Dialog split-pane ── */}
-      {builderOpen ? (
+      {!readOnly && builderOpen ? (
         <PropostaBuilderDialog
           lead={lead}
           viewer={viewer}

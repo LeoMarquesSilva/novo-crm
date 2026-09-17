@@ -6,6 +6,7 @@ import {
 } from "@/lib/crm/pipeline-board-config";
 import type { LeadLifecycleTimeline } from "@/lib/crm/lead-lifecycle-timeline";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
+import { getAllowedJourney } from "@/modules/crm/domain/workflow";
 
 export type LeadStageDurationItem = {
   stage: OpportunityStage;
@@ -14,6 +15,15 @@ export type LeadStageDurationItem = {
   isCurrent: boolean;
   isVisited: boolean;
 };
+
+export function getNextLeadStage(
+  currentStage: OpportunityStage,
+  hasDueDiligence: boolean,
+): OpportunityStage | null {
+  const journey = getAllowedJourney(hasDueDiligence);
+  const currentIndex = journey.indexOf(currentStage);
+  return currentIndex >= 0 ? (journey[currentIndex + 1] ?? null) : null;
+}
 
 export function buildLeadStageDurationItems(
   currentStage: OpportunityStage,

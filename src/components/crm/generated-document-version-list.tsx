@@ -83,7 +83,9 @@ export function GeneratedDocumentVersionList({
                 ) : (
                   <Download className="size-3.5" aria-hidden />
                 )}
-                Baixar
+                {version.generated_file_path?.toLowerCase().endsWith(".pdf")
+                  ? "Baixar PDF"
+                  : "Baixar Word"}
               </Button>
             ) : (
               <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-warning-text">
