@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
 import {
   deriveGrupoAreasFromSignals,
+  mergeGrupoPracticeAreas,
   parseAreasAtuacao,
   prefillGrupoAreaKeys,
 } from "@/lib/crm/grupo-areas-atuacao";
@@ -30,9 +31,9 @@ import { fetchGruposEconomicosCarteira } from "@/lib/crm/fetch-grupos-economicos
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchOrqestraiClientGroups } from "@/lib/orqestrai/client-groups";
 import {
-  buildClienteAtividadeIndex,
-  lookupClienteAtividade,
-} from "@/lib/orqestrai/gestor-atividade";
+  buildOrqestraiGroupLookup,
+  enrichCarteiraGrupoOrqestrai,
+} from "@/lib/crm/carteira-grupo-enrichment";
 import { fetchSioeGrupoAreaSignals, fetchSioeGrupoAreaSignalsByGroups } from "@/lib/sioe/grupo-areas";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -170,7 +171,7 @@ export async function loadGrupoIntakeGrid(
   ]);
   if (gruposError) throw new Error(gruposError.message);
 
-  const atividadeIndex = buildClienteAtividadeIndex(orqestraiGroups ?? []);
+  const orqestraiLookup = buildOrqestraiGroupLookup(orqestraiGroups);
   const derivedByGrupo = await loadDerivedAreasByGrupo(grupos);
 
   const groups: GrupoIntakeGridRow[] = grupos.map((grupo) => {
@@ -181,17 +182,22 @@ export async function loadGrupoIntakeGrid(
     });
     const derivedAreas = derivedByGrupo.get(grupo.id) ?? [];
     const savedAreas = parseAreasAtuacao(grupo.areas_atuacao);
+    const enriched = enrichCarteiraGrupoOrqestrai(grupo, orqestraiLookup);
+    const orqestraiDerived = mergeGrupoPracticeAreas({
+      responsibleArea: enriched.responsibleArea,
+      legalAreas: enriched.legalAreas,
+    }).map((areaKey) => ({ areaKey, sources: ["pasta" as const] }));
     return {
       id: grupo.id,
       nome: grupo.nome,
-      clienteStatus: lookupClienteAtividade(atividadeIndex, {
-        orqestraiId: grupo.orqestrai_id ?? grupo.id,
-        groupKey: grupo.chave_estavel,
-      }),
+      clienteStatus: enriched.clienteStatus,
       alreadyFilled: Boolean(grupo.intake_filled_at),
       indication: savedIndication.ok ? savedIndication.value : null,
       derivedAreas,
-      prefilledAreaKeys: prefillGrupoAreaKeys({ derived: derivedAreas, saved: savedAreas }),
+      prefilledAreaKeys: prefillGrupoAreaKeys({
+        derived: [...derivedAreas, ...orqestraiDerived],
+        saved: savedAreas,
+      }),
     };
   });
 

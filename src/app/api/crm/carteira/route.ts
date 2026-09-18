@@ -6,16 +6,10 @@ import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
 import { fetchOrqestraiClientGroups } from "@/lib/orqestrai/client-groups";
 import { fetchGruposEconomicosCarteira } from "@/lib/crm/fetch-grupos-economicos";
 import {
-  buildClienteResponsibleAreaIndex,
-  legacyCategoriaAsResponsibleArea,
-  lookupClienteResponsibleArea,
-  origemLinhaFromGrupoCategoria,
-  persistCarteiraCategoria,
-} from "@/lib/crm/grupo-categoria";
-import {
-  buildClienteAtividadeIndex,
-  lookupClienteAtividade,
-} from "@/lib/orqestrai/gestor-atividade";
+  buildOrqestraiGroupLookup,
+  enrichCarteiraGrupoOrqestrai,
+} from "@/lib/crm/carteira-grupo-enrichment";
+import { origemLinhaFromGrupoCategoria, persistCarteiraCategoria } from "@/lib/crm/grupo-categoria";
 
 export const maxDuration = 120;
 
@@ -41,26 +35,20 @@ export async function GET() {
     if (gruposError) throw gruposError;
     if (clientesError) throw clientesError;
     if (titulosError) throw titulosError;
-    const atividadeIndex = buildClienteAtividadeIndex(orqestraiGroups ?? []);
-    const responsibleAreaIndex = buildClienteResponsibleAreaIndex(orqestraiGroups ?? []);
+    const orqestraiLookup = buildOrqestraiGroupLookup(orqestraiGroups);
     return NextResponse.json({
       ok: true,
       data: {
         grupos: (grupos ?? []).map((grupo) => {
           const origemLinha = origemLinhaFromGrupoCategoria(grupo.categoria);
+          const enriched = enrichCarteiraGrupoOrqestrai(grupo, orqestraiLookup);
           return {
             ...grupo,
-            clienteStatus: lookupClienteAtividade(atividadeIndex, {
-              orqestraiId: grupo.orqestrai_id ?? grupo.id,
-              groupKey: grupo.chave_estavel,
-            }),
+            clienteStatus: enriched.clienteStatus,
             origemLinha,
             categoria: persistCarteiraCategoria(origemLinha),
-            responsibleArea:
-              lookupClienteResponsibleArea(responsibleAreaIndex, {
-                orqestraiId: grupo.orqestrai_id ?? grupo.id,
-                groupKey: grupo.chave_estavel,
-              }) ?? legacyCategoriaAsResponsibleArea(grupo.categoria),
+            responsibleArea: enriched.responsibleArea,
+            legalAreas: enriched.legalAreas,
           };
         }),
         clientes: clientes ?? [],

@@ -71,6 +71,7 @@ export function parseAreasAtuacao(value: unknown): GrupoAreaAtuacao[] {
 /** União da área responsável OrquestrAI com áreas SIOE/públicas. Tudo é Área, não Categoria. */
 export function mergeGrupoPracticeAreas(input: {
   responsibleArea?: string | null;
+  legalAreas?: readonly string[] | null;
   areasAtuacao?: unknown;
 }): CrmPracticeArea[] {
   const keys = new Set<CrmPracticeArea>(
@@ -78,6 +79,10 @@ export function mergeGrupoPracticeAreas(input: {
   );
   const responsible = asPracticeArea(input.responsibleArea);
   if (responsible) keys.add(responsible);
+  for (const area of input.legalAreas ?? []) {
+    const mapped = asPracticeArea(area);
+    if (mapped) keys.add(mapped);
+  }
   return CRM_PRACTICE_AREAS.filter((area) => keys.has(area));
 }
 

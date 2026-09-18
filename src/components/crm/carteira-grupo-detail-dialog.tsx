@@ -58,6 +58,7 @@ export type CarteiraGrupoDetail = {
   clienteStatus: CarteiraClienteStatus | null;
   origemLinha: CarteiraOrigemLinha;
   responsibleArea: string | null;
+  legalAreas?: string[];
   tipoLead: string | null;
   tipoIndicacao: string | null;
   nomeIndicacao: string | null;
@@ -153,6 +154,7 @@ export function CarteiraGrupoDetailDialog({
   const areas = grupo
     ? mergeGrupoPracticeAreas({
         responsibleArea: grupo.responsibleArea,
+        legalAreas: grupo.legalAreas,
         areasAtuacao: grupo.areasAtuacao,
       })
     : [];
@@ -177,6 +179,7 @@ export function CarteiraGrupoDetailDialog({
     setSelected(
       mergeGrupoPracticeAreas({
         responsibleArea: grupo.responsibleArea,
+        legalAreas: grupo.legalAreas,
         areasAtuacao: grupo.areasAtuacao,
       }),
     );

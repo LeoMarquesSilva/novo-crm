@@ -8,6 +8,7 @@ export type OrqestraiClientGroup = {
   nameNormalized: string | null;
   gestorAtividade: string | null;
   responsibleArea: string | null;
+  legalAreas: string[];
 };
 
 export type OrqestraiCompany = {
@@ -81,6 +82,14 @@ async function fetchAllRows<T extends Record<string, unknown>>(
  * `email_client_groups`, `email_companies`, `email_people`.
  * Origem original é SIOE `pessoas.grupo_cliente`, já consolidada lá.
  */
+function mapLegalAreas(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((area): area is string => typeof area === "string")
+    .map((area) => area.trim())
+    .filter(Boolean);
+}
+
 function mapOrqestraiClientGroup(row: Record<string, unknown>): OrqestraiClientGroup {
   return {
     id: String(row.id),
@@ -88,29 +97,36 @@ function mapOrqestraiClientGroup(row: Record<string, unknown>): OrqestraiClientG
     nameNormalized: (row.name_normalized as string | null) ?? null,
     gestorAtividade: (row.gestor_atividade as string | null) ?? null,
     responsibleArea: (row.responsible_area as string | null) ?? null,
+    legalAreas: mapLegalAreas(row.legal_areas),
   };
 }
 
 export async function fetchOrqestraiClientGroups(): Promise<OrqestraiClientGroup[] | null> {
   const client = orqestraiClient();
   if (!client) return null;
-  try {
-    const groupRows = await fetchAllRows<Record<string, unknown>>(
-      client,
-      "email_client_groups",
-      "id, name, name_normalized, gestor_atividade, responsible_area",
-    );
-    return groupRows.map(mapOrqestraiClientGroup);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    if (!/responsible_area/.test(message)) throw error;
-    const groupRows = await fetchAllRows<Record<string, unknown>>(
-      client,
-      "email_client_groups",
-      "id, name, name_normalized, gestor_atividade",
-    );
-    return groupRows.map(mapOrqestraiClientGroup);
+  const selects = [
+    "id, name, name_normalized, gestor_atividade, responsible_area, legal_areas",
+    "id, name, name_normalized, gestor_atividade, responsible_area",
+    "id, name, name_normalized, gestor_atividade",
+  ];
+  let lastError: Error | null = null;
+  for (const columns of selects) {
+    try {
+      const groupRows = await fetchAllRows<Record<string, unknown>>(
+        client,
+        "email_client_groups",
+        columns,
+      );
+      return groupRows.map(mapOrqestraiClientGroup);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const message = lastError.message;
+      const missingOptional = /responsible_area|legal_areas/.test(message);
+      if (!missingOptional) throw lastError;
+    }
   }
+  if (lastError) throw lastError;
+  return null;
 }
 
 export async function fetchOrqestraiCarteira(): Promise<OrqestraiCarteiraSnapshot | null> {

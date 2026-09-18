@@ -81,6 +81,15 @@ describe("mergeGrupoPracticeAreas", () => {
       }),
     ).toEqual(["Cível", "Trabalhista"]);
   });
+
+  it("mapeia legal_areas do OrquestrAI (Reestruturação, Recuperação de Crédito) para as chaves canónicas", () => {
+    expect(
+      mergeGrupoPracticeAreas({
+        responsibleArea: "Reestruturação",
+        legalAreas: ["Cível", "Reestruturação", "Operações Legais", "Recuperação de Crédito"],
+      }),
+    ).toEqual(["Cível", "Recuperação de Créditos", "Reestruturação e Insolvência"]);
+  });
 });
 
 describe("parseAreasAtuacao", () => {

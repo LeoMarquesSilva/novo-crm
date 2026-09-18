@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchOrqestraiCarteira } from "@/lib/orqestrai/client-groups";
 import { fetchSioePessoas, fetchSioeTitulos, type SioePessoaResumo } from "@/lib/sioe/client";
+import { persistGestorAtividade } from "@/lib/crm/carteira-grupo-enrichment";
 import { persistCarteiraCategoria } from "@/lib/crm/grupo-categoria";
 import { digitsOnly, normalizeGroupKey } from "@/lib/crm/normalize-document";
 import type { Database } from "@/lib/supabase/database.types";
@@ -131,6 +132,9 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
         orqestrai_id: group.id,
         status: statusFromAgg(agg),
         categoria: persistCarteiraCategoria("cliente"),
+        gestor_atividade: persistGestorAtividade(group.gestorAtividade),
+        responsible_area: group.responsibleArea?.trim() || null,
+        legal_areas: group.legalAreas,
         last_synced_at: now,
         updated_at: now,
         agg,
@@ -147,6 +151,11 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
     mergeAgg(existing.agg, row.agg);
     existing.status = statusFromAgg(existing.agg);
     if (!existing.categoria && row.categoria) existing.categoria = row.categoria;
+    if (row.gestor_atividade === "ativo" || !existing.gestor_atividade) {
+      existing.gestor_atividade = row.gestor_atividade;
+    }
+    if (!existing.responsible_area && row.responsible_area) existing.responsible_area = row.responsible_area;
+    existing.legal_areas = [...new Set([...existing.legal_areas, ...row.legal_areas])];
   }
   const groupsToUpsert = [...uniqueByKey.values()];
 
@@ -156,11 +165,21 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
       onConflict: "chave_estavel",
     });
     if (error) {
-      if (!/categoria/.test(error.message)) {
+      const missingOrqestrai = /gestor_atividade|responsible_area|legal_areas/.test(error.message);
+      const missingCategoria = /categoria/.test(error.message);
+      if (!missingOrqestrai && !missingCategoria) {
         return { ok: false, error: `Falha ao gravar grupos: ${error.message}` };
       }
-      const withoutCategoria = withCategoria.map(({ categoria: _categoria, ...row }) => row);
-      const retry = await supabase.from("grupos_economicos").upsert(withoutCategoria, {
+      const stripped = withCategoria.map(
+        ({
+          categoria: _categoria,
+          gestor_atividade: _gestor,
+          responsible_area: _area,
+          legal_areas: _legal,
+          ...row
+        }) => (missingCategoria ? row : { ...row, categoria: _categoria }),
+      );
+      const retry = await supabase.from("grupos_economicos").upsert(stripped, {
         onConflict: "chave_estavel",
       });
       if (retry.error) return { ok: false, error: `Falha ao gravar grupos: ${retry.error.message}` };

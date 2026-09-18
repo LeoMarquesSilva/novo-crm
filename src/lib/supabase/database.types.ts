@@ -2221,13 +2221,16 @@ export type Database = {
           categoria: string | null
           chave_estavel: string
           created_at: string
+          gestor_atividade: string | null
           id: string
           intake_filled_at: string | null
           intake_updated_at: string | null
           last_synced_at: string | null
+          legal_areas: string[]
           nome: string
           nome_indicacao: string | null
           orqestrai_id: string | null
+          responsible_area: string | null
           status: Database["public"]["Enums"]["grupo_carteira_status"]
           tipo_indicacao: string | null
           tipo_lead: string | null
@@ -2238,13 +2241,16 @@ export type Database = {
           categoria?: string | null
           chave_estavel: string
           created_at?: string
+          gestor_atividade?: string | null
           id?: string
           intake_filled_at?: string | null
           intake_updated_at?: string | null
           last_synced_at?: string | null
+          legal_areas?: string[]
           nome: string
           nome_indicacao?: string | null
           orqestrai_id?: string | null
+          responsible_area?: string | null
           status?: Database["public"]["Enums"]["grupo_carteira_status"]
           tipo_indicacao?: string | null
           tipo_lead?: string | null
@@ -2255,13 +2261,16 @@ export type Database = {
           categoria?: string | null
           chave_estavel?: string
           created_at?: string
+          gestor_atividade?: string | null
           id?: string
           intake_filled_at?: string | null
           intake_updated_at?: string | null
           last_synced_at?: string | null
+          legal_areas?: string[]
           nome?: string
           nome_indicacao?: string | null
           orqestrai_id?: string | null
+          responsible_area?: string | null
           status?: Database["public"]["Enums"]["grupo_carteira_status"]
           tipo_indicacao?: string | null
           tipo_lead?: string | null

@@ -14,15 +14,10 @@ import {
   type CarteiraGrupoMembro,
 } from "@/lib/crm/carteira-grupo-membros";
 import {
-  buildClienteResponsibleAreaIndex,
-  legacyCategoriaAsResponsibleArea,
-  lookupClienteResponsibleArea,
-  origemLinhaFromGrupoCategoria,
-} from "@/lib/crm/grupo-categoria";
-import {
-  buildClienteAtividadeIndex,
-  lookupClienteAtividade,
-} from "@/lib/orqestrai/gestor-atividade";
+  buildOrqestraiGroupLookup,
+  enrichCarteiraGrupoOrqestrai,
+} from "@/lib/crm/carteira-grupo-enrichment";
+import { origemLinhaFromGrupoCategoria } from "@/lib/crm/grupo-categoria";
 
 export const dynamic = "force-dynamic";
 
@@ -108,14 +103,8 @@ export default async function ClientesPage() {
 
   const error = gruposError?.message ?? clientesError?.message ?? null;
   const groups = grupos ?? [];
-  const atividadeIndex = buildClienteAtividadeIndex(orqestraiGroups ?? []);
-  const responsibleAreaIndex = buildClienteResponsibleAreaIndex(orqestraiGroups ?? []);
-  const groupStatus = groups.map((grupo) =>
-    lookupClienteAtividade(atividadeIndex, {
-      orqestraiId: grupo.orqestrai_id ?? grupo.id,
-      groupKey: grupo.chave_estavel,
-    }),
-  );
+  const orqestraiLookup = buildOrqestraiGroupLookup(orqestraiGroups);
+  const groupStatus = groups.map((grupo) => enrichCarteiraGrupoOrqestrai(grupo, orqestraiLookup).clienteStatus);
   const ativos = groupStatus.filter((status) => status === "ativo").length;
   const inativos = groupStatus.filter((status) => status === "inativo").length;
   const lastSyncedAt = formatSyncedAt(
@@ -129,16 +118,14 @@ export default async function ClientesPage() {
   const canIssueLinks = canConfigure || profile.role === "comercial";
   const tableRows: CarteiraGrupoRow[] = groups.map((grupo, index) => {
     const summary = titleByGroup.get(grupo.id);
+    const enriched = enrichCarteiraGrupoOrqestrai(grupo, orqestraiLookup);
     return {
       id: grupo.id,
       nome: grupo.nome,
       clienteStatus: groupStatus[index],
       origemLinha: origemLinhaFromGrupoCategoria(grupo.categoria),
-      responsibleArea:
-        lookupClienteResponsibleArea(responsibleAreaIndex, {
-          orqestraiId: grupo.orqestrai_id ?? grupo.id,
-          groupKey: grupo.chave_estavel,
-        }) ?? legacyCategoriaAsResponsibleArea(grupo.categoria),
+      responsibleArea: enriched.responsibleArea,
+      legalAreas: enriched.legalAreas,
       pessoas: peopleByGroup.get(grupo.id) ?? 0,
       titulosAbertos: summary?.titulos_abertos ?? 0,
       titulosPagos: summary?.titulos_pagos ?? 0,

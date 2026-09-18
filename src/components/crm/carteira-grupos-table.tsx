@@ -60,6 +60,7 @@ export type CarteiraGrupoRow = {
   tipoIndicacao: string | null;
   nomeIndicacao: string | null;
   areasAtuacao: unknown;
+  legalAreas?: string[];
   membros: CarteiraGrupoMembro[];
 };
 
@@ -195,6 +196,7 @@ export function CarteiraGruposTable({
             });
             const areas = mergeGrupoPracticeAreas({
               responsibleArea: grupo.responsibleArea,
+              legalAreas: grupo.legalAreas,
               areasAtuacao: grupo.areasAtuacao,
             });
             return (
