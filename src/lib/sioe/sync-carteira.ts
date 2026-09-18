@@ -71,7 +71,7 @@ async function fetchAllCrmRows<T extends Record<string, unknown>>(
     const to = from + PAGE_SIZE - 1;
     const { data, error } = await supabase.from(table).select(columns).range(from, to);
     if (error) return { data: rows, error: error.message };
-    const batch = (data ?? []) as T[];
+    const batch = (data ?? []) as unknown as T[];
     rows.push(...batch);
     if (batch.length < PAGE_SIZE) break;
     from += PAGE_SIZE;

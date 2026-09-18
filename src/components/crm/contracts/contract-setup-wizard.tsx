@@ -194,6 +194,8 @@ export function ContractSetupWizard({
   };
 
   async function saveDraft(): Promise<string | null> {
+    const currentConfiguration = configuration;
+    if (!currentConfiguration) return null;
     setIssues([]);
     setMessage(null);
     if (sourceChanges.length && (!overrideConfirmed || !overrideReason.trim())) {
@@ -208,7 +210,7 @@ export function ContractSetupWizard({
         body: JSON.stringify({
           expectedVersionUpdatedAt: expectedUpdatedAt,
           configuration: {
-            ...applyAnnualRenewalDefaults(configuration),
+            ...applyAnnualRenewalDefaults(currentConfiguration),
             substitutionEvidence: sourceChanges.map(([field, source]) => ({
               field,
               source: source.source,

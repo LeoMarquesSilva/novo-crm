@@ -9,7 +9,7 @@ import {
   type ContractConfigurationWrite,
   type ContractVersionConfigurationContext,
 } from "../application/services/save-contract-configuration";
-import type { ContractValidationIssue } from "../../domain/contract-validation";
+import type { ContractValidationIssue } from "../domain/contract-validation";
 
 const knownCodes = [
   "CONTRACT_NOT_FOUND",
