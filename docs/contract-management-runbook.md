@@ -12,6 +12,7 @@ O VIOS continua responsável por emissão, contas a receber e pagamentos. O CRM 
 - Backup/PITR do banco confirmado antes de qualquer DDL remoto.
 - Janela de mudança, operador e aprovador registrados.
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` e `CRON_SECRET` configurados no ambiente alvo.
+- Para carteira e importação de PDF: `ORQESTRAI_SUPABASE_URL`, `ORQESTRAI_SUPABASE_SERVICE_ROLE_KEY` (marketing-system), `SIOE_SUPABASE_SERVICE_ROLE_KEY`. Extração de PDF usa o mesmo `OPENAI_API_KEY` da importação de escopos (opcional `CONTRACT_IMPORT_OPENAI_MODEL`, senão `SCOPE_IMPORT_OPENAI_MODEL_EXTRACTION` / `gpt-4.1-mini`). Rateio por área vem de `financeiro_parcelas_itens` (departamento), não da IA.
 - CLI Supabase autenticada e vinculada ao projeto correto, quando a aplicação remota for autorizada.
 - Cron `contracts-daily` mantido desabilitado até o schema e o backfill estarem validados.
 
@@ -22,6 +23,7 @@ Aplicar estritamente nesta ordem, depois das migrations históricas já existent
 1. `supabase/migrations/20260812120000_contract_management_schema.sql` — enums, expansão de `contratos`/`aditivos`, tabelas relacionais, índices, constraints e guardas de imutabilidade.
 2. `supabase/migrations/20260812121000_contract_management_rls.sql` — RLS de leitura autenticada e bloqueio de escrita direta nas tabelas financeiras.
 3. `supabase/migrations/20260812122000_contract_management_workflow.sql` — RPCs transacionais, integração com assinatura/workflow, fechamentos, consumos, alertas e gestão de versões/ciclo de vida.
+4. `supabase/migrations/20260917202943_carteira_grupos_contract_import.sql` — grupos econômicos (OrquestrAI), resumo de títulos SIOE, identidade em `clientes`, importação de PDF. **Aplicada no remoto CRM-BP em 17/09/2026.**
 
 Validação local sugerida, em um banco descartável:
 
@@ -34,7 +36,7 @@ npm.cmd run build
 git diff --check
 ```
 
-Após o reset, conferir que as três migrations aparecem em `npx.cmd supabase migration list` e inspecionar os logs do PostgreSQL. Não usar um banco compartilhado para essa validação.
+Após o reset, conferir que as quatro migrations aparecem em `npx.cmd supabase migration list` e inspecionar os logs do PostgreSQL. Não usar um banco compartilhado para essa validação.
 
 > **PAUSA OBRIGATÓRIA — REMOTO:** não executar `supabase db push`, SQL Editor, backfill ou smoke remoto sem autorização explícita para o projeto e a janela indicados. Esta tarefa não concede essa autorização.
 
@@ -164,7 +166,7 @@ D4Sign:
 - Após o DDL e antes do backfill: preferir correção forward. Remover enums/tabelas/colunas não é rollback seguro e exige restauração testada do backup.
 - Após o backfill: os rascunhos são dados auditáveis e idempotentes. Não os apagar em massa; uma limpeza exige aprovação específica, seleção por `oportunidade_id` e backup.
 - Após ativações ou fechamentos: não reverter snapshots ativos/aprovados por `UPDATE`. Usar nova versão, nova revisão ou mudança de ciclo auditada.
-- Se o deploy da aplicação falhar após migrations compatíveis, reverter somente o código e desabilitar `/api/cron/contracts-daily`; preservar schema e dados para correção forward.
+- Se o deploy da aplicação falhar após migrations compatíveis, reverter somente o código e desabilitar `/api/cron/contracts-daily` e `/api/cron/carteira-grupos-sync`; preservar schema e dados para correção forward.
 - Se integridade ou RLS estiver comprometida, interromper writes, desabilitar cron e APIs de mutação, coletar evidências e restaurar o banco somente pelo plano de recuperação aprovado.
 
 ## 10. Registro da execução

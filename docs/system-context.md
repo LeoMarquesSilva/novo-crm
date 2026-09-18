@@ -28,7 +28,7 @@ Pontos em evolução (Ondas 2–3):
 
 - Funil de pós-venda parcialmente modelado (etapas após `contrato_assinado`)
 - Autorização fina por área na UI (ocultar ações por perfil/área) — incompleta; prevista para Ondas 2–3
-- `/crm/clientes` permanece mock; `/crm/contratos` é o hub contratual com carteira, fechamentos, renovações, indicadores e o painel D4Sign preservado
+- `/crm/clientes` lista grupos econômicos sincronizados do OrquestrAI, com pessoas/CNPJs e resumo de títulos SIOE; `/crm/contratos` é o hub contratual com carteira, fechamentos, renovações, indicadores, o painel D4Sign e o atalho para importar PDFs fechados
 - Integração RD CRM e VIOS conforme variáveis de ambiente
 
 Hardening 2026-07-27 (Onda 1):
@@ -38,7 +38,7 @@ Hardening 2026-07-27 (Onda 1):
 - `fetchWithTimeout` nos conectores externos
 - CI: `.github/workflows/ci.yml` (lint, test, build)
 
-Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tokens RD/D4Sign conforme `.env.example`. Para importação de escopos: `OPENAI_API_KEY`, opcionalmente `SCOPE_IMPORT_OPENAI_MODEL_EXTRACTION` (default `gpt-4.1-mini`) e `SCOPE_IMPORT_OPENAI_MODEL_CONSOLIDATION` (default `gpt-4.1`).
+Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tokens RD/D4Sign conforme `.env.example`. Importação de escopos e de contratos fechados usam o mesmo cliente OpenAI (`src/lib/scope-import/openai.ts`): `OPENAI_API_KEY` (server-only), opcionalmente `SCOPE_IMPORT_OPENAI_MODEL_EXTRACTION` (default `gpt-4.1-mini`) e `SCOPE_IMPORT_OPENAI_MODEL_CONSOLIDATION` (default `gpt-4.1`). Contratos aceitam `CONTRACT_IMPORT_OPENAI_MODEL` para sobrescrever o modelo de extração. Para carteira: `ORQESTRAI_SUPABASE_URL`, `ORQESTRAI_SUPABASE_SERVICE_ROLE_KEY` (marketing-system: `email_client_groups`, `email_companies`, `email_people`), `SIOE_SUPABASE_SERVICE_ROLE_KEY` (títulos `financeiro_parcelas`). Rateio por área na importação de PDF vem de `financeiro_parcelas_itens.departamento` (não é inventado pela IA).
 
 ## 3) Arquitetura em camadas
 
@@ -72,8 +72,9 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - `/crm`: dashboard com KPIs e filas operacionais (dados Supabase).
 - `/crm/leads`: kanban interativo, ficha do lead (Visão geral, Histórico, DUE, proposta, contrato, D4Sign).
 - Na ficha do lead, a razão social permanece como título da oportunidade. O **solicitante interno** é uma identidade separada (`lead_intakes.solicitante_nome` + `oportunidades.solicitante_email`), exibida com nome, avatar e e-mail resolvidos em `app_users`; a edição aceita somente utilizadores ativos do CRM e atualiza nome/e-mail em conjunto.
-- `/crm/clientes`: tabela de clientes (mock).
+- `/crm/clientes`: carteira por grupo econômico (espelho OrquestrAI `email_client_groups` / `email_companies` / `email_people`) com sinal de títulos SIOE ABERTO/PAGO.
 - `/crm/contratos`: hub dinâmico com abas **Carteira**, **Fechamentos**, **Renovações**, **Indicadores** e **Assinaturas D4Sign**. O painel D4Sign existente, quota, signatários e documentos órfãos foram preservados.
+- `/crm/contratos/importacao`: wizard de importação de PDFs já assinados → extração IA → revisão humana → rascunho no gerenciador financeiro (não ativa, não emite título).
 - `/crm/contratos/[id]`: ficha dinâmica com visão geral, configuração em seis etapas, áreas/regras, rateios, fechamentos, versões/aditivos, documentos e eventos.
 - `/crm/admin/usuarios`: listagem real de `app_users` com seletor de role por usuário (usa `SUPABASE_SERVICE_ROLE_KEY`).
 - `/crm/admin/campos`: CRUD de `field_definitions` por funil/etapa com drawer de novo campo e ConditionBuilder.
@@ -147,6 +148,13 @@ No front de leads, o kanban renderiza as 12 etapas em colunas dedicadas. Ao arra
 - `GET|PATCH /api/crm/contracts/[id]/renewals/[alertId]` — consulta e conclui tarefas de renovação; mutação por `admin`/`controladoria`.
 - `POST /api/crm/contracts/[id]/versions` — clona rascunho e suspende, retoma ou encerra contrato com auditoria; `admin`/`controladoria`.
 - `GET|POST /api/cron/contracts-daily` — job protegido por `CRON_SECRET`, agendado em `vercel.json` para `0 13 * * *`, com data de São Paulo e upserts idempotentes.
+- `GET|POST /api/cron/carteira-grupos-sync` — espelha grupos/pessoas do OrquestrAI e resume títulos SIOE ABERTO/PAGO; `CRON_SECRET`; agendado `30 9 * * *`. Não emite título.
+- `GET|POST /api/crm/carteira` — consulta a carteira local; POST dispara sync (capability `configure`).
+- `POST /api/crm/contracts/import` — cria lote + signed URLs para PDFs assinados (`admin`/`controladoria`).
+- `GET /api/crm/contracts/import/[batchId]` — estado do lote para revisão.
+- `POST /api/crm/contracts/import/[batchId]/confirm` — confirma uploads e libera extração.
+- `POST /api/crm/contracts/import/[batchId]/process` — processa 1 PDF por chamada (texto + OpenAI); `maxDuration=120`.
+- `POST /api/crm/contracts/import/[batchId]/review` — rejeita ou grava rascunho financeiro (`origem_importacao=pdf`), sem ativar. Componentes vêm do PDF; rateio percentual por área vem do SIOE (`financeiro_parcelas_itens`), casando CNPJ inclusive pela raiz.
 - As migrations estão versionadas no repositório; aplicação, backfill e smoke no Supabase remoto continuam pendentes de autorização explícita. Ver `docs/contract-management-runbook.md`.
 
 ### 6.1 Admin
@@ -216,14 +224,17 @@ Migrações contratuais versionadas no repositório, ainda não aplicadas remota
 - `20260812120000_contract_management_schema.sql` — enums, tabelas relacionais, constraints, índices e guardas de imutabilidade.
 - `20260812121000_contract_management_rls.sql` — leitura autenticada e bloqueio de escrita direta nas tabelas financeiras.
 - `20260812122000_contract_management_workflow.sql` — rascunho/assinatura, gate pós-venda, configuração/ativação, fechamentos, consumos, alertas, notificações e versões/ciclo de vida.
+- `20260917202943_carteira_grupos_contract_import.sql` — `grupos_economicos`, `grupo_titulos_resumo`, colunas de identidade em `clientes`, `contratos.grupo_id`/`origem_importacao`, tabelas `contract_import_*` e bucket `contract-import-documents`. RLS ativo sem policies de utilizador (service role). **Aplicada no remoto CRM-BP em 17/09/2026.**
 
 ### 7.1 Entidades centrais
 - `app_users` — inclui `avatar_url` e `area` (área de atuação do advogado)
-- `clientes`
+- `clientes` — `grupo_id` (OrquestrAI), `sioe_pessoa_id`, `orqestrai_company_id`, `orqestrai_person_id`; `email_principal` opcional
+- `grupos_economicos` — espelho de `ORQESTRAI.email_client_groups` (PK local; `orqestrai_id` único)
+- `grupo_titulos_resumo` — contagem/valor de títulos SIOE ABERTO/PAGO por grupo; o CRM não emite título
 - `contatos_cliente`
 - `oportunidades` — inclui `link_proposta` e `link_contrato` (usados pelas regras de workflow); colunas D4Sign `d4sign_*` quando migração aplicada
 - `d4sign_webhook_events` — eventos POSTBack da D4Sign (RLS ativo, sem policies: só service role em uso típico)
-- `contratos` — preserva assinatura em `status_assinatura` e usa o ciclo independente `rascunho`, `em_revisao`, `ativo`, `suspenso` ou `encerrado`; vínculo único opcional à oportunidade e referência à versão ativa.
+- `contratos` — preserva assinatura em `status_assinatura` e usa o ciclo independente `rascunho`, `em_revisao`, `ativo`, `suspenso` ou `encerrado`; vínculo único opcional à oportunidade, `grupo_id` opcional e `origem_importacao` para rascunhos vindos de PDF.
 - `aditivos` — pode apontar para a versão de origem e a versão resultante.
 - Configuração: `contrato_responsaveis`, `contrato_versoes`, `contrato_areas`, `contrato_componentes_cobranca`, `contrato_parcelas`, `contrato_rateios_area`, `contrato_participacoes_socios`, `contrato_comissoes`.
 - Operação: `contrato_consumos_mensais`, `contrato_fechamentos`, `contrato_fechamento_revisoes`, `contrato_fechamento_itens`, `contrato_alertas`, `contrato_eventos`.
@@ -237,9 +248,11 @@ Migrações contratuais versionadas no repositório, ainda não aplicadas remota
 - `field_values`
 - `scope_import_batches`, `scope_import_documents`, `scope_import_extractions`, `scope_import_suggestions`, `scope_import_suggestion_sources` — pipeline de importação IA de escopos (RLS ativo, sem policies de utilizador)
 - Storage bucket privado `scope-import-documents` (PDF/DOCX, upload via signed URL)
+- `contract_import_batches`, `contract_import_documents` — importação de contratos PDF fechados (RLS ativo, sem policies de utilizador)
+- Storage bucket privado `contract-import-documents` (PDF, upload via signed URL)
 
 ### 7.2 Regras de integridade e auditoria
-- deduplicação de cliente por documento normalizado (índice único);
+- identidade de cliente/grupo: `clientes.orqestrai_*` e `clientes.sioe_pessoa_id` únicos quando preenchidos; documento permanece indexado por dígitos sem unique (duplicatas históricas do RD).
 - índice único de indicador aprovado por nome em lowercase;
 - índices de desempenho em oportunidades e transições;
 - índices cobrindo todas as FKs para performance de JOIN;

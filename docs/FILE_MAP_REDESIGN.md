@@ -90,9 +90,11 @@ Componentes de apoio em `src/components/crm/`:
 
 ## Contratos (hub / carteira, fora do fluxo do lead)
 
-Rota: `src/app/(crm)/crm/contratos/page.tsx`, `contratos/[id]/`, `contratos/simulacao/`
+Rota: `src/app/(crm)/crm/contratos/page.tsx`, `contratos/[id]/`, `contratos/simulacao/`, `contratos/importacao/`
 
-Componentes: `src/components/crm/contracts/` — `contracts-hub.tsx`, `contract-setup-wizard.tsx`, `contract-detail-shell.tsx`, `contract-closing-review.tsx`, `contract-closings-tab.tsx`, `contract-portfolio-tab.tsx`, `contract-renewals-tab.tsx`, `contract-responsibles-editor.tsx`, `contract-versions-panel.tsx`, `contract-shares-commissions-editor.tsx`, `contract-components-editor.tsx`, `contract-areas-editor.tsx`, `contract-allocations-editor.tsx`, `contract-money-percent-inputs.tsx`, `contract-setup-form-helpers.ts`, `ensure-contract-draft-banner.tsx`
+Componentes: `src/components/crm/contracts/` — `contracts-hub.tsx`, `contract-setup-wizard.tsx`, `contract-detail-shell.tsx`, `contract-closing-review.tsx`, `contract-closings-tab.tsx`, `contract-portfolio-tab.tsx`, `contract-renewals-tab.tsx`, `contract-responsibles-editor.tsx`, `contract-versions-panel.tsx`, `contract-shares-commissions-editor.tsx`, `contract-components-editor.tsx`, `contract-areas-editor.tsx`, `contract-allocations-editor.tsx`, `contract-money-percent-inputs.tsx`, `contract-setup-form-helpers.ts`, `ensure-contract-draft-banner.tsx`, `contract-import-shell.tsx`
+
+Lib: `src/lib/contract-import/` (extract/map/match/persist + `sioe-rateio.ts`), `src/lib/orqestrai/client-groups.ts`, `src/lib/sioe/` (`client.ts`, `sync-carteira.ts`, `rateios.ts`)
 
 Também relevante: `contract-signers-kanban-panel.tsx` (Kanban de signatários, em `src/components/crm/`)
 
@@ -100,7 +102,7 @@ Também relevante: `contract-signers-kanban-panel.tsx` (Kanban de signatários, 
 
 ## Clientes
 
-Rota: `src/app/(crm)/crm/clientes/page.tsx` (pequeno, ~3KB)
+Rota: `src/app/(crm)/crm/clientes/page.tsx` — carteira agrupada (OrquestrAI + títulos SIOE). Botão: `src/components/crm/carteira-sync-button.tsx`. Cron: `src/app/api/cron/carteira-grupos-sync/route.ts`.
 
 ## Documentos (due diligence)
 

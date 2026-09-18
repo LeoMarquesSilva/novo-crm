@@ -29,6 +29,18 @@ export class ContractConfigurationError extends Error {
   }
 }
 
+export const CONTRACT_ERROR_MESSAGES: Record<ContractConfigurationErrorCode, string> = {
+  CONTRACT_FORBIDDEN: "Você não tem permissão para configurar contratos.",
+  CONTRACT_NOT_FOUND: "Contrato ou versão não encontrado.",
+  CONTRACT_CONFIGURATION_INVALID: "A configuração contratual contém erros.",
+  CONTRACT_VERSION_CONFLICT: "A versão foi alterada por outra operação.",
+  ACTIVE_CONTRACT_VERSION_IS_IMMUTABLE: "Somente versões em rascunho podem ser alteradas.",
+  OPPORTUNITY_STAGE_CONFLICT: "A ativação não pode avançar a oportunidade no estado atual.",
+  CONTRACT_LIFECYCLE_REASON_REQUIRED: "Informe o motivo da alteração de ciclo de vida.",
+  CONTRACT_LIFECYCLE_TRANSITION_INVALID: "Essa transição de ciclo de vida não é permitida no estado atual.",
+  CONTRACT_VERSION_PERIOD_INVALID: "Informe uma data de encerramento válida.",
+};
+
 export type ContractVersionConfigurationContext = {
   status: Database["public"]["Enums"]["contract_version_status"];
   number: number;

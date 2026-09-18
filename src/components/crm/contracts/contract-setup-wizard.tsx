@@ -47,8 +47,22 @@ const sourceLabels: Record<ContractSource, string> = {
   manual: "Manual",
 };
 
-type Issue = { path?: Array<string | number>; message: string };
-type ApiResult = { ok: boolean; updatedAt?: string; error?: string; issues?: Issue[] };
+type Issue = { path?: string | Array<string | number>; message: string };
+type ApiResult = { ok: boolean; code?: string; updatedAt?: string; error?: string; issues?: Issue[] };
+
+function issuePath(issue: Issue): string {
+  if (Array.isArray(issue.path)) return issue.path.map(String).join(".") || "Configuração";
+  return issue.path?.trim() || "Configuração";
+}
+
+function displayApiError(result: ApiResult, fallback: string): string {
+  const text = result.error?.trim();
+  if (text && !/^[A-Z][A-Z0-9_]+$/.test(text)) return text;
+  if (result.code === "CONTRACT_CONFIGURATION_INVALID") {
+    return "A configuração contratual contém erros.";
+  }
+  return text || fallback;
+}
 
 function stringify(value: unknown) {
   return JSON.stringify(value);
@@ -209,8 +223,8 @@ export function ContractSetupWizard({
         setIssues(result.issues ?? []);
         setMessage(
           response.status === 409
-            ? (result.error ?? "O contrato foi alterado por outra pessoa. Revise antes de salvar novamente.")
-            : (result.error ?? "Não foi possível salvar o rascunho."),
+            ? displayApiError(result, "O contrato foi alterado por outra pessoa. Revise antes de salvar novamente.")
+            : displayApiError(result, "Não foi possível salvar o rascunho."),
         );
         return null;
       }
@@ -230,6 +244,12 @@ export function ContractSetupWizard({
   async function activate() {
     const currentConfiguration = configuration;
     if (!currentConfiguration) return;
+    if (currentConfiguration.responsibles.length === 0) {
+      setIssues([{ path: "responsibles", message: "Informe ao menos um responsável." }]);
+      setMessage("A configuração contratual contém erros. Inclua um responsável na etapa de identificação.");
+      setStep(0);
+      return;
+    }
     const updatedAt = dirty ? await saveDraft() : expectedUpdatedAt;
     if (!updatedAt) return;
     setBusy(true);
@@ -249,9 +269,11 @@ export function ContractSetupWizard({
         setIssues(result.issues ?? []);
         setMessage(
           response.status === 409
-            ? (result.error ??
-                "O contrato foi alterado por outra pessoa. Seus dados foram mantidos; atualize a versão antes de ativar.")
-            : (result.error ?? "Não foi possível ativar o contrato."),
+            ? displayApiError(
+                result,
+                "O contrato foi alterado por outra pessoa. Seus dados foram mantidos; atualize a versão antes de ativar.",
+              )
+            : displayApiError(result, "Não foi possível ativar o contrato."),
         );
         return;
       }
@@ -569,6 +591,13 @@ export function ContractSetupWizard({
               )}
             </section>
 
+            {configuration.responsibles.length === 0 ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+                Contratos importados do PDF não trazem responsável interno. Inclua ao menos um na etapa
+                de identificação antes de ativar.
+              </p>
+            ) : null}
+
             <Button type="button" onClick={activate} disabled={!canConfigure || busy} className="w-full">
               Ativar contrato e avançar etapa
             </Button>
@@ -608,8 +637,8 @@ export function ContractSetupWizard({
         {issues.length ? (
           <ul role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
             {issues.map((issue, index) => (
-              <li key={`${issue.path?.join(".")}-${index}`}>
-                <strong>{issue.path?.join(".") || "Configuração"}:</strong> {issue.message}
+              <li key={`${issuePath(issue)}-${index}`}>
+                <strong>{issuePath(issue)}:</strong> {issue.message}
               </li>
             ))}
           </ul>

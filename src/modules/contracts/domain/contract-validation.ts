@@ -113,8 +113,10 @@ function validateFixedAllocations(
 
 export function validateContractConfiguration(
   input: ContractConfigurationInput,
+  options?: { imported?: boolean },
 ): ContractValidationIssue[] {
   const issues: ContractValidationIssue[] = [];
+  const imported = options?.imported === true;
 
   if (!input.clientId?.trim()) {
     issues.push(error("client_required", "clientId", "Informe o cliente do contrato."));
@@ -130,7 +132,11 @@ export function validateContractConfiguration(
     ));
   }
   if (input.responsibles.length === 0) {
-    issues.push(error("responsible_required", "responsibles", "Informe ao menos um responsável."));
+    issues.push(
+      imported
+        ? warning("responsible_required", "responsibles", "Responsável interno não veio do PDF; completar na ativação.")
+        : error("responsible_required", "responsibles", "Informe ao menos um responsável."),
+    );
   }
   if (input.version.components.length === 0) {
     issues.push(error(
@@ -198,21 +204,25 @@ export function validateContractConfiguration(
     }
   });
 
-  issues.push(...validatePercentageGroups(
-    input.version.areaAllocations.filter(
-      (allocation): allocation is Extract<AreaAllocationRule, { mode: "percentual" }> =>
-        allocation.mode === "percentual",
-    ),
-    "area_percentage_total_invalid",
-    "version.areaAllocations",
-    "O rateio percentual deve fechar em 100%.",
-  ));
-  issues.push(...validatePercentageGroups(
-    input.version.partnerShares,
-    "partner_share_total_invalid",
-    "version.partnerShares",
-    "A participação dos sócios deve fechar em 100%.",
-  ));
+  if (!imported || input.version.areaAllocations.length > 0) {
+    issues.push(...validatePercentageGroups(
+      input.version.areaAllocations.filter(
+        (allocation): allocation is Extract<AreaAllocationRule, { mode: "percentual" }> =>
+          allocation.mode === "percentual",
+      ),
+      "area_percentage_total_invalid",
+      "version.areaAllocations",
+      "O rateio percentual deve fechar em 100%.",
+    ));
+  }
+  if (!imported || input.version.partnerShares.length > 0) {
+    issues.push(...validatePercentageGroups(
+      input.version.partnerShares,
+      "partner_share_total_invalid",
+      "version.partnerShares",
+      "A participação dos sócios deve fechar em 100%.",
+    ));
+  }
   issues.push(...validateFixedAllocations(
     input.version.areaAllocations.filter(
       (allocation): allocation is Extract<AreaAllocationRule, { mode: "valor" }> => allocation.mode === "valor",

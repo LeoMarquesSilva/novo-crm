@@ -114,33 +114,77 @@ export type Database = {
       }
       clientes: {
         Row: {
+          bairro: string | null
+          cep: string | null
+          cidade: string | null
+          complemento: string | null
           created_at: string
           documento: string
-          email_principal: string
+          email_principal: string | null
+          grupo_id: string | null
           id: string
+          logradouro: string | null
+          numero: string | null
+          orqestrai_company_id: string | null
+          orqestrai_person_id: string | null
           razao_social: string
+          sioe_pessoa_id: string | null
           telefone_principal: string | null
+          tipo: string | null
+          uf: string | null
           updated_at: string
         }
         Insert: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          complemento?: string | null
           created_at?: string
           documento: string
-          email_principal: string
+          email_principal?: string | null
+          grupo_id?: string | null
           id?: string
+          logradouro?: string | null
+          numero?: string | null
+          orqestrai_company_id?: string | null
+          orqestrai_person_id?: string | null
           razao_social: string
+          sioe_pessoa_id?: string | null
           telefone_principal?: string | null
+          tipo?: string | null
+          uf?: string | null
           updated_at?: string
         }
         Update: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          complemento?: string | null
           created_at?: string
           documento?: string
-          email_principal?: string
+          email_principal?: string | null
+          grupo_id?: string | null
           id?: string
+          logradouro?: string | null
+          numero?: string | null
+          orqestrai_company_id?: string | null
+          orqestrai_person_id?: string | null
           razao_social?: string
+          sioe_pessoa_id?: string | null
           telefone_principal?: string | null
+          tipo?: string | null
+          uf?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clientes_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_economicos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contatos_cliente: {
         Row: {
@@ -254,6 +298,165 @@ export type Database = {
           },
         ]
       }
+      contract_import_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          document_count: number
+          error_count: number
+          finished_at: string | null
+          id: string
+          processed_count: number
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          document_count?: number
+          error_count?: number
+          finished_at?: string | null
+          id?: string
+          processed_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          document_count?: number
+          error_count?: number
+          finished_at?: string | null
+          id?: string
+          processed_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_import_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_import_documents: {
+        Row: {
+          batch_id: string
+          byte_size: number | null
+          content_type: string | null
+          contrato_id: string | null
+          created_at: string
+          d4sign_uuid: string | null
+          error_message: string | null
+          extracted_chars: number | null
+          extraction_json: Json
+          id: string
+          matched_cliente_id: string | null
+          matched_grupo_id: string | null
+          original_filename: string
+          page_count: number | null
+          processed_at: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_app_user_id: string | null
+        }
+        Insert: {
+          batch_id: string
+          byte_size?: number | null
+          content_type?: string | null
+          contrato_id?: string | null
+          created_at?: string
+          d4sign_uuid?: string | null
+          error_message?: string | null
+          extracted_chars?: number | null
+          extraction_json?: Json
+          id?: string
+          matched_cliente_id?: string | null
+          matched_grupo_id?: string | null
+          original_filename: string
+          page_count?: number | null
+          processed_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_app_user_id?: string | null
+        }
+        Update: {
+          batch_id?: string
+          byte_size?: number | null
+          content_type?: string | null
+          contrato_id?: string | null
+          created_at?: string
+          d4sign_uuid?: string | null
+          error_message?: string | null
+          extracted_chars?: number | null
+          extraction_json?: Json
+          id?: string
+          matched_cliente_id?: string | null
+          matched_grupo_id?: string | null
+          original_filename?: string
+          page_count?: number | null
+          processed_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_app_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_import_documents_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "contract_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_import_documents_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_import_documents_matched_cliente_id_fkey"
+            columns: ["matched_cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_import_documents_matched_grupo_id_fkey"
+            columns: ["matched_grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_economicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_import_documents_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_import_documents_uploaded_by_app_user_id_fkey"
+            columns: ["uploaded_by_app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract_review_tasks: {
         Row: {
           assigned_to: string | null
@@ -335,11 +538,13 @@ export type Database = {
           encerrado_em: string | null
           encerrado_por: string | null
           etiquetas: string[]
+          grupo_id: string | null
           id: string
           ignorar_painel_horas: boolean
           indice_reajuste: string | null
           link_documento: string | null
           oportunidade_id: string | null
+          origem_importacao: string | null
           prazo_indeterminado: boolean
           primeiro_faturamento_condicionado: boolean
           primeiro_vencimento: string | null
@@ -376,11 +581,13 @@ export type Database = {
           encerrado_em?: string | null
           encerrado_por?: string | null
           etiquetas?: string[]
+          grupo_id?: string | null
           id?: string
           ignorar_painel_horas?: boolean
           indice_reajuste?: string | null
           link_documento?: string | null
           oportunidade_id?: string | null
+          origem_importacao?: string | null
           prazo_indeterminado?: boolean
           primeiro_faturamento_condicionado?: boolean
           primeiro_vencimento?: string | null
@@ -417,11 +624,13 @@ export type Database = {
           encerrado_em?: string | null
           encerrado_por?: string | null
           etiquetas?: string[]
+          grupo_id?: string | null
           id?: string
           ignorar_painel_horas?: boolean
           indice_reajuste?: string | null
           link_documento?: string | null
           oportunidade_id?: string | null
+          origem_importacao?: string | null
           prazo_indeterminado?: boolean
           primeiro_faturamento_condicionado?: boolean
           primeiro_vencimento?: string | null
@@ -483,6 +692,13 @@ export type Database = {
             columns: ["encerrado_por"]
             isOneToOne: false
             referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_economicos"
             referencedColumns: ["id"]
           },
           {
@@ -1909,6 +2125,77 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      grupo_titulos_resumo: {
+        Row: {
+          grupo_id: string
+          last_synced_at: string
+          titulos_abertos: number
+          titulos_pagos: number
+          ultima_competencia: string | null
+          valor_aberto: number
+          valor_pago: number
+        }
+        Insert: {
+          grupo_id: string
+          last_synced_at?: string
+          titulos_abertos?: number
+          titulos_pagos?: number
+          ultima_competencia?: string | null
+          valor_aberto?: number
+          valor_pago?: number
+        }
+        Update: {
+          grupo_id?: string
+          last_synced_at?: string
+          titulos_abertos?: number
+          titulos_pagos?: number
+          ultima_competencia?: string | null
+          valor_aberto?: number
+          valor_pago?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grupo_titulos_resumo_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: true
+            referencedRelation: "grupos_economicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grupos_economicos: {
+        Row: {
+          chave_estavel: string
+          created_at: string
+          id: string
+          last_synced_at: string | null
+          nome: string
+          orqestrai_id: string | null
+          status: Database["public"]["Enums"]["grupo_carteira_status"]
+          updated_at: string
+        }
+        Insert: {
+          chave_estavel: string
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          nome: string
+          orqestrai_id?: string | null
+          status?: Database["public"]["Enums"]["grupo_carteira_status"]
+          updated_at?: string
+        }
+        Update: {
+          chave_estavel?: string
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          nome?: string
+          orqestrai_id?: string | null
+          status?: Database["public"]["Enums"]["grupo_carteira_status"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       import_batches: {
         Row: {
@@ -3350,6 +3637,7 @@ export type Database = {
       contract_status: "rascunho" | "enviado" | "assinado"
       contract_version_status: "rascunho" | "ativa" | "substituida" | "cancelada"
       demand_type: "novo_lead" | "novo_contrato" | "aditivo"
+      grupo_carteira_status: "ativo_aberto" | "ativo_pago" | "inativo"
       indicator_status: "pendente_aprovacao" | "aprovado" | "mesclado"
       opportunity_stage:
         | "cadastro_lead"
@@ -3514,6 +3802,7 @@ export const Constants = {
       contract_status: ["rascunho", "enviado", "assinado"],
       contract_version_status: ["rascunho", "ativa", "substituida", "cancelada"],
       demand_type: ["novo_lead", "novo_contrato", "aditivo"],
+      grupo_carteira_status: ["ativo_aberto", "ativo_pago", "inativo"],
       indicator_status: ["pendente_aprovacao", "aprovado", "mesclado"],
       opportunity_stage: [
         "cadastro_lead",

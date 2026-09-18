@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardList, FolderKanban } from "lucide-react";
+import { ClipboardList, FileUp, FolderKanban } from "lucide-react";
 import { CrmPageHeader } from "@/components/crm/crm-page-header";
 import { D4SignDashboard } from "@/components/crm/d4sign-dashboard";
 import { ContractsHub } from "@/components/crm/contracts/contracts-hub";
@@ -9,7 +9,7 @@ import { getD4SignEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { EnsureContractDraftBanner } from "@/components/crm/contracts/ensure-contract-draft-banner";
-import { canEnsureContractDraft } from "@/lib/auth/crm-access-policy";
+import { canAccessContractCapability, canEnsureContractDraft } from "@/lib/auth/crm-access-policy";
 import { getContractsPortfolio } from "@/modules/contracts/infrastructure/contract-queries";
 import { centsToMaskedBrl } from "@/components/crm/contracts/contract-setup-form-helpers";
 import { buttonVariants } from "@/components/ui/button";
@@ -168,13 +168,24 @@ export default async function ContratosPage({
         description="Carteira, configuração de faturamento, fechamentos e renovações. Assinaturas D4Sign ficam na aba dedicada."
         icon={FolderKanban}
         actions={
-          <Link
-            href="/crm/contratos/simulacao"
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            <ClipboardList />
-            Roteiro de simulação
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {canAccessContractCapability({ role: profile.role, capability: "configure" }) ? (
+              <Link
+                href="/crm/contratos/importacao"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                <FileUp />
+                Importar PDF
+              </Link>
+            ) : null}
+            <Link
+              href="/crm/contratos/simulacao"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <ClipboardList />
+              Roteiro de simulação
+            </Link>
+          </div>
         }
         stats={[
           { label: "Na carteira", value: portfolio.length, detail: "contratos cadastrados" },

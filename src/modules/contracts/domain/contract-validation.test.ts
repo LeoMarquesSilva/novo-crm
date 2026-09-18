@@ -207,4 +207,19 @@ describe("validateContractConfiguration", () => {
       ]),
     );
   });
+
+  it("treats missing internals as warnings on imported contracts", () => {
+    const input = validConfiguration();
+    input.responsibles = [];
+    input.version.areaAllocations = [];
+    input.version.partnerShares = [];
+
+    const issues = validateContractConfiguration(input, { imported: true });
+    expect(issues).toContainEqual(
+      expect.objectContaining({ code: "responsible_required", severity: "warning" }),
+    );
+    expect(issues.map((issue) => issue.code)).not.toEqual(
+      expect.arrayContaining(["area_percentage_total_invalid", "partner_share_total_invalid"]),
+    );
+  });
 });
