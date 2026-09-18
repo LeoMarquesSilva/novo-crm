@@ -92,9 +92,9 @@ Componentes de apoio em `src/components/crm/`:
 
 Rota: `src/app/(crm)/crm/contratos/page.tsx`, `contratos/[id]/`, `contratos/simulacao/`, `contratos/importacao/`
 
-Componentes: `src/components/crm/contracts/` — `contracts-hub.tsx`, `contract-setup-wizard.tsx`, `contract-detail-shell.tsx`, `contract-closing-review.tsx`, `contract-closings-tab.tsx`, `contract-portfolio-tab.tsx`, `contract-renewals-tab.tsx`, `contract-responsibles-editor.tsx`, `contract-versions-panel.tsx`, `contract-shares-commissions-editor.tsx`, `contract-components-editor.tsx`, `contract-areas-editor.tsx`, `contract-allocations-editor.tsx`, `contract-money-percent-inputs.tsx`, `contract-setup-form-helpers.ts`, `ensure-contract-draft-banner.tsx`, `contract-import-shell.tsx`
+Componentes: `src/components/crm/contracts/` — `contracts-hub.tsx`, `contract-setup-wizard.tsx`, `contract-detail-shell.tsx`, `contract-closing-review.tsx`, `contract-closings-tab.tsx`, `contract-portfolio-tab.tsx`, `contract-renewals-tab.tsx`, `contract-responsibles-editor.tsx`, `contract-versions-panel.tsx`, `contract-shares-commissions-editor.tsx`, `contract-components-editor.tsx`, `contract-areas-editor.tsx`, `contract-allocations-editor.tsx`, `contract-money-percent-inputs.tsx`, `contract-setup-form-helpers.ts`, `ensure-contract-draft-banner.tsx`, `contract-import-shell.tsx`, `contract-hub-orphan-groups.tsx`
 
-Lib: `src/lib/contract-import/` (extract/map/match/persist + `sioe-rateio.ts`), `src/lib/orqestrai/client-groups.ts`, `src/lib/sioe/` (`client.ts`, `sync-carteira.ts`, `rateios.ts`)
+Lib: `src/lib/contract-import/` (extract/map/match/persist + `sioe-rateio.ts`), `src/lib/orqestrai/client-groups.ts`, `src/lib/orqestrai/gestor-atividade.ts`, `src/lib/crm/contract-hub-summary.ts`, `src/lib/crm/contract-hub-coverage.ts`, `src/lib/crm/contract-renewal-date.ts`, `src/modules/contracts/domain/variable-usage-projection.ts`, `src/lib/sioe/` (`client.ts`, `sync-carteira.ts`, `rateios.ts`, `usage.ts`)
 
 Também relevante: `contract-signers-kanban-panel.tsx` (Kanban de signatários, em `src/components/crm/`)
 
@@ -102,7 +102,7 @@ Também relevante: `contract-signers-kanban-panel.tsx` (Kanban de signatários, 
 
 ## Clientes
 
-Rota: `src/app/(crm)/crm/clientes/page.tsx` — carteira agrupada (OrquestrAI + títulos SIOE). Botão: `src/components/crm/carteira-sync-button.tsx`. Cron: `src/app/api/cron/carteira-grupos-sync/route.ts`.
+Rota: `src/app/(crm)/crm/clientes/page.tsx` — carteira agrupada (OrquestrAI + títulos SIOE). Status = `gestor_atividade`. **Categoria** = Cliente | Lead (`grupo-categoria.ts`, `origemLinha`; hoje só Cliente). Modal `carteira-grupo-detail-dialog.tsx` (Dialog+Select: `modal={false}` + `dialogSelectOutsideHandlers`; chips de Área clicáveis no modo editar): Áreas = atuação (`responsible_area` ∪ SIOE ∪ manual); Categoria = Cliente (não editável). Tabela: `carteira-grupos-table.tsx` (um botão “Copiar link de preenchimento”). Grade pública: `src/app/preencher/carteira/[token]/page.tsx` + `src/components/crm/grupo-intake-public-grid.tsx`. APIs: `POST /api/crm/carteira/intake-links`, `GET|POST /api/public/carteira-intake/[token]`. Helpers: `save-grupo-carteira.ts`, `grupo-areas-atuacao.ts`, `grupo-categoria.ts`, `carteira-grupo-membros.ts`, `grupo-intake-indication.ts`, `grupo-intake-campaign.ts`, `grupo-intake-grid.ts`.
 
 ## Documentos (due diligence)
 

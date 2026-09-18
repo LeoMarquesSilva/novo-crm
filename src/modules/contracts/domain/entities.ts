@@ -1,4 +1,5 @@
 import type { MoneyCents } from "./money";
+import type { VariableUsageSnapshot } from "./variable-usage-projection";
 
 export type BillingComponentKind =
   | "mensal_fixo"
@@ -214,6 +215,8 @@ export type AnnualReferenceInput = {
   version: ContractVersionSnapshot;
   manualResolutions: ManualBillingResolution[];
   override?: { amountCents: MoneyCents; reason: string };
+  variableUsage?: VariableUsageSnapshot | null;
+  areaKeyById?: ReadonlyMap<string, string>;
 };
 
 export type AnnualReferenceCompetency = {

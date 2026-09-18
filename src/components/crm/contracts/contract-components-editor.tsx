@@ -12,14 +12,21 @@ import { Select, SelectTrigger } from "@/components/ui/select";
 import type {
   ContractComponentDraft,
   ContractConfigurationDraft,
+  ContractSioeUsage,
 } from "@/modules/contracts/infrastructure/contract-queries";
 
 import { ContractMoneyInput, ContractPercentInput } from "./contract-money-percent-inputs";
 import {
   BILLING_KIND_LABELS,
   TRIGGER_KINDS,
+  centsToMaskedBrl,
   newContractDraftId,
 } from "./contract-setup-form-helpers";
+import {
+  billableUsageQuantity,
+  projectMonthlyComponentCents,
+  usageQuantityForKind,
+} from "@/modules/contracts/domain/variable-usage-projection";
 
 type AreaDraft = ContractConfigurationDraft["areas"][number];
 
@@ -28,6 +35,7 @@ type Props = {
   areas: AreaDraft[];
   startsAt: string | null;
   disabled?: boolean;
+  sioeUsage?: ContractSioeUsage | null;
   onChange: (next: ContractComponentDraft[]) => void;
 };
 
@@ -37,7 +45,7 @@ const CHARGE_MODE_LABELS = {
   quantidade_total: "Quantidade total",
 } as const;
 
-export function ContractComponentsEditor({ value, areas, startsAt, disabled, onChange }: Props) {
+export function ContractComponentsEditor({ value, areas, startsAt, disabled, sioeUsage, onChange }: Props) {
   const areaLabels = Object.fromEntries(areas.map((area) => [area.id, area.areaKey]));
 
   function updateAt(index: number, patch: Partial<ContractComponentDraft>) {
@@ -68,8 +76,8 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-[#102033]">Componentes e condições</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-sm font-semibold text-neutral-900">Componentes e condições</p>
+          <p className="text-xs text-neutral-500">
             Mensalidades, variáveis e gatilhos de êxito/condicionado.
           </p>
         </div>
@@ -93,11 +101,20 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
               entry.kind === "variavel_hora" ||
               entry.kind === "despesa_km";
             const selectedArea = entry.areaId ? areaLabels[entry.areaId] : null;
+            const sioeQuantity = isVariable
+              ? usageQuantityForKind(entry.kind, selectedArea, sioeUsage)
+              : 0;
+            const projectedCents = isVariable
+              ? projectMonthlyComponentCents(entry, selectedArea, sioeUsage)
+              : 0;
+            const billable = isVariable
+              ? billableUsageQuantity(entry.chargeMode, entry.includedQuantity, sioeQuantity)
+              : 0;
             return (
-              <li key={entry.id} className="rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm">
+              <li key={entry.id} className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="border-[#dfe5ee]">
+                    <Badge variant="outline" className="border-neutral-200">
                       {BILLING_KIND_LABELS[entry.kind] ?? entry.kind}
                     </Badge>
                     {isTrigger ? (
@@ -110,7 +127,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                       type="button"
                       size="icon-sm"
                       variant="ghost"
-                      className="text-slate-500 hover:text-rose-700"
+                      className="text-neutral-500 hover:text-danger-text"
                       onClick={() => onChange(value.filter((_, entryIndex) => entryIndex !== index))}
                       aria-label={`Remover ${entry.description}`}
                     >
@@ -139,7 +156,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                         });
                       }}
                     >
-                      <SelectTrigger className="!h-10 w-full border-[#dfe5ee] bg-white shadow-sm">
+                      <SelectTrigger className="!h-10 w-full border-neutral-200 bg-white shadow-sm">
                         <CrmSelectValue value={entry.kind} labels={BILLING_KIND_LABELS} placeholder="Tipo" />
                       </SelectTrigger>
                       <CrmSelectContent>
@@ -159,11 +176,11 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                       disabled={disabled || areas.length === 0}
                       onValueChange={(nextArea) => updateAt(index, { areaId: nextArea || undefined })}
                     >
-                      <SelectTrigger className="!h-10 w-full border-[#dfe5ee] bg-white shadow-sm">
+                      <SelectTrigger className="!h-10 w-full border-neutral-200 bg-white shadow-sm">
                         {selectedArea ? (
                           <AreaIconLabel area={selectedArea} size="xs" />
                         ) : (
-                          <span className="text-slate-400">Sem área</span>
+                          <span className="text-neutral-400">Sem área</span>
                         )}
                       </SelectTrigger>
                       <CrmSelectContent>
@@ -179,7 +196,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                   <Field label="Descrição">
                     <Input
                       disabled={disabled}
-                      className="h-10 border-[#dfe5ee] bg-white shadow-sm"
+                      className="h-10 border-neutral-200 bg-white shadow-sm"
                       value={entry.description}
                       onChange={(event) => updateAt(index, { description: event.target.value })}
                     />
@@ -188,7 +205,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                   <Field label="Início da vigência">
                     <DateInputBr
                       disabled={disabled}
-                      className="!h-10 border-[#dfe5ee] bg-white shadow-sm"
+                      className="!h-10 border-neutral-200 bg-white shadow-sm"
                       value={entry.effectiveFrom}
                       onChange={(ymd) => updateAt(index, { effectiveFrom: ymd })}
                     />
@@ -216,7 +233,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                             updateAt(index, { chargeMode: next });
                           }}
                         >
-                          <SelectTrigger className="!h-10 w-full border-[#dfe5ee] bg-white shadow-sm">
+                          <SelectTrigger className="!h-10 w-full border-neutral-200 bg-white shadow-sm">
                             <CrmSelectValue
                               value={entry.chargeMode ?? "excedente"}
                               labels={CHARGE_MODE_LABELS}
@@ -233,7 +250,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                         <Input
                           inputMode="numeric"
                           disabled={disabled}
-                          className="h-10 border-[#dfe5ee] bg-white tabular-nums shadow-sm"
+                      className="h-10 border-neutral-200 bg-white tabular-nums shadow-sm"
                           value={entry.includedQuantity ?? ""}
                           onChange={(event) => {
                             const digits = event.target.value.replace(/\D/g, "");
@@ -250,6 +267,19 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                           onCentsChange={(cents) => updateAt(index, { unitAmountCents: cents })}
                         />
                       </Field>
+                      <div className="md:col-span-2 rounded-(--radius-v2-md) border border-info-border bg-info-bg px-3 py-2 text-sm text-info-text">
+                        <p className="font-medium">
+                          {entry.kind === "variavel_hora"
+                            ? `SIOE no mês: ${formatSioeHours(sioeQuantity)}h`
+                            : `SIOE: ${formatSioeCount(sioeQuantity)} pasta${sioeQuantity === 1 ? "" : "s"} ativa${sioeQuantity === 1 ? "" : "s"}`}
+                          {entry.chargeMode === "excedente"
+                            ? ` · cobrável ${entry.kind === "variavel_hora" ? `${formatSioeHours(billable)}h` : formatSioeCount(billable)}`
+                            : null}
+                        </p>
+                        <p className="mt-0.5 tabular-nums">
+                          Valor projetado: {centsToMaskedBrl(projectedCents) || "R$ 0,00"}
+                        </p>
+                      </div>
                     </>
                   ) : (
                     <Field label="Valor">
@@ -261,7 +291,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                     </Field>
                   )}
 
-                  <label className="flex items-center gap-2 self-end rounded-xl border border-[#dfe5ee] bg-[#f8f9fb] p-3 text-sm text-[#102033]">
+                  <label className="flex items-center gap-2 self-end rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-900">
                     <input
                       type="checkbox"
                       checked={Boolean(entry.requiresManualRelease)}
@@ -275,7 +305,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
                     <Field label="Condição do gatilho">
                       <Input
                         disabled={disabled}
-                        className="h-10 border-[#dfe5ee] bg-white shadow-sm"
+                        className="h-10 border-neutral-200 bg-white shadow-sm"
                         placeholder="Ex.: liberar após trânsito em julgado"
                         value={entry.reason ?? ""}
                         onChange={(event) => updateAt(index, { reason: event.target.value || undefined })}
@@ -294,7 +324,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, onC
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="space-y-1.5 text-sm font-medium text-[#102033]">
+    <label className="space-y-1.5 text-sm font-medium text-neutral-900">
       <span>{label}</span>
       {children}
     </label>
@@ -303,8 +333,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-[#dfe5ee] bg-[#f8f9fb] px-4 py-8 text-center text-sm text-slate-500">
+    <div className="rounded-(--radius-v2-xl) border border-dashed border-neutral-200 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">
       {text}
     </div>
   );
+}
+
+function formatSioeCount(value: number): string {
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(Math.round(value));
+}
+
+function formatSioeHours(value: number): string {
+  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
 }

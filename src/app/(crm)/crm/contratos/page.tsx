@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { ClipboardList, FileUp, FolderKanban } from "lucide-react";
-import { CrmPageHeader } from "@/components/crm/crm-page-header";
+import { CrmPageHeader, type HeaderStat } from "@/components/crm/crm-page-header";
 import { D4SignDashboard } from "@/components/crm/d4sign-dashboard";
 import { ContractsHub } from "@/components/crm/contracts/contracts-hub";
+import { ContractHubOrphanGroupsTrigger } from "@/components/crm/contracts/contract-hub-orphan-groups";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/server";
 import { getD4SignEnv } from "@/lib/d4sign/env";
@@ -14,6 +15,9 @@ import { getContractsPortfolio } from "@/modules/contracts/infrastructure/contra
 import { centsToMaskedBrl } from "@/components/crm/contracts/contract-setup-form-helpers";
 import { buttonVariants } from "@/components/ui/button";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
+import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
+import { loadActiveGroupCoverage } from "@/lib/crm/contract-hub-coverage";
+import { countContractsByArea, type AreaContractCount } from "@/lib/crm/contract-hub-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -121,21 +125,41 @@ async function getAppUsersByEmail(): Promise<Record<string, { avatarUrl: string 
   }
 }
 
+function AreaCountExtra({ counts }: { counts: AreaContractCount[] }) {
+  return (
+    <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+      {counts.map((row) => (
+        <li key={row.area} className="flex min-w-0 items-center justify-between gap-2">
+          <AreaIconLabel
+            area={row.area}
+            size="xs"
+            className="min-w-0"
+            nameClassName="text-xs font-medium text-foreground"
+          />
+          <span className="tabular-nums text-xs font-semibold text-foreground">{row.count}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default async function ContratosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ setupOpportunityId?: string | string[] }>;
+  searchParams: Promise<{ setupOpportunityId?: string | string[]; tab?: string | string[] }>;
 }) {
   const { profile } = await requireAuth("/crm/contratos");
   const query = await searchParams;
   const setupOpportunityId =
     typeof query.setupOpportunityId === "string" ? query.setupOpportunityId : null;
+  const defaultTab = typeof query.tab === "string" ? query.tab : undefined;
 
-  const [{ linked, unlinked, missingNames, error }, appUsersByEmail, quota, portfolioResult] = await Promise.all([
+  const [{ linked, unlinked, missingNames, error }, appUsersByEmail, quota, portfolioResult, coverage] = await Promise.all([
     getD4SignData(),
     getAppUsersByEmail(),
     getD4SignQuotaStatus(),
     getContractsPortfolio(),
+    loadActiveGroupCoverage(),
   ]);
   const env = getD4SignEnv();
   const d4signPortalBase = env.apiBaseUrl.replace(/\/api\/.*$/, "");
@@ -151,21 +175,71 @@ export default async function ContratosPage({
   const implantacao = portfolio.filter(
     (item) => item.lifecycle === "rascunho" || item.lifecycle === "em_revisao",
   ).length;
+  const suspensos = portfolio.filter((item) => item.lifecycle === "suspenso").length;
   const renovacaoProxima = portfolio.filter((item) => item.renewalSoon).length;
   const referenciaAnualCents = portfolio.reduce(
     (sum, item) => sum + Number(item.annualReferenceCents ?? 0),
     0,
   );
+  const mensalProjetadoCents = portfolio.reduce(
+    (sum, item) => sum + Number(item.monthlyProjectionCents ?? 0),
+    0,
+  );
+  const fechamentosPendentes = portfolio.reduce((sum, item) => sum + item.pendingClosingCount, 0);
+  const importadosPdf = portfolio.filter((item) => item.originImport === "pdf").length;
+  const areaCounts = countContractsByArea(portfolio);
+  const areasComContrato = areaCounts.filter((row) => row.count > 0).length;
   const assinaturasPendentes = all.filter(
     (r) => r.d4sign_status && !["1", "4"].includes(String(r.d4sign_status)),
   ).length;
+
+  const extraStats: HeaderStat[] = [
+    {
+      label: "Contratos por área",
+      value: areasComContrato,
+      detail: "áreas canônicas com cadastro",
+      span: 2,
+      extra: <AreaCountExtra counts={areaCounts} />,
+    },
+    {
+      label: "Grupos ativos × contratos",
+      value: coverage.error ? "—" : `${coverage.coveredCount}/${coverage.activeCount}`,
+      detail: coverage.error ?? "com contrato / Cliente ativo",
+    },
+    {
+      label: "Ativos sem contrato",
+      value: coverage.error ? "—" : coverage.orphans.length,
+      detail: coverage.error ?? "Cliente ativo sem cadastro",
+      tone: !coverage.error && coverage.orphans.length > 0 ? "danger" : "default",
+      extra: <ContractHubOrphanGroupsTrigger groups={coverage.orphans} />,
+    },
+    {
+      label: "Mensal projetado",
+      value: centsToMaskedBrl(String(mensalProjetadoCents)) || "R$ 0,00",
+      detail: "soma da carteira",
+    },
+    ...(fechamentosPendentes > 0
+      ? [
+          {
+            label: "Fechamentos pendentes",
+            value: fechamentosPendentes,
+            detail: "a calcular ou em revisão",
+            tone: "warning" as const,
+            href: "/crm/contratos?tab=closing-review",
+          },
+        ]
+      : []),
+    ...(importadosPdf > 0
+      ? [{ label: "Importados PDF", value: importadosPdf, detail: "origem importação" }]
+      : []),
+    ...(suspensos > 0 ? [{ label: "Suspensos", value: suspensos, detail: "ciclo interrompido" }] : []),
+  ];
 
   return (
     <div className="space-y-6">
       <CrmPageHeader
         eyebrow="Gestão contratual"
         title="Contratos"
-        description="Carteira, configuração de faturamento, fechamentos e renovações. Assinaturas D4Sign ficam na aba dedicada."
         icon={FolderKanban}
         actions={
           <div className="flex flex-wrap gap-2">
@@ -208,6 +282,7 @@ export default async function ContratosPage({
                 },
               ]
             : []),
+          ...extraStats,
         ]}
       />
 
@@ -221,6 +296,8 @@ export default async function ContratosPage({
       <ContractsHub
         portfolio={portfolio}
         portfolioError={portfolioResult.error}
+        orphanGroups={coverage.orphans}
+        defaultTab={defaultTab}
         d4signError={error}
         d4sign={{
           initialLinked: linked as Parameters<typeof D4SignDashboard>[0]["initialLinked"],

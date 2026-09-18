@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchOrqestraiCarteira } from "@/lib/orqestrai/client-groups";
-import { fetchSioePessoas, fetchSioeTitulos } from "@/lib/sioe/client";
+import { fetchSioePessoas, fetchSioeTitulos, type SioePessoaResumo } from "@/lib/sioe/client";
+import { persistCarteiraCategoria } from "@/lib/crm/grupo-categoria";
 import { digitsOnly, normalizeGroupKey } from "@/lib/crm/normalize-document";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -91,6 +92,11 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
   const now = new Date().toISOString();
 
   const pessoaById = new Map((pessoas ?? []).map((pessoa) => [pessoa.id, pessoa]));
+  const pessoaByDocument = new Map<string, SioePessoaResumo>();
+  for (const pessoa of pessoas ?? []) {
+    const digits = digitsOnly(pessoa.cpfCnpj);
+    if (digits && pessoa.nome.trim()) pessoaByDocument.set(digits, pessoa);
+  }
   const aggByGroupKey = new Map<string, TituloAgg>();
   const aggByDocument = new Map<string, TituloAgg>();
 
@@ -124,6 +130,7 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
         chave_estavel: key,
         orqestrai_id: group.id,
         status: statusFromAgg(agg),
+        categoria: persistCarteiraCategoria("cliente"),
         last_synced_at: now,
         updated_at: now,
         agg,
@@ -139,15 +146,25 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
     }
     mergeAgg(existing.agg, row.agg);
     existing.status = statusFromAgg(existing.agg);
+    if (!existing.categoria && row.categoria) existing.categoria = row.categoria;
   }
   const groupsToUpsert = [...uniqueByKey.values()];
 
   if (groupsToUpsert.length) {
-    const { error } = await supabase.from("grupos_economicos").upsert(
-      groupsToUpsert.map(({ agg: _agg, ...row }) => row),
-      { onConflict: "chave_estavel" },
-    );
-    if (error) return { ok: false, error: `Falha ao gravar grupos: ${error.message}` };
+    const withCategoria = groupsToUpsert.map(({ agg: _agg, ...row }) => row);
+    const { error } = await supabase.from("grupos_economicos").upsert(withCategoria, {
+      onConflict: "chave_estavel",
+    });
+    if (error) {
+      if (!/categoria/.test(error.message)) {
+        return { ok: false, error: `Falha ao gravar grupos: ${error.message}` };
+      }
+      const withoutCategoria = withCategoria.map(({ categoria: _categoria, ...row }) => row);
+      const retry = await supabase.from("grupos_economicos").upsert(withoutCategoria, {
+        onConflict: "chave_estavel",
+      });
+      if (retry.error) return { ok: false, error: `Falha ao gravar grupos: ${retry.error.message}` };
+    }
   }
 
   const { data: persistedGroups, error: loadGroupsError } = await fetchAllCrmRows<{
@@ -192,7 +209,7 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
       aggByLocalGroup.set(localGroupId, current);
     }
     clientRows.push({
-      razao_social: company.name,
+      razao_social: pessoaByDocument.get(digits)?.nome.trim() || company.name,
       documento: company.cnpj ?? digits,
       email_principal: null,
       telefone_principal: null,
@@ -215,7 +232,7 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
       ? localGroupByOrqestrai.get(person.clientGroupId)
       : undefined;
     clientRows.push({
-      razao_social: person.name,
+      razao_social: pessoaByDocument.get(digits)?.nome.trim() || person.name,
       documento: person.cpfCnpj ?? digits,
       email_principal: person.email,
       telefone_principal: person.phone,

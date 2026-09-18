@@ -2126,6 +2126,57 @@ export type Database = {
           },
         ]
       }
+      grupo_intake_tokens: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          grupo_id: string | null
+          id: string
+          payload: Json
+          scope: string
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          grupo_id?: string | null
+          id?: string
+          payload?: Json
+          scope?: string
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          grupo_id?: string | null
+          id?: string
+          payload?: Json
+          scope?: string
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grupo_intake_tokens_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grupo_intake_tokens_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_economicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grupo_titulos_resumo: {
         Row: {
           grupo_id: string
@@ -2166,33 +2217,54 @@ export type Database = {
       }
       grupos_economicos: {
         Row: {
+          areas_atuacao: Json
+          categoria: string | null
           chave_estavel: string
           created_at: string
           id: string
+          intake_filled_at: string | null
+          intake_updated_at: string | null
           last_synced_at: string | null
           nome: string
+          nome_indicacao: string | null
           orqestrai_id: string | null
           status: Database["public"]["Enums"]["grupo_carteira_status"]
+          tipo_indicacao: string | null
+          tipo_lead: string | null
           updated_at: string
         }
         Insert: {
+          areas_atuacao?: Json
+          categoria?: string | null
           chave_estavel: string
           created_at?: string
           id?: string
+          intake_filled_at?: string | null
+          intake_updated_at?: string | null
           last_synced_at?: string | null
           nome: string
+          nome_indicacao?: string | null
           orqestrai_id?: string | null
           status?: Database["public"]["Enums"]["grupo_carteira_status"]
+          tipo_indicacao?: string | null
+          tipo_lead?: string | null
           updated_at?: string
         }
         Update: {
+          areas_atuacao?: Json
+          categoria?: string | null
           chave_estavel?: string
           created_at?: string
           id?: string
+          intake_filled_at?: string | null
+          intake_updated_at?: string | null
           last_synced_at?: string | null
           nome?: string
+          nome_indicacao?: string | null
           orqestrai_id?: string | null
           status?: Database["public"]["Enums"]["grupo_carteira_status"]
+          tipo_indicacao?: string | null
+          tipo_lead?: string | null
           updated_at?: string
         }
         Relationships: []

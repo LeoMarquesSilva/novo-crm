@@ -3,6 +3,19 @@ import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncCarteiraGrupos } from "@/lib/sioe/sync-carteira";
 import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
+import { fetchOrqestraiClientGroups } from "@/lib/orqestrai/client-groups";
+import { fetchGruposEconomicosCarteira } from "@/lib/crm/fetch-grupos-economicos";
+import {
+  buildClienteResponsibleAreaIndex,
+  legacyCategoriaAsResponsibleArea,
+  lookupClienteResponsibleArea,
+  origemLinhaFromGrupoCategoria,
+  persistCarteiraCategoria,
+} from "@/lib/crm/grupo-categoria";
+import {
+  buildClienteAtividadeIndex,
+  lookupClienteAtividade,
+} from "@/lib/orqestrai/gestor-atividade";
 
 export const maxDuration = 120;
 
@@ -11,25 +24,45 @@ export async function GET() {
     const auth = await requireAuthApi();
     if (!auth.ok) return auth.response;
     const supabase = createSupabaseAdminClient();
-    const [{ data: grupos, error: gruposError }, { data: clientes, error: clientesError }, { data: titulos, error: titulosError }] =
-      await Promise.all([
-        supabase
-          .from("grupos_economicos")
-          .select("id, nome, chave_estavel, status, last_synced_at")
-          .order("nome"),
-        supabase
-          .from("clientes")
-          .select("id, razao_social, documento, email_principal, telefone_principal, grupo_id, tipo")
-          .order("razao_social"),
-        supabase.from("grupo_titulos_resumo").select("*"),
-      ]);
+    const [
+      { data: grupos, error: gruposError },
+      { data: clientes, error: clientesError },
+      { data: titulos, error: titulosError },
+      orqestraiGroups,
+    ] = await Promise.all([
+      fetchGruposEconomicosCarteira(supabase),
+      supabase
+        .from("clientes")
+        .select("id, razao_social, documento, email_principal, telefone_principal, grupo_id, tipo")
+        .order("razao_social"),
+      supabase.from("grupo_titulos_resumo").select("*"),
+      fetchOrqestraiClientGroups().catch(() => null),
+    ]);
     if (gruposError) throw gruposError;
     if (clientesError) throw clientesError;
     if (titulosError) throw titulosError;
+    const atividadeIndex = buildClienteAtividadeIndex(orqestraiGroups ?? []);
+    const responsibleAreaIndex = buildClienteResponsibleAreaIndex(orqestraiGroups ?? []);
     return NextResponse.json({
       ok: true,
       data: {
-        grupos: grupos ?? [],
+        grupos: (grupos ?? []).map((grupo) => {
+          const origemLinha = origemLinhaFromGrupoCategoria(grupo.categoria);
+          return {
+            ...grupo,
+            clienteStatus: lookupClienteAtividade(atividadeIndex, {
+              orqestraiId: grupo.orqestrai_id ?? grupo.id,
+              groupKey: grupo.chave_estavel,
+            }),
+            origemLinha,
+            categoria: persistCarteiraCategoria(origemLinha),
+            responsibleArea:
+              lookupClienteResponsibleArea(responsibleAreaIndex, {
+                orqestraiId: grupo.orqestrai_id ?? grupo.id,
+                groupKey: grupo.chave_estavel,
+              }) ?? legacyCategoriaAsResponsibleArea(grupo.categoria),
+          };
+        }),
         clientes: clientes ?? [],
         titulos: titulos ?? [],
       },

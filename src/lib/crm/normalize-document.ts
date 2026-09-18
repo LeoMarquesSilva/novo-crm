@@ -18,3 +18,13 @@ export function isCnpj(digits: string): boolean {
 export function isCpf(digits: string): boolean {
   return digits.length === 11;
 }
+
+export function cnpjRoot(value: string | null | undefined): string {
+  const digits = digitsOnly(value);
+  return isCnpj(digits) ? digits.slice(0, 8) : "";
+}
+
+export function isCnpjMatriz(value: string | null | undefined): boolean {
+  const digits = digitsOnly(value);
+  return isCnpj(digits) && digits.slice(8, 12) === "0001";
+}

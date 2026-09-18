@@ -1,6 +1,16 @@
 /** Fuso usado para instantes ISO (`timestamptz`, etc.) vindos em UTC. */
 export const BR_TIMEZONE = "America/Sao_Paulo";
 
+/** Primeiro dia da competência civil atual em São Paulo (`YYYY-MM-01`). */
+export function competencyMonthStart(now = new Date(), timeZone = BR_TIMEZONE): string {
+  const formatted = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).format(now);
+  return `${formatted.slice(0, 7)}-01`;
+}
+
 const dateTimeBrFormatter = new Intl.DateTimeFormat("pt-BR", {
   timeZone: BR_TIMEZONE,
   day: "2-digit",

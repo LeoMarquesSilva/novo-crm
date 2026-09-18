@@ -114,9 +114,10 @@ export function buildSioeRateioSnapshot(items: SioeHonorarioItem[]): SioeRateioS
         .map((row) => competencyRank(row.competencia))
         .sort()
         .at(-1) ?? "";
-      return { ciTitulo, rows, situacao, competency };
+      const mappedRows = rows.filter((row) => mapSioeDepartamentoToAreaKey(row.departamento));
+      return { ciTitulo, rows: mappedRows, situacao, competency };
     })
-    .filter((row) => row.situacao === "ABERTO" || row.situacao === "PAGO")
+    .filter((row) => (row.situacao === "ABERTO" || row.situacao === "PAGO") && row.rows.length > 0)
     .sort((left, right) => {
       const openDelta = Number(right.situacao === "ABERTO") - Number(left.situacao === "ABERTO");
       if (openDelta !== 0) return openDelta;

@@ -11,6 +11,12 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
+import {
+  applyAnnualRenewalDefaults,
+  inferAnnualRenewalDate,
+  inferRenewalAlertDate,
+} from "@/lib/crm/contract-renewal-date";
+import { projectMonthlyTotalCents } from "@/modules/contracts/domain/variable-usage-projection";
 import type {
   ContractConfigurationDraft,
   ContractDetailViewModel,
@@ -68,15 +74,9 @@ function stringify(value: unknown) {
   return JSON.stringify(value);
 }
 
-function projection(configuration: ContractConfigurationDraft): number {
-  const recurring = new Set(["mensal_fixo", "mensal_escalonado", "manutencao", "mensal_condicionado"]);
-  return configuration.version.components.reduce((sum, component) => {
-    if (recurring.has(component.kind)) return sum + Number(component.amountCents ?? 0);
-    if (component.kind === "mensal_preco_fechado") {
-      return sum + Number(component.installments?.[0]?.amountCents ?? 0);
-    }
-    return sum;
-  }, 0);
+function projection(configuration: ContractConfigurationDraft, usage: ContractDetailViewModel["sioeUsage"]): number {
+  const areaKeyById = new Map(configuration.areas.map((area) => [area.id, area.areaKey]));
+  return projectMonthlyTotalCents(configuration.version.components, areaKeyById, usage);
 }
 
 export function ContractSetupWizard({
@@ -208,7 +208,7 @@ export function ContractSetupWizard({
         body: JSON.stringify({
           expectedVersionUpdatedAt: expectedUpdatedAt,
           configuration: {
-            ...configuration,
+            ...applyAnnualRenewalDefaults(configuration),
             substitutionEvidence: sourceChanges.map(([field, source]) => ({
               field,
               source: source.source,
@@ -419,7 +419,7 @@ export function ContractSetupWizard({
             </Field>
             <Field label="Data-base de renovação">
               <DateInputBr
-                value={configuration.renewalDate ?? ""}
+                value={configuration.renewalDate ?? inferAnnualRenewalDate(configuration.startsAt) ?? ""}
                 disabled={!canConfigure}
                 className="!h-10 border-[#dfe5ee] bg-white shadow-sm"
                 onChange={(ymd) => patch({ renewalDate: ymd || null })}
@@ -427,7 +427,11 @@ export function ContractSetupWizard({
             </Field>
             <Field label="Data do alerta de renovação">
               <DateInputBr
-                value={configuration.renewalAlertDate ?? ""}
+                value={
+                  configuration.renewalAlertDate
+                  ?? inferRenewalAlertDate(configuration.renewalDate ?? inferAnnualRenewalDate(configuration.startsAt))
+                  ?? ""
+                }
                 disabled={!canConfigure}
                 className="!h-10 border-[#dfe5ee] bg-white shadow-sm"
                 onChange={(ymd) => patch({ renewalAlertDate: ymd || null })}
@@ -509,6 +513,7 @@ export function ContractSetupWizard({
             areas={configuration.areas}
             startsAt={configuration.startsAt}
             disabled={!canConfigure}
+            sioeUsage={contract.sioeUsage}
             onChange={(components) => patchVersion({ components })}
           />
         ) : null}
@@ -539,10 +544,10 @@ export function ContractSetupWizard({
             <div className="rounded-2xl bg-[#102033] p-5 text-white">
               <p className="text-xs uppercase tracking-wide text-slate-400">Projeção mensal estimada</p>
               <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">
-                {centsToMaskedBrl(projection(configuration)) || "R$ 0,00"}
+                {centsToMaskedBrl(projection(configuration, contract.sioeUsage)) || "R$ 0,00"}
               </p>
               <p className="mt-2 text-xs text-slate-400">
-                Inclui apenas componentes recorrentes. Gatilhos de êxito ficam de fora até liberação manual.
+                Inclui mensalidades e variáveis projetadas com a quantidade atual do SIOE (pastas ativas / horas do mês). Gatilhos de êxito ficam de fora até liberação manual.
               </p>
             </div>
 

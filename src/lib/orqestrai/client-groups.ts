@@ -7,6 +7,7 @@ export type OrqestraiClientGroup = {
   name: string;
   nameNormalized: string | null;
   gestorAtividade: string | null;
+  responsibleArea: string | null;
 };
 
 export type OrqestraiCompany = {
@@ -80,17 +81,45 @@ async function fetchAllRows<T extends Record<string, unknown>>(
  * `email_client_groups`, `email_companies`, `email_people`.
  * Origem original é SIOE `pessoas.grupo_cliente`, já consolidada lá.
  */
+function mapOrqestraiClientGroup(row: Record<string, unknown>): OrqestraiClientGroup {
+  return {
+    id: String(row.id),
+    name: String(row.name ?? ""),
+    nameNormalized: (row.name_normalized as string | null) ?? null,
+    gestorAtividade: (row.gestor_atividade as string | null) ?? null,
+    responsibleArea: (row.responsible_area as string | null) ?? null,
+  };
+}
+
+export async function fetchOrqestraiClientGroups(): Promise<OrqestraiClientGroup[] | null> {
+  const client = orqestraiClient();
+  if (!client) return null;
+  try {
+    const groupRows = await fetchAllRows<Record<string, unknown>>(
+      client,
+      "email_client_groups",
+      "id, name, name_normalized, gestor_atividade, responsible_area",
+    );
+    return groupRows.map(mapOrqestraiClientGroup);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!/responsible_area/.test(message)) throw error;
+    const groupRows = await fetchAllRows<Record<string, unknown>>(
+      client,
+      "email_client_groups",
+      "id, name, name_normalized, gestor_atividade",
+    );
+    return groupRows.map(mapOrqestraiClientGroup);
+  }
+}
+
 export async function fetchOrqestraiCarteira(): Promise<OrqestraiCarteiraSnapshot | null> {
   const client = orqestraiClient();
   if (!client) return null;
 
   try {
-    const [groupRows, companyRows, peopleRows] = await Promise.all([
-      fetchAllRows<Record<string, unknown>>(
-        client,
-        "email_client_groups",
-        "id, name, name_normalized, gestor_atividade",
-      ),
+    const [groups, companyRows, peopleRows] = await Promise.all([
+      fetchOrqestraiClientGroups(),
       fetchAllRows<Record<string, unknown>>(
         client,
         "email_companies",
@@ -103,13 +132,9 @@ export async function fetchOrqestraiCarteira(): Promise<OrqestraiCarteiraSnapsho
       ),
     ]);
 
+    if (!groups) return null;
     return {
-      groups: groupRows.map((row) => ({
-        id: String(row.id),
-        name: String(row.name ?? ""),
-        nameNormalized: (row.name_normalized as string | null) ?? null,
-        gestorAtividade: (row.gestor_atividade as string | null) ?? null,
-      })),
+      groups,
       companies: companyRows.map((row) => ({
         id: String(row.id),
         name: String(row.name ?? ""),

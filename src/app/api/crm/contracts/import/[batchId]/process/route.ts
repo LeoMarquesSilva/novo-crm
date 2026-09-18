@@ -99,12 +99,11 @@ export async function POST(
       })),
     });
 
-    let sioeRateio = null;
-    try {
-      sioeRateio = await fetchSioeHonorariosRateio(match.matchedDocuments);
-    } catch {
-      sioeRateio = null;
-    }
+    const grupoNome = (grupos ?? []).find((row) => row.id === match.grupoId)?.nome;
+    const sioeRateio = await fetchSioeHonorariosRateio(
+      [...match.matchedDocuments, ...extraction.parties.map((party) => party.documento)],
+      { groupNames: grupoNome ? [grupoNome] : [] },
+    );
 
     const versionId = randomUUID();
     const configuration = mapExtractionToConfiguration({

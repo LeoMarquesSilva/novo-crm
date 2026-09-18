@@ -5,6 +5,7 @@ import { BarChart3, CalendarClock, FileSignature, FolderKanban, ReceiptText } fr
 
 import { D4SignDashboard } from "@/components/crm/d4sign-dashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { HubOrphanGroup } from "@/lib/crm/contract-hub-summary";
 import type { ContractPortfolioItem } from "@/modules/contracts/infrastructure/contract-queries";
 import { ContractPortfolioTab } from "./contract-portfolio-tab";
 import { ContractClosingsTab } from "./contract-closings-tab";
@@ -14,12 +15,29 @@ type D4SignProps = Parameters<typeof D4SignDashboard>[0];
 
 const initialFilters = { search: "", manager: "", area: "", tag: "", origin: "", lifecycle: "", billingKind: "", renewal: "" };
 
-export function ContractsHub({ portfolio, portfolioError, d4sign, d4signError }: { portfolio: ContractPortfolioItem[]; portfolioError: string | null; d4sign: D4SignProps; d4signError: string | null }) {
+const hubTabs = new Set(["portfolio", "closing-review", "renewals", "indicators", "d4sign"]);
+
+export function ContractsHub({
+  portfolio,
+  portfolioError,
+  d4sign,
+  d4signError,
+  orphanGroups = [],
+  defaultTab,
+}: {
+  portfolio: ContractPortfolioItem[];
+  portfolioError: string | null;
+  d4sign: D4SignProps;
+  d4signError: string | null;
+  orphanGroups?: HubOrphanGroup[];
+  defaultTab?: string;
+}) {
   const [filters, setFilters] = useState(initialFilters);
   const active = portfolio.filter((item) => item.lifecycle === "ativo").length;
   const annualCents = portfolio.reduce((sum, item) => sum + Number(item.annualReferenceCents ?? 0), 0);
+  const tab = defaultTab && hubTabs.has(defaultTab) ? defaultTab : "portfolio";
 
-  return <Tabs defaultValue="portfolio" className="gap-4">
+  return <Tabs defaultValue={tab} className="gap-4">
     <div className="overflow-x-auto pb-1"><TabsList variant="line" className="min-w-max justify-start">
       <TabsTrigger value="portfolio"><FolderKanban />Carteira</TabsTrigger>
       <TabsTrigger value="closing-review"><ReceiptText />Fechamentos</TabsTrigger>
@@ -27,7 +45,7 @@ export function ContractsHub({ portfolio, portfolioError, d4sign, d4signError }:
       <TabsTrigger value="indicators"><BarChart3 />Indicadores</TabsTrigger>
       <TabsTrigger value="d4sign"><FileSignature />Assinaturas D4Sign</TabsTrigger>
     </TabsList></div>
-    <TabsContent value="portfolio"><ContractPortfolioTab items={portfolio} error={portfolioError} filters={filters} onFiltersChange={setFilters} /></TabsContent>
+    <TabsContent value="portfolio"><ContractPortfolioTab items={portfolio} error={portfolioError} filters={filters} onFiltersChange={setFilters} orphanGroups={orphanGroups} /></TabsContent>
     <TabsContent value="closing-review"><ContractClosingsTab portfolio={portfolio} /></TabsContent>
     <TabsContent value="renewals"><ContractRenewalsTab portfolio={portfolio} /></TabsContent>
     <TabsContent value="indicators"><SummaryPlaceholder title="Indicadores da carteira" description="Leitura consolidada dos dados disponíveis na carteira atual." stats={[["Valor anual de referência", new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(annualCents / 100)], ["Contratos ativos", active], ["Em implantação", portfolio.filter((item) => item.lifecycle === "rascunho" || item.lifecycle === "em_revisao").length]]} /></TabsContent>

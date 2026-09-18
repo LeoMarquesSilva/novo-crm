@@ -82,4 +82,31 @@ describe("buildSioeRateioSnapshot", () => {
       "Trabalhista",
     ]);
   });
+
+  it("ignora título do escritório sem departamento de área e usa o honorário do cliente", () => {
+    const snapshot = buildSioeRateioSnapshot([
+      {
+        ciTitulo: 9130,
+        departamento: "Facilities",
+        valorItem: 360000,
+        competencia: "2026-12-05",
+        situacao: "ABERTO",
+        planoContas: "HONORÁRIOS ASSOCIADOS",
+        descricao: null,
+      },
+      {
+        ciTitulo: 13256,
+        departamento: "Trabalhista",
+        valorItem: 63325,
+        competencia: "2026-12-01",
+        situacao: "ABERTO",
+        planoContas: "HONORÁRIOS MENSAIS",
+        descricao: "SERVIÇOS ADVOCATÍCIOS",
+      },
+    ]);
+    expect(snapshot?.ciTitulo).toBe(13256);
+    expect(snapshot?.shares).toEqual([
+      { areaKey: "Trabalhista", amountCents: 6_332_500, percentageBasisPoints: 10_000 },
+    ]);
+  });
 });

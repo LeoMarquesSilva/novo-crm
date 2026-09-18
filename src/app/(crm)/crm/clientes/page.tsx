@@ -2,29 +2,29 @@ import Link from "next/link";
 import { Building2 } from "lucide-react";
 import { CrmPageHeader } from "@/components/crm/crm-page-header";
 import { CarteiraSyncButton } from "@/components/crm/carteira-sync-button";
-import { Badge } from "@/components/ui/badge";
+import { CarteiraGruposTable, type CarteiraGrupoRow } from "@/components/crm/carteira-grupos-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/server";
 import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
-import { centsToMaskedBrl } from "@/components/crm/contracts/contract-setup-form-helpers";
-import type { Database } from "@/lib/supabase/database.types";
+import { fetchOrqestraiClientGroups } from "@/lib/orqestrai/client-groups";
+import { fetchGruposEconomicosCarteira } from "@/lib/crm/fetch-grupos-economicos";
+import {
+  classifyCarteiraGrupoMembro,
+  type CarteiraGrupoMembro,
+} from "@/lib/crm/carteira-grupo-membros";
+import {
+  buildClienteResponsibleAreaIndex,
+  legacyCategoriaAsResponsibleArea,
+  lookupClienteResponsibleArea,
+  origemLinhaFromGrupoCategoria,
+} from "@/lib/crm/grupo-categoria";
+import {
+  buildClienteAtividadeIndex,
+  lookupClienteAtividade,
+} from "@/lib/orqestrai/gestor-atividade";
 
 export const dynamic = "force-dynamic";
-
-const statusLabel: Record<Database["public"]["Enums"]["grupo_carteira_status"], string> = {
-  ativo_aberto: "Títulos em aberto",
-  ativo_pago: "Títulos pagos",
-  inativo: "Sem título SIOE",
-};
 
 function formatSyncedAt(value: string | null): string | null {
   if (!value) return null;
@@ -68,27 +68,56 @@ async function fetchAllClientes(supabase: ReturnType<typeof createSupabaseAdminC
 export default async function ClientesPage() {
   const { profile } = await requireAuth("/crm/clientes");
   const supabase = createSupabaseAdminClient();
-  const [{ data: grupos, error: gruposError }, { data: clientes, error: clientesError }, { data: titulos }] =
-    await Promise.all([
-      supabase.from("grupos_economicos").select("id, nome, status, last_synced_at").order("nome"),
-      fetchAllClientes(supabase),
-      supabase.from("grupo_titulos_resumo").select("grupo_id, titulos_abertos, titulos_pagos, valor_aberto"),
-    ]);
+  const [
+    { data: grupos, error: gruposError },
+    { data: clientes, error: clientesError },
+    { data: titulos },
+    orqestraiGroups,
+  ] = await Promise.all([
+    fetchGruposEconomicosCarteira(supabase),
+    fetchAllClientes(supabase),
+    supabase.from("grupo_titulos_resumo").select("grupo_id, titulos_abertos, titulos_pagos, valor_aberto"),
+    fetchOrqestraiClientGroups().catch(() => null),
+  ]);
 
   const titleByGroup = new Map((titulos ?? []).map((row) => [row.grupo_id, row]));
   const peopleByGroup = new Map<string, number>();
+  const membrosByGroup = new Map<string, CarteiraGrupoMembro[]>();
   let fromOrqestrai = 0;
   for (const cliente of clientes ?? []) {
     if (cliente.orqestrai_company_id || cliente.orqestrai_person_id) fromOrqestrai += 1;
     const grupoId = cliente.grupo_id ?? "__sem_grupo__";
     peopleByGroup.set(grupoId, (peopleByGroup.get(grupoId) ?? 0) + 1);
+    if (!cliente.grupo_id) continue;
+    const membros = membrosByGroup.get(cliente.grupo_id) ?? [];
+    membros.push({
+      id: cliente.id,
+      nome: cliente.razao_social,
+      documento: cliente.documento,
+      email: cliente.email_principal,
+      telefone: cliente.telefone_principal,
+      kind: classifyCarteiraGrupoMembro({
+        tipo: cliente.tipo,
+        documento: cliente.documento,
+        orqestraiCompanyId: cliente.orqestrai_company_id,
+        orqestraiPersonId: cliente.orqestrai_person_id,
+      }),
+    });
+    membrosByGroup.set(cliente.grupo_id, membros);
   }
 
   const error = gruposError?.message ?? clientesError?.message ?? null;
   const groups = grupos ?? [];
-  const abertos = groups.filter((grupo) => grupo.status === "ativo_aberto").length;
-  const pagos = groups.filter((grupo) => grupo.status === "ativo_pago").length;
-  const inativos = groups.filter((grupo) => grupo.status === "inativo").length;
+  const atividadeIndex = buildClienteAtividadeIndex(orqestraiGroups ?? []);
+  const responsibleAreaIndex = buildClienteResponsibleAreaIndex(orqestraiGroups ?? []);
+  const groupStatus = groups.map((grupo) =>
+    lookupClienteAtividade(atividadeIndex, {
+      orqestraiId: grupo.orqestrai_id ?? grupo.id,
+      groupKey: grupo.chave_estavel,
+    }),
+  );
+  const ativos = groupStatus.filter((status) => status === "ativo").length;
+  const inativos = groupStatus.filter((status) => status === "inativo").length;
   const lastSyncedAt = formatSyncedAt(
     groups.reduce<string | null>((latest, grupo) => {
       if (!grupo.last_synced_at) return latest;
@@ -97,6 +126,30 @@ export default async function ClientesPage() {
     }, null),
   );
   const canConfigure = canAccessContractCapability({ role: profile.role, capability: "configure" });
+  const canIssueLinks = canConfigure || profile.role === "comercial";
+  const tableRows: CarteiraGrupoRow[] = groups.map((grupo, index) => {
+    const summary = titleByGroup.get(grupo.id);
+    return {
+      id: grupo.id,
+      nome: grupo.nome,
+      clienteStatus: groupStatus[index],
+      origemLinha: origemLinhaFromGrupoCategoria(grupo.categoria),
+      responsibleArea:
+        lookupClienteResponsibleArea(responsibleAreaIndex, {
+          orqestraiId: grupo.orqestrai_id ?? grupo.id,
+          groupKey: grupo.chave_estavel,
+        }) ?? legacyCategoriaAsResponsibleArea(grupo.categoria),
+      pessoas: peopleByGroup.get(grupo.id) ?? 0,
+      titulosAbertos: summary?.titulos_abertos ?? 0,
+      titulosPagos: summary?.titulos_pagos ?? 0,
+      valorAberto: summary?.valor_aberto != null ? Number(summary.valor_aberto) : null,
+      tipoLead: grupo.tipo_lead,
+      tipoIndicacao: grupo.tipo_indicacao,
+      nomeIndicacao: grupo.nome_indicacao,
+      areasAtuacao: grupo.areas_atuacao,
+      membros: membrosByGroup.get(grupo.id) ?? [],
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -105,16 +158,15 @@ export default async function ClientesPage() {
         title="Cadastro único de clientes"
         description={
           lastSyncedAt
-            ? `Última sync do OrquestrAI em ${lastSyncedAt}. Títulos ABERTO/PAGO vêm do SIOE.`
-            : "Grupos econômicos do OrquestrAI, pessoas/CNPJs e sinal de títulos em aberto ou pagos no SIOE."
+            ? `Última sync do OrquestrAI em ${lastSyncedAt}. Categoria é Cliente ou Lead (hoje só Cliente). Status Ativo/Inativo vem de gestor_atividade. Áreas são a atuação jurídica (OrquestrAI responsible_area ∪ SIOE). Títulos ABERTO/PAGO vêm do SIOE. Indicação vem do preenchimento público ou da edição no modal.`
+            : "Grupos econômicos do OrquestrAI. Categoria é Cliente ou Lead (hoje só Cliente). Status é Cliente ativo ou inativo (gestor_atividade). Áreas são a atuação jurídica (responsible_area ∪ SIOE). Títulos ABERTO/PAGO vêm do SIOE. Indicação vem do preenchimento público ou da edição no modal."
         }
         icon={Building2}
         stats={[
           { label: "Grupos no CRM", value: groups.length, detail: "email_client_groups" },
           { label: "Pessoas/CNPJs", value: fromOrqestrai, detail: "vieram do OrquestrAI" },
-          { label: "Em aberto", value: abertos, detail: "título SIOE ABERTO" },
-          { label: "Pagos", value: pagos, detail: "só título PAGO" },
-          { label: "Sem título", value: inativos, detail: "grupo inativo no SIOE" },
+          { label: "Clientes ativos", value: ativos, detail: "gestor_atividade no OrquestrAI" },
+          { label: "Clientes inativos", value: inativos, detail: "gestor_atividade no OrquestrAI" },
         ]}
         actions={
           <div className="flex flex-col items-stretch gap-2 sm:items-end">
@@ -145,43 +197,11 @@ export default async function ClientesPage() {
               Nenhum grupo sincronizado. Use “Sincronizar OrquestrAI” no topo da página.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Grupo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Pessoas</TableHead>
-                  <TableHead className="text-right">Abertos</TableHead>
-                  <TableHead className="text-right">Pagos</TableHead>
-                  <TableHead className="text-right">Valor aberto</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groups.map((grupo) => {
-                  const summary = titleByGroup.get(grupo.id);
-                  return (
-                    <TableRow key={grupo.id}>
-                      <TableCell className="font-medium">{grupo.nome}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{statusLabel[grupo.status]}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {peopleByGroup.get(grupo.id) ?? 0}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {summary?.titulos_abertos ?? 0}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{summary?.titulos_pagos ?? 0}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {summary?.valor_aberto
-                          ? centsToMaskedBrl(Math.round(Number(summary.valor_aberto) * 100))
-                          : "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <CarteiraGruposTable
+              groups={tableRows}
+              canIssueLinks={canIssueLinks}
+              canEdit={canConfigure}
+            />
           )}
         </CardContent>
       </Card>

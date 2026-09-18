@@ -1,5 +1,13 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
+import { contractPortfolioLabels } from "@/lib/crm/contract-portfolio-identity";
+import { effectiveContractRenewalDate } from "@/lib/crm/contract-renewal-date";
+import { competencyMonthStart } from "@/lib/format-datetime";
+import { fetchSioeContractUsage } from "@/lib/sioe/usage";
+import {
+  projectMonthlyTotalCents,
+  type VariableUsageSnapshot,
+} from "@/modules/contracts/domain/variable-usage-projection";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 export type ContractSource = "proposta" | "contrato" | "rd" | "manual";
@@ -25,8 +33,10 @@ export type ContractPortfolioItem = {
   areas: string[];
   tags: string[];
   origin: string;
+  originImport: string | null;
   lifecycle: Database["public"]["Enums"]["contract_lifecycle_status"];
   billingKinds: string[];
+  startsAt: string | null;
   renewalDate: string | null;
   renewalSoon: boolean;
   annualReferenceCents: string | null;
@@ -36,6 +46,8 @@ export type ContractPortfolioItem = {
   pendingClosingCount: number;
   updatedAt: string;
 };
+
+export type ContractSioeUsage = VariableUsageSnapshot;
 
 export type ContractPortfolioResult = {
   items: ContractPortfolioItem[];
@@ -124,6 +136,7 @@ export type ContractDetailViewModel = {
   renewalAlertDate: string | null;
   adjustmentIndex: string | null;
   annualReferenceCents: string | null;
+  sioeUsage: ContractSioeUsage | null;
   activeVersionId: string | null;
   editableVersionStatus: Database["public"]["Enums"]["contract_version_status"] | null;
   expectedVersionUpdatedAt: string | null;
@@ -147,7 +160,6 @@ export type ContractDetailViewModel = {
 };
 
 type ContractRow = Database["public"]["Tables"]["contratos"]["Row"];
-type ComponentRow = Database["public"]["Tables"]["contrato_componentes_cobranca"]["Row"];
 
 function asRecord(value: Json | null): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -193,12 +205,75 @@ function percentageToBasisPoints(value: number | null): number {
   return Math.round(Number(value ?? 0) * 100);
 }
 
-function monthlyProjectionCents(components: ComponentRow[]): string | null {
-  const recurring = new Set(["mensal_fixo", "mensal_escalonado", "manutencao"]);
-  const total = components
-    .filter((component) => recurring.has(component.tipo))
-    .reduce((sum, component) => sum + Number(component.valor_fixo ?? 0), 0);
-  return total > 0 ? String(Math.round(total * 100)) : null;
+function reaisToCentsNumber(value: number | null | undefined): number | null {
+  if (value == null) return null;
+  return Math.round(Number(value) * 100);
+}
+
+function hasVariableBilling(components: Array<{ tipo?: string; kind?: string }>): boolean {
+  return components.some((component) => {
+    const kind = component.tipo ?? component.kind;
+    return kind === "variavel_processo" || kind === "variavel_hora";
+  });
+}
+
+function monthlyProjectionCents(
+  components: Array<{
+    tipo: string;
+    area_id?: string | null;
+    valor_fixo?: number | null;
+    valor_unitario?: number | null;
+    quantidade_incluida?: number | null;
+    modo_cobranca_variavel?: string | null;
+  }>,
+  areaKeyById: ReadonlyMap<string, string>,
+  usage: VariableUsageSnapshot | null,
+): string | null {
+  const total = projectMonthlyTotalCents(
+    components.map((component) => ({
+      kind: component.tipo,
+      areaId: component.area_id,
+      amountCents: reaisToCentsNumber(component.valor_fixo),
+      unitAmountCents: reaisToCentsNumber(component.valor_unitario),
+      chargeMode: component.modo_cobranca_variavel,
+      includedQuantity: component.quantidade_incluida,
+    })),
+    areaKeyById,
+    usage,
+  );
+  return total > 0 ? String(total) : null;
+}
+
+async function loadSioeUsageByGrupoIds(
+  grupoIds: string[],
+): Promise<Map<string, VariableUsageSnapshot>> {
+  const result = new Map<string, VariableUsageSnapshot>();
+  const unique = [...new Set(grupoIds.filter(Boolean))];
+  if (!unique.length) return result;
+  const supabase = createSupabaseAdminClient();
+  const [groupsResult, clientsResult] = await Promise.all([
+    supabase.from("grupos_economicos").select("id, nome").in("id", unique),
+    supabase.from("clientes").select("grupo_id, documento, sioe_pessoa_id").in("grupo_id", unique),
+  ]);
+  await Promise.all(
+    (groupsResult.data ?? []).map(async (group) => {
+      const groupClients = (clientsResult.data ?? []).filter((client) => client.grupo_id === group.id);
+      try {
+        const usage = await fetchSioeContractUsage({
+          competency: competencyMonthStart(),
+          groupNames: [group.nome],
+          documents: groupClients.map((client) => client.documento).filter(Boolean),
+          sioePessoaIds: groupClients
+            .map((client) => client.sioe_pessoa_id)
+            .filter((id): id is string => Boolean(id)),
+        });
+        if (usage) result.set(group.id, usage);
+      } catch {
+        /* projeção variável fica zerada se o SIOE falhar */
+      }
+    }),
+  );
+  return result;
 }
 
 export function computeContractSetupProgress(input: {
@@ -229,7 +304,7 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
   const supabase = createSupabaseAdminClient();
   const { data: contracts, error: contractError } = await supabase
     .from("contratos")
-    .select("id, titulo, cliente_id, status, vigente_de, vigente_ate, primeiro_vencimento, primeiro_faturamento_condicionado, data_base_renovacao, valor_anual_referencia, valor_anual_override, etiquetas, updated_at")
+    .select("id, titulo, cliente_id, grupo_id, status, vigente_de, vigente_ate, primeiro_vencimento, primeiro_faturamento_condicionado, data_base_renovacao, valor_anual_referencia, valor_anual_override, etiquetas, origem_importacao, updated_at")
     .order("updated_at", { ascending: false });
 
   if (contractError) return { items: [], error: contractError.message };
@@ -240,7 +315,7 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
   const clientIds = [...new Set(rows.map((row) => row.cliente_id).filter((id): id is string => Boolean(id)))];
   const [clientsResult, responsiblesResult, versionsResult, closingsResult] = await Promise.all([
     clientIds.length
-      ? supabase.from("clientes").select("id, razao_social").in("id", clientIds)
+      ? supabase.from("clientes").select("id, razao_social, grupo_id").in("id", clientIds)
       : Promise.resolve({ data: [], error: null }),
     supabase.from("contrato_responsaveis").select("id, contrato_id, papel, app_user_id, nome").in("contrato_id", contractIds),
     supabase.from("contrato_versoes").select("id, contrato_id, numero, status, origem_snapshot, updated_at").in("contrato_id", contractIds),
@@ -252,12 +327,37 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
   const [areasResult, componentsResult, allocationsResult] = versionIds.length
     ? await Promise.all([
         supabase.from("contrato_areas").select("id, versao_id, area_key").in("versao_id", versionIds),
-        supabase.from("contrato_componentes_cobranca").select("id, versao_id, tipo, valor_fixo").in("versao_id", versionIds),
+        supabase.from("contrato_componentes_cobranca").select("id, versao_id, area_id, tipo, valor_fixo, valor_unitario, quantidade_incluida, modo_cobranca_variavel").in("versao_id", versionIds),
         supabase.from("contrato_rateios_area").select("id, versao_id").in("versao_id", versionIds),
       ])
     : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
 
-  const clientMap = new Map((clientsResult.data ?? []).map((client) => [client.id, client.razao_social]));
+  const clients = clientsResult.data ?? [];
+  const groupIds = [
+    ...new Set(
+      [
+        ...rows.map((row) => row.grupo_id),
+        ...clients.map((client) => client.grupo_id),
+      ].filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const groupsResult = groupIds.length
+    ? await supabase.from("grupos_economicos").select("id, nome").in("id", groupIds)
+    : { data: [] as Array<{ id: string; nome: string }>, error: null };
+  const clientById = new Map(clients.map((client) => [client.id, client]));
+  const groupById = new Map((groupsResult.data ?? []).map((group) => [group.id, group.nome]));
+  const usageGrupoIds = [...new Set(
+    rows.flatMap((contract) => {
+      const contractVersions = versions.filter((version) => version.contrato_id === contract.id);
+      const selectedVersion = contractVersions.find((version) => version.status === "ativa")
+        ?? [...contractVersions].sort((a, b) => b.numero - a.numero)[0];
+      const components = (componentsResult.data ?? []).filter((component) => component.versao_id === selectedVersion?.id);
+      if (!hasVariableBilling(components)) return [];
+      const grupoId = contract.grupo_id ?? (contract.cliente_id ? clientById.get(contract.cliente_id)?.grupo_id : null);
+      return grupoId ? [grupoId] : [];
+    }),
+  )];
+  const usageByGrupo = await loadSioeUsageByGrupoIds(usageGrupoIds);
   const now = new Date();
   const soon = new Date(now);
   soon.setDate(soon.getDate() + 90);
@@ -274,23 +374,40 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
     const allocations = (allocationsResult.data ?? []).filter((item) => item.versao_id === selectedVersionId);
     const closings = (closingsResult.data ?? []).filter((item) => item.contrato_id === contract.id);
     const renewalDate = contract.data_base_renovacao;
-    const annual = contract.valor_anual_override ?? contract.valor_anual_referencia;
+    const effectiveRenewal = effectiveContractRenewalDate(renewalDate, contract.vigente_de);
+    const client = contract.cliente_id ? clientById.get(contract.cliente_id) : undefined;
+    const grupoId = contract.grupo_id ?? client?.grupo_id ?? null;
+    const usage = grupoId ? usageByGrupo.get(grupoId) ?? null : null;
+    const areaKeyById = new Map(areas.map((area) => [area.id, area.area_key]));
+    const monthly = monthlyProjectionCents(components, areaKeyById, usage);
+    const variable = hasVariableBilling(components);
+    const labels = contractPortfolioLabels({
+      groupName: groupById.get(contract.grupo_id ?? client?.grupo_id ?? "") ?? null,
+      legalName: client?.razao_social ?? null,
+      fallbackTitle: contract.titulo,
+    });
     return {
       id: contract.id,
-      title: contract.titulo,
+      title: labels.title,
       clientId: contract.cliente_id,
-      clientName: contract.cliente_id ? clientMap.get(contract.cliente_id) ?? "Cliente não identificado" : "Cliente pendente",
+      clientName: labels.clientName,
       managerId: manager?.app_user_id ?? null,
       managerName: manager?.nome ?? "Sem responsável",
       areas: areas.map((area) => area.area_key),
       tags: contract.etiquetas,
       origin: selectedVersion ? snapshotLabel(selectedVersion.origem_snapshot) : "Manual",
+      originImport: contract.origem_importacao,
       lifecycle: contract.status,
       billingKinds: [...new Set(components.map((component) => component.tipo))],
+      startsAt: contract.vigente_de,
       renewalDate,
-      renewalSoon: Boolean(renewalDate && new Date(`${renewalDate}T12:00:00`) >= now && new Date(`${renewalDate}T12:00:00`) <= soon),
-      annualReferenceCents: toCents(annual),
-      monthlyProjectionCents: monthlyProjectionCents(components as ComponentRow[]),
+      renewalSoon: Boolean(effectiveRenewal && new Date(`${effectiveRenewal}T12:00:00`) >= now && new Date(`${effectiveRenewal}T12:00:00`) <= soon),
+      annualReferenceCents: contract.valor_anual_override != null
+        ? toCents(contract.valor_anual_override)
+        : variable && monthly
+          ? String(Number(monthly) * 12)
+          : toCents(contract.valor_anual_referencia),
+      monthlyProjectionCents: monthly,
       setupProgress: computeContractSetupProgress({
         contract,
         responsibleCount: responsibles.length,
@@ -308,6 +425,7 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
     items,
     error: errorMessage([
       clientsResult.error,
+      groupsResult.error,
       responsiblesResult.error,
       versionsResult.error,
       closingsResult.error,
@@ -335,14 +453,14 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
   const supabase = createSupabaseAdminClient();
   const { data: contract, error } = await supabase
     .from("contratos")
-    .select("id, titulo, status, status_assinatura, cliente_id, oportunidade_id, versao_ativa_id, vigente_de, vigente_ate, prazo_indeterminado, primeiro_vencimento, primeiro_faturamento_condicionado, dia_vencimento, data_base_renovacao, data_alerta_renovacao, indice_reajuste, valor_anual_referencia, valor_anual_override, d4sign_document_id")
+    .select("id, titulo, status, status_assinatura, cliente_id, grupo_id, oportunidade_id, versao_ativa_id, vigente_de, vigente_ate, prazo_indeterminado, primeiro_vencimento, primeiro_faturamento_condicionado, dia_vencimento, data_base_renovacao, data_alerta_renovacao, indice_reajuste, valor_anual_referencia, valor_anual_override, d4sign_document_id")
     .eq("id", contractId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!contract) return null;
 
   const [clientResult, opportunityResult, versionsResult, responsiblesResult, usersResult, clientsResult, addendaResult, closingsResult, eventsResult, documentResult] = await Promise.all([
-    contract.cliente_id ? supabase.from("clientes").select("id, razao_social").eq("id", contract.cliente_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    contract.cliente_id ? supabase.from("clientes").select("id, razao_social, grupo_id").eq("id", contract.cliente_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     contract.oportunidade_id ? supabase.from("oportunidades").select("id, solicitante_nome, etapa").eq("id", contract.oportunidade_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     supabase.from("contrato_versoes").select("id, numero, status, vigente_de, vigente_ate, origem_snapshot, ativada_em, updated_at").eq("contrato_id", contractId).order("numero", { ascending: false }),
     supabase.from("contrato_responsaveis").select("id, papel, app_user_id, nome").eq("contrato_id", contractId),
@@ -490,12 +608,33 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
   if (loadError) throw new Error(loadError);
 
   const document = documentResult.data;
+  const groupId = contract.grupo_id ?? clientResult.data?.grupo_id ?? null;
+  const [groupResult, usageByGrupo] = await Promise.all([
+    groupId
+      ? supabase.from("grupos_economicos").select("nome").eq("id", groupId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    groupId && hasVariableBilling(components)
+      ? loadSioeUsageByGrupoIds([groupId])
+      : Promise.resolve(new Map<string, VariableUsageSnapshot>()),
+  ]);
+  if (groupResult.error) throw new Error(groupResult.error.message);
+  const sioeUsage = groupId ? usageByGrupo.get(groupId) ?? null : null;
+  const areaKeyById = new Map(areas.map((area) => [area.id, area.areaKey]));
+  const monthly = configuration
+    ? projectMonthlyTotalCents(configuration.version.components, areaKeyById, sioeUsage)
+    : 0;
+  const variable = hasVariableBilling(components);
+  const labels = contractPortfolioLabels({
+    groupName: groupResult.data?.nome ?? null,
+    legalName: clientResult.data?.razao_social ?? null,
+    fallbackTitle: contract.titulo,
+  });
   return {
     id: contract.id,
-    title: contract.titulo,
+    title: labels.title,
     lifecycle: contract.status,
     signatureStatus: contract.status_assinatura,
-    clientName: clientResult.data?.razao_social ?? "Cliente pendente",
+    clientName: labels.clientName,
     opportunityId: contract.oportunidade_id,
     opportunityName: opportunityResult.data?.solicitante_nome ?? null,
     opportunityStage: opportunityResult.data?.etapa ?? null,
@@ -508,7 +647,12 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     renewalDate: contract.data_base_renovacao,
     renewalAlertDate: contract.data_alerta_renovacao,
     adjustmentIndex: contract.indice_reajuste,
-    annualReferenceCents: toCents(contract.valor_anual_override ?? contract.valor_anual_referencia),
+    annualReferenceCents: contract.valor_anual_override != null
+      ? toCents(contract.valor_anual_override)
+      : variable && monthly > 0
+        ? String(monthly * 12)
+        : toCents(contract.valor_anual_referencia),
+    sioeUsage,
     activeVersionId: contract.versao_ativa_id,
     editableVersionStatus: editableVersion?.status ?? null,
     expectedVersionUpdatedAt: editableVersion?.updated_at ?? null,

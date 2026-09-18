@@ -205,6 +205,37 @@ describe("calculateAnnualReference", () => {
     expect(result.calculatedCents).toBe(BigInt(110_000));
   });
 
+  it("projects variable folder fees from SIOE quantity instead of zeroing them", () => {
+    const result = calculateAnnualReference({
+      projectionStart: "2026-09-01",
+      version: emptyVersion([
+        {
+          id: "pastas",
+          kind: "variavel_processo",
+          description: "Honorários por pasta ativa",
+          effectiveFrom: "2026-07-27",
+          effectiveTo: null,
+          areaId: "area-trab",
+          chargeMode: "quantidade_total",
+          includedQuantity: 745,
+          unitAmountCents: decimalToCents("85"),
+        },
+      ]),
+      manualResolutions: [],
+      areaKeyById: new Map([["area-trab", "Trabalhista"]]),
+      variableUsage: {
+        competency: "2026-09-01",
+        foldersTotal: 850,
+        hoursTotal: 338.15,
+        foldersByArea: { Trabalhista: 850 },
+        hoursByArea: { Trabalhista: 338.15 },
+      },
+    });
+
+    expect(result.competencies[0].amountCents).toBe(BigInt(7_225_000));
+    expect(result.calculatedCents).toBe(BigInt(86_700_000));
+  });
+
   it("rejects an annual override without a reason", () => {
     expect(() =>
       calculateAnnualReference({

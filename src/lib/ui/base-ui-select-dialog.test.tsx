@@ -54,3 +54,52 @@ test("selecionar uma opção do Select não fecha o Dialog", async () => {
   expect(screen.getByRole("dialog", { name: "Teste de contrato" })).toBeInTheDocument();
   expect(screen.getByRole("combobox", { name: "Opção" })).toHaveTextContent("dois");
 });
+
+test("clicar um chip com o Select aberto marca o chip e não fecha o Dialog", async () => {
+  const user = userEvent.setup();
+
+  function Harness() {
+    const [checked, setChecked] = React.useState(false);
+    return (
+      <Dialog modal={false}>
+        <DialogTrigger>Abrir</DialogTrigger>
+        <DialogContent {...dialogSelectOutsideHandlers()}>
+          <DialogTitle>Teste de contrato</DialogTitle>
+          <Select modal={false} defaultValue="um">
+            <SelectTrigger aria-label="Opção">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="um">Um</SelectItem>
+              <SelectItem value="dois">Dois</SelectItem>
+            </SelectContent>
+          </Select>
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              setChecked((current) => !current);
+            }}
+          >
+            Trabalhista
+            <span>Manual, se marcada</span>
+          </button>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  render(<Harness />);
+
+  await user.click(screen.getByRole("button", { name: "Abrir" }));
+  await user.click(screen.getByRole("combobox", { name: "Opção" }));
+  expect(await screen.findByRole("option", { name: "Dois" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("checkbox", { name: /Trabalhista/ }));
+
+  expect(screen.getByRole("dialog", { name: "Teste de contrato" })).toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: /Trabalhista/ })).toHaveAttribute("aria-checked", "true");
+});

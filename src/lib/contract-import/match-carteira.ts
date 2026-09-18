@@ -1,4 +1,5 @@
-import { digitsOnly, normalizeGroupKey } from "@/lib/crm/normalize-document";
+import { cnpjRoot, digitsOnly, isCnpjMatriz, normalizeGroupKey } from "@/lib/crm/normalize-document";
+import { isOwnLawFirmRoot } from "./constants";
 import type { ContractImportExtraction } from "./schemas";
 
 export type MatchableCliente = {
@@ -20,34 +21,96 @@ export type ContractImportMatch = {
   matchedDocuments: string[];
 };
 
+const OFFICE_NAME = /bismarchi|\bsociedade de advogados\b/i;
+
+function isOwnLawFirm(party: { razaoSocial: string; documento: string }): boolean {
+  return isOwnLawFirmRoot(cnpjRoot(party.documento)) || OFFICE_NAME.test(party.razaoSocial);
+}
+
+function partyDigits(party: { documento: string }): string {
+  return digitsOnly(party.documento);
+}
+
+function selectPrincipal(input: {
+  contratanteDocs: string[];
+  matchedClientes: MatchableCliente[];
+}): MatchableCliente | null {
+  const { contratanteDocs, matchedClientes } = input;
+  if (!matchedClientes.length) return null;
+
+  const primaryRoot = contratanteDocs.map(cnpjRoot).find(Boolean)
+    ?? cnpjRoot(matchedClientes[0]?.documento);
+  const sameRoot = primaryRoot
+    ? matchedClientes.filter((cliente) => cnpjRoot(cliente.documento) === primaryRoot)
+    : matchedClientes;
+  const pool = sameRoot.length ? sameRoot : matchedClientes;
+  const exact = contratanteDocs
+    .map((doc) => pool.find((cliente) => digitsOnly(cliente.documento) === doc))
+    .find(Boolean);
+
+  return pool.find((cliente) => isCnpjMatriz(cliente.documento)) ?? exact ?? pool[0] ?? null;
+}
+
 export function matchExtractionToCarteira(input: {
   extraction: ContractImportExtraction;
   clientes: MatchableCliente[];
   grupos: MatchableGrupo[];
 }): ContractImportMatch {
-  const documents = input.extraction.parties
-    .map((party) => digitsOnly(party.documento))
-    .filter(Boolean);
+  const matchingParties = input.extraction.parties.filter((party) => !isOwnLawFirm(party));
+  const contratantes = matchingParties.filter((party) => party.role === "contratante");
+  const sourceParties = contratantes.length ? contratantes : matchingParties;
+  const documents = [...new Set(sourceParties.map(partyDigits).filter(Boolean))];
+
   const clientesByDoc = new Map(
     input.clientes.map((cliente) => [digitsOnly(cliente.documento), cliente]),
   );
-  const matchedClientes = documents
-    .map((doc) => clientesByDoc.get(doc))
-    .filter((cliente): cliente is MatchableCliente => Boolean(cliente));
+  const clientesByRoot = new Map<string, MatchableCliente[]>();
+  for (const cliente of input.clientes) {
+    const root = cnpjRoot(cliente.documento);
+    if (!root) continue;
+    const list = clientesByRoot.get(root) ?? [];
+    list.push(cliente);
+    clientesByRoot.set(root, list);
+  }
+
+  const matchedById = new Map<string, MatchableCliente>();
+  for (const doc of documents) {
+    const exact = clientesByDoc.get(doc);
+    if (exact) matchedById.set(exact.id, exact);
+    const root = cnpjRoot(doc);
+    for (const cliente of clientesByRoot.get(root) ?? []) {
+      matchedById.set(cliente.id, cliente);
+    }
+  }
+  const matchedClientes = [...matchedById.values()];
+  const principal = selectPrincipal({ contratanteDocs: documents, matchedClientes });
+  const grupoFromClients = principal?.grupoId
+    ?? matchedClientes.find((cliente) => cliente.grupoId)?.grupoId
+    ?? null;
 
   const groupKey = normalizeGroupKey(input.extraction.groupName);
   const grupoByName = groupKey
     ? input.grupos.find((grupo) => normalizeGroupKey(grupo.nome) === groupKey || grupo.chaveEstavel === groupKey)
     : undefined;
-  const grupoFromClients = matchedClientes.find((cliente) => cliente.grupoId)?.grupoId ?? null;
-
-  const principal = matchedClientes.find((cliente) => digitsOnly(cliente.documento).length === 14)
-    ?? matchedClientes[0]
-    ?? null;
 
   return {
-    grupoId: grupoByName?.id ?? grupoFromClients,
+    grupoId: grupoFromClients ?? grupoByName?.id ?? null,
     clienteId: principal?.id ?? null,
     matchedDocuments: documents,
   };
+}
+
+export function importedContractTitle(input: {
+  extraction: ContractImportExtraction;
+  match: ContractImportMatch;
+  grupos: MatchableGrupo[];
+  filename?: string;
+}): string {
+  const grupoNome = input.grupos.find((grupo) => grupo.id === input.match.grupoId)?.nome?.trim();
+  const contratante = input.extraction.parties.find((party) => party.role === "contratante" && !isOwnLawFirm(party));
+  return grupoNome
+    || contratante?.razaoSocial?.trim()
+    || input.extraction.groupName?.trim()
+    || input.filename
+    || "Contrato importado";
 }

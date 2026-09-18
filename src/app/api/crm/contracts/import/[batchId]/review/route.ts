@@ -5,6 +5,7 @@ import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { mapExtractionToConfiguration } from "@/lib/contract-import/map-to-configuration";
+import { importedContractTitle } from "@/lib/contract-import/match-carteira";
 import { createImportedContractDraft } from "@/lib/contract-import/persist-draft";
 import { parseContractImportExtraction } from "@/lib/contract-import/schemas";
 import type { SioeRateioSnapshot } from "@/lib/contract-import/sioe-rateio";
@@ -73,12 +74,21 @@ export async function POST(
       );
     }
 
+    const matchPayload =
+      payloadRecord.match && typeof payloadRecord.match === "object" && !Array.isArray(payloadRecord.match)
+        ? (payloadRecord.match as { matchedDocuments?: unknown })
+        : {};
+    const matchedDocuments = Array.isArray(matchPayload.matchedDocuments)
+      ? matchPayload.matchedDocuments.filter((value): value is string => typeof value === "string")
+      : [];
+    const { data: grupos } = await supabase.from("grupos_economicos").select("id, nome, chave_estavel");
+    const grupoNome = (grupos ?? []).find((row) => row.id === grupoId)?.nome;
     let sioeRateio = (payloadRecord.sioeRateio as SioeRateioSnapshot | null) ?? null;
-    try {
-      sioeRateio = (await fetchSioeHonorariosRateio(extraction.parties.map((party) => party.documento))) ?? sioeRateio;
-    } catch {
-      /* usa o snapshot da extração se o SIOE estiver indisponível */
-    }
+    sioeRateio =
+      (await fetchSioeHonorariosRateio(
+        [...matchedDocuments, ...extraction.parties.map((party) => party.documento)],
+        { groupNames: grupoNome ? [grupoNome] : [] },
+      )) ?? sioeRateio;
 
     const configuration = mapExtractionToConfiguration({
       extraction,
@@ -100,7 +110,16 @@ export async function POST(
     const created = await createImportedContractDraft({
       supabase,
       actorId: auth.profile.id,
-      title: extraction.groupName || extraction.parties[0]?.razaoSocial || doc.original_filename,
+      title: importedContractTitle({
+        extraction,
+        match: { grupoId, clienteId: clientId, matchedDocuments: [] },
+        grupos: (grupos ?? []).map((row) => ({
+          id: row.id,
+          nome: row.nome,
+          chaveEstavel: row.chave_estavel,
+        })),
+        filename: doc.original_filename,
+      }),
       grupoId,
       clientId,
       configuration,

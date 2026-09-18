@@ -1,4 +1,6 @@
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type HeaderBadge = {
@@ -6,17 +8,23 @@ type HeaderBadge = {
   icon?: LucideIcon;
 };
 
-type HeaderStat = {
+export type HeaderStatTone = "default" | "danger" | "warning";
+
+export type HeaderStat = {
   label: string;
   value: string | number;
   detail?: string;
   icon?: LucideIcon;
+  tone?: HeaderStatTone;
+  href?: string;
+  extra?: ReactNode;
+  span?: 1 | 2;
 };
 
 type CrmPageHeaderProps = {
   eyebrow?: string;
   title: string;
-  description: string;
+  description?: string;
   icon: LucideIcon;
   badges?: HeaderBadge[];
   stats?: HeaderStat[];
@@ -28,28 +36,61 @@ function statsGridClass(count: number) {
   if (count <= 1) return "grid-cols-1";
   if (count === 2) return "grid-cols-2";
   if (count === 3) return "grid-cols-2 sm:grid-cols-3";
-  if (count === 4) return "grid-cols-2 lg:grid-cols-4";
-  return "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5";
+  return "grid-cols-2 sm:grid-cols-3 xl:grid-cols-4";
 }
+
+const toneCardClass: Record<HeaderStatTone, string> = {
+  default: "border-border bg-surface-subtle",
+  warning: "border-warning-border bg-warning-bg",
+  danger: "border-danger-border bg-danger-bg",
+};
+
+const toneValueClass: Record<HeaderStatTone, string> = {
+  default: "text-foreground",
+  warning: "text-warning-text",
+  danger: "text-danger-text",
+};
 
 function CrmPageHeaderStat({
   label,
   value,
   detail,
-}: {
-  label: string;
-  value: string | number;
-  detail?: string;
-}) {
-  return (
-    <div className="min-w-0 rounded-(--radius-v2-lg) border border-border bg-surface-subtle px-3.5 py-3">
+  tone = "default",
+  href,
+  extra,
+  span = 1,
+}: HeaderStat) {
+  const card = (
+    <div
+      className={cn(
+        "min-w-0 rounded-(--radius-v2-lg) border px-3.5 py-3",
+        toneCardClass[tone],
+        span === 2 && "sm:col-span-2",
+        href && "transition-colors hover:border-interactive-300",
+      )}
+    >
       <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-xl font-bold tabular-nums tracking-tight text-foreground sm:text-2xl">
+      <p
+        className={cn(
+          "mt-1 truncate text-xl font-bold tabular-nums tracking-tight sm:text-2xl",
+          toneValueClass[tone],
+        )}
+      >
         {value}
       </p>
       {detail ? <p className="mt-0.5 truncate text-xs leading-snug text-muted-foreground">{detail}</p> : null}
+      {extra}
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className={cn("block min-w-0", span === 2 && "sm:col-span-2")}>
+        {card}
+      </Link>
+    );
+  }
+  return card;
 }
 
 // Design System V2 (§14.4): PageHeader deixa de ser um card gigante — sem fundo próprio,
@@ -76,7 +117,9 @@ export function CrmPageHeader({
             <h1 className="mt-0.5 text-2xl font-bold leading-tight tracking-tight text-foreground">
               {title}
             </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
+            {description ? (
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
+            ) : null}
           </div>
         </div>
         {actions ? <div className="shrink-0 sm:pt-1">{actions}</div> : null}
@@ -102,12 +145,7 @@ export function CrmPageHeader({
       {hasStats ? (
         <div className={cn("mt-5 grid gap-3", statsGridClass(stats.length))}>
           {stats.map((stat) => (
-            <CrmPageHeaderStat
-              key={stat.label}
-              label={stat.label}
-              value={stat.value}
-              detail={stat.detail}
-            />
+            <CrmPageHeaderStat key={stat.label} {...stat} />
           ))}
         </div>
       ) : null}

@@ -5,6 +5,7 @@ import type {
   ManualBillingResolution,
 } from "./entities";
 import { moneyCents, type MoneyCents } from "./money";
+import { projectMonthlyComponentCents } from "./variable-usage-projection";
 
 function addMonths(competency: string, count: number): string {
   const match = /^(\d{4})-(\d{2})-01$/.exec(competency);
@@ -40,9 +41,10 @@ function releasedResolution(
 function projectedAmount(
   component: BillingComponent,
   competency: string,
-  resolutions: ManualBillingResolution[],
+  input: AnnualReferenceInput,
 ): MoneyCents {
   if (!isEffective(component, competency)) return moneyCents(BigInt(0));
+  const resolutions = input.manualResolutions;
 
   switch (component.kind) {
     case "mensal_fixo":
@@ -53,7 +55,10 @@ function projectedAmount(
     case "mensal_preco_fechado":
       return component.installments.find((entry) => entry.competency === competency)?.amountCents ?? moneyCents(BigInt(0));
     case "variavel_processo":
-    case "variavel_hora":
+    case "variavel_hora": {
+      const areaKey = component.areaId ? input.areaKeyById?.get(component.areaId) ?? null : null;
+      return moneyCents(BigInt(projectMonthlyComponentCents(component, areaKey, input.variableUsage ?? null)));
+    }
     case "despesa_km":
       return moneyCents(BigInt(0));
     case "reembolso":
@@ -100,7 +105,7 @@ export function calculateAnnualReference(input: AnnualReferenceInput): AnnualRef
       (input.version.effectiveTo === null || competency <= input.version.effectiveTo);
     const amount = versionIsEffective
       ? input.version.components.reduce(
-          (total, component) => total + projectedAmount(component, competency, input.manualResolutions),
+          (total, component) => total + projectedAmount(component, competency, input),
           BigInt(0),
         )
       : BigInt(0);

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, ArrowUpRight, CalendarClock, Search } from "lucide-react";
+import { AlertCircle, ArrowUpRight, Search } from "lucide-react";
 
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
@@ -10,9 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
+import { effectiveContractRenewalDate } from "@/lib/crm/contract-renewal-date";
+import type { HubOrphanGroup } from "@/lib/crm/contract-hub-summary";
 import { formatDateYmdBr } from "@/lib/format-datetime";
 import type { ContractPortfolioItem } from "@/modules/contracts/infrastructure/contract-queries";
 import { BILLING_KIND_LABELS, centsToMaskedBrl } from "./contract-setup-form-helpers";
+import { ContractHubOrphanGroupsTrigger } from "./contract-hub-orphan-groups";
 
 const lifecycleLabels: Record<ContractPortfolioItem["lifecycle"], string> = {
   rascunho: "Rascunho",
@@ -28,6 +31,10 @@ function money(cents: string | null): string {
 
 function date(value: string | null): string {
   return formatDateYmdBr(value) || "—";
+}
+
+function portfolioRenewalDate(item: Pick<ContractPortfolioItem, "renewalDate" | "startsAt">): string | null {
+  return effectiveContractRenewalDate(item.renewalDate, item.startsAt);
 }
 
 type Filters = {
@@ -46,7 +53,8 @@ export function filterPortfolio(items: ContractPortfolioItem[], filters: Filters
   const now = new Date();
   return items.filter((item) => {
     const searchable = `${item.title} ${item.clientName}`.toLocaleLowerCase("pt-BR");
-    const renewal = item.renewalDate ? new Date(`${item.renewalDate}T12:00:00`) : null;
+    const renewalYmd = portfolioRenewalDate(item);
+    const renewal = renewalYmd ? new Date(`${renewalYmd}T12:00:00`) : null;
     const renewalDays = renewal ? Math.ceil((renewal.getTime() - now.getTime()) / 86_400_000) : null;
     return (!query || searchable.includes(query))
       && (!filters.manager || item.managerId === filters.manager)
@@ -62,18 +70,20 @@ export function filterPortfolio(items: ContractPortfolioItem[], filters: Filters
   });
 }
 
-const selectTriggerClass = "!h-9 w-full border-[#dfe5ee] bg-white shadow-sm";
+const selectTriggerClass = "h-10 w-full border-border bg-background";
 
 export function ContractPortfolioTab({
   items,
   error,
   filters,
   onFiltersChange,
+  orphanGroups = [],
 }: {
   items: ContractPortfolioItem[];
   error: string | null;
   filters: Filters;
   onFiltersChange: (filters: Filters) => void;
+  orphanGroups?: HubOrphanGroup[];
 }) {
   const filtered = filterPortfolio(items, filters);
   const managers = [...new Map(items.filter((item) => item.managerId).map((item) => [item.managerId!, item.managerName])).entries()];
@@ -85,12 +95,19 @@ export function ContractPortfolioTab({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-          <label className="relative xl:col-span-2">
-            <span className="sr-only">Buscar cliente ou contrato</span>
-            <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-zinc-400" />
-            <Input value={filters.search} onChange={(event) => patch({ search: event.target.value })} placeholder="Buscar cliente ou contrato" className="pl-9" />
+      <div className="rounded-(--radius-v2-xl) border border-border bg-background p-4">
+        <div className="grid items-end gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground xl:col-span-2">
+            <span>Buscar</span>
+            <span className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={filters.search}
+                onChange={(event) => patch({ search: event.target.value })}
+                placeholder="Buscar cliente ou contrato"
+                className="h-10 pl-9"
+              />
+            </span>
           </label>
           <FilterSelect label="Gestor" value={filters.manager} options={managers} onChange={(manager) => patch({ manager })} />
           <FilterSelect label="Área" value={filters.area} options={areas.map((area) => [area, area])} onChange={(area) => patch({ area })} />
@@ -102,31 +119,56 @@ export function ContractPortfolioTab({
         </div>
       </div>
 
+      {orphanGroups.length > 0 ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-(--radius-v2-lg) border border-danger-border bg-danger-bg px-3 py-2 text-sm text-danger-text"
+        >
+          <p>
+            <span className="font-semibold">{orphanGroups.length}</span>{" "}
+            {orphanGroups.length === 1
+              ? "grupo ativo sem contrato cadastrado."
+              : "grupos ativos sem contrato cadastrado."}
+          </p>
+          <ContractHubOrphanGroupsTrigger groups={orphanGroups} />
+        </div>
+      ) : null}
+
       {error ? (
-        <div role="alert" className="flex gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div role="alert" className="flex gap-3 rounded-(--radius-v2-lg) border border-danger-border bg-danger-bg p-4 text-sm text-danger-text">
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <div><p className="font-semibold">A carteira foi carregada parcialmente.</p><p className="mt-1">{error}</p></div>
+          <div>
+            <p className="font-semibold">A carteira foi carregada parcialmente.</p>
+            <p className="mt-1">{error}</p>
+          </div>
         </div>
       ) : null}
 
       {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center">
-          <p className="font-semibold text-zinc-900">Nenhum contrato encontrado</p>
-          <p className="mt-1 text-sm text-zinc-500">Ajuste os filtros ou crie o cadastro-base a partir de uma oportunidade.</p>
+        <div className="rounded-(--radius-v2-xl) border border-dashed border-border bg-background px-6 py-12 text-center">
+          <p className="font-semibold text-foreground">Nenhum contrato encontrado</p>
+          <p className="mt-1 text-sm text-muted-foreground">Ajuste os filtros ou crie o cadastro-base a partir de uma oportunidade.</p>
         </div>
       ) : (
         <>
-          <div className="hidden overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm lg:block">
+          <div className="hidden overflow-hidden rounded-(--radius-v2-xl) border border-border bg-background lg:block">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
-                <tr><th className="px-4 py-3">Contrato</th><th className="px-4 py-3">Operação</th><th className="px-4 py-3">Projeção</th><th className="px-4 py-3">Renovação</th><th className="px-4 py-3">Configuração</th><th className="px-4 py-3"><span className="sr-only">Abrir</span></th></tr>
+              <thead className="border-b border-border bg-surface-subtle text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="h-10 px-3 font-medium">Contrato</th>
+                  <th className="h-10 px-3 font-medium">Operação</th>
+                  <th className="h-10 px-3 font-medium">Projeção</th>
+                  <th className="h-10 px-3 font-medium">Renovação</th>
+                  <th className="h-10 px-3 font-medium">Configuração</th>
+                  <th className="h-10 px-3 font-medium"><span className="sr-only">Abrir</span></th>
+                </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-border">
                 {filtered.map((item) => <PortfolioRow key={item.id} item={item} />)}
               </tbody>
             </table>
           </div>
-          <div className="grid gap-3 lg:hidden">
+          <div className="grid gap-2 lg:hidden">
             {filtered.map((item) => <PortfolioCard key={item.id} item={item} />)}
           </div>
         </>
@@ -148,7 +190,7 @@ function FilterSelect({
 }) {
   const labels = { __all__: "Todos", ...Object.fromEntries(options) };
   return (
-    <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
+    <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
       <span>{label}</span>
       <Select
         items={labels}
@@ -171,50 +213,53 @@ function FilterSelect({
   );
 }
 
+function LifecycleBadge({ lifecycle }: { lifecycle: ContractPortfolioItem["lifecycle"] }) {
+  return <Badge variant="outline" className="shrink-0">{lifecycleLabels[lifecycle]}</Badge>;
+}
+
 function PortfolioRow({ item }: { item: ContractPortfolioItem }) {
   return (
-    <tr className="align-top hover:bg-zinc-50/70">
-      <td className="px-4 py-4">
-        <p className="font-semibold text-zinc-900">{item.title}</p>
-        <p className="mt-1 text-xs text-zinc-500">{item.clientName}</p>
-        <div className="mt-2 flex flex-wrap gap-1">
-          <Badge variant="outline">{lifecycleLabels[item.lifecycle]}</Badge>
+    <tr className="h-11 hover:bg-muted/50">
+      <td className="max-w-xs px-3 py-2 align-middle">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="min-w-0 truncate">
+            <span className="font-semibold text-foreground">{item.title}</span>
+            <span className="text-muted-foreground"> · {item.clientName}</span>
+          </p>
+          <LifecycleBadge lifecycle={item.lifecycle} />
           {item.renewalSoon ? (
-            <Badge className="bg-amber-100 text-amber-800">Reajuste próximo</Badge>
+            <Badge className="shrink-0 border-warning-border bg-warning-bg text-warning-text">Reajuste</Badge>
           ) : null}
         </div>
       </td>
-      <td className="px-4 py-4">
-        <CrmUserLabel name={item.managerName} size="xs" variant="inline" />
-        <div className="mt-2 flex max-w-56 flex-wrap gap-1.5">
+      <td className="px-3 py-2 align-middle">
+        <div className="flex min-w-0 items-center gap-2">
+          <CrmUserLabel name={item.managerName} size="xs" variant="inline" className="max-w-36" />
           {item.areas.length ? (
-            item.areas.map((area) => <AreaIconLabel key={area} area={area} size="xs" />)
+            item.areas.map((area) => <AreaIconLabel key={area} area={area} size="xs" className="max-w-32" />)
           ) : (
-            <span className="text-xs text-zinc-500">Áreas pendentes</span>
+            <span className="text-xs text-muted-foreground">Áreas pendentes</span>
           )}
         </div>
       </td>
-      <td className="px-4 py-4 tabular-nums">
-        <p className="font-medium">{money(item.monthlyProjectionCents)}/mês</p>
-        <p className="mt-1 text-xs text-zinc-500">{money(item.annualReferenceCents)} anual</p>
+      <td className="px-3 py-2 align-middle tabular-nums">
+        <span className="font-medium text-foreground">{money(item.monthlyProjectionCents)}</span>
+        <span className="text-muted-foreground">/mês</span>
       </td>
-      <td className="px-4 py-4">
-        <span className="inline-flex items-center gap-1.5">
-          <CalendarClock className="size-4 text-zinc-400" />
-          {date(item.renewalDate)}
-        </span>
+      <td className="px-3 py-2 align-middle tabular-nums text-foreground">
+        {date(portfolioRenewalDate(item))}
       </td>
-      <td className="px-4 py-4">
+      <td className="px-3 py-2 align-middle">
         <div className="flex items-center gap-2">
-          <Progress value={item.setupProgress.percent} className="w-24" />
-          <span className="text-xs tabular-nums text-zinc-500">{item.setupProgress.percent}%</span>
+          <Progress value={item.setupProgress.percent} className="w-20" />
+          <span className="text-xs tabular-nums text-muted-foreground">{item.setupProgress.percent}%</span>
         </div>
       </td>
-      <td className="px-4 py-4 text-right">
+      <td className="px-3 py-2 text-right align-middle">
         <Link
           href={`/crm/contratos/${item.id}`}
           aria-label={`Abrir ${item.title}`}
-          className="inline-flex size-8 items-center justify-center rounded-full border border-zinc-200 text-zinc-600 hover:border-teal-300 hover:text-teal-700"
+          className="inline-flex size-8 items-center justify-center rounded-(--radius-v2-lg) border border-border text-muted-foreground hover:border-interactive-300 hover:text-interactive-700"
         >
           <ArrowUpRight className="size-4" />
         </Link>
@@ -224,10 +269,23 @@ function PortfolioRow({ item }: { item: ContractPortfolioItem }) {
 }
 
 function PortfolioCard({ item }: { item: ContractPortfolioItem }) {
-  return <Link href={`/crm/contratos/${item.id}`} className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:border-teal-300">
-    <div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-zinc-900">{item.title}</p><p className="mt-1 text-sm text-zinc-500">{item.clientName}</p></div><ArrowUpRight className="size-4 shrink-0 text-zinc-400" /></div>
-    <div className="mt-3 flex flex-wrap gap-1"><Badge variant="outline">{lifecycleLabels[item.lifecycle]}</Badge>{item.renewalSoon ? <Badge className="bg-amber-100 text-amber-800">Reajuste próximo</Badge> : null}</div>
-    <dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-zinc-500">Projeção mensal</dt><dd className="mt-1 font-medium">{money(item.monthlyProjectionCents)}</dd></div><div><dt className="text-xs text-zinc-500">Renovação</dt><dd className="mt-1 font-medium">{date(item.renewalDate)}</dd></div></dl>
-    <div className="mt-4 flex items-center gap-2"><Progress value={item.setupProgress.percent} className="flex-1" /><span className="text-xs tabular-nums text-zinc-500">{item.setupProgress.percent}%</span></div>
-  </Link>;
+  return (
+    <Link
+      href={`/crm/contratos/${item.id}`}
+      className="flex items-center justify-between gap-3 rounded-(--radius-v2-lg) border border-border bg-background px-3 py-2.5"
+    >
+      <div className="min-w-0">
+        <p className="truncate text-sm">
+          <span className="font-semibold text-foreground">{item.title}</span>
+          <span className="text-muted-foreground"> · {item.clientName}</span>
+        </p>
+        <p className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <LifecycleBadge lifecycle={item.lifecycle} />
+          <span className="truncate tabular-nums">{money(item.monthlyProjectionCents)}/mês</span>
+          <span className="tabular-nums">{date(portfolioRenewalDate(item))}</span>
+        </p>
+      </div>
+      <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
+    </Link>
+  );
 }
