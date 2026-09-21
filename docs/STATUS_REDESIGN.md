@@ -10,11 +10,12 @@ Documento-fonte: `DESIGN_SYSTEM_V2_CRM_BP.md` (raiz do projeto) — é a especif
 
 ## Snapshot atual
 
-*(Última atualização: 18/09/2026)*
+*(Última atualização: 21/09/2026)*
 
 - **Fase atual:** Fase 6 — Demais módulos — **concluída**. Lote 1 (Clientes/Login/Perfil/Notificações), lote 2 (Dashboard) e lote 3 (Documentos/Due diligence) concluídos. Dentro de Administração: lote A (Campos/Cláusulas), lote B (Usuários), lote D1 (Integrações não-D4Sign), lote C1 (Proposta-escopo/Catálogo), lote C2 (Proposta-escopo/Importação, `scope-import/`) e lote D2 (D4Sign + Admin/Documentos, fecha a fase) concluídos — todos pelo Claude — Lead, sem Cursor/Grok/Codex conectados nesta sessão.
 - **Fases concluídas:** Fase 0 — Auditoria; Fase 1 — Fundação de tokens; Fase 2 — Primitives; Fase 3 — Shell; Fase 4 — Leads/Kanban; Fase 5 — Propostas/Contratos; Fase 6 — Demais módulos
 - **Próxima fase:** Fase 7 — Limpeza (remoção de tokens legados, Inter, estilos locais órfãos)
+- **Fora de fase (21/09/2026):** Grade pública `/preencher/carteira/[token]` e modal de `/crm/clientes` passaram a usar o mesmo picker de “Quem indicou” do cadastro de lead (base `indicadores` + solicitar aprovação). Sem mudança de tokens globais.
 - **Bloqueios conhecidos:** ver seção "Bloqueios" abaixo
 
 ## Fases (referência rápida — ver seção 33 do documento-fonte para detalhes completos)
@@ -241,6 +242,7 @@ Registradas no fechamento da Fase 4 (achado bloqueante já corrigido — ver Cha
 
 ## Changelog
 
+- **21/09/2026** — `/preencher/carteira/[token]` e modal de `/crm/clientes`: **Quem indicou** deixou de ser texto livre e passou a seguir o cadastro de lead (`indication-name-picker.tsx`): Select da base `indicadores` aprovados, opção “Não encontrei na base (solicitar aprovação)” e Colaborador via quadro OrquestrAI. Pessoa nova grava `pendente_aprovacao` e notifica admins (`ensure-pending-indicator.ts`). Sem mudança de tokens globais.
 - **18/09/2026** — `/crm/clientes` e grade pública: Status e Áreas deixam de depender só do fetch ao vivo do OrquestrAI (que, se falhar no online, renderizava “—”). Sync grava `gestor_atividade`, `responsible_area` e `legal_areas` em `grupos_economicos`; a UI usa o espelho local e só sobrepõe se o fetch cruzado responder. Áreas unem `responsible_area` ∪ `legal_areas` ∪ `areas_atuacao`. Tokens V2 intactos. Sem mudança de tokens globais.
 - **18/09/2026** — `/crm/clientes` modal de grupo (editar): chips de **Áreas** (Cível/Trabalhista/etc.) passaram a ser o controle clicável (`type="button"`, hint “Manual, se marcada” dentro do botão). O Dialog passou a usar o contrato Dialog+Select (`modal={false}` + `dialogSelectOutsideHandlers` + `CrmSelectContent inModal`) para o Select de Indicação não engolir o clique. Sem mudança de tokens globais.
 - **18/09/2026** — `/crm/clientes`: coluna **Categoria** passou a ser Cliente | Lead (`origemLinha`), não Cível/Societário. Grupos da carteira mostram Cliente; Lead fica no tipo da linha para unir `oportunidades` depois. Áreas continuam `responsible_area` ∪ SIOE. Sync grava `categoria='Cliente'`. Tokens V2 nos badges (`info`/`violet`). Sem mudança de tokens globais.

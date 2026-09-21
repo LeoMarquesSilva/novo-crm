@@ -35,6 +35,12 @@ import {
   enrichCarteiraGrupoOrqestrai,
 } from "@/lib/crm/carteira-grupo-enrichment";
 import { fetchSioeGrupoAreaSignals, fetchSioeGrupoAreaSignalsByGroups } from "@/lib/sioe/grupo-areas";
+import { requestIndicatorApprovalIfNew } from "@/lib/crm/ensure-pending-indicator";
+import {
+  EMPTY_INDICATION_NAME_OPTIONS,
+  loadIndicationNameOptions,
+  type IndicationNameOptions,
+} from "@/lib/crm/indication-name-options";
 import type { Json } from "@/lib/supabase/database.types";
 
 export type { GrupoIntakeGridRow };
@@ -54,6 +60,7 @@ export type GrupoIntakeGridData = {
   expiresAt: string;
   groups: GrupoIntakeGridRow[];
   practiceAreas: readonly typeof CRM_PRACTICE_AREAS[number][];
+  indicationOptions: IndicationNameOptions;
 };
 
 type IntakeTokenRow = {
@@ -165,10 +172,12 @@ export async function loadGrupoIntakeGrid(
   }
 
   const supabase = createSupabaseAdminClient();
-  const [{ data: grupos, error: gruposError }, orqestraiGroups] = await Promise.all([
-    fetchGruposEconomicosCarteira(supabase),
-    fetchOrqestraiClientGroups().catch(() => null),
-  ]);
+  const [{ data: grupos, error: gruposError }, orqestraiGroups, indicationOptions] =
+    await Promise.all([
+      fetchGruposEconomicosCarteira(supabase),
+      fetchOrqestraiClientGroups().catch(() => null),
+      loadIndicationNameOptions(supabase).catch(() => EMPTY_INDICATION_NAME_OPTIONS),
+    ]);
   if (gruposError) throw new Error(gruposError.message);
 
   const orqestraiLookup = buildOrqestraiGroupLookup(orqestraiGroups);
@@ -207,6 +216,7 @@ export async function loadGrupoIntakeGrid(
       expiresAt: token.expires_at,
       groups,
       practiceAreas: CRM_PRACTICE_AREAS,
+      indicationOptions,
     },
   };
 }
@@ -279,6 +289,14 @@ export async function submitGrupoIntakeRow(
     })
     .eq("id", token.id);
   if (updateTokenError) throw updateTokenError;
+
+  await requestIndicatorApprovalIfNew({
+    supabase,
+    tipoLead: prepared.value.tipoLead,
+    tipoIndicacao: prepared.value.tipoIndicacao,
+    nomeIndicacao: prepared.value.nomeIndicacao,
+    previewSuffix: `carteira · ${grupo.nome}`,
+  });
 
   return { ok: true };
 }

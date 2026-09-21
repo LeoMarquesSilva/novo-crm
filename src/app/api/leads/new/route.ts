@@ -9,8 +9,8 @@ import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integra
 import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
 import { sendLeadNotificationEmail } from "@/modules/crm/application/services/send-lead-notification-email";
 import { syncDueAreaTasksForOpportunity } from "@/lib/crm/due-area-tasks";
-import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { requestIndicatorApprovalIfNew } from "@/lib/crm/ensure-pending-indicator";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -127,55 +127,19 @@ export async function POST(request: Request) {
     });
 
     if (payload.tipo_de_lead === "Indicacao" && payload.nome_indicacao?.trim()) {
-      const normalizedName = payload.nome_indicacao.trim();
-      const { data: existingIndicator } = await supabase
-        .from("indicadores")
-        .select("id, status")
-        .ilike("nome", normalizedName)
-        .limit(1)
-        .maybeSingle();
-
-      if (!existingIndicator) {
-        const { data: createdIndicator } = await supabase
-          .from("indicadores")
-          .insert({
-          nome: normalizedName,
-          status: "pendente_aprovacao",
-          })
-          .select("id, nome")
-          .maybeSingle();
-
-        if (createdIndicator) {
-          const { data: adminUsers } = await supabase
-            .from("app_users")
-            .select("id")
-            .eq("role", "admin");
-
-          if (adminUsers && adminUsers.length > 0) {
-            const originado_por = actorFromAppUserRow(
-              auth.profile
-                ? {
-                    id: auth.profile.id,
-                    full_name: auth.profile.full_name,
-                    avatar_url: auth.profile.avatar_url,
-                  }
-                : null,
-            );
-            await supabase.from("crm_in_app_notifications").insert(
-              adminUsers.map((admin) => ({
-                user_id: admin.id,
-                tipo: "indicator_pending_approval",
-                payload: {
-                  title: "Novo indicador pendente de aprovação",
-                  preview: createdIndicator.nome,
-                  path: "/crm",
-                  ...(originado_por ? { originado_por } : {}),
-                },
-              })),
-            );
-          }
-        }
-      }
+      await requestIndicatorApprovalIfNew({
+        supabase,
+        tipoLead: payload.tipo_de_lead,
+        tipoIndicacao: payload.tipo_indicacao,
+        nomeIndicacao: payload.nome_indicacao,
+        actor: auth.profile
+          ? {
+              id: auth.profile.id,
+              full_name: auth.profile.full_name,
+              avatar_url: auth.profile.avatar_url,
+            }
+          : null,
+      });
     }
 
     const warnings: string[] = [];

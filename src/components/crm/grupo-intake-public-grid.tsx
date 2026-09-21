@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { IndicationNamePicker } from "@/components/crm/indication-name-picker";
 import {
   Table,
   TableBody,
@@ -28,6 +29,13 @@ import type { GrupoIntakeGridData, GrupoIntakeGridRow } from "@/lib/crm/grupo-in
 import {
   CARTEIRA_CLIENTE_STATUS_LABEL,
 } from "@/lib/orqestrai/gestor-atividade";
+import {
+  EMPTY_INDICATION_NAME_OPTIONS,
+  isCollaboratorIndicationType,
+  resolveIndicationNameMode,
+  type IndicationNameMode,
+  type IndicationNameOptions,
+} from "@/lib/crm/indication-name-options";
 import { cn } from "@/lib/utils";
 
 const LEAD_TYPE_ITEMS = Object.fromEntries(GRUPO_INTAKE_LEAD_TYPES.map((item) => [item, item]));
@@ -45,16 +53,24 @@ type RowDraft = {
   tipoLead: string;
   tipoIndicacao: string;
   nomeIndicacao: string;
+  nomeIndicacaoMode: IndicationNameMode;
   selectedAreaKeys: string[];
   saveState: "idle" | "dirty" | "saving" | "saved" | "error";
   error: string | null;
 };
 
-function draftFromRow(row: GrupoIntakeGridRow): RowDraft {
+function draftFromRow(row: GrupoIntakeGridRow, options: IndicationNameOptions): RowDraft {
+  const tipoIndicacao = row.indication?.tipoIndicacao ?? "";
+  const nomeIndicacao = row.indication?.nomeIndicacao ?? "";
   return {
     tipoLead: row.indication?.tipoLead ?? "",
-    tipoIndicacao: row.indication?.tipoIndicacao ?? "",
-    nomeIndicacao: row.indication?.nomeIndicacao ?? "",
+    tipoIndicacao,
+    nomeIndicacao,
+    nomeIndicacaoMode: resolveIndicationNameMode({
+      tipoIndicacao,
+      nome: nomeIndicacao,
+      approvedIndicators: options.approvedIndicators,
+    }),
     selectedAreaKeys: [...row.prefilledAreaKeys],
     saveState: "idle",
     error: null,
@@ -76,10 +92,11 @@ export function GrupoIntakePublicGrid({
   token: string;
   initial: GrupoIntakeGridData;
 }) {
+  const indicationOptions = initial.indicationOptions ?? EMPTY_INDICATION_NAME_OPTIONS;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<GrupoIntakeGridStatusFilter>("ativos");
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>(() =>
-    Object.fromEntries(initial.groups.map((row) => [row.id, draftFromRow(row)])),
+    Object.fromEntries(initial.groups.map((row) => [row.id, draftFromRow(row, indicationOptions)])),
   );
   const draftsRef = useRef(drafts);
   draftsRef.current = drafts;
@@ -103,7 +120,7 @@ export function GrupoIntakePublicGrid({
 
   function patchDraft(grupoId: string, patch: Partial<RowDraft>, scheduleSave = true) {
     setDrafts((current) => {
-      const previous = current[grupoId] ?? draftFromRow(derivedByGrupo.get(grupoId)!);
+      const previous = current[grupoId] ?? draftFromRow(derivedByGrupo.get(grupoId)!, indicationOptions);
       return {
         ...current,
         [grupoId]: { ...previous, ...patch, saveState: patch.saveState ?? "dirty", error: patch.error ?? null },
@@ -119,7 +136,7 @@ export function GrupoIntakePublicGrid({
   async function saveRow(grupoId: string) {
     window.clearTimeout(timers.current[grupoId]);
     const row = derivedByGrupo.get(grupoId);
-    const draft = draftsRef.current[grupoId] ?? (row ? draftFromRow(row) : null);
+    const draft = draftsRef.current[grupoId] ?? (row ? draftFromRow(row, indicationOptions) : null);
     if (!row || !draft) return;
 
     const isIndicacao = draft.tipoLead === "Indicacao";
@@ -237,7 +254,7 @@ export function GrupoIntakePublicGrid({
               </TableRow>
             ) : (
               visible.map((grupo) => {
-                const draft = drafts[grupo.id] ?? draftFromRow(grupo);
+                const draft = drafts[grupo.id] ?? draftFromRow(grupo, indicationOptions);
                 const isIndicacao = draft.tipoLead === "Indicacao";
                 const derivedByArea = new Map(grupo.derivedAreas.map((area) => [area.areaKey, area]));
                 return (
@@ -267,13 +284,15 @@ export function GrupoIntakePublicGrid({
                         items={LEAD_TYPE_ITEMS}
                         value={draft.tipoLead}
                         onValueChange={(value) => {
-                          const next = value ?? "";
-                          patchDraft(grupo.id, {
-                            tipoLead: next,
-                            tipoIndicacao: next === "Indicacao" ? draft.tipoIndicacao : "",
-                            nomeIndicacao: next === "Indicacao" ? draft.nomeIndicacao : "",
-                          });
-                        }}
+                            const next = value ?? "";
+                            patchDraft(grupo.id, {
+                              tipoLead: next,
+                              tipoIndicacao: next === "Indicacao" ? draft.tipoIndicacao : "",
+                              nomeIndicacao: next === "Indicacao" ? draft.nomeIndicacao : "",
+                              nomeIndicacaoMode:
+                                next === "Indicacao" ? draft.nomeIndicacaoMode : "existing",
+                            });
+                          }}
                       >
                         <SelectTrigger size="sm" className="h-9 w-full justify-between font-normal">
                           <CrmSelectValue value={draft.tipoLead} labels={LEAD_TYPE_ITEMS} placeholder="Tipo" />
@@ -293,9 +312,33 @@ export function GrupoIntakePublicGrid({
                           modal={false}
                           items={INDICATION_TYPE_ITEMS}
                           value={draft.tipoIndicacao}
-                          onValueChange={(value) =>
-                            patchDraft(grupo.id, { tipoIndicacao: value ?? "" })
-                          }
+                          onValueChange={(value) => {
+                            const next = value ?? "";
+                            if (isCollaboratorIndicationType(next)) {
+                              patchDraft(grupo.id, {
+                                tipoIndicacao: next,
+                                nomeIndicacaoMode: "colaborador",
+                                nomeIndicacao: indicationOptions.collaborators.some(
+                                  (item) => item.name === draft.nomeIndicacao,
+                                )
+                                  ? draft.nomeIndicacao
+                                  : "",
+                              });
+                              return;
+                            }
+                            if (isCollaboratorIndicationType(draft.tipoIndicacao)) {
+                              const keepExisting = indicationOptions.approvedIndicators.includes(
+                                draft.nomeIndicacao,
+                              );
+                              patchDraft(grupo.id, {
+                                tipoIndicacao: next,
+                                nomeIndicacaoMode: "existing",
+                                nomeIndicacao: keepExisting ? draft.nomeIndicacao : "",
+                              });
+                              return;
+                            }
+                            patchDraft(grupo.id, { tipoIndicacao: next });
+                          }}
                         >
                           <SelectTrigger size="sm" className="h-9 w-full justify-between font-normal">
                             <CrmSelectValue
@@ -316,15 +359,21 @@ export function GrupoIntakePublicGrid({
                         <span className="text-v2-caption text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="min-w-[160px] py-3">
+                    <TableCell className="min-w-[200px] py-3">
                       {isIndicacao ? (
-                        <Input
-                          value={draft.nomeIndicacao}
-                          onChange={(event) =>
-                            patchDraft(grupo.id, { nomeIndicacao: event.target.value })
+                        <IndicationNamePicker
+                          tipoIndicacao={draft.tipoIndicacao}
+                          nome={draft.nomeIndicacao}
+                          mode={draft.nomeIndicacaoMode}
+                          options={indicationOptions}
+                          size="sm"
+                          onChange={({ nome, mode }) =>
+                            patchDraft(
+                              grupo.id,
+                              { nomeIndicacao: nome, nomeIndicacaoMode: mode },
+                              Boolean(nome.trim()) || mode !== "new",
+                            )
                           }
-                          placeholder="Nome de quem indicou"
-                          className="h-9"
                         />
                       ) : (
                         <span className="text-v2-caption text-muted-foreground">—</span>

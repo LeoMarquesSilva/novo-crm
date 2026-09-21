@@ -5,6 +5,13 @@ import {
   type GrupoAreaAtuacao,
 } from "@/lib/crm/grupo-areas-atuacao";
 import { prepareGrupoIntakeRowSave } from "@/lib/crm/grupo-intake-grid";
+import { requestIndicatorApprovalIfNew } from "@/lib/crm/ensure-pending-indicator";
+import {
+  EMPTY_INDICATION_NAME_OPTIONS,
+  loadIndicationNameOptions,
+  type IndicationNameOptions,
+} from "@/lib/crm/indication-name-options";
+import type { AppUserActorRow } from "@/lib/crm/in-app-notification-meta";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchSioeGrupoAreaSignals } from "@/lib/sioe/grupo-areas";
 import type { Json } from "@/lib/supabase/database.types";
@@ -61,16 +68,20 @@ export async function loadGrupoCarteiraEdit(grupoId: string): Promise<
         areasAtuacao: Json;
         derivedAreas: GrupoAreaAtuacao[];
         practiceAreas: readonly (typeof CRM_PRACTICE_AREAS)[number][];
+        indicationOptions: IndicationNameOptions;
       };
     }
   | { ok: false; status: 404 | 409; error: string }
 > {
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("grupos_economicos")
-    .select("id, nome, tipo_lead, tipo_indicacao, nome_indicacao, areas_atuacao")
-    .eq("id", grupoId)
-    .maybeSingle();
+  const [{ data, error }, indicationOptions] = await Promise.all([
+    supabase
+      .from("grupos_economicos")
+      .select("id, nome, tipo_lead, tipo_indicacao, nome_indicacao, areas_atuacao")
+      .eq("id", grupoId)
+      .maybeSingle(),
+    loadIndicationNameOptions(supabase).catch(() => EMPTY_INDICATION_NAME_OPTIONS),
+  ]);
   if (error) {
     if (isMissingIntakeColumn(error.message)) {
       return { ok: false, status: 409, error: INTAKE_COLUMNS_MISSING };
@@ -90,6 +101,7 @@ export async function loadGrupoCarteiraEdit(grupoId: string): Promise<
       areasAtuacao: data.areas_atuacao,
       derivedAreas: await loadDerivedAreasForGrupo(data.id, data.nome),
       practiceAreas: CRM_PRACTICE_AREAS,
+      indicationOptions,
     },
   };
 }
@@ -97,6 +109,7 @@ export async function loadGrupoCarteiraEdit(grupoId: string): Promise<
 export async function saveGrupoCarteira(
   grupoId: string,
   input: SaveGrupoCarteiraInput,
+  actor?: AppUserActorRow | null,
 ): Promise<
   | {
       ok: true;
@@ -157,6 +170,15 @@ export async function saveGrupoCarteira(
     }
     throw updateError;
   }
+
+  await requestIndicatorApprovalIfNew({
+    supabase,
+    tipoLead: prepared.value.tipoLead,
+    tipoIndicacao: prepared.value.tipoIndicacao,
+    nomeIndicacao: prepared.value.nomeIndicacao,
+    actor,
+    previewSuffix: `carteira · ${grupo.nome}`,
+  });
 
   return {
     ok: true,

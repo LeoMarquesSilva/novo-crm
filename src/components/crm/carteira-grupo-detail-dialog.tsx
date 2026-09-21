@@ -13,10 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
+import { IndicationNamePicker } from "@/components/crm/indication-name-picker";
 import { SelectField, TagSelectable } from "@/components/crm/new-lead-modal";
 import { dialogSelectOutsideHandlers } from "@/lib/ui/base-ui-select-dialog";
 import { AreaIconLabel, getAreaLucideIcon } from "@/lib/crm/area-lucide-icon";
@@ -46,6 +46,13 @@ import {
   CARTEIRA_CLIENTE_STATUS_LABEL,
   type CarteiraClienteStatus,
 } from "@/lib/orqestrai/gestor-atividade";
+import {
+  EMPTY_INDICATION_NAME_OPTIONS,
+  isCollaboratorIndicationType,
+  resolveIndicationNameMode,
+  type IndicationNameMode,
+  type IndicationNameOptions,
+} from "@/lib/crm/indication-name-options";
 
 const LEAD_TYPE_ITEMS = Object.fromEntries(GRUPO_INTAKE_LEAD_TYPES.map((item) => [item, item]));
 const INDICATION_TYPE_ITEMS = Object.fromEntries(
@@ -141,8 +148,12 @@ export function CarteiraGrupoDetailDialog({
   const [tipoLead, setTipoLead] = useState("");
   const [tipoIndicacao, setTipoIndicacao] = useState("");
   const [nomeIndicacao, setNomeIndicacao] = useState("");
+  const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<IndicationNameMode>("existing");
   const [selected, setSelected] = useState<string[]>([]);
   const [derivedAreas, setDerivedAreas] = useState<GrupoAreaAtuacao[]>([]);
+  const [indicationOptions, setIndicationOptions] = useState<IndicationNameOptions>(
+    EMPTY_INDICATION_NAME_OPTIONS,
+  );
 
   const indication = grupo
     ? parseGrupoIntakeIndication({
@@ -169,13 +180,39 @@ export function CarteiraGrupoDetailDialog({
     setEditing(false);
     setError(null);
     setDerivedAreas([]);
+    setIndicationOptions(EMPTY_INDICATION_NAME_OPTIONS);
+    if (grupo?.id) void loadDerived(grupo.id);
   }, [grupo?.id]);
+
+  useEffect(() => {
+    if (!editing) return;
+    setNomeIndicacaoMode((current) => {
+      if (current === "colaborador") return current;
+      if (current === "new") {
+        return indicationOptions.approvedIndicators.includes(nomeIndicacao)
+          ? "existing"
+          : "new";
+      }
+      return resolveIndicationNameMode({
+        tipoIndicacao,
+        nome: nomeIndicacao,
+        approvedIndicators: indicationOptions.approvedIndicators,
+      });
+    });
+  }, [indicationOptions]);
 
   function startEdit() {
     if (!grupo) return;
     setTipoLead(grupo.tipoLead ?? "");
     setTipoIndicacao(grupo.tipoIndicacao ?? "");
     setNomeIndicacao(grupo.nomeIndicacao ?? "");
+    setNomeIndicacaoMode(
+      resolveIndicationNameMode({
+        tipoIndicacao: grupo.tipoIndicacao,
+        nome: grupo.nomeIndicacao,
+        approvedIndicators: indicationOptions.approvedIndicators,
+      }),
+    );
     setSelected(
       mergeGrupoPracticeAreas({
         responsibleArea: grupo.responsibleArea,
@@ -192,10 +229,19 @@ export function CarteiraGrupoDetailDialog({
     try {
       const res = await fetch(`/api/crm/carteira/grupos/${grupoId}`);
       const json = (await res.json()) as
-        | { ok: true; data: { derivedAreas?: GrupoAreaAtuacao[] } }
+        | {
+            ok: true;
+            data: {
+              derivedAreas?: GrupoAreaAtuacao[];
+              indicationOptions?: IndicationNameOptions;
+            };
+          }
         | { ok?: false; error?: string };
       if (res.ok && json.ok === true) {
         setDerivedAreas(json.data.derivedAreas ?? []);
+        if (json.data.indicationOptions) {
+          setIndicationOptions(json.data.indicationOptions);
+        }
       }
     } catch {
       setDerivedAreas([]);
@@ -336,6 +382,7 @@ export function CarteiraGrupoDetailDialog({
                         if (next !== "Indicacao") {
                           setTipoIndicacao("");
                           setNomeIndicacao("");
+                          setNomeIndicacaoMode("existing");
                         }
                       }}
                     >
@@ -361,7 +408,25 @@ export function CarteiraGrupoDetailDialog({
                         modal={false}
                         items={INDICATION_TYPE_ITEMS}
                         value={tipoIndicacao}
-                        onValueChange={(value) => setTipoIndicacao(value ?? "")}
+                        onValueChange={(value) => {
+                          const next = value ?? "";
+                          setTipoIndicacao(next);
+                          if (isCollaboratorIndicationType(next)) {
+                            setNomeIndicacaoMode("colaborador");
+                            setNomeIndicacao(
+                              indicationOptions.collaborators.some((item) => item.name === nomeIndicacao)
+                                ? nomeIndicacao
+                                : "",
+                            );
+                            return;
+                          }
+                          if (isCollaboratorIndicationType(tipoIndicacao)) {
+                            const keepExisting =
+                              indicationOptions.approvedIndicators.includes(nomeIndicacao);
+                            setNomeIndicacaoMode("existing");
+                            setNomeIndicacao(keepExisting ? nomeIndicacao : "");
+                          }
+                        }}
                       >
                         <SelectTrigger className="h-10 w-full justify-between font-normal">
                           <CrmSelectValue
@@ -386,11 +451,17 @@ export function CarteiraGrupoDetailDialog({
                     <Label htmlFor="grupo-nome-indicacao" className="text-xs font-medium text-muted-foreground">
                       Nome de quem indicou *
                     </Label>
-                    <Input
+                    <IndicationNamePicker
                       id="grupo-nome-indicacao"
-                      value={nomeIndicacao}
-                      onChange={(event) => setNomeIndicacao(event.target.value)}
-                      placeholder="Nome completo"
+                      tipoIndicacao={tipoIndicacao}
+                      nome={nomeIndicacao}
+                      mode={nomeIndicacaoMode}
+                      options={indicationOptions}
+                      inModal
+                      onChange={({ nome, mode }) => {
+                        setNomeIndicacao(nome);
+                        setNomeIndicacaoMode(mode);
+                      }}
                     />
                   </div>
                 ) : null}

@@ -50,7 +50,11 @@ export async function PATCH(
     if (!parsed.success) {
       return jsonError("Dados inválidos para gravar o grupo.", 400);
     }
-    const result = await saveGrupoCarteira(id, parsed.data);
+    const result = await saveGrupoCarteira(id, parsed.data, {
+      id: auth.profile.id,
+      full_name: auth.profile.full_name,
+      avatar_url: auth.profile.avatar_url,
+    });
     if (!result.ok) return jsonError(result.error, result.status);
     return NextResponse.json({ ok: true, data: result.data });
   } catch (error) {
