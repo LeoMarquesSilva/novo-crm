@@ -9,6 +9,7 @@ import { PropostaBrlCurrencyInput } from "@/components/crm/proposta-brl-currency
 import { displayBrlCurrencyField } from "@/lib/crm/proposta-valor-brl-extenso";
 import {
   buildParcelasPlaceholdersPatch,
+  computeValorParcelaIgual,
   getParcelaValues,
   getParcelaVencimentos,
   getParcelasModo,
@@ -58,7 +59,19 @@ export function PropostaInvestimentoParcelasFields({ placeholders, onChange }: P
               const sized = Array.from({ length: nextCount }, (_, i) => cur[i] ?? "");
               patch({ count: nextCount, modo: "distintas", valoresDistintos: sized, vencimentos: sizedV });
             } else {
-              patch({ count: nextCount, modo: "iguais", vencimentos: sizedV });
+              const auto =
+                nextCount > 0
+                  ? computeValorParcelaIgual(
+                      { ...placeholders, PARCELAS: String(nextCount) },
+                      nextCount,
+                    )
+                  : null;
+              patch({
+                count: nextCount,
+                modo: "iguais",
+                vencimentos: sizedV,
+                ...(auto ? { valorIgual: auto } : {}),
+              });
             }
           }}
           className="h-10 border-border bg-white"
@@ -73,10 +86,12 @@ export function PropostaInvestimentoParcelasFields({ placeholders, onChange }: P
               active={modo === "iguais"}
               onClick={() => {
                 const cur = getParcelaValues(placeholders);
+                const auto = computeValorParcelaIgual(placeholders, count);
                 patch({
                   modo: "iguais",
                   count,
-                  valorIgual: placeholders.VALORPARCELA?.trim() || cur[0] || "",
+                  valorIgual:
+                    auto ?? (placeholders.VALORPARCELA?.trim() || cur[0] || ""),
                   vencimentos,
                 });
               }}

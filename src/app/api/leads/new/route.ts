@@ -67,16 +67,26 @@ export async function POST(request: Request) {
     /** Nome exibido no pipeline / ficha: empresa ou pessoa do lead (não o colaborador interno). */
     const nomeLeadCadastro = firstCompany.razao_social.trim();
 
+    const demandTipo =
+      payload.cliente_id && payload.relacao_contrato === "aditivo"
+        ? "aditivo"
+        : payload.cliente_id && payload.relacao_contrato === "novo"
+          ? "novo_contrato"
+          : "novo_lead";
+
     const { data: oportunidade, error: oportunidadeError } = await supabase
       .from("oportunidades")
       .insert({
-        tipo: "novo_lead",
+        tipo: demandTipo,
         etapa: initialStage,
         havera_due_diligence: payload.due_diligence === "Sim",
         solicitante_nome: nomeLeadCadastro,
         solicitante_email: payload.email,
         criado_por: criadoPor,
         indicador_nome_digitado: payload.nome_indicacao?.trim() || null,
+        cliente_id: payload.cliente_id ?? null,
+        contrato_base_id:
+          payload.relacao_contrato === "aditivo" ? (payload.contrato_base_id ?? null) : null,
       })
       .select("id")
       .single();
@@ -91,7 +101,13 @@ export async function POST(request: Request) {
       oportunidade_id: oportunidade.id,
       solicitante_nome: payload.solicitante.trim(),
       cadastrado_por_email: cadastradoPorEmail,
-      contexto_comercial: payload.contexto_comercial ?? null,
+      contexto_comercial:
+        payload.contexto_comercial?.trim() ||
+        (payload.cliente_id && payload.relacao_contrato === "aditivo"
+          ? "Cliente já cadastrado — demanda tratada como aditivo."
+          : payload.cliente_id && payload.relacao_contrato === "novo"
+            ? "Cliente já cadastrado — demanda tratada como contrato novo."
+            : null),
       due_diligence: payload.due_diligence === "Sim",
       data_entrega_due: payload.data_entrega_due ?? null,
       horario_entrega_due: payload.horario_entrega_due ?? null,

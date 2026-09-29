@@ -46,6 +46,11 @@ export const newLeadPayloadSchema = z
     tipo_indicacao: z.enum(indicationTypes).optional().nullable(),
     nome_indicacao: z.string().optional().nullable(),
     contexto_comercial: z.string().optional().nullable(),
+    /** Cliente da carteira quando o CNPJ/CPF já existe na base. */
+    cliente_id: z.string().uuid().optional().nullable(),
+    /** Contrato base quando a demanda for aditivo. */
+    contrato_base_id: z.string().uuid().optional().nullable(),
+    relacao_contrato: z.enum(["novo", "aditivo"]).optional().nullable(),
   })
   .superRefine((value, ctx) => {
     if (value.due_diligence === "Sim") {
@@ -92,6 +97,14 @@ export const newLeadPayloadSchema = z
           });
         }
       }
+    }
+
+    if (value.cliente_id && value.relacao_contrato === "aditivo" && !value.contrato_base_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["contrato_base_id"],
+        message: "Selecione o contrato base para aditivo.",
+      });
     }
 
     if (value.tipo_de_lead === "Indicacao") {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeValorParcelaIgual,
   formatDetalheParcelasForMerge,
   formatParcelaVencimentoSuffix,
   formatValorParcelaPlaceholderForMerge,
@@ -79,5 +80,15 @@ describe("proposta-investimento-parcelas", () => {
   it("formatParcelaVencimentoSuffix aceita frase com na/em", () => {
     expect(formatParcelaVencimentoSuffix("na data de assinatura")).toBe(" na data de assinatura");
     expect(formatParcelaVencimentoSuffix("30 dias")).toBe(" na 30 dias");
+  });
+
+  it("computeValorParcelaIgual divide VALORSPOT pelo número de parcelas", () => {
+    expect(
+      computeValorParcelaIgual({ VALORSPOT: "10.000,00", PARCELAS: "2" }, 2),
+    ).toBe("5.000,00");
+    expect(
+      computeValorParcelaIgual({ VALORSPOT: "10.000,00", PARCELAS: "3" }, 3),
+    ).toBe("3.333,33");
+    expect(computeValorParcelaIgual({ VALORSPOT: "", PARCELAS: "2" }, 2)).toBeNull();
   });
 });

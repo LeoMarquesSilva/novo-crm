@@ -80,6 +80,12 @@ import {
   SIGNATURE_PAGE_LAST,
 } from "@/lib/crm/contrato-signature-pins";
 import type { LeadDetailData } from "./page";
+import {
+  ClienteCadastroApplyDialog,
+  clienteCadastroPromptWasDeclined,
+} from "@/components/crm/cliente-cadastro-apply-dialog";
+import { isClienteEnderecoCpEmpty } from "@/lib/crm/cliente-cadastro-cp-fields";
+import { applyClienteCadastroCpFieldsToLead } from "@/lib/crm/apply-cliente-cadastro-to-lead";
 import { useContractReviewTaskRealtime } from "@/lib/crm/use-contract-review-task-realtime";
 import {
   canSendContractToD4Sign,
@@ -722,6 +728,34 @@ function ContratoBuilderDialog({
   const [confirmClose, setConfirmClose] = useState(false);
   const [mobilePane, setMobilePane] = useState<"edit" | "preview">("edit");
   const [alterarEscoposOpen, setAlterarEscoposOpen] = useState(false);
+  const [cadastroPromptOpen, setCadastroPromptOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    if (lead.tipo !== "novo_contrato" || !lead.clienteId) return;
+    if (clienteCadastroPromptWasDeclined(lead.id)) return;
+    if (!isClienteEnderecoCpEmpty(contratoState.snapshot.fieldByCode ?? {})) return;
+    setCadastroPromptOpen(true);
+  }, [open, lead.tipo, lead.clienteId, lead.id, contratoState.snapshot.fieldByCode]);
+
+  async function applyClienteCadastroToContrato(cpFields: Record<string, string>) {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await applyClienteCadastroCpFieldsToLead({
+        leadId: lead.id,
+        cpFields,
+        pipelineFields: lead.pipelineFields,
+      });
+      setSaveFeedback("Dados do cadastro aplicados ao contrato.");
+      await onRefresh();
+      router.refresh();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Falha ao aplicar cadastro.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const initialObjectDraft = contratoState.objectDraft ?? {
     objectFieldValues: {},
@@ -1430,6 +1464,18 @@ function ContratoBuilderDialog({
           setSaveFeedback(null);
         }}
       />
+
+      {lead.clienteId ? (
+        <ClienteCadastroApplyDialog
+          open={cadastroPromptOpen}
+          leadId={lead.id}
+          clienteId={lead.clienteId}
+          onOpenChange={setCadastroPromptOpen}
+          onApply={(cpFields) => {
+            void applyClienteCadastroToContrato(cpFields);
+          }}
+        />
+      ) : null}
 
       {/* Confirmação de descarte — z acima do builder (z-[110]) */}
       <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>

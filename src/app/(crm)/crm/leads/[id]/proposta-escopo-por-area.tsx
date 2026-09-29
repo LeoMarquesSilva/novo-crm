@@ -103,6 +103,9 @@ type Props = {
   onSaved?: (escopoJson: string) => void;
   /** Rascunho local propagado antes da próxima interação de salvar ou gerar. */
   onEscopoDraftChange?: (escopoJson: string) => void;
+  /** Catálogo já carregado pelo builder (mesmo do snapshot do documento). */
+  initialScopeCatalog?: PropostaTiposCatalog;
+  initialInvestmentCatalog?: InvestimentoTipoDef[];
 };
 
 type EscopoAreaSolicitacao = {
@@ -128,6 +131,8 @@ export function PropostaEscopoPorArea({
   className,
   onSaved,
   onEscopoDraftChange,
+  initialScopeCatalog,
+  initialInvestmentCatalog,
   disabled = false,
   onSavingChange,
 }: Props) {
@@ -143,9 +148,11 @@ export function PropostaEscopoPorArea({
   /** Área em que o PATCH está em andamento (spinner no botão "Salvar esta área"). */
   const [savingAreaKey, setSavingAreaKey] = useState<string | null>(null);
   const [notifyingAreaKey, setNotifyingAreaKey] = useState<string | null>(null);
-  const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(PROPOSTA_TIPOS_CATALOG);
+  const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(
+    () => initialScopeCatalog ?? PROPOSTA_TIPOS_CATALOG,
+  );
   const [investmentCatalog, setInvestmentCatalog] = useState<InvestimentoTipoDef[]>(
-    PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
+    () => initialInvestmentCatalog ?? PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
   );
   const [savedEscopoJson, setSavedEscopoJson] = useState(savedValue);
   const investimentoMetaRef = useRef(

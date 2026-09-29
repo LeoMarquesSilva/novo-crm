@@ -72,6 +72,18 @@ export function parseParcelasCount(placeholders: Record<string, string>): number
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+/** Valor de cada parcela (modo iguais) = VALORSPOT ÷ número de parcelas. */
+export function computeValorParcelaIgual(
+  placeholders: Record<string, string>,
+  count: number,
+): string | null {
+  if (count <= 0) return null;
+  const spot = parseBrlUserInput(placeholders.VALORSPOT ?? "");
+  if (spot == null || spot <= 0) return null;
+  const parcel = Math.round((spot / count) * 100) / 100;
+  return formatNumberPtBr2(parcel);
+}
+
 /** Separador de listas serializadas (vencimentos); evita conflito com `|` no texto. */
 export const PARCELAS_LIST_SEP = "\u001e";
 

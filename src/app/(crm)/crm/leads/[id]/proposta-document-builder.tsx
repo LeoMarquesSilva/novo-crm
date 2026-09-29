@@ -68,6 +68,7 @@ import {
   createProposalDocxPreviewController,
   persistProposalDraft,
   readProposalDocxResponse,
+  readProposalPdfResponse,
   selectProposalDraftValues,
   type ProposalDocxPreviewState,
 } from "@/lib/crm/proposta-document-client";
@@ -94,6 +95,11 @@ import {
   type PropostaTiposCatalog,
 } from "@/data/proposta-tipos-catalog";
 import type { LeadDetailData, LeadDetailViewer } from "./page";
+import {
+  ClienteCadastroApplyDialog,
+  clienteCadastroPromptWasDeclined,
+} from "@/components/crm/cliente-cadastro-apply-dialog";
+import { isClienteEnderecoCpEmpty } from "@/lib/crm/cliente-cadastro-cp-fields";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -135,6 +141,10 @@ type DocumentState = {
     fieldByCode: Record<string, string>;
     /** Valores resolvidos (EMPRESA, CIDADE, ESCOPO_AREA…) — base do preview server-side. */
     templateData: Record<string, string>;
+    catalog?: {
+      scope: PropostaTiposCatalog;
+      investment: InvestimentoTipoDef[];
+    };
   };
 };
 
@@ -482,12 +492,16 @@ function PropostaBuilderDialog({
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [confirmClose, setConfirmClose] = useState(false);
+  const [generateFormatOpen, setGenerateFormatOpen] = useState(false);
+  const [cadastroPromptOpen, setCadastroPromptOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"edit" | "preview">("edit");
   const [activeStep, setActiveStep] = useState<ProposalStepKey>("responsavel");
 
-  const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(PROPOSTA_TIPOS_CATALOG);
+  const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(
+    () => docState.snapshot.catalog?.scope ?? PROPOSTA_TIPOS_CATALOG,
+  );
   const [investmentCatalog, setInvestmentCatalog] = useState<InvestimentoTipoDef[]>(
-    PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
+    () => docState.snapshot.catalog?.investment ?? PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
   );
 
   useEffect(() => {
@@ -533,6 +547,12 @@ function PropostaBuilderDialog({
     leadCreatorName,
     open,
   ]);
+
+  useEffect(() => {
+    const fromSnapshot = docState.snapshot.catalog;
+    if (fromSnapshot?.scope) setScopeCatalog(fromSnapshot.scope);
+    if (fromSnapshot?.investment) setInvestmentCatalog(fromSnapshot.investment);
+  }, [docState.snapshot.catalog]);
 
   useEffect(() => {
     if (!open) return;
@@ -713,6 +733,43 @@ function PropostaBuilderDialog({
     scheduleDocxPreview();
   }, [open, scheduleDocxPreview, selectedTemplateId]);
 
+  useEffect(() => {
+    if (!open) return;
+    if (lead.tipo !== "novo_contrato" || !lead.clienteId) return;
+    if (clienteCadastroPromptWasDeclined(lead.id)) return;
+    if (!isClienteEnderecoCpEmpty(docState.snapshot.fieldByCode ?? {})) return;
+    setCadastroPromptOpen(true);
+  }, [open, lead.tipo, lead.clienteId, lead.id, docState.snapshot.fieldByCode]);
+
+  async function applyClienteCadastroToProposal(cpFields: Record<string, string>) {
+    const merged = { ...draftValues, ...cpFields };
+    setDraftValues(merged);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const definitionIds = new Map(
+        proposalPipelineFields.map((field) => [field.fieldCode, field.definitionId]),
+      );
+      if (escopoDetalhe) definitionIds.set("cp_escopo_detalhe_json", escopoDetalhe.definitionId);
+      await persistProposalDraft({
+        leadId: lead.id,
+        templateId: selectedTemplateId,
+        responsavel,
+        draftValues: merged,
+        savedValues,
+        definitionIds,
+      });
+      setSavedValues(merged);
+      setFeedback("Dados do cadastro aplicados à proposta.");
+      await onRefresh();
+      router.refresh();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Falha ao aplicar cadastro.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function fieldChange(code: string, value: string) {
     setDraftValues((prev) => ({ ...prev, [code]: value }));
     setFeedback(null);
@@ -756,48 +813,91 @@ function PropostaBuilderDialog({
     }
   }
 
-  async function downloadDocument(preview = false) {
-    if (operationRef.current || scopeSaving || !selectedTemplateId || (!preview && pending.length > 0)) return;
+  function triggerBrowserDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const timer = setTimeout(() => {
+      URL.revokeObjectURL(url);
+      downloadUrls.current.delete(url);
+    }, 60_000);
+    downloadUrls.current.set(url, timer);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    try {
+      anchor.click();
+    } finally {
+      anchor.remove();
+    }
+  }
+
+  function openGenerateFormatDialog() {
+    if (busy || !selectedTemplateId || pending.length > 0) return;
+    setGenerateFormatOpen(true);
+  }
+
+  async function generateProposalDocument(format: "docx" | "pdf") {
+    if (operationRef.current || scopeSaving || !selectedTemplateId || pending.length > 0) return;
     operationRef.current = true;
-    setPreviewing(preview);
-    setGenerating(!preview);
+    setGenerating(true);
     setSaveError(null);
     setFeedback(null);
-    // Capture one immutable draft for this request, including edits not yet saved.
     const payload = {
       templateId: selectedTemplateId,
       generatedAt,
       responsavel,
-      ...(preview ? { draftValues: selectProposalDraftValues(draftValues) } : {}),
+    };
+    const endpoint = format === "pdf" ? "generate-pdf" : "generate-docx";
+    const readResponse = format === "pdf" ? readProposalPdfResponse : readProposalDocxResponse;
+    try {
+      if (isDirty) await persistAllFields();
+      const response = await fetch(
+        `/api/crm/leads/${encodeURIComponent(lead.id)}/document/${endpoint}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+      const { blob, filename } = await readResponse(response);
+      triggerBrowserDownload(blob, filename);
+      setFeedback(
+        format === "pdf" ? "Proposta PDF gerada e baixada." : "Proposta Word gerada e baixada.",
+      );
+      await onRefresh();
+      router.refresh();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Não foi possível gerar a proposta.");
+    } finally {
+      setGenerating(false);
+      operationRef.current = false;
+    }
+  }
+
+  async function downloadDocument() {
+    if (operationRef.current || scopeSaving || !selectedTemplateId) return;
+    operationRef.current = true;
+    setPreviewing(true);
+    setSaveError(null);
+    setFeedback(null);
+    const payload = {
+      templateId: selectedTemplateId,
+      generatedAt,
+      responsavel,
+      draftValues: selectProposalDraftValues(draftValues),
     };
     try {
-      if (!preview && isDirty) await persistAllFields();
-      const response = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/document/${preview ? "preview" : "generate-docx"}`, {
+      const response = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/document/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const { blob, filename } = await readProposalDocxResponse(response);
-      const url = URL.createObjectURL(blob);
-      const timer = setTimeout(() => {
-        URL.revokeObjectURL(url);
-        downloadUrls.current.delete(url);
-      }, 60_000);
-      downloadUrls.current.set(url, timer);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      try { anchor.click(); } finally { anchor.remove(); }
-      setFeedback(preview ? "Prévia Word baixada com o rascunho atual. Os dados não foram salvos." : "Proposta Word gerada e baixada.");
-      if (!preview) {
-        await onRefresh();
-        router.refresh();
-      }
+      triggerBrowserDownload(blob, filename);
+      setFeedback("Prévia Word baixada com o rascunho atual. Os dados não foram salvos.");
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Não foi possível gerar a proposta.");
     } finally {
-      setGenerating(false);
       setPreviewing(false);
       operationRef.current = false;
     }
@@ -865,16 +965,16 @@ function PropostaBuilderDialog({
                   type="button"
                   variant="primary"
                   size="sm"
-                  className="gap-1.5"
+                  className="gap-1.5 uppercase tracking-wide"
                   disabled={busy || !selectedTemplateId || pending.length > 0}
-                  onClick={() => void downloadDocument()}
+                  onClick={openGenerateFormatDialog}
                 >
                   {generating ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
                   ) : (
                     <FileDown className="size-3.5" aria-hidden />
                   )}
-                  Gerar Word
+                  GERAR
                 </Button>
               </>
             }
@@ -914,16 +1014,32 @@ function PropostaBuilderDialog({
                       {completedStepCount} de {PROPOSAL_STEPS.length} seções concluídas
                     </h3>
                   </div>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-(--radius-v2-full) px-2.5 py-1 text-v2-caption-medium",
-                      pending.length > 0
-                        ? "border border-warning-border bg-warning-bg text-warning-text"
-                        : "border border-success-border bg-success-bg text-success-text",
-                    )}
-                  >
-                    {pending.length > 0 ? `${pending.length} pendência(s)` : "Pronto para gerar"}
-                  </span>
+                  {pending.length > 0 ? (
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-(--radius-v2-full) px-2.5 py-1 text-v2-caption-medium",
+                        "border border-warning-border bg-warning-bg text-warning-text",
+                      )}
+                    >
+                      {pending.length} pendência(s)
+                    </span>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="primary"
+                      className="h-8 shrink-0 gap-1.5 uppercase tracking-wide"
+                      disabled={busy || !selectedTemplateId}
+                      onClick={openGenerateFormatDialog}
+                    >
+                      {generating ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                      ) : (
+                        <FileDown className="size-3.5" aria-hidden />
+                      )}
+                      GERAR
+                    </Button>
+                  )}
                 </div>
 
                 <div
@@ -1124,6 +1240,8 @@ function PropostaBuilderDialog({
                             savedValue={savedValues.cp_escopo_detalhe_json ?? ""}
                             areasDisplay={draftValues.cp_areas_objeto ?? areasField.value}
                             defaultNomeEmpresa={propostaEmpresaPrincipalNome}
+                            initialScopeCatalog={scopeCatalog}
+                            initialInvestmentCatalog={investmentCatalog}
                             viewerProfileArea={viewer?.area ?? null}
                             viewerRole={viewer?.role ?? null}
                             solicitacoes={lead.escopoSolicitacoes ?? []}
@@ -1263,16 +1381,16 @@ function PropostaBuilderDialog({
                     type="button"
                     variant="primary"
                     size="sm"
-                    className="gap-1.5"
-                    disabled={busy || !isDirty}
-                    onClick={() => void saveDraft()}
+                    className="gap-1.5 uppercase tracking-wide"
+                    disabled={busy || !selectedTemplateId || pending.length > 0}
+                    onClick={openGenerateFormatDialog}
                   >
-                    {saving ? (
+                    {generating ? (
                       <Loader2 className="size-3.5 animate-spin" aria-hidden />
                     ) : (
-                      <Save className="size-3.5" aria-hidden />
+                      <FileDown className="size-3.5" aria-hidden />
                     )}
-                    {isDirty ? "Salvar rascunho" : "Rascunho salvo"}
+                    GERAR PROPOSTA
                   </Button>
                 )}
               </div>
@@ -1323,7 +1441,7 @@ function PropostaBuilderDialog({
                     size="sm"
                     className="gap-2"
                     disabled={busy || !selectedTemplateId}
-                    onClick={() => void downloadDocument(true)}
+                    onClick={() => void downloadDocument()}
                   >
                     {previewing ? (
                       <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -1364,6 +1482,56 @@ function PropostaBuilderDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={generateFormatOpen} onOpenChange={setGenerateFormatOpen}>
+        <AlertDialogContent
+          className="z-(--z-drag-overlay)"
+          overlayClassName="z-(--z-tooltip)"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Formato da proposta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Escolha o formato do arquivo para download. Envio por e-mail ou WhatsApp será disponibilizado em
+              uma etapa futura.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+            <AlertDialogCancel disabled={generating}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={generating}
+              onClick={(event) => {
+                event.preventDefault();
+                setGenerateFormatOpen(false);
+                void generateProposalDocument("docx");
+              }}
+            >
+              Word (.docx)
+            </AlertDialogAction>
+            <AlertDialogAction
+              disabled={generating}
+              onClick={(event) => {
+                event.preventDefault();
+                setGenerateFormatOpen(false);
+                void generateProposalDocument("pdf");
+              }}
+            >
+              PDF (.pdf)
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {lead.clienteId ? (
+        <ClienteCadastroApplyDialog
+          open={cadastroPromptOpen}
+          leadId={lead.id}
+          clienteId={lead.clienteId}
+          onOpenChange={setCadastroPromptOpen}
+          onApply={(cpFields) => {
+            void applyClienteCadastroToProposal(cpFields);
+          }}
+        />
+      ) : null}
 
       {/* Confirmação de descarte do modelo */}
       <AlertDialog open={confirmClose}>

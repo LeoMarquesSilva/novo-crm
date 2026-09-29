@@ -46,6 +46,11 @@ export type PropostaDocumentSnapshot = {
   pending: string[];
   canonical: CanonicalProposalData;
   responsavel: string;
+  /** Catálogo já resolvido no servidor — evita validar escopo com fallback estático no cliente. */
+  catalog: {
+    scope: PropostaTiposCatalog;
+    investment: InvestimentoTipoDef[];
+  };
   areas: Array<{
     key: string;
     label: string;
@@ -255,7 +260,15 @@ export async function buildPropostaDocumentSnapshot(params: {
     responsavel,
   });
 
-  return { templateData, fieldByCode, pending, areas, canonical, responsavel };
+  return {
+    templateData,
+    fieldByCode,
+    pending,
+    areas,
+    canonical,
+    responsavel,
+    catalog: { scope: catalog.scope, investment: catalog.investment },
+  };
 }
 
 function buildAreaPreview(

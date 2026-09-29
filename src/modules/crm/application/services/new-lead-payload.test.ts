@@ -60,6 +60,23 @@ describe("newLeadPayloadSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("requires contrato_base_id when relacao_contrato is aditivo", () => {
+    const result = newLeadPayloadSchema.safeParse({
+      ...validPayload,
+      due_diligence: "Nao" as const,
+      data_entrega_due: undefined,
+      horario_entrega_due: undefined,
+      data_reuniao: undefined,
+      tipo_de_lead: "Lead Digital" as const,
+      tipo_indicacao: null,
+      nome_indicacao: null,
+      cliente_id: "550e8400-e29b-41d4-a716-446655440000",
+      relacao_contrato: "aditivo" as const,
+      contrato_base_id: null,
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("accepts minimal payload without due diligence (path used by CRM novo lead)", () => {
     const result = newLeadPayloadSchema.safeParse({
       solicitante: "Nome",

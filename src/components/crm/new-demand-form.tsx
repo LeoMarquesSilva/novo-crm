@@ -66,6 +66,12 @@ import {
   TagSelectable,
   UserPickerField,
 } from "@/components/crm/new-lead-modal";
+import {
+  ClienteDocumentoMatchPanel,
+  type RelacaoContratoChoice,
+} from "@/components/crm/cliente-documento-match-panel";
+import type { ClienteCadastroRow } from "@/lib/crm/cliente-cadastro-cp-fields";
+import type { ClienteContratoResumo } from "@/lib/crm/lookup-cliente-by-document";
 
 interface NewDemandFormProps {
   onSuccess?: () => void;
@@ -354,6 +360,12 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [nomeIndicacaoOpen, setNomeIndicacaoOpen] = useState(false);
   const [companyTypeOpenIndex, setCompanyTypeOpenIndex] = useState<number | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [clienteLookupLoading, setClienteLookupLoading] = useState(false);
+  const [matchedCliente, setMatchedCliente] = useState<ClienteCadastroRow | null>(null);
+  const [matchedBy, setMatchedBy] = useState<"documento" | "cnpj_raiz" | null>(null);
+  const [matchedContratos, setMatchedContratos] = useState<ClienteContratoResumo[]>([]);
+  const [relacaoContrato, setRelacaoContrato] = useState<RelacaoContratoChoice | null>(null);
+  const [contratoBaseId, setContratoBaseId] = useState("");
 
   const isCrossSelling = tipoLead === "Cross Selling";
   const hasAreasSelected = areasAnalise.length > 0;
@@ -602,6 +614,80 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     }
   }, [isCrossSelling]);
 
+  useEffect(() => {
+    if (isCrossSelling) return;
+    const doc = empresas[0]?.documento ?? "";
+    const digits = doc.replace(/\D/g, "");
+    if (digits.length !== 11 && digits.length !== 14) {
+      setMatchedCliente(null);
+      setMatchedBy(null);
+      setMatchedContratos([]);
+      setRelacaoContrato(null);
+      setContratoBaseId("");
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setClienteLookupLoading(true);
+      fetch(`/api/crm/clients/lookup?documento=${encodeURIComponent(doc)}`, {
+        cache: "no-store",
+      })
+        .then(async (res) => {
+          const json = (await res.json()) as {
+            ok?: boolean;
+            error?: string;
+            data?: {
+              found: boolean;
+              matchedBy: "documento" | "cnpj_raiz" | null;
+              cliente: ClienteCadastroRow | null;
+              contratos: ClienteContratoResumo[];
+            };
+          };
+          if (!res.ok || !json.ok || !json.data) {
+            throw new Error(json.error ?? "Falha ao consultar cliente.");
+          }
+          return json.data;
+        })
+        .then((data) => {
+          if (cancelled) return;
+          if (!data.found || !data.cliente) {
+            setMatchedCliente(null);
+            setMatchedBy(null);
+            setMatchedContratos([]);
+            setRelacaoContrato(null);
+            setContratoBaseId("");
+            return;
+          }
+          setMatchedCliente(data.cliente);
+          setMatchedBy(data.matchedBy);
+          setMatchedContratos(data.contratos);
+          setRelacaoContrato((prev) => prev ?? "novo");
+          setEmpresas((prev) => {
+            const first = prev[0];
+            if (!first) return prev;
+            const rs = data.cliente!.razao_social.trim().toUpperCase();
+            if (first.razao_social.trim() === rs) return prev;
+            return [{ ...first, razao_social: rs }, ...prev.slice(1)];
+          });
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setMatchedCliente(null);
+          setMatchedBy(null);
+          setMatchedContratos([]);
+        })
+        .finally(() => {
+          if (!cancelled) setClienteLookupLoading(false);
+        });
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [empresas[0]?.documento, isCrossSelling]);
+
   function toggleArea(area: string) {
     setAreasAnalise((prev) =>
       prev.includes(area) ? prev.filter((item) => item !== area) : [...prev, area],
@@ -654,8 +740,35 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setNomeIndicacaoOpen(false);
     setCompanyTypeOpenIndex(null);
     setCurrentStepIndex(0);
+    setClienteLookupLoading(false);
+    setMatchedCliente(null);
+    setMatchedBy(null);
+    setMatchedContratos([]);
+    setRelacaoContrato(null);
+    setContratoBaseId("");
   }
 
+  function resolveClienteVinculo(): {
+    cliente_id: string | null;
+    relacao_contrato: RelacaoContratoChoice | null;
+    contrato_base_id: string | null;
+  } {
+    if (isCrossSelling && aditivoClientId) {
+      return {
+        cliente_id: aditivoClientId,
+        relacao_contrato: "novo",
+        contrato_base_id: null,
+      };
+    }
+    if (matchedCliente && relacaoContrato) {
+      return {
+        cliente_id: matchedCliente.id,
+        relacao_contrato: relacaoContrato,
+        contrato_base_id: relacaoContrato === "aditivo" ? contratoBaseId || null : null,
+      };
+    }
+    return { cliente_id: null, relacao_contrato: null, contrato_base_id: null };
+  }
 
   function handleAditivoClientChange(clientId: string | null) {
     const id = clientId ?? "";
@@ -711,6 +824,17 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     if (stepId === "empresas") {
       if (empresas.some((item) => !item.razao_social.trim() || !item.documento.trim())) {
         return "Preencha razão social/nome e CPF/CNPJ de todos os itens.";
+      }
+      if (!isCrossSelling && matchedCliente && !relacaoContrato) {
+        return "Informe se a demanda é contrato novo ou aditivo.";
+      }
+      if (
+        !isCrossSelling &&
+        matchedCliente &&
+        relacaoContrato === "aditivo" &&
+        !contratoBaseId
+      ) {
+        return "Selecione o contrato base para o aditivo.";
       }
       return null;
     }
@@ -830,6 +954,20 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       return false;
     }
 
+    if (!isCrossSelling && matchedCliente && !relacaoContrato) {
+      setError("Informe se a demanda é contrato novo ou aditivo.");
+      return false;
+    }
+    if (
+      !isCrossSelling &&
+      matchedCliente &&
+      relacaoContrato === "aditivo" &&
+      !contratoBaseId
+    ) {
+      setError("Selecione o contrato base para o aditivo.");
+      return false;
+    }
+
     setError(null);
     return true;
   }
@@ -850,6 +988,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setError(null);
     setWarning(null);
     setSuccess(null);
+
+    const vinculo = resolveClienteVinculo();
 
     const payload: NewLeadPayload = {
       solicitante: solicitanteUser.name,
@@ -881,6 +1021,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               : nomeIndicacaoNew.trim()
           : null,
       contexto_comercial: null,
+      cliente_id: vinculo.cliente_id,
+      contrato_base_id: vinculo.contrato_base_id,
+      relacao_contrato: vinculo.relacao_contrato,
     };
 
     type ApiResult = {
@@ -1387,6 +1530,23 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       />
                     </InputField>
                   </div>
+
+                  {index === 0 && !isCrossSelling ? (
+                    <ClienteDocumentoMatchPanel
+                      className="mt-3"
+                      loading={clienteLookupLoading}
+                      cliente={matchedCliente}
+                      matchedBy={matchedBy}
+                      contratos={matchedContratos}
+                      relacaoContrato={relacaoContrato}
+                      onRelacaoChange={(value) => {
+                        setRelacaoContrato(value);
+                        if (value !== "aditivo") setContratoBaseId("");
+                      }}
+                      contratoBaseId={contratoBaseId}
+                      onContratoBaseChange={setContratoBaseId}
+                    />
+                  ) : null}
                 </div>
               ))}
             </div>

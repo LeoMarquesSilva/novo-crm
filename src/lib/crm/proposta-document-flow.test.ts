@@ -6,6 +6,10 @@ import { POST as generatePdf } from "@/app/api/crm/leads/[id]/document/generate-
 import { generatePropostaFile } from "./generate-proposta-file";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
+} from "@/data/proposta-investimento-catalog";
+import { PROPOSTA_TIPOS_CATALOG } from "@/data/proposta-tipos-catalog";
 import { buildPropostaDocumentSnapshot, loadDocumentTemplateById, type PropostaDocumentSnapshot, type PropostaDocumentTemplate } from "./proposta-document-data";
 import { readModeloPropostaTemplateBuffer, renderCanonicalProposalDocx } from "./render-proposta-docx";
 import { convertProposalDocxToPdf, resolveProposalPdfProvider, ProposalPdfError } from "./convert-proposta-pdf";
@@ -89,8 +93,15 @@ const supabase = {
 } as unknown as ReturnType<typeof createSupabaseAdminClient>;
 
 function snapshot(pending: string[] = []): PropostaDocumentSnapshot {
-  return { canonical, pending, responsavel: "Maria Silva", templateData: canonical.templateData,
-    fieldByCode: { cp_cliente_cidade: "Curitiba" }, areas: [] };
+  return {
+    canonical,
+    pending,
+    responsavel: "Maria Silva",
+    templateData: canonical.templateData,
+    fieldByCode: { cp_cliente_cidade: "Curitiba" },
+    areas: [],
+    catalog: { scope: PROPOSTA_TIPOS_CATALOG, investment: PROPOSTA_INVESTIMENTO_TIPOS_CATALOG },
+  };
 }
 function request(body: Record<string, unknown>) {
   return new NextRequest(`http://localhost/api/crm/leads/${leadId}/document`, {
