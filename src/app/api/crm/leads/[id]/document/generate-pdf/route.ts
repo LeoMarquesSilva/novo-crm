@@ -1,4 +1,3 @@
-import { ProposalPdfError } from "@/lib/crm/convert-proposta-pdf";
 import { NextRequest, NextResponse } from "next/server";
 import { proposalDocxStream } from "@/lib/crm/proposta-docx-stream";
 import { proposalRenderRequestSchema } from "@/lib/crm/proposta-render-request";
@@ -58,7 +57,6 @@ export async function POST(
       },
     });
   } catch (error) {
-    if (error instanceof ProposalPdfError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
     const message = error instanceof Error ? error.message : "Falha ao gerar o documento.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

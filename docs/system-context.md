@@ -19,7 +19,7 @@ O CRM está em produção interna com persistência Supabase e fluxos principais
 - Kanban e ficha do lead com dados reais (`oportunidades`, campos dinâmicos, intake)
 - Motor de workflow com transições via `POST /api/crm/leads/transition`
 - DUE por área (tarefas, revisão, ajustes) e proposta por área
-- Proposta com Word BP canônico, prévia por download DOCX e geração final validada; prévia visual/PDF dependem de conversor
+- Proposta com Word BP canônico, prévia por download DOCX e geração final validada; PDF montado direto no servidor (`pdf-lib`) a partir do modelo BP
 - Contrato com builder próprio e integração D4Sign (envio + webhook)
 - Histórico do lead (`lead_activity_events`) na aba **Histórico** da ficha
 - Admin: usuários, campos dinâmicos, config WhatsApp DUE
@@ -95,7 +95,7 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - Na ficha do lead em etapa de proposta, a aba abre o builder diretamente. Ao fechar o dialog, fica apenas um ponto compacto para reabrir o editor; os cards intermediários de pendências e histórico foram removidos porque duplicavam informações do próprio builder.
 - Data compartilhada entre pedidos em `America/Sao_Paulo`, vigência +7 dias. Escopos usam parágrafos/estilos Word e paginação natural.
 - DOCX é transmitido em streaming e retorna SHA256; versão guarda snapshot e hashes. Nenhum arquivo é arquivado em storage por esse fluxo.
-- PDF da proposta retorna HTTP 503 até existir conversão real do DOCX. A rota legada `/api/crm/leads/:id/proposta-docx` retorna HTTP 410. Contratos/D4Sign não foram alterados.
+- PDF da proposta (GERAR → PDF e prévia `format: "pdf"`) é montado **direto no servidor** com `pdf-lib` + `@pdf-lib/fontkit` (`buildPropostaPdf` em `src/lib/crm/proposta-pdf-builder.ts`) a partir do mesmo `CanonicalProposalData` do Word, sem conversor externo nem variável de ambiente. Modelo em `assets/proposta-pdf/proposta-modelo.pdf` (fora de `public/`; incluído no trace via `outputFileTracingIncludes`), gerado por `scripts/prepare-proposta-pdf-assets.py` a partir de `MODELO SÓ CAPA.pdf` + guia `MODELO PDF DAS MINIATURAS E TIMBRADO.pdf` (datas de vigência de exemplo removidas só da camada de texto). Ordem: capa (desenha `EMPRESA` em caixa alta, `Enviado por: RESPONSAVEL`, `Campinas/SP, DATA_PROPOSTA`) → institucional → páginas de conteúdo sobre o timbrado (escopo por área com rótulo do tipo em negrito + `Investimento`, corpo justificado 12 pt, quebra automática respeitando cabeçalho/rodapé) → CV Gustavo → CV Ricardo → assinaturas (`Vigência da Proposta: DATA_VIGENCIA` na caixa) → contracapa. Páginas fixas são copiadas vetoriais. Fontes OFL em `assets/proposta-pdf/fonts/`: Liberation Serif (equivalente métrico do Times New Roman do Word), EB Garamond (capa), Montserrat (capa), Inter (vigência; substitui Aptos). Persistência/versão (`.pdf`, `document_versions`, bloqueio por pendências) igual ao DOCX; o DOCX continua sendo renderizado na geração oficial para `sourceDocxSha256`. A rota legada `/api/crm/leads/:id/proposta-docx` retorna HTTP 410. Contratos/D4Sign não foram alterados.
 - Detalhes, testes, diferenças visuais do DOCX/PDF original e limitações: `docs/PROPOSTA-DOCUMENT-ENGINE.md`.
 
 Observação: a navegação principal está no `AppShell` — inclui seção "Administração" com links para Usuários e Campos, e rodapé com conta (avatar, link para perfil, sair).

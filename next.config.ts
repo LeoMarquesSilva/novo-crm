@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
-    "/api/crm/leads/*/document/*": ["./templates/proposta/*.docx"],
+    "/api/crm/leads/*/document/*": ["./templates/proposta/*.docx", "./assets/proposta-pdf/**/*"],
   },
   async redirects() {
     return [

@@ -1,5 +1,5 @@
-import { convertProposalDocxToPdf, ProposalPdfError } from "@/lib/crm/convert-proposta-pdf";
 import { createHash } from "node:crypto";
+import { buildPropostaPdf } from "@/lib/crm/proposta-pdf-builder";
 import { proposalDocxStream } from "@/lib/crm/proposta-docx-stream";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthApi } from "@/lib/auth/server";
@@ -35,18 +35,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       supabase, oportunidadeId: id, template, generatedAt,
       draftValues: parsed.data.draftValues, responsavel: parsed.data.responsavel,
     });
-    const bytes = renderCanonicalProposalDocx(snapshot.canonical, readModeloPropostaTemplateBuffer(undefined, template.templatePath));
     const isPdf = parsed.data.format === "pdf";
-    const output = isPdf ? await convertProposalDocxToPdf(bytes, request.signal) : bytes;
+    const output = isPdf
+      ? await buildPropostaPdf(snapshot.canonical)
+      : renderCanonicalProposalDocx(snapshot.canonical, readModeloPropostaTemplateBuffer(undefined, template.templatePath));
     return new NextResponse(proposalDocxStream(output), { headers: {
       "Content-Type": isPdf ? "application/pdf" : PROPOSAL_DOCX_MIME,
       "Content-Disposition": isPdf ? 'inline; filename="Previa-proposta.pdf"' : 'attachment; filename="Previa-proposta.docx"',
       "Cache-Control": "private, no-store",
-      "X-Document-SHA256": createHash("sha256").update(bytes).digest("hex"),
+      "X-Document-SHA256": createHash("sha256").update(output).digest("hex"),
       "X-Document-Pending": String(snapshot.pending.length),
     } });
   } catch (error) {
-    if (error instanceof ProposalPdfError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
     if (request.signal.aborted) return new NextResponse(null, { status: 499 });
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Falha ao gerar prévia Word." }, { status: 500 });
   }

@@ -1,5 +1,5 @@
-import { convertProposalDocxToPdf, resolveProposalPdfProvider, ProposalPdfError } from "./convert-proposta-pdf";
 import { createHash } from "node:crypto";
+import { buildPropostaPdf } from "./proposta-pdf-builder";
 import { formatPropostaFileStamp } from "./proposta-docx-data";
 import { PROPOSAL_DOCX_MIME } from "./proposta-render-request";
 import {
@@ -70,12 +70,6 @@ export async function generatePropostaFile(params: {
   signal?: AbortSignal;
 }): Promise<GeneratePropostaFileResult> {
   const { supabase, oportunidadeId, appUserId, format } = params;
-  if (format === "pdf") {
-    try { resolveProposalPdfProvider(); } catch (error) {
-      if (error instanceof ProposalPdfError) return { ok: false, error: error.message, status: error.status };
-      throw error;
-    }
-  }
 
   const { data: op, error: opErr } = await supabase
     .from("oportunidades")
@@ -110,7 +104,7 @@ export async function generatePropostaFile(params: {
   // Render and validate before any version metadata is written.
   const templateBuf = readModeloPropostaTemplateBuffer(undefined, template.templatePath);
   const docxBytes = renderCanonicalProposalDocx(snapshot.canonical, templateBuf);
-  const bytes = format === "pdf" ? await convertProposalDocxToPdf(docxBytes, params.signal) : docxBytes;
+  const bytes = format === "pdf" ? await buildPropostaPdf(snapshot.canonical) : docxBytes;
   params.signal?.throwIfAborted();
   const sourceDocxSha256 = createHash("sha256").update(docxBytes).digest("hex");
   const sha256 = createHash("sha256").update(bytes).digest("hex");

@@ -6,6 +6,8 @@ O Word oficial fornecido é a fonte canônica. O CRM gera uma prévia **em arqui
 
 **Limitação objetiva:** a visualização paginada no navegador e o download PDF estão temporariamente indisponíveis. O ensaio com `docx-preview@0.4.0` perdeu caixas de texto da capa e alterou a disposição dos objetos deste modelo. A biblioteca foi removida. Não foi encontrado um conversor DOCX → PDF operacional na aplicação. Portanto, o aceite de prévia visual no navegador permanece pendente; não se afirma equivalência visual entre o antigo preview e o Word.
 
+**Atualização 29/09/2026:** o PDF deixou de depender de conversor DOCX → PDF. `buildPropostaPdf` (`src/lib/crm/proposta-pdf-builder.ts`) monta o arquivo com `pdf-lib` a partir do modelo PDF BP (`assets/proposta-pdf/`) e do mesmo `CanonicalProposalData`; ver `docs/system-context.md`.
+
 ## Diagnóstico e fontes
 
 Referências analisadas integralmente: `docs/AUDITORIA-PROPOSTAS-CONTRATOS-PREVIEW.md`, `public/Propostas - BP.docx` e `public/Propostas - BP (1).pdf`.

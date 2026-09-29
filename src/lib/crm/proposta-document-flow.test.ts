@@ -12,14 +12,10 @@ import {
 import { PROPOSTA_TIPOS_CATALOG } from "@/data/proposta-tipos-catalog";
 import { buildPropostaDocumentSnapshot, loadDocumentTemplateById, type PropostaDocumentSnapshot, type PropostaDocumentTemplate } from "./proposta-document-data";
 import { readModeloPropostaTemplateBuffer, renderCanonicalProposalDocx } from "./render-proposta-docx";
-import { convertProposalDocxToPdf, resolveProposalPdfProvider, ProposalPdfError } from "./convert-proposta-pdf";
+import { buildPropostaPdf } from "./proposta-pdf-builder";
 import { PROPOSAL_DOCX_MIME } from "./proposta-render-request";
 
-vi.mock("@/lib/crm/convert-proposta-pdf", async (importOriginal) => ({
-  ...await importOriginal<typeof import("./convert-proposta-pdf")>(),
-  convertProposalDocxToPdf: vi.fn(),
-  resolveProposalPdfProvider: vi.fn(),
-}));
+vi.mock("@/lib/crm/proposta-pdf-builder", () => ({ buildPropostaPdf: vi.fn() }));
 vi.mock("@/lib/auth/server", () => ({ requireAuthApi: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
 vi.mock("@/lib/crm/proposta-document-data", () => ({
@@ -113,8 +109,7 @@ const context = () => ({ params: Promise.resolve({ id: leadId }) });
 beforeEach(() => {
   vi.resetAllMocks();
   uploadGeneratedDocument.mockResolvedValue({ error: null });
-  vi.mocked(resolveProposalPdfProvider).mockReturnValue({ kind: "word" });
-  vi.mocked(convertProposalDocxToPdf).mockResolvedValue(Buffer.from("%PDF-1.7 fixture"));
+  vi.mocked(buildPropostaPdf).mockResolvedValue(new Uint8Array(Buffer.from("%PDF-1.7 fixture")));
   vi.mocked(requireAuthApi).mockResolvedValue({
     ok: true,
     profile: { id: "user-1", auth_user_id: "auth-1", role: "comercial", full_name: "Maria Silva", avatar_url: null, area: null },
@@ -193,24 +188,30 @@ describe("proposal document route and engine flow", () => {
     expect(mutations).not.toHaveBeenCalled();
   });
 
-  it("prévia PDF converte os mesmos bytes DOCX sem mutações", async () => {
+  it("prévia PDF monta o arquivo direto dos dados canônicos, sem conversor nem mutações", async () => {
     const response = await previewProposal(request({ templateId, generatedAt, format: "pdf" }), context());
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
     expect(await response.text()).toBe("%PDF-1.7 fixture");
-    expect(convertProposalDocxToPdf).toHaveBeenCalledWith(Buffer.from(wordBytes), expect.any(AbortSignal));
+    expect(buildPropostaPdf).toHaveBeenCalledWith(canonical);
+    expect(renderCanonicalProposalDocx).not.toHaveBeenCalled();
     expect(mutations).not.toHaveBeenCalled();
   });
 
-  it("gera PDF a partir do Word antes de criar versão e registra o formato correto", async () => {
+  it("gera PDF direto dos dados canônicos antes de criar versão e registra o formato correto", async () => {
     const response = await generatePdf(request({ templateId, generatedAt }), context());
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
     expect(response.headers.get("Content-Disposition")).toContain(".pdf");
     expect(await response.text()).toBe("%PDF-1.7 fixture");
-    expect(convertProposalDocxToPdf).toHaveBeenCalledWith(Buffer.from(wordBytes), expect.any(AbortSignal));
+    expect(buildPropostaPdf).toHaveBeenCalledWith(canonical);
+    expect(uploadGeneratedDocument).toHaveBeenCalledWith(
+      "documentos/propostas/lead/v3.pdf",
+      new Uint8Array(Buffer.from("%PDF-1.7 fixture")),
+      { contentType: "application/pdf", upsert: true },
+    );
     expect(mutations.mock.calls[0][2]).toMatchObject({ generated_file_path: "documentos/propostas/lead/v3.pdf", data_snapshot: { format: "pdf" } });
-    expect(vi.mocked(convertProposalDocxToPdf).mock.invocationCallOrder[0]).toBeLessThan(mutations.mock.invocationCallOrder[0]);
+    expect(vi.mocked(buildPropostaPdf).mock.invocationCallOrder[0]).toBeLessThan(mutations.mock.invocationCallOrder[0]);
   });
 
   it("não cria versão quando o Storage recusa o arquivo oficial", async () => {
@@ -231,19 +232,20 @@ describe("proposal document route and engine flow", () => {
     expect(mutations).not.toHaveBeenCalled();
   });
 
-  it("falha do conversor não cria versão e retorna erro explicativo", async () => {
-    vi.mocked(convertProposalDocxToPdf).mockRejectedValueOnce(new ProposalPdfError("Word local indisponível"));
+  it("falha ao montar o PDF não grava arquivo nem cria versão", async () => {
+    vi.mocked(buildPropostaPdf).mockRejectedValueOnce(new Error("Arquivo do modelo PDF ausente"));
     const response = await generatePdf(request({ templateId, generatedAt }), context());
-    expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({ ok: false, error: "Word local indisponível" });
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ ok: false, error: "Arquivo do modelo PDF ausente" });
+    expect(uploadGeneratedDocument).not.toHaveBeenCalled();
     expect(mutations).not.toHaveBeenCalled();
   });
 
-  it("bloqueia PDF sem conversor configurado antes de tocar a persistência", async () => {
-    vi.mocked(resolveProposalPdfProvider).mockImplementation(() => { throw new ProposalPdfError("Conversor não configurado"); });
-    const result = await generatePropostaFile({ supabase, oportunidadeId: leadId, appUserId: "user-1", format: "pdf" });
-    expect(result).toEqual({ ok: false, status: 503, error: "Conversor não configurado" });
-    expect(from).not.toHaveBeenCalled();
+  it("PDF respeita o bloqueio de pendências antes de montar ou persistir", async () => {
+    vi.mocked(buildPropostaDocumentSnapshot).mockResolvedValue(snapshot(["Enviado por"]));
+    const result = await generatePropostaFile({ supabase, oportunidadeId: leadId, templateId, appUserId: "user-1", format: "pdf" });
+    expect(result).toMatchObject({ ok: false, status: 422, pending: ["Enviado por"] });
+    expect(buildPropostaPdf).not.toHaveBeenCalled();
     expect(mutations).not.toHaveBeenCalled();
   });
 });
