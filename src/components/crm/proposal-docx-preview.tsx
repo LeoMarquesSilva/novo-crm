@@ -3,10 +3,29 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Loader2, Minus, MoveHorizontal, Plus, Scan } from "lucide-react";
 import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
+import {
+  PROPOSAL_PREVIEW_PAGE_HEIGHT_PX,
+  PROPOSAL_PREVIEW_PAGE_WIDTH_PX,
+  PROPOSAL_PREVIEW_STATIC_LABELS,
+  applyProposalPreviewOverlayStyles,
+  classifyProposalPreviewStaticPage,
+  getProposalPreviewLetterheadStyle,
+  getWordPagePlainText,
+  hideCapaDocxTextArtifacts,
+  resolveProposalPreviewStaticThumbnail,
+  resolveProposalPreviewTailLayout,
+  resolveScopeLetterheadAsset,
+  type ProposalCapaFields,
+  type ProposalPreviewOverlay,
+} from "@/lib/crm/proposal-preview-thumbnails";
 import { cn } from "@/lib/utils";
 
 type ProposalDocxPreviewProps = {
   blob: Blob;
+  /** Campos da capa vindos do `templateData` canônico (preferível ao parse do DOCX). */
+  capaFields?: ProposalCapaFields | null;
+  /** `DATA_VIGENCIA` do `templateData` canônico para a caixa da folha de assinaturas. */
+  vigencia?: string | null;
 };
 
 function getWordPageBody(page: HTMLElement) {
@@ -14,11 +33,7 @@ function getWordPageBody(page: HTMLElement) {
 }
 
 function getWordPageBodyText(page: HTMLElement) {
-  return getWordPageBody(page)
-    .map((article) => article.textContent ?? "")
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return getWordPagePlainText(page);
 }
 
 function isBlankWordPage(page: HTMLElement) {
@@ -48,62 +63,39 @@ function isScopeWordPage(page: HTMLElement) {
   );
 }
 
-function getCompactPageLabel(page: HTMLElement, index: number) {
+function getCompactPageLabel(page: HTMLElement, index: number, pages: HTMLElement[]) {
+  const staticKind = classifyProposalPreviewStaticPage(page, index, pages);
+  if (staticKind) return PROPOSAL_PREVIEW_STATIC_LABELS[staticKind];
   const text = getWordPageBodyText(page);
-  if (index === 0 || /\bPROPOSTA(?:\s+DE)?\b/i.test(text)) return "Capa";
-  if (/QUEM SOMOS|NOSSO ESCRITÓRIO|SOBRE NÓS/i.test(text)) return "Institucional";
   if (/INVESTIMENTO|HONORÁRIOS/i.test(text)) return "Investimento";
-  if (/VIGÊNCIA|CORDIALMENTE|ASSINATURA/i.test(text)) return "Fechamento";
   return `Página ${index + 1}`;
 }
 
-async function replaceWordPageWithImageThumbnail(page: HTMLElement, label: string) {
-  fitOverflowingWordTextBoxes(page);
-
-  const width = page.offsetWidth || page.scrollWidth;
-  const height = page.offsetHeight || page.scrollHeight;
-  if (width <= 0 || height <= 0) return;
-
-  const { toPng } = await import("html-to-image");
-  let dataUrl: string;
-  try {
-    dataUrl = await toPng(page, {
-      width,
-      height,
-      pixelRatio: Math.min(2, window.devicePixelRatio || 1),
-      cacheBust: true,
-    });
-  } catch {
-    page.dataset.previewThumbnail = "true";
-    page.setAttribute(
-      "aria-label",
-      `${label}: não foi possível gerar miniatura; conteúdo interativo`,
-    );
-    return;
-  }
-
+function mountPreviewThumbnailShell(
+  page: HTMLElement,
+  label: string,
+  pageWidth: number,
+  frameContent: HTMLElement,
+) {
   const shell = document.createElement("section");
-  shell.className = page.className;
+  shell.className = "proposal-docx";
   shell.dataset.previewThumbnail = "true";
+  shell.dataset.previewReference = "true";
   shell.setAttribute("aria-label", `${label}: miniatura da proposta`);
+  shell.style.width = `${pageWidth}px`;
+  shell.style.maxWidth = `${pageWidth}px`;
 
   const frame = document.createElement("div");
   frame.className =
-    "overflow-hidden rounded-(--radius-v2-sm) border border-neutral-200/90 bg-white shadow-(--shadow-v2-sm)";
-
-  const img = document.createElement("img");
-  img.src = dataUrl;
-  img.alt = `${label} — miniatura`;
-  img.className = "block h-auto w-full";
-  img.decoding = "async";
-  img.loading = "lazy";
+    "relative overflow-hidden rounded-(--radius-v2-sm) border border-neutral-200/90 bg-white shadow-(--shadow-v2-sm)";
+  frame.style.width = `${pageWidth}px`;
+  frame.append(frameContent);
 
   const caption = document.createElement("p");
   caption.className =
     "mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground";
   caption.textContent = label;
 
-  frame.append(img);
   shell.append(frame, caption);
   shell.style.marginBottom = page.style.marginBottom;
   shell.style.border = page.style.border;
@@ -112,18 +104,292 @@ async function replaceWordPageWithImageThumbnail(page: HTMLElement, label: strin
   page.replaceWith(shell);
 }
 
-async function compactNonScopeWordPages(pages: HTMLElement[]) {
+function appendReferenceOverlays(root: HTMLElement, overlays: ProposalPreviewOverlay[]) {
+  for (const overlay of overlays) {
+    const node = document.createElement("div");
+    node.className = "pointer-events-none whitespace-pre-wrap bg-transparent";
+    applyProposalPreviewOverlayStyles(node, overlay);
+    node.textContent = overlay.text;
+    root.append(node);
+  }
+}
+
+function applyScopePageLetterhead(page: HTMLElement, assetSrc: string, pageWidth: number) {
+  const letterhead = getProposalPreviewLetterheadStyle(assetSrc, pageWidth);
+  page.style.backgroundColor = letterhead.backgroundColor;
+  page.style.backgroundImage = letterhead.backgroundImage;
+  page.style.backgroundSize = letterhead.backgroundSize;
+  page.style.backgroundRepeat = letterhead.backgroundRepeat;
+  page.style.backgroundPosition = letterhead.backgroundPosition;
+  page.style.minHeight = letterhead.minHeight;
+
+  const header = page.querySelector("header");
+  if (header instanceof HTMLElement) {
+    header.style.display = "none";
+  }
+
+  for (const element of page.querySelectorAll<HTMLElement>("article, div, p, span, table, li")) {
+    element.style.background = "transparent";
+    element.style.backgroundColor = "transparent";
+  }
+
+  // Marcadores Word (•/–) às vezes vazam como traço solto sobre o timbrado.
+  for (const paragraph of page.querySelectorAll<HTMLElement>("p")) {
+    const normalized = (paragraph.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (normalized === "-" || normalized === "–" || normalized === "—") {
+      paragraph.style.display = "none";
+    }
+  }
+}
+
+function decorateScopeWordPages(pages: HTMLElement[]) {
+  const pageWidth =
+    pages.find((page) => page.offsetWidth > 0)?.offsetWidth ?? PROPOSAL_PREVIEW_PAGE_WIDTH_PX;
+  let scopePageIndex = 0;
+
+  for (const page of pages) {
+    if (page.dataset.previewThumbnail === "true") continue;
+    if (!isScopeWordPage(page)) continue;
+    applyScopePageLetterhead(page, resolveScopeLetterheadAsset(scopePageIndex), pageWidth);
+    scopePageIndex += 1;
+  }
+}
+
+function replaceWordPageWithReferenceThumbnail(
+  page: HTMLElement,
+  label: string,
+  assetSrc: string,
+  overlays: ProposalPreviewOverlay[] = [],
+) {
+  const pageWidth = page.offsetWidth || PROPOSAL_PREVIEW_PAGE_WIDTH_PX;
+  const pageHeight = Math.round(
+    (pageWidth * PROPOSAL_PREVIEW_PAGE_HEIGHT_PX) / PROPOSAL_PREVIEW_PAGE_WIDTH_PX,
+  );
+  const frameContent = document.createElement("div");
+  frameContent.className = "relative isolate overflow-hidden bg-neutral-950";
+  frameContent.style.width = `${pageWidth}px`;
+  frameContent.style.height = `${pageHeight}px`;
+
+  const img = document.createElement("img");
+  img.src = assetSrc;
+  img.alt = `${label} — miniatura`;
+  img.className =
+    "pointer-events-none absolute inset-0 z-0 block h-full w-full object-cover object-top";
+  img.width = pageWidth;
+  img.height = pageHeight;
+  img.decoding = "async";
+  img.loading = "lazy";
+
+  frameContent.replaceChildren(img);
+  appendReferenceOverlays(frameContent, overlays);
+  mountPreviewThumbnailShell(page, label, pageWidth, frameContent);
+}
+
+async function captureWordPagePng(page: HTMLElement, pageWidth: number) {
+  fitOverflowingWordTextBoxes(page);
+
+  const clone = page.cloneNode(true) as HTMLElement;
+  clone.style.width = `${pageWidth}px`;
+  clone.style.maxWidth = `${pageWidth}px`;
+  clone.style.margin = "0";
+  clone.style.border = "none";
+  clone.style.boxShadow = "none";
+  clone.style.borderRadius = "0";
+
+  const stage = document.createElement("div");
+  stage.setAttribute("aria-hidden", "true");
+  stage.style.position = "fixed";
+  stage.style.left = "0";
+  stage.style.top = "0";
+  stage.style.zIndex = "-1";
+  stage.style.opacity = "0";
+  stage.style.pointerEvents = "none";
+  stage.style.width = `${pageWidth}px`;
+  stage.append(clone);
+  document.body.appendChild(stage);
+
+  try {
+    await document.fonts.ready;
+    fitOverflowingWordTextBoxes(clone);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+    });
+
+    const height = Math.max(clone.scrollHeight, clone.offsetHeight);
+    if (height <= 0) return null;
+
+    const { toPng } = await import("html-to-image");
+    return await toPng(clone, {
+      width: pageWidth,
+      height,
+      pixelRatio: 1.5,
+      backgroundColor: "#ffffff",
+      cacheBust: true,
+    });
+  } finally {
+    stage.remove();
+  }
+}
+
+async function replaceWordPageWithImageThumbnail(
+  page: HTMLElement,
+  label: string,
+  pageWidth: number,
+) {
+  const dataUrl = await captureWordPagePng(page, pageWidth);
+  if (!dataUrl) {
+    page.dataset.previewThumbnail = "true";
+    page.setAttribute(
+      "aria-label",
+      `${label}: não foi possível gerar miniatura; conteúdo interativo`,
+    );
+    return;
+  }
+
+  const img = document.createElement("img");
+  img.src = dataUrl;
+  img.alt = `${label} — miniatura`;
+  img.className = "block h-auto w-full";
+  img.width = pageWidth;
+  img.decoding = "async";
+  img.loading = "lazy";
+
+  mountPreviewThumbnailShell(page, label, pageWidth, img);
+}
+
+function insertReferenceThumbnailBefore(
+  anchor: HTMLElement,
+  label: string,
+  assetSrc: string,
+  overlays: ProposalPreviewOverlay[],
+  pageWidth: number,
+) {
+  const pageHeight = Math.round(
+    (pageWidth * PROPOSAL_PREVIEW_PAGE_HEIGHT_PX) / PROPOSAL_PREVIEW_PAGE_WIDTH_PX,
+  );
+  const frameContent = document.createElement("div");
+  frameContent.className = "relative isolate overflow-hidden bg-neutral-950";
+  frameContent.style.width = `${pageWidth}px`;
+  frameContent.style.height = `${pageHeight}px`;
+
+  const img = document.createElement("img");
+  img.src = assetSrc;
+  img.alt = `${label} — miniatura`;
+  img.className =
+    "pointer-events-none absolute inset-0 z-0 block h-full w-full object-cover object-top";
+  img.width = pageWidth;
+  img.height = pageHeight;
+  img.decoding = "async";
+  img.loading = "lazy";
+  frameContent.replaceChildren(img);
+  appendReferenceOverlays(frameContent, overlays);
+
+  const shell = document.createElement("section");
+  shell.className = "proposal-docx";
+  shell.dataset.previewThumbnail = "true";
+  shell.dataset.previewReference = "true";
+  shell.setAttribute("aria-label", `${label}: miniatura da proposta`);
+  shell.style.width = `${pageWidth}px`;
+  shell.style.maxWidth = `${pageWidth}px`;
+
+  const frame = document.createElement("div");
+  frame.className =
+    "relative overflow-hidden rounded-(--radius-v2-sm) border border-neutral-200/90 bg-white shadow-(--shadow-v2-sm)";
+  frame.style.width = `${pageWidth}px`;
+  frame.append(frameContent);
+
+  const caption = document.createElement("p");
+  caption.className =
+    "mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground";
+  caption.textContent = label;
+
+  shell.append(frame, caption);
+  anchor.parentElement?.insertBefore(shell, anchor);
+}
+
+function ensureMissingTailCvRicardoThumbnail(
+  pages: HTMLElement[],
+  pageWidth: number,
+  renderedCvRicardo: boolean,
+) {
+  if (renderedCvRicardo) return;
+  const tail = resolveProposalPreviewTailLayout(pages);
+  if (!tail) return;
+
+  const assinaturaPage = pages[tail.assinatura];
+  if (!(assinaturaPage instanceof HTMLElement) || !assinaturaPage.isConnected) return;
+
+  const reference = resolveProposalPreviewStaticThumbnail("cvRicardo", assinaturaPage, {
+    pages,
+  });
+  insertReferenceThumbnailBefore(
+    assinaturaPage,
+    reference.label,
+    reference.asset,
+    reference.overlays,
+    pageWidth,
+  );
+}
+
+async function compactNonScopeWordPages(
+  pages: HTMLElement[],
+  capaFields?: ProposalCapaFields | null,
+  vigencia?: string | null,
+) {
+  const pageWidth =
+    pages.find((page) => page.offsetWidth > 0)?.offsetWidth ?? PROPOSAL_PREVIEW_PAGE_WIDTH_PX;
+  let renderedCvRicardo = false;
+
   for (const [index, page] of pages.entries()) {
+    if (!page.isConnected) continue;
     if (isScopeWordPage(page)) continue;
 
-    // Folhas vazias são artefatos das quebras de seção do Word e não
-    // representam conteúdo útil para a prévia.
-    if (isBlankWordPage(page)) {
+    const staticKind = classifyProposalPreviewStaticPage(page, index, pages);
+    if (staticKind === "capa") {
+      hideCapaDocxTextArtifacts(page);
+    }
+    const reference = staticKind
+      ? resolveProposalPreviewStaticThumbnail(staticKind, page, {
+          capaFieldsOverride: staticKind === "capa" ? capaFields : undefined,
+          vigenciaOverride: vigencia,
+          pages,
+        })
+      : null;
+
+    // Folhas vazias são artefatos das quebras de seção do Word, exceto CV/contracapa
+    // do modelo (só imagem/drawing), que usam miniatura de referência.
+    if (isBlankWordPage(page) && !reference) {
       page.remove();
       continue;
     }
 
-    await replaceWordPageWithImageThumbnail(page, getCompactPageLabel(page, index));
+    if (reference) {
+      if (staticKind === "cvRicardo") renderedCvRicardo = true;
+      replaceWordPageWithReferenceThumbnail(
+        page,
+        reference.label,
+        reference.asset,
+        reference.overlays,
+      );
+      continue;
+    }
+
+    await replaceWordPageWithImageThumbnail(
+      page,
+      getCompactPageLabel(page, index, pages),
+      pageWidth,
+    );
+  }
+
+  ensureMissingTailCvRicardoThumbnail(pages, pageWidth, renderedCvRicardo);
+}
+
+function fitOverflowingWordTextBoxesForPages(pages: HTMLElement[]) {
+  for (const [index, page] of pages.entries()) {
+    if (page.dataset.previewThumbnail === "true") continue;
+    if (classifyProposalPreviewStaticPage(page, index, pages)) continue;
+    if (isScopeWordPage(page)) continue;
+    fitOverflowingWordTextBoxes(page);
   }
 }
 
@@ -185,7 +451,11 @@ function fitOverflowingWordTextBoxes(root: HTMLElement) {
   }
 }
 
-export function ProposalDocxPreview({ blob }: ProposalDocxPreviewProps) {
+export function ProposalDocxPreview({
+  blob,
+  capaFields = null,
+  vigencia = null,
+}: ProposalDocxPreviewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const documentRef = useRef<HTMLDivElement>(null);
   const generationRef = useRef(0);
@@ -260,8 +530,14 @@ export function ProposalDocxPreview({ blob }: ProposalDocxPreviewProps) {
         document.body.appendChild(staging);
         try {
           await document.fonts.ready;
-          fitOverflowingWordTextBoxes(staging);
-          await compactNonScopeWordPages(pages);
+          fitOverflowingWordTextBoxesForPages(pages);
+          await compactNonScopeWordPages(pages, capaFields, vigencia);
+          const livePages = Array.from(
+            staging.querySelectorAll<HTMLElement>(
+              ".proposal-docx-wrapper > section.proposal-docx",
+            ),
+          );
+          decorateScopeWordPages(livePages);
         } finally {
           const nodes = Array.from(staging.childNodes);
           staging.remove();
@@ -288,7 +564,7 @@ export function ProposalDocxPreview({ blob }: ProposalDocxPreviewProps) {
     return () => {
       generationRef.current += 1;
     };
-  }, [blob]);
+  }, [blob, capaFields, vigencia]);
 
   useEffect(() => {
     if (rendering || error) return;

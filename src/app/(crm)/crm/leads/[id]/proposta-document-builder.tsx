@@ -61,8 +61,11 @@ import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { cn } from "@/lib/utils";
 import { LeadDetailFieldEditor, pipelineFieldToEditorProps } from "./lead-detail-field-editor";
 import {
-  buildCanonicalProposalData, type CanonicalProposalData,
+  buildCanonicalProposalData,
+  buildPropostaPreviewPage,
+  type CanonicalProposalData,
 } from "@/lib/crm/proposta-docx-data";
+import { capaFieldsFromPreviewPage } from "@/lib/crm/proposal-preview-thumbnails";
 import { listProposalPendingFields, type ProposalRequiredField } from "@/lib/crm/proposta-document-validation";
 import {
   createProposalDocxPreviewController,
@@ -641,9 +644,7 @@ function PropostaBuilderDialog({
     [draftValues.cp_areas_objeto, areasField?.value, investmentCatalog],
   );
 
-  // Canônico local usado para validar o rascunho antes de salvar ou gerar.
-  // A prévia visual não usa este objeto para desenhar páginas: o servidor
-  // renderiza o Word oficial e o navegador exibe os próprios bytes DOCX.
+  // Canônico local: validação do rascunho e overlays da capa na prévia DOCX.
   const previewCanonical = useMemo<CanonicalProposalData | null>(() => {
     try {
       return buildCanonicalProposalData({
@@ -677,6 +678,16 @@ function PropostaBuilderDialog({
     }
   }, [previewCanonical, draftValues, responsavel, scopeCatalog, investmentCatalog, selectedTemplate]);
   const pending = currentValidation;
+
+  const docxPreviewPage = useMemo(
+    () => (previewCanonical ? buildPropostaPreviewPage(previewCanonical) : null),
+    [previewCanonical],
+  );
+  const docxCapaFields = useMemo(
+    () => (docxPreviewPage ? capaFieldsFromPreviewPage(docxPreviewPage.capa) : null),
+    [docxPreviewPage],
+  );
+  const docxVigencia = docxPreviewPage?.fechamento.dataVigencia.trim() || null;
 
   const pendingByStep = useMemo(() => {
     const counts: Record<ProposalStepKey, number> = {
@@ -1454,7 +1465,11 @@ function PropostaBuilderDialog({
               </div>
               {docxPreview.blob ? (
                 <div className="relative min-h-0 flex-1">
-                  <ProposalDocxPreview blob={docxPreview.blob} />
+                  <ProposalDocxPreview
+                    blob={docxPreview.blob}
+                    capaFields={docxCapaFields}
+                    vigencia={docxVigencia}
+                  />
                   {docxPreview.updating ? (
                     <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-2 rounded-(--radius-v2-full) border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground shadow-(--shadow-v2-sm)">
                       <Loader2 className="size-3.5 animate-spin text-interactive-700" aria-hidden />
