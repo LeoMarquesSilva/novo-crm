@@ -89,7 +89,7 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 
 - Fonte canônica privada: `templates/proposta/PROPOSTA-BP-V1.docx`, preparado do Word oficial fornecido. Layout institucional fica no template.
 - `buildPropostaDocumentSnapshot` → `buildCanonicalProposalData` → `renderCanonicalProposalDocx`; mesma geração determinística para dados/template iguais.
-- `POST /api/crm/leads/:id/document/preview` retorna DOCX binário do draft sem persistir. O antigo preview JSX foi removido; a UI oferece **Baixar prévia Word**. O ensaio com docx-preview perdeu caixas de texto/objetos do modelo; não foi adotado.
+- `POST /api/crm/leads/:id/document/preview` retorna DOCX binário do draft sem persistir (mesmo renderer da exportação). No builder, a coluna direita renderiza o DOCX com `docx-preview`: páginas de **escopo** ficam interativas no DOM; capa, institucional, investimento e demais seções fixas viram **miniaturas PNG** (`html-to-image`) geradas no navegador a partir da mesma renderização Word. **Baixar prévia Word** continua disponível. Caixas DrawingML da capa podem divergir levemente do Word desktop; o arquivo baixado permanece canônico.
 - **Gerar Word** aguarda saves confirmados e revalida o estado salvo no servidor; falha de save bloqueia exportação. Validação local acompanha o draft atual.
 - **Enviado por** é explícito e obrigatório, persistido em `document_instances.data_json.responsavel`; não se presume que o criador do lead seja o remetente.
 - Na ficha do lead em etapa de proposta, a aba abre o builder diretamente. Ao fechar o dialog, fica apenas um ponto compacto para reabrir o editor; os cards intermediários de pendências e histórico foram removidos porque duplicavam informações do próprio builder.

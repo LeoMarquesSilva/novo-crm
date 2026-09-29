@@ -57,58 +57,74 @@ function getCompactPageLabel(page: HTMLElement, index: number) {
   return `Página ${index + 1}`;
 }
 
-function replaceWordPageWithPlaceholder(
-  page: HTMLElement,
-  label: string,
-  description: string,
-) {
-  const placeholder = document.createElement("div");
-  placeholder.className =
-    "flex min-h-36 w-full flex-col items-center justify-center rounded-(--radius-v2-xl) border border-dashed border-neutral-300 bg-white/90 px-8 py-8 text-center shadow-(--shadow-v2-sm)";
+async function replaceWordPageWithImageThumbnail(page: HTMLElement, label: string) {
+  fitOverflowingWordTextBoxes(page);
 
-  const badge = document.createElement("strong");
-  badge.className =
-    "rounded-(--radius-v2-full) bg-interactive-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-interactive-700";
-  badge.textContent = label;
+  const width = page.offsetWidth || page.scrollWidth;
+  const height = page.offsetHeight || page.scrollHeight;
+  if (width <= 0 || height <= 0) return;
 
-  const title = document.createElement("span");
-  title.className = "mt-3 text-sm font-semibold text-foreground";
-  title.textContent = "Disponível no arquivo Word";
+  const { toPng } = await import("html-to-image");
+  let dataUrl: string;
+  try {
+    dataUrl = await toPng(page, {
+      width,
+      height,
+      pixelRatio: Math.min(2, window.devicePixelRatio || 1),
+      cacheBust: true,
+    });
+  } catch {
+    page.dataset.previewThumbnail = "true";
+    page.setAttribute(
+      "aria-label",
+      `${label}: não foi possível gerar miniatura; conteúdo interativo`,
+    );
+    return;
+  }
 
-  const message = document.createElement("span");
-  message.className = "mt-1 max-w-md text-xs leading-relaxed text-muted-foreground";
-  message.textContent = description;
+  const shell = document.createElement("section");
+  shell.className = page.className;
+  shell.dataset.previewThumbnail = "true";
+  shell.setAttribute("aria-label", `${label}: miniatura da proposta`);
 
-  placeholder.append(badge, title, message);
-  page.replaceChildren(placeholder);
-  page.dataset.previewPlaceholder = "true";
-  page.setAttribute("aria-label", `${label}: disponível no arquivo Word`);
-  page.style.minHeight = "0";
-  page.style.height = "auto";
-  page.style.padding = "0";
-  page.style.border = "0";
-  page.style.background = "transparent";
-  page.style.boxShadow = "none";
-  page.style.overflow = "visible";
+  const frame = document.createElement("div");
+  frame.className =
+    "overflow-hidden rounded-(--radius-v2-sm) border border-neutral-200/90 bg-white shadow-(--shadow-v2-sm)";
+
+  const img = document.createElement("img");
+  img.src = dataUrl;
+  img.alt = `${label} — miniatura`;
+  img.className = "block h-auto w-full";
+  img.decoding = "async";
+  img.loading = "lazy";
+
+  const caption = document.createElement("p");
+  caption.className =
+    "mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground";
+  caption.textContent = label;
+
+  frame.append(img);
+  shell.append(frame, caption);
+  shell.style.marginBottom = page.style.marginBottom;
+  shell.style.border = page.style.border;
+  shell.style.borderRadius = page.style.borderRadius;
+  shell.style.boxShadow = page.style.boxShadow;
+  page.replaceWith(shell);
 }
 
-function compactNonScopeWordPages(pages: HTMLElement[]) {
-  pages.forEach((page, index) => {
-    if (isScopeWordPage(page)) return;
+async function compactNonScopeWordPages(pages: HTMLElement[]) {
+  for (const [index, page] of pages.entries()) {
+    if (isScopeWordPage(page)) continue;
 
     // Folhas vazias são artefatos das quebras de seção do Word e não
     // representam conteúdo útil para a prévia.
     if (isBlankWordPage(page)) {
       page.remove();
-      return;
+      continue;
     }
 
-    replaceWordPageWithPlaceholder(
-      page,
-      getCompactPageLabel(page, index),
-      "Esta seção foi ocultada no preview para preservar o layout. Ela permanece completa no Word baixado.",
-    );
-  });
+    await replaceWordPageWithImageThumbnail(page, getCompactPageLabel(page, index));
+  }
 }
 
 function fitOverflowingWordTextBoxes(root: HTMLElement) {
@@ -234,9 +250,26 @@ export function ProposalDocxPreview({ blob }: ProposalDocxPreviewProps) {
           page.style.boxShadow =
             "0 2px 4px rgba(16, 31, 46, 0.08), 0 18px 42px rgba(16, 31, 46, 0.12)";
         }
-        compactNonScopeWordPages(pages);
 
-        documentContainer.replaceChildren(...Array.from(staging.childNodes));
+        staging.setAttribute("aria-hidden", "true");
+        staging.style.position = "fixed";
+        staging.style.left = "-10000px";
+        staging.style.top = "0";
+        staging.style.zIndex = "-1";
+        staging.style.pointerEvents = "none";
+        document.body.appendChild(staging);
+        try {
+          await document.fonts.ready;
+          fitOverflowingWordTextBoxes(staging);
+          await compactNonScopeWordPages(pages);
+        } finally {
+          const nodes = Array.from(staging.childNodes);
+          staging.remove();
+          if (generation === generationRef.current) {
+            documentContainer.replaceChildren(...nodes);
+          }
+        }
+        if (generation !== generationRef.current) return;
         setPageCount(
           documentContainer.querySelectorAll(
             ".proposal-docx-wrapper > section.proposal-docx",
@@ -285,7 +318,7 @@ export function ProposalDocxPreview({ blob }: ProposalDocxPreviewProps) {
 
     const updateFitScale = () => {
       const page = documentContainer.querySelector<HTMLElement>(
-        ".proposal-docx-wrapper > section.proposal-docx:not([data-preview-placeholder])",
+        ".proposal-docx-wrapper > section.proposal-docx:not([data-preview-thumbnail])",
       );
       if (!page) return;
       const style = window.getComputedStyle(viewport);
