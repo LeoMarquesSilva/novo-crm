@@ -794,7 +794,7 @@ Rotas `/api/crm/d4sign/*`: vault, folders, import, vault-sync, sync, enrich-sign
 
 Quota: tabela `d4sign_api_usage`, janela 1 h, limite 10. View de PDF: `canViewD4SignDocumentRecord` (órfão só admin).
 
-Cron `0 * * * *` → `/api/cron/d4sign-sync` (raiz do cofre, pastas de cliente e signatários pendentes, dentro da cota de 10 req/h). `d4sign-pending-backfill` ficou só para chamada manual.
+GitHub Actions `d4sign-sync.yml` (`0 * * * *`) chama `POST /api/cron/d4sign-sync` com `CRON_SECRET`. Cada hora: raiz do cofre, pastas de cliente e signatários pendentes, dentro da cota de 10 req/h. Não está no `vercel.json` (Hobby só aceita cron diário). `d4sign-pending-backfill` ficou só para chamada manual.
 
 ---
 
@@ -972,12 +972,12 @@ Webhooks: `src/lib/webhooks/security.ts` — secret hashing timing-safe, limite 
 
 ## 18. Jobs agendados
 
-`crm/vercel.json` (UTC):
+`vercel.json` (UTC) e o sync D4Sign no GitHub Actions:
 
 | Cron | Path | Uso |
 |------|------|-----|
 | `0 11 * * *` | `/api/cron/rd-full-import` | import RD do ano corrente (`maxDuration=300`) |
-| `0 * * * *` | `/api/cron/d4sign-sync` | cofre, pastas de cliente e signatários (cota 10 req/h) |
+| GitHub `0 * * * *` | `POST /api/cron/d4sign-sync` | a cada hora: cofre, pastas e signatários |
 | `0 13 * * *` | `/api/cron/contracts-daily` | fechamentos e alertas (calendário America/Sao_Paulo) |
 
 Auth: `CRON_SECRET` ≥ 8 chars; `Authorization: Bearer` ou `x-cron-secret`. Sem secret → 503.

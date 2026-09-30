@@ -1,5 +1,5 @@
 /**
- * Cron horário — listagem do cofre, pastas de cliente e signatários.
+ * Sync horário do cofre, disparado pelo GitHub Actions (não pela Vercel).
  * Cota global: 10 req/h. A primeira vaga é sempre a página da raiz.
  * Enquanto houver pasta de cliente ainda não varrida, o resto da hora
  * importa contratos dessas pastas. Depois, 1 pasta por hora e o resto

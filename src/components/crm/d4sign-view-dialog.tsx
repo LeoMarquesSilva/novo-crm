@@ -38,25 +38,23 @@ export function D4SignViewDialog({
 }: Props) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) {
-      setBlobUrl((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return null;
-      });
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-    let createdUrl: string | null = null;
-
+  const [viewKey, setViewKey] = useState(`${open}:${documentUuid}`);
+  const nextViewKey = `${open}:${documentUuid}`;
+  if (viewKey !== nextViewKey) {
+    setViewKey(nextViewKey);
     setStatus("loading");
     setBlobUrl((current) => {
       if (current) URL.revokeObjectURL(current);
       return null;
     });
+  }
+
+  useEffect(() => {
+    if (!open) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+    let createdUrl: string | null = null;
 
     void (async () => {
       try {
