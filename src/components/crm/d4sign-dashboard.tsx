@@ -35,25 +35,15 @@ import { D4SignLinkLeadDialog, D4SignOriginBadge } from "@/components/crm/d4sign
 import { useD4SignDocumentsRealtime } from "@/lib/crm/use-d4sign-realtime";
 import type { D4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { D4SIGN_HOURLY_LIMIT } from "@/lib/d4sign/api-usage";
+import {
+  parseSigners,
+  signerIsPending,
+  type D4SignSignerInfo,
+} from "@/lib/d4sign/partner-signatures";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type SignerInfo = {
-  email?: string | null;
-  role?: string | null;
-  signed?: boolean | number | string | null;
-  signed_at?: string | null;
-  /** Nome gravado pelo CRM (ao enviar) ou pelo D4Sign após assinatura (`user_name`). */
-  name?: string | null;
-  user_name?: string | null;
-  user_document?: string | null;
-  key_signer?: string | null;
-  act?: string | null;
-  /** Status de entrega do e-mail: "Delivery" | "Bounce" | "Pending" … */
-  email_sent_status?: string | null;
-  /** sign_info da D4Sign (IP, geo) — gravado no enrich */
-  sign_info?: { ip?: string; geolocation?: string; date_signed?: string } | null;
-};
+type SignerInfo = D4SignSignerInfo;
 
 type SentByInfo = { full_name: string; avatar_url: string | null } | null;
 
@@ -340,18 +330,6 @@ function QuotaBanner({
 }
 
 // ─── Signer helpers ───────────────────────────────────────────────────────────
-
-function parseSigners(raw: unknown): SignerInfo[] {
-  if (!raw || !Array.isArray(raw)) return [];
-  return raw as SignerInfo[];
-}
-
-function signerIsPending(s: SignerInfo): boolean {
-  const { signed } = s;
-  if (signed === null || signed === undefined) return true;
-  if (typeof signed === "boolean") return !signed;
-  return String(signed) === "0" || String(signed) === "false";
-}
 
 type AppUserInfo = { avatarUrl: string | null; fullName: string };
 

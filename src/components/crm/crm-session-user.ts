@@ -6,6 +6,8 @@ export type CrmSessionUser = {
   avatarUrl: string | null;
   area: string | null;
   role: Database["public"]["Enums"]["user_role"] | null;
+  /** Admin ou sócio signatário — vê a área "Assinar Contratos". */
+  canAccessPartnerSignatures: boolean;
 };
 
 export function initialsFromUser(fullName: string | null, email: string | null): string {

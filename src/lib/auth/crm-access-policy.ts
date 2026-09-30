@@ -79,6 +79,8 @@ export function canViewD4SignDocument(
 
 type CanViewD4SignDocumentRecordInput = CanViewD4SignDocumentInput & {
   oportunidadeId: string | null;
+  /** Usuário é sócio signatário da firma (área "Assinar Contratos"). */
+  isFirmPartner?: boolean;
 };
 
 export function canViewD4SignDocumentRecord(
@@ -88,5 +90,5 @@ export function canViewD4SignDocumentRecord(
     return false;
   }
 
-  return input.oportunidadeId !== null || input.role === "admin";
+  return input.oportunidadeId !== null || input.role === "admin" || input.isFirmPartner === true;
 }

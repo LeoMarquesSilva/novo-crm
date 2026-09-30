@@ -3,7 +3,7 @@
  * que assinam todo contrato em nome da firma.
  *
  * Pode ser sobrescrito via env `D4SIGN_FIRM_SIGNERS` (JSON):
- *   D4SIGN_FIRM_SIGNERS=[{"email":"x@y.com","name":"Fulano","oab":"OAB/SP 000.000"}]
+ *   D4SIGN_FIRM_SIGNERS=[{"email":"x@y.com","name":"Fulano","oab":"OAB/SP 000.000","aliases":["x@antigo.com"]}]
  *
  * Origem dos defaults: `solicitantes-gestores-avatars.md` + cláusula da CONTRATADA
  * em `generate-contrato-docx.ts` (CNPJ 26.080.152/0001-35).
@@ -53,11 +53,15 @@ export function getFirmSigners(): FirmSigner[] {
       const email = typeof r.email === "string" ? r.email.trim() : "";
       const name = typeof r.name === "string" ? r.name.trim() : "";
       if (!email || !name) continue;
+      const aliases = Array.isArray(r.aliases)
+        ? r.aliases.filter((a): a is string => typeof a === "string" && a.trim() !== "").map((a) => a.trim())
+        : [];
       out.push({
         email,
         name,
         oab: typeof r.oab === "string" ? r.oab.trim() : "",
         foreign: r.foreign === "1" ? "1" : "0",
+        ...(aliases.length > 0 ? { aliases } : {}),
       });
     }
     return out.length > 0 ? out : DEFAULT_FIRM_SIGNERS;

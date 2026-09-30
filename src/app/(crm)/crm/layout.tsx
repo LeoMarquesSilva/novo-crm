@@ -1,6 +1,8 @@
 import { AppShell } from "@/components/crm/app-shell";
 import type { CrmSessionUser } from "@/components/crm/crm-session-user";
 import { requireAuth } from "@/lib/auth/server";
+import { getFirmSigners } from "@/lib/d4sign/firm-signers";
+import { canAccessPartnerSignatures, toPartnerSigners } from "@/lib/d4sign/partner-signatures";
 
 export default async function CrmLayout({
   children,
@@ -15,6 +17,11 @@ export default async function CrmLayout({
     avatarUrl: profile.avatar_url,
     area: profile.area,
     role: profile.role,
+    canAccessPartnerSignatures: canAccessPartnerSignatures({
+      role: profile.role,
+      email: user.email,
+      partners: toPartnerSigners(getFirmSigners()),
+    }),
   };
 
   return <AppShell sessionUser={sessionUser}>{children}</AppShell>;

@@ -16,6 +16,7 @@ import {
 } from "@/lib/auth/crm-access-policy";
 import { requireAuthApi } from "@/lib/auth/server";
 import { getD4SignEnv } from "@/lib/d4sign/env";
+import { isFirmSignerEmail } from "@/lib/d4sign/firm-signers";
 import { logD4SignApiCall } from "@/lib/d4sign/api-usage";
 import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -62,6 +63,7 @@ export async function GET(
   if (!canViewD4SignDocumentRecord({
     role: authResult.profile.role,
     oportunidadeId: document.oportunidade_id,
+    isFirmPartner: isFirmSignerEmail(authResult.user.email),
   })) {
     return NextResponse.json({ error: "Sem permissão para visualizar documentos D4Sign." }, { status: 403 });
   }

@@ -100,6 +100,14 @@ Também relevante: `contract-signers-kanban-panel.tsx` (Kanban de signatários, 
 
 **Agente responsável: Grok — Propostas/Contratos** (mesma área sensível).
 
+## Sócios — Assinar Contratos
+
+Rota: `src/app/(crm)/crm/assinar-contratos/page.tsx`
+
+Componente: `src/components/crm/partner-signatures/partner-signatures-board.tsx` (reusa `d4sign-view-dialog.tsx` e `d4sign-embed-dialog.tsx`)
+
+Lib: `src/lib/d4sign/partner-signatures.ts` (regras puras + helpers de signatário compartilhados com `d4sign-dashboard.tsx`), `src/lib/d4sign/firm-signers.ts`
+
 ## Clientes
 
 Rota: `src/app/(crm)/crm/clientes/page.tsx` — carteira agrupada (OrquestrAI + títulos SIOE). Status = `gestor_atividade` (espelho local + overlay ao vivo). **Categoria** = Cliente | Lead (`grupo-categoria.ts`, `origemLinha`; hoje só Cliente). Modal `carteira-grupo-detail-dialog.tsx` (Dialog+Select: `modal={false}` + `dialogSelectOutsideHandlers`; chips de Área clicáveis no modo editar): Áreas = atuação (`responsible_area` ∪ `legal_areas` ∪ SIOE ∪ manual); Categoria = Cliente (não editável); **Quem indicou** = `indication-name-picker.tsx` (base `indicadores` + solicitar aprovação, igual ao Novo Lead). Tabela: `carteira-grupos-table.tsx` (um botão “Copiar link de preenchimento”). Grade pública: `src/app/preencher/carteira/[token]/page.tsx` + `src/components/crm/grupo-intake-public-grid.tsx`. APIs: `POST /api/crm/carteira/intake-links`, `GET|POST /api/public/carteira-intake/[token]`. Helpers: `save-grupo-carteira.ts`, `grupo-areas-atuacao.ts`, `grupo-categoria.ts`, `carteira-grupo-enrichment.ts`, `carteira-grupo-membros.ts`, `grupo-intake-indication.ts`, `grupo-intake-campaign.ts`, `grupo-intake-grid.ts`, `indication-name-options.ts`, `ensure-pending-indicator.ts`, `fetch-grupos-economicos.ts`. Sync persiste `gestor_atividade` / `responsible_area` / `legal_areas` em `src/lib/sioe/sync-carteira.ts`.

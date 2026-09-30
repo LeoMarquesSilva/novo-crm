@@ -17,6 +17,7 @@ import {
   Layers,
   MessageCircle,
   Menu,
+  PenLine,
   Presentation,
   Search,
   ShieldCheck,
@@ -89,6 +90,15 @@ const mainItems: SidebarItem[] = [
     label: "Contratos",
     description: "Monitoramento jurídico",
     icon: FileText,
+  },
+];
+
+const partnerItems: SidebarItem[] = [
+  {
+    href: "/crm/assinar-contratos",
+    label: "Assinar Contratos",
+    description: "Contratos D4Sign pendentes de assinatura dos sócios",
+    icon: PenLine,
   },
 ];
 
@@ -372,6 +382,7 @@ export function AppShell({
   const [hydratedStorage, setHydratedStorage] = useState(false);
 
   const showAdminNav = sessionUser.role === "admin";
+  const showPartnerNav = sessionUser.canAccessPartnerSignatures;
   const canViewDueDiligence =
     sessionUser.role === "admin" || sessionUser.role === "comercial";
   const workspaceLabel = sessionUser.area?.trim() || "Workspace corporativo";
@@ -390,9 +401,10 @@ export function AppShell({
           ? mainItems
           : mainItems.filter((item) => item.href !== "/crm/due-diligence"),
       },
+      ...(showPartnerNav ? [{ id: "partners", title: "Sócios", items: partnerItems }] : []),
       ...(showAdminNav ? [{ id: "admin", title: "Configurações", items: adminItems }] : []),
     ],
-    [canViewDueDiligence, showAdminNav],
+    [canViewDueDiligence, showPartnerNav, showAdminNav],
   );
 
   const allItems = useMemo(() => groups.flatMap((group) => group.items), [groups]);

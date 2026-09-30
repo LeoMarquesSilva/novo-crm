@@ -183,4 +183,14 @@ describe("canViewD4SignDocumentRecord", () => {
       }),
     ).toBe(false);
   });
+
+  it("libera documento órfão para sócio signatário", () => {
+    expect(
+      canViewD4SignDocumentRecord({
+        role: "comercial",
+        oportunidadeId: null,
+        isFirmPartner: true,
+      }),
+    ).toBe(true);
+  });
 });
