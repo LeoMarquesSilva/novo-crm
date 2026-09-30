@@ -4,8 +4,11 @@ export const CONTRACT_IMPORT_MAX_BYTES = 25 * 1024 * 1024;
 export const CONTRACT_IMPORT_ALLOWED_EXTENSIONS = [".pdf"] as const;
 export const CONTRACT_IMPORT_ALLOWED_MIME = new Set(["application/pdf"]);
 export const CONTRACT_IMPORT_MIN_CHARS_PER_PAGE = 200;
-export const CONTRACT_IMPORT_INPUT_CHAR_CAP = 80_000;
-export const CONTRACT_IMPORT_MAX_TOKENS = 8192;
+export const CONTRACT_IMPORT_CLIP_CHAR_CAP = 16_000;
+export const CONTRACT_IMPORT_INPUT_CHAR_CAP = 18_000;
+export const CONTRACT_IMPORT_MAX_TOKENS = 4096;
+export const CONTRACT_IMPORT_EVIDENCE_MAX = 16;
+export const CONTRACT_IMPORT_QUOTE_MAX = 160;
 /** Raiz CNPJ da Bismarchi | Pires — nunca casar como cliente da carteira nem no rateio SIOE. */
 export const OWN_LAW_FIRM_CNPJ_ROOTS = ["26080152"] as const;
 

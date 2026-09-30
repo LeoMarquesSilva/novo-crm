@@ -1,3 +1,4 @@
+import { parseAiProvenance, type AiProvenanceItem } from "@/lib/contract-import/ai-provenance";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 import { contractPortfolioLabels } from "@/lib/crm/contract-portfolio-identity";
@@ -142,6 +143,8 @@ export type ContractDetailViewModel = {
   expectedVersionUpdatedAt: string | null;
   configuration: ContractConfigurationDraft | null;
   sourceFields: Record<string, ContractSourceField>;
+  aiProvenance: AiProvenanceItem[];
+  reviewedFieldKeys: string[];
   originLabel: string;
   users: Array<{ id: string; name: string; role: string; avatarUrl: string | null }>;
   clients: Array<{ id: string; name: string }>;
@@ -242,6 +245,29 @@ function monthlyProjectionCents(
     usage,
   );
   return total > 0 ? String(total) : null;
+}
+
+export async function getContractSioeUsage(contractId: string): Promise<ContractSioeUsage | null> {
+  const supabase = createSupabaseAdminClient();
+  const { data: contract, error } = await supabase
+    .from("contratos")
+    .select("id, grupo_id, cliente_id")
+    .eq("id", contractId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!contract) return null;
+  let groupId = contract.grupo_id;
+  if (!groupId && contract.cliente_id) {
+    const { data: client } = await supabase
+      .from("clientes")
+      .select("grupo_id")
+      .eq("id", contract.cliente_id)
+      .maybeSingle();
+    groupId = client?.grupo_id ?? null;
+  }
+  if (!groupId) return null;
+  const usageByGrupo = await loadSioeUsageByGrupoIds([groupId]);
+  return usageByGrupo.get(groupId) ?? null;
 }
 
 async function loadSioeUsageByGrupoIds(
@@ -609,16 +635,11 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
 
   const document = documentResult.data;
   const groupId = contract.grupo_id ?? clientResult.data?.grupo_id ?? null;
-  const [groupResult, usageByGrupo] = await Promise.all([
-    groupId
-      ? supabase.from("grupos_economicos").select("nome").eq("id", groupId).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    groupId && hasVariableBilling(components)
-      ? loadSioeUsageByGrupoIds([groupId])
-      : Promise.resolve(new Map<string, VariableUsageSnapshot>()),
-  ]);
+  const groupResult = groupId
+    ? await supabase.from("grupos_economicos").select("nome").eq("id", groupId).maybeSingle()
+    : { data: null, error: null };
   if (groupResult.error) throw new Error(groupResult.error.message);
-  const sioeUsage = groupId ? usageByGrupo.get(groupId) ?? null : null;
+  const sioeUsage = null;
   const areaKeyById = new Map(areas.map((area) => [area.id, area.areaKey]));
   const monthly = configuration
     ? projectMonthlyTotalCents(configuration.version.components, areaKeyById, sioeUsage)
@@ -629,6 +650,7 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     legalName: clientResult.data?.razao_social ?? null,
     fallbackTitle: contract.titulo,
   });
+  const provenance = parseAiProvenance((editableVersion?.origem_snapshot ?? null) as Json);
   return {
     id: contract.id,
     title: labels.title,
@@ -658,6 +680,8 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     expectedVersionUpdatedAt: editableVersion?.updated_at ?? null,
     configuration,
     sourceFields,
+    aiProvenance: provenance.items,
+    reviewedFieldKeys: provenance.reviewedFieldKeys,
     originLabel: editableVersion ? snapshotLabel(editableVersion.origem_snapshot) : "Manual",
     users: (usersResult.data ?? []).map((user) => ({
       id: user.id,

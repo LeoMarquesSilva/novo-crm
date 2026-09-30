@@ -1,4 +1,5 @@
 import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
+import { timestampsMatch } from "@/lib/crm/timestamps";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { bindOrphanedAreaIdsToSingleArea } from "../../domain/reattach-area-ids";
@@ -172,7 +173,7 @@ export async function saveContractConfiguration(
       "Somente versões em rascunho podem ser alteradas.",
     );
   }
-  if (context.updatedAt !== input.expectedVersionUpdatedAt) {
+  if (!timestampsMatch(context.updatedAt, input.expectedVersionUpdatedAt)) {
     throw new ContractConfigurationError(
       "CONTRACT_VERSION_CONFLICT",
       "A versão foi alterada por outra operação.",
@@ -193,7 +194,7 @@ export async function saveContractConfiguration(
     actorId: input.actorId,
     contractId: input.contractId,
     versionId,
-    expectedVersionUpdatedAt: input.expectedVersionUpdatedAt,
+    expectedVersionUpdatedAt: context.updatedAt,
     configuration,
   });
 }

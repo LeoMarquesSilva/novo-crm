@@ -75,6 +75,10 @@ export const extrutechExtraction: ContractImportExtraction = {
     moraFinePercent: 20,
     kmRateCents: 200,
   },
+  evidence: [
+    { field: "startsAt", quote: "Vigência a partir de 30 de abril de 2026.", clause: "cláusula 3" },
+    { field: "components", quote: "R$ 20.000,00 nos primeiros 6 meses e R$ 25.000,00 a partir do 7º mês.", clause: null },
+  ],
 };
 
 export const fabianaToziniExtraction: ContractImportExtraction = {
@@ -129,6 +133,9 @@ export const fabianaToziniExtraction: ContractImportExtraction = {
     moraFinePercent: 20,
     kmRateCents: 200,
   },
+  evidence: [
+    { field: "components", quote: "Honorários em 10 parcelas iguais de R$ 1.000,00.", clause: null },
+  ],
 };
 
 export const leBlogExtraction: ContractImportExtraction = {
@@ -205,4 +212,10 @@ export const leBlogExtraction: ContractImportExtraction = {
     moraFinePercent: 10,
     kmRateCents: 200,
   },
+  evidence: [
+    { field: "groupName", quote: "GRUPO LE BLOG", clause: null },
+    { field: "adjustmentIndex", quote: "reajuste anual pelo IGP-M", clause: "cláusula 7" },
+    { field: "taxMode", quote: "honorários líquidos de tributos", clause: null },
+    { field: "components", quote: "R$ 15.000,00 mensais globais e êxito de 3%", clause: "cláusula 4" },
+  ],
 };

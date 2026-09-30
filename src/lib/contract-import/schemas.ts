@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { ADJUSTMENT_INDEX_OPTIONS } from "@/components/crm/contracts/contract-setup-form-helpers";
+import { CONTRACT_IMPORT_EVIDENCE_MAX, CONTRACT_IMPORT_QUOTE_MAX } from "./constants";
 
 const partySchema = z.object({
   razaoSocial: z.string(),
@@ -55,6 +56,32 @@ const extrasSchema = z.object({
   kmRateCents: z.number().int().nullable().optional(),
 }).default({});
 
+export const CONTRACT_IMPORT_EVIDENCE_FIELDS = [
+  "groupName",
+  "clientId",
+  "startsAt",
+  "signedAt",
+  "indefinite",
+  "dueDay",
+  "firstInvoiceAt",
+  "firstInvoiceConditioned",
+  "adjustmentIndex",
+  "taxMode",
+  "areas",
+  "components",
+  "allocations",
+] as const;
+
+export type ContractImportEvidenceField = (typeof CONTRACT_IMPORT_EVIDENCE_FIELDS)[number];
+
+const evidenceSchema = z.object({
+  field: z.string().trim().min(1),
+  quote: z.string().trim().min(1).max(CONTRACT_IMPORT_QUOTE_MAX),
+  clause: z.string().trim().max(80).nullable().optional(),
+});
+
+export type ContractImportEvidence = z.infer<typeof evidenceSchema>;
+
 export const contractImportExtractionSchema = z.object({
   groupName: z.string().nullable().optional(),
   parties: z.array(partySchema).default([]),
@@ -72,7 +99,13 @@ export const contractImportExtractionSchema = z.object({
   signers: z
     .array(z.object({ name: z.string(), email: z.string().nullable().optional() }))
     .default([]),
-  extras: extrasSchema,
+  extras: extrasSchema.transform((extras) => ({
+    ...extras,
+    objectText: extras.objectText && extras.objectText.length > 240
+      ? extras.objectText.slice(0, 237).trimEnd() + "…"
+      : extras.objectText,
+  })),
+  evidence: z.array(evidenceSchema).max(CONTRACT_IMPORT_EVIDENCE_MAX).default([]),
 });
 
 export type ContractImportExtraction = z.infer<typeof contractImportExtractionSchema>;
@@ -234,6 +267,20 @@ export const contractImportJsonSchema = {
         "kmRateCents",
       ],
     },
+    evidence: {
+      type: "array",
+      maxItems: 16,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          field: { type: "string" },
+          quote: { type: "string" },
+          clause: { type: ["string", "null"] },
+        },
+        required: ["field", "quote", "clause"],
+      },
+    },
   },
   required: [
     "groupName",
@@ -251,5 +298,6 @@ export const contractImportJsonSchema = {
     "d4signUuid",
     "signers",
     "extras",
+    "evidence",
   ],
 } as const;

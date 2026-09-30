@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
 import { requireAuthApi } from "@/lib/auth/server";
+import { isIsoTimestamp } from "@/lib/crm/timestamps";
 import {
   ContractConfigurationError,
   saveContractConfiguration,
@@ -130,7 +131,7 @@ const configuration = z.object({
 });
 
 const bodySchema = z.object({
-  expectedVersionUpdatedAt: z.string().datetime({ offset: true }),
+  expectedVersionUpdatedAt: z.string().refine(isIsoTimestamp, "Instante ISO-8601 inválido."),
   configuration,
 });
 

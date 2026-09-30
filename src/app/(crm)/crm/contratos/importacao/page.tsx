@@ -19,7 +19,7 @@ export default async function ContractImportPage() {
       <CrmPageHeader
         eyebrow="Gestão contratual"
         title="Importar contratos fechados"
-        description="Envie PDFs assinados. A extração preenche o gerenciador financeiro; a revisão humana grava apenas rascunho."
+        description="Envie PDFs assinados. A IA lê trechos de honorários e vigência; você confere as citações e grava só rascunho."
         icon={FileUp}
         actions={
           <Link

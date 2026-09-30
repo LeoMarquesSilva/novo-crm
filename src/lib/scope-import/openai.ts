@@ -44,9 +44,10 @@ export async function callStructured<T>(
   schemaName: string,
   maxOutputTokens: number,
   parse: (raw: unknown) => T,
+  inputCap?: number,
 ): Promise<StructuredCallResult<T>> {
   const openai = getOpenAIClient();
-  const truncatedUser = truncateInput(user);
+  const truncatedUser = truncateInput(user, inputCap);
 
   async function runOnce(): Promise<StructuredCallResult<T>> {
     const response = await openai.responses.create({

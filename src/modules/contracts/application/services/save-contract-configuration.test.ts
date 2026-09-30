@@ -117,6 +117,25 @@ describe("saveContractConfiguration", () => {
     expect(writes).toEqual([]);
   });
 
+  it("aceita o instante truncado pelo RSC e grava com o updated_at do banco", async () => {
+    const { saveContractConfiguration, repository, writes } = await subject({
+      updatedAt: "2026-08-12T15:00:00.519768+00:00",
+    });
+    const configuration = validConfiguration();
+
+    await saveContractConfiguration(repository, {
+      role: "controladoria",
+      actorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      contractId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      expectedVersionUpdatedAt: "2026-08-12T15:00:00.519Z",
+      configuration,
+    });
+
+    expect(writes[0]).toMatchObject({
+      expectedVersionUpdatedAt: "2026-08-12T15:00:00.519768+00:00",
+    });
+  });
+
   it("rejects an optimistic concurrency conflict", async () => {
     const { saveContractConfiguration, repository, writes } = await subject({
       updatedAt: "2026-08-12T15:00:01.000Z",

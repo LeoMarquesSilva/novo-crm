@@ -26,7 +26,24 @@ export async function GET(
     if (batchError) throw batchError;
     if (docsError) throw docsError;
     if (!batch) return NextResponse.json({ ok: false, error: "Lote não encontrado." }, { status: 404 });
-    return NextResponse.json({ ok: true, data: { batch, documents: documents ?? [] } });
+    const [{ data: grupos }, { data: clientes }] = await Promise.all([
+      supabase.from("grupos_economicos").select("id, nome").order("nome"),
+      supabase.from("clientes").select("id, razao_social, documento, grupo_id").order("razao_social"),
+    ]);
+    return NextResponse.json({
+      ok: true,
+      data: {
+        batch,
+        documents: documents ?? [],
+        grupos: (grupos ?? []).map((row) => ({ id: row.id, nome: row.nome })),
+        clientes: (clientes ?? []).map((row) => ({
+          id: row.id,
+          razaoSocial: row.razao_social,
+          documento: row.documento,
+          grupoId: row.grupo_id,
+        })),
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro ao carregar lote.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });

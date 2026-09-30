@@ -794,7 +794,7 @@ Rotas `/api/crm/d4sign/*`: vault, folders, import, vault-sync, sync, enrich-sign
 
 Quota: tabela `d4sign_api_usage`, janela 1 h, limite 10. View de PDF: `canViewD4SignDocumentRecord` (órfão só admin).
 
-Cron `0 12 * * *` → `/api/cron/d4sign-sync`.
+Cron `0 12 * * *` → `/api/cron/d4sign-sync`. Cron `30 16 * * *` → `/api/cron/d4sign-pending-backfill` (fases 3 e 2, contratos ainda sem assinatura finalizada, inclusive em pasta).
 
 ---
 
@@ -978,6 +978,7 @@ Webhooks: `src/lib/webhooks/security.ts` — secret hashing timing-safe, limite 
 |------|------|-----|
 | `0 11 * * *` | `/api/cron/rd-full-import` | import RD do ano corrente (`maxDuration=300`) |
 | `0 12 * * *` | `/api/cron/d4sign-sync` | sync cofre / documentos |
+| `30 16 * * *` | `/api/cron/d4sign-pending-backfill` | contratos D4Sign sem assinatura finalizada (fases 3 e 2) |
 | `0 13 * * *` | `/api/cron/contracts-daily` | fechamentos e alertas (calendário America/Sao_Paulo) |
 
 Auth: `CRON_SECRET` ≥ 8 chars; `Authorization: Bearer` ou `x-cron-secret`. Sem secret → 503.

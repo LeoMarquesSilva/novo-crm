@@ -8,6 +8,9 @@ export function buildContractImportSystemPrompt(): string {
     "Percentuais em basis points (3% = 300, 5% = 500).",
     `Áreas permitidas: ${CRM_PRACTICE_AREAS.join(", ")}.`,
     `Índices de reajuste: ${ADJUSTMENT_INDEX_OPTIONS.join(", ")}.`,
+    "O texto do usuário já é um recorte. Não transcreva o contrato. extras.objectText no máximo uma frase.",
+    "evidence: até 16 itens. field em groupName, startsAt, indefinite, dueDay, firstInvoiceAt, firstInvoiceConditioned, adjustmentIndex, taxMode, areas, components.",
+    "quote: copie no máximo 160 caracteres do recorte enviado. clause: número da cláusula se aparecer, senão null. Não invente trecho.",
     "Se o contrato for por prazo indeterminado, indefinite=true e effectiveTo dos componentes recorrentes nulo.",
     "Se o início depende do primeiro pagamento, firstInvoiceConditioned=true.",
     "Honorários 'englobando tributos' → taxMode=included. Honorários 'líquidos' → taxMode=added.",
@@ -23,6 +26,8 @@ export function buildContractImportSystemPrompt(): string {
   ].join(" ");
 }
 
-export function buildContractImportUserPrompt(filename: string, text: string): string {
-  return `Arquivo: ${filename}\n\nTexto do contrato:\n\n${text}`;
+export function buildContractImportUserPrompt(filename: string, clippedText: string): string {
+  return clippedText.startsWith(`Arquivo: ${filename}`)
+    ? clippedText
+    : `Arquivo: ${filename}\n\n${clippedText}`;
 }

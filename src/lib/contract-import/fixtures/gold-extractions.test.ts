@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { stripD4SignCertificate, extractDocumentIdentifiers } from "../document-text";
 import { mapExtractionToConfiguration } from "../map-to-configuration";
-import { matchExtractionToCarteira, importedContractTitle } from "../match-carteira";
+import { applyManualGrupoMatch, importedContractTitle, matchExtractionToCarteira } from "../match-carteira";
 import { validateContractConfiguration } from "@/modules/contracts/domain/contract-validation";
 import {
   extrutechExtraction,
@@ -129,6 +129,33 @@ describe("gold mappings", () => {
       grupoId: "g-leblog",
       clienteId: "c-leblog",
       matchedDocuments: ["13419020000143", "48978532000124"],
+    });
+  });
+
+  it("escolhe a matriz do grupo na atribuição manual", () => {
+    expect(
+      applyManualGrupoMatch({
+        grupoId: "g-leblog",
+        matchedDocuments: ["13419020000143"],
+        clientes: [
+          {
+            id: "c-filial",
+            razaoSocial: "Le Blog Filial",
+            documento: "13.419.020/0002-24",
+            grupoId: "g-leblog",
+          },
+          {
+            id: "c-matriz",
+            razaoSocial: "Le Blog Confeccoes Ltda",
+            documento: "13.419.020/0001-43",
+            grupoId: "g-leblog",
+          },
+        ],
+      }),
+    ).toEqual({
+      grupoId: "g-leblog",
+      clienteId: "c-matriz",
+      matchedDocuments: ["13419020000143"],
     });
   });
 

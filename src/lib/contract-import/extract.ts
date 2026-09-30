@@ -1,5 +1,6 @@
 import { callStructured, getExtractionModel } from "@/lib/scope-import/openai";
-import { CONTRACT_IMPORT_MAX_TOKENS } from "./constants";
+import { clipContractTextForExtraction } from "./clip-for-extraction";
+import { CONTRACT_IMPORT_INPUT_CHAR_CAP, CONTRACT_IMPORT_MAX_TOKENS } from "./constants";
 import { buildContractImportSystemPrompt, buildContractImportUserPrompt } from "./prompts";
 import {
   contractImportJsonSchema,
@@ -14,15 +15,22 @@ export function getContractImportModel(): string {
 export async function extractContractFromText(
   filename: string,
   text: string,
-): Promise<{ data: ContractImportExtraction; model: string }> {
+): Promise<{ data: ContractImportExtraction; model: string; clippedChars: number; originalChars: number }> {
+  const clipped = clipContractTextForExtraction({ filename, text });
   const result = await callStructured(
     getContractImportModel(),
     buildContractImportSystemPrompt(),
-    buildContractImportUserPrompt(filename, text),
+    buildContractImportUserPrompt(filename, clipped.text),
     contractImportJsonSchema as unknown as Record<string, unknown>,
     "contract_import_extraction",
     CONTRACT_IMPORT_MAX_TOKENS,
     parseContractImportExtraction,
+    CONTRACT_IMPORT_INPUT_CHAR_CAP,
   );
-  return { data: result.data, model: result.model };
+  return {
+    data: result.data,
+    model: result.model,
+    clippedChars: clipped.clippedChars,
+    originalChars: clipped.originalChars,
+  };
 }

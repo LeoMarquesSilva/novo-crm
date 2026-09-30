@@ -1,5 +1,6 @@
 import type { PostgrestError } from "@supabase/supabase-js";
 
+import { timestampsMatch } from "@/lib/crm/timestamps";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import {
@@ -138,7 +139,7 @@ export class SupabaseContractRepository implements ContractConfigurationReposito
         .maybeSingle(),
       supabase
         .from("contrato_versoes")
-        .select("vigente_de")
+        .select("vigente_de, updated_at, status")
         .eq("id", input.versionId)
         .eq("contrato_id", input.contractId)
         .maybeSingle(),
@@ -197,12 +198,27 @@ export class SupabaseContractRepository implements ContractConfigurationReposito
         issues,
       );
     }
+    if (!version) {
+      throw new ContractConfigurationError("CONTRACT_NOT_FOUND", CONTRACT_ERROR_MESSAGES.CONTRACT_NOT_FOUND);
+    }
+    if (version.status !== "rascunho") {
+      throw new ContractConfigurationError(
+        "ACTIVE_CONTRACT_VERSION_IS_IMMUTABLE",
+        CONTRACT_ERROR_MESSAGES.ACTIVE_CONTRACT_VERSION_IS_IMMUTABLE,
+      );
+    }
+    if (!timestampsMatch(version.updated_at, input.expectedVersionUpdatedAt)) {
+      throw new ContractConfigurationError(
+        "CONTRACT_VERSION_CONFLICT",
+        CONTRACT_ERROR_MESSAGES.CONTRACT_VERSION_CONFLICT,
+      );
+    }
 
     const { data, error } = await supabase.rpc("activate_contract_version_atomic", {
       p_actor_id: input.actorId,
       p_advance_opportunity: input.advanceOpportunity,
       p_contract_id: input.contractId,
-      p_expected_version_updated_at: input.expectedVersionUpdatedAt,
+      p_expected_version_updated_at: version.updated_at,
       p_now: new Date().toISOString(),
       p_version_id: input.versionId,
     });

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
@@ -36,7 +37,9 @@ type Props = {
   startsAt: string | null;
   disabled?: boolean;
   sioeUsage?: ContractSioeUsage | null;
+  sioeUsageLoading?: boolean;
   onChange: (next: ContractComponentDraft[]) => void;
+  aiHint?: ReactNode;
 };
 
 const KIND_OPTIONS = Object.keys(BILLING_KIND_LABELS);
@@ -45,7 +48,16 @@ const CHARGE_MODE_LABELS = {
   quantidade_total: "Quantidade total",
 } as const;
 
-export function ContractComponentsEditor({ value, areas, startsAt, disabled, sioeUsage, onChange }: Props) {
+export function ContractComponentsEditor({
+  value,
+  areas,
+  startsAt,
+  disabled,
+  sioeUsage,
+  sioeUsageLoading,
+  onChange,
+  aiHint,
+}: Props) {
   const areaLabels = Object.fromEntries(areas.map((area) => [area.id, area.areaKey]));
 
   function updateAt(index: number, patch: Partial<ContractComponentDraft>) {
@@ -80,6 +92,7 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, sio
           <p className="text-xs text-neutral-500">
             Mensalidades, variáveis e gatilhos de êxito/condicionado.
           </p>
+          {aiHint}
         </div>
         {disabled ? null : (
           <Button type="button" size="sm" variant="outline" onClick={addComponent}>
@@ -269,17 +282,19 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, sio
                       </Field>
                       <div className="md:col-span-2 rounded-(--radius-v2-md) border border-info-border bg-info-bg px-3 py-2 text-sm text-info-text">
                         <p className="font-medium">
-                          {!sioeUsage
-                            ? "Não foi possível carregar pastas/horas do SIOE nesta sessão."
-                            : entry.kind === "variavel_hora"
-                              ? `SIOE no mês: ${formatSioeHours(sioeQuantity)}h`
-                              : `SIOE: ${formatSioeCount(sioeQuantity)} pasta${sioeQuantity === 1 ? "" : "s"} ativa${sioeQuantity === 1 ? "" : "s"}`}
-                          {sioeUsage && entry.chargeMode === "excedente"
+                          {sioeUsageLoading
+                            ? "Carregando pastas/horas do SIOE…"
+                            : !sioeUsage
+                              ? "Não foi possível carregar pastas/horas do SIOE nesta sessão."
+                              : entry.kind === "variavel_hora"
+                                ? `SIOE no mês: ${formatSioeHours(sioeQuantity)}h`
+                                : `SIOE: ${formatSioeCount(sioeQuantity)} pasta${sioeQuantity === 1 ? "" : "s"} ativa${sioeQuantity === 1 ? "" : "s"}`}
+                          {!sioeUsageLoading && sioeUsage && entry.chargeMode === "excedente"
                             ? ` · cobrável ${entry.kind === "variavel_hora" ? `${formatSioeHours(billable)}h` : formatSioeCount(billable)}`
                             : null}
                         </p>
                         <p className="mt-0.5 tabular-nums">
-                          Valor projetado: {centsToMaskedBrl(projectedCents) || "R$ 0,00"}
+                          Valor projetado: {sioeUsageLoading ? "…" : centsToMaskedBrl(projectedCents) || "R$ 0,00"}
                         </p>
                         {sioeUsage && isVariable && !selectedArea ? (
                           <p className="mt-0.5 text-xs">

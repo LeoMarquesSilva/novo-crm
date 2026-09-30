@@ -100,6 +100,28 @@ export function matchExtractionToCarteira(input: {
   };
 }
 
+export function selectPrincipalClienteForGrupo(
+  grupoId: string,
+  clientes: MatchableCliente[],
+): MatchableCliente | null {
+  const pool = clientes.filter((cliente) => cliente.grupoId === grupoId);
+  if (!pool.length) return null;
+  return pool.find((cliente) => isCnpjMatriz(cliente.documento)) ?? pool[0] ?? null;
+}
+
+export function applyManualGrupoMatch(input: {
+  grupoId: string;
+  clientes: MatchableCliente[];
+  matchedDocuments?: string[];
+}): ContractImportMatch {
+  const principal = selectPrincipalClienteForGrupo(input.grupoId, input.clientes);
+  return {
+    grupoId: input.grupoId,
+    clienteId: principal?.id ?? null,
+    matchedDocuments: input.matchedDocuments ?? [],
+  };
+}
+
 export function importedContractTitle(input: {
   extraction: ContractImportExtraction;
   match: ContractImportMatch;

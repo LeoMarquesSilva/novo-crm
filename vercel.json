@@ -13,6 +13,10 @@
       "schedule": "0 12 * * *"
     },
     {
+      "path": "/api/cron/d4sign-pending-backfill",
+      "schedule": "30 16 * * *"
+    },
+    {
       "path": "/api/cron/contracts-daily",
       "schedule": "0 13 * * *"
     },

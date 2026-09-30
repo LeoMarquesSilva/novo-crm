@@ -10,12 +10,12 @@ Documento-fonte: `DESIGN_SYSTEM_V2_CRM_BP.md` (raiz do projeto) — é a especif
 
 ## Snapshot atual
 
-*(Última atualização: 21/09/2026)*
+*(Última atualização: 30/09/2026)*
 
 - **Fase atual:** Fase 6 — Demais módulos — **concluída**. Lote 1 (Clientes/Login/Perfil/Notificações), lote 2 (Dashboard) e lote 3 (Documentos/Due diligence) concluídos. Dentro de Administração: lote A (Campos/Cláusulas), lote B (Usuários), lote D1 (Integrações não-D4Sign), lote C1 (Proposta-escopo/Catálogo), lote C2 (Proposta-escopo/Importação, `scope-import/`) e lote D2 (D4Sign + Admin/Documentos, fecha a fase) concluídos — todos pelo Claude — Lead, sem Cursor/Grok/Codex conectados nesta sessão.
 - **Fases concluídas:** Fase 0 — Auditoria; Fase 1 — Fundação de tokens; Fase 2 — Primitives; Fase 3 — Shell; Fase 4 — Leads/Kanban; Fase 5 — Propostas/Contratos; Fase 6 — Demais módulos
 - **Próxima fase:** Fase 7 — Limpeza (remoção de tokens legados, Inter, estilos locais órfãos)
-- **Fora de fase (21/09/2026):** Grade pública `/preencher/carteira/[token]` e modal de `/crm/clientes` passaram a usar o mesmo picker de “Quem indicou” do cadastro de lead (base `indicadores` + solicitar aprovação). Sem mudança de tokens globais.
+- **Fora de fase (30/09/2026):** Importação de contratos PDF: recorte local + citações curtas; wizard **Enviar → Extrair → Conferir lote → Gravar rascunho** (`contract-import-review-card.tsx`); no rascunho, faixa da IA no campo e painel Conferir etapa (`PATCH .../ai-review`, `origem_snapshot`, sem DDL). Sem mudança de tokens globais.
 - **Bloqueios conhecidos:** ver seção "Bloqueios" abaixo
 
 ## Fases (referência rápida — ver seção 33 do documento-fonte para detalhes completos)
@@ -242,6 +242,7 @@ Registradas no fechamento da Fase 4 (achado bloqueante já corrigido — ver Cha
 
 ## Changelog
 
+- **30/09/2026** — Importação PDF: recorte local (`clip-for-extraction.ts`, teto ~16k) e extração com citações curtas; wizard Enviar → Extrair → Conferir lote (`contract-import-review-card.tsx`, tokens `neutral`/`info`); rascunho mostra trecho da IA no campo e painel Conferir etapa (`contract-ai-review.tsx`, `PATCH /api/crm/contracts/[id]/ai-review` em `origem_snapshot`). Rateio continua SIOE. Sem DDL e sem mudança de tokens globais.
 - **29/09/2026** — `/crm/admin/proposta-escopo`: botão **Cláusulas do contrato** (contagem; tokens `warning` quando 0) no editor do subtipo e confirmação (AlertDialog) após criar subtipo. Abre um Dialog que reutiliza `ClauseTemplatesAdminPanel` em modo focado no subtipo; editor/confirmação internos sobem para `z-(--z-nested-dialog)`. Contrato Dialog+Select preservado (`modal={false}` + `dialogSelectOutsideHandlers`). Sem mudança de tokens globais.
 - **21/09/2026** — `/preencher/carteira/[token]` e modal de `/crm/clientes`: **Quem indicou** deixou de ser texto livre e passou a seguir o cadastro de lead (`indication-name-picker.tsx`): Select da base `indicadores` aprovados, opção “Não encontrei na base (solicitar aprovação)” e Colaborador via quadro OrquestrAI. Pessoa nova grava `pendente_aprovacao` e notifica admins (`ensure-pending-indicator.ts`). Sem mudança de tokens globais.
 - **18/09/2026** — `/crm/clientes` e grade pública: Status e Áreas deixam de depender só do fetch ao vivo do OrquestrAI (que, se falhar no online, renderizava “—”). Sync grava `gestor_atividade`, `responsible_area` e `legal_areas` em `grupos_economicos`; a UI usa o espelho local e só sobrepõe se o fetch cruzado responder. Áreas unem `responsible_area` ∪ `legal_areas` ∪ `areas_atuacao`. Tokens V2 intactos. Sem mudança de tokens globais.

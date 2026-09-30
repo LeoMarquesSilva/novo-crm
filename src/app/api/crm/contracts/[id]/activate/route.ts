@@ -3,13 +3,14 @@ import { z } from "zod";
 
 import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
 import { requireAuthApi } from "@/lib/auth/server";
+import { isIsoTimestamp } from "@/lib/crm/timestamps";
 import { ContractConfigurationError } from "@/modules/contracts/application/services/save-contract-configuration";
 import { SupabaseContractRepository } from "@/modules/contracts/infrastructure/supabase-contract-repository";
 
 const uuid = z.string().uuid();
 const bodySchema = z.object({
   versionId: uuid,
-  expectedVersionUpdatedAt: z.string().datetime({ offset: true }),
+  expectedVersionUpdatedAt: z.string().refine(isIsoTimestamp, "Instante ISO-8601 inválido."),
   advanceOpportunity: z.boolean(),
 });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
@@ -21,11 +22,12 @@ type Props = {
   components: Component[];
   disabled?: boolean;
   onChange: (next: Allocation[]) => void;
+  aiHint?: ReactNode;
 };
 
 const MODE_LABELS = { percentual: "Percentual", valor: "Valor fixo" } as const;
 
-export function ContractAllocationsEditor({ value, areas, components, disabled, onChange }: Props) {
+export function ContractAllocationsEditor({ value, areas, components, disabled, onChange, aiHint }: Props) {
   const areaLabels = Object.fromEntries(areas.map((area) => [area.id, area.areaKey]));
   const componentLabels = Object.fromEntries(
     components.map((component) => [component.id, component.description]),
@@ -55,6 +57,7 @@ export function ContractAllocationsEditor({ value, areas, components, disabled, 
         <div>
           <p className="text-sm font-semibold text-[#102033]">Rateios por área</p>
           <p className="text-xs text-slate-500">Distribua o valor do componente entre as áreas.</p>
+          {aiHint}
         </div>
         {disabled ? null : (
           <Button type="button" size="sm" variant="outline" onClick={addAllocation} disabled={areas.length === 0}>

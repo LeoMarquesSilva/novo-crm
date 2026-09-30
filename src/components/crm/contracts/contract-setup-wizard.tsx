@@ -29,6 +29,8 @@ import { ContractAreasEditor } from "./contract-areas-editor";
 import { ContractComponentsEditor } from "./contract-components-editor";
 import { ContractResponsiblesEditor } from "./contract-responsibles-editor";
 import { ContractSharesCommissionsEditor } from "./contract-shares-commissions-editor";
+import { AiFieldHint, ConferirEtapaPanel, UnreviewedSummary, uniqueProvenanceForStep } from "./contract-ai-review";
+import { evidenceForField, provenanceLooksAltered } from "@/lib/contract-import/ai-provenance";
 import {
   ADJUSTMENT_INDEX_LABELS,
   ADJUSTMENT_INDEX_OPTIONS,
@@ -37,6 +39,18 @@ import {
   basisPointsToMaskedPercent,
   centsToMaskedBrl,
 } from "./contract-setup-form-helpers";
+
+const IDENTITY_SOURCE_KEYS = new Set([
+  "clientId",
+  "startsAt",
+  "effectiveTo",
+  "indefinite",
+  "dueDay",
+  "renewalDate",
+  "renewalAlertDate",
+  "adjustmentIndex",
+  "firstInvoiceAt",
+]);
 
 const steps = [
   "Identificação e vigência",
@@ -96,8 +110,11 @@ export function ContractSetupWizard({
   const [issues, setIssues] = useState<Issue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sioeUsage, setSioeUsage] = useState(contract.sioeUsage);
+  const [sioeUsageLoading, setSioeUsageLoading] = useState(!contract.sioeUsage);
   const [overrideConfirmed, setOverrideConfirmed] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
+  const [reviewedFieldKeys, setReviewedFieldKeys] = useState(contract.reviewedFieldKeys);
   const initial = useMemo(() => stringify(contract.configuration), [contract.configuration]);
   const [baseline, setBaseline] = useState(initial);
   const dirty = configuration !== null && stringify(configuration) !== baseline;
@@ -133,6 +150,30 @@ export function ContractSetupWizard({
       document.removeEventListener("click", guardLink, true);
     };
   }, [dirty]);
+
+  useEffect(() => {
+    if (contract.sioeUsage) {
+      setSioeUsage(contract.sioeUsage);
+      setSioeUsageLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setSioeUsageLoading(true);
+    fetch(`/api/crm/contracts/${contract.id}/usage`, { signal: controller.signal })
+      .then(async (response) => {
+        const result = (await response.json()) as { ok?: boolean; usage?: ContractDetailViewModel["sioeUsage"] };
+        setSioeUsage(result.usage ?? null);
+        setSioeUsageLoading(false);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setSioeUsage(null);
+        setSioeUsageLoading(false);
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [contract.id, contract.sioeUsage]);
 
   if (!configuration || !expectedUpdatedAt) {
     return (
@@ -176,6 +217,7 @@ export function ContractSetupWizard({
                                   : undefined;
     return stringify(current) !== stringify(JSON.parse(field.originalValue));
   });
+  const identityChanges = sourceChanges.filter(([key]) => IDENTITY_SOURCE_KEYS.has(key));
 
   const triggers = configuration.version.components.filter(
     (component) => TRIGGER_KINDS.has(component.kind) || Boolean(component.requiresManualRelease),
@@ -194,12 +236,75 @@ export function ContractSetupWizard({
     setMessage(null);
   };
 
+  function currentProvenanceValue(field: string): string | null {
+    if (!configuration) return null;
+    switch (field) {
+      case "startsAt":
+        return configuration.startsAt;
+      case "indefinite":
+        return String(configuration.indefinite);
+      case "dueDay":
+        return configuration.dueDay != null ? String(configuration.dueDay) : null;
+      case "firstInvoiceAt":
+        return configuration.firstInvoiceAt;
+      case "firstInvoiceConditioned":
+        return String(configuration.firstInvoiceConditioned);
+      case "adjustmentIndex":
+        return configuration.adjustmentIndex;
+      case "areas":
+        return configuration.areas.map((area) => area.areaKey).join(", ") || null;
+      case "components":
+        return configuration.version.components
+          .map((component) => component.description || component.kind)
+          .join("; ") || null;
+      case "allocations":
+        return configuration.version.areaAllocations
+          .map((row) => {
+            const area = configuration.areas.find((item) => item.id === row.areaId)?.areaKey ?? "";
+            const percent = row.mode === "percentual"
+              ? `${Math.round(row.percentageBasisPoints / 100)}%`
+              : "";
+            return `${area} ${percent}`.trim();
+          })
+          .filter(Boolean)
+          .join(", ") || null;
+      default:
+        return null;
+    }
+  }
+
+  function hintFor(field: string) {
+    const item = evidenceForField(contract.aiProvenance, field)
+      ?? (field === "clientId" ? evidenceForField(contract.aiProvenance, "groupName") : undefined);
+    return (
+      <AiFieldHint
+        item={item}
+        altered={item ? provenanceLooksAltered(item.extractedValue, currentProvenanceValue(item.field)) : false}
+      />
+    );
+  }
+
+  async function persistReviewed(nextKeys: string[]) {
+    setReviewedFieldKeys(nextKeys);
+    try {
+      const response = await fetch(`/api/crm/contracts/${contract.id}/ai-review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewedFieldKeys: nextKeys }),
+      });
+      const result = (await response.json()) as { ok?: boolean; updatedAt?: string };
+      if (result.updatedAt) setExpectedUpdatedAt(result.updatedAt);
+    } catch {
+      setMessage("Não foi possível gravar o visto de conferência.");
+    }
+  }
+
   async function saveDraft(): Promise<string | null> {
     const currentConfiguration = configuration;
     if (!currentConfiguration) return null;
     setIssues([]);
     setMessage(null);
-    if (sourceChanges.length && (!overrideConfirmed || !overrideReason.trim())) {
+    if (identityChanges.length && (!overrideConfirmed || !overrideReason.trim())) {
       setMessage("Confirme a substituição e informe o motivo para alterar dados sugeridos.");
       return null;
     }
@@ -212,7 +317,7 @@ export function ContractSetupWizard({
           expectedVersionUpdatedAt: expectedUpdatedAt,
           configuration: {
             ...applyAnnualRenewalDefaults(currentConfiguration),
-            substitutionEvidence: sourceChanges.map(([field, source]) => ({
+            substitutionEvidence: identityChanges.map(([field, source]) => ({
               field,
               source: source.source,
               originalValue: source.originalValue,
@@ -342,12 +447,16 @@ export function ContractSetupWizard({
                         ? ["partnerShares", "commissions"]
                         : []
             }
+            sioeAllocation={
+              step === 3
+              && contract.aiProvenance.some((item) => item.field === "allocations" && item.source === "sioe")
+            }
           />
         </div>
 
         {step === 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Cliente">
+            <Field label="Cliente" hint={hintFor("clientId")}>
               <Select
                 items={clientLabels}
                 value={configuration.clientId ?? ""}
@@ -370,7 +479,7 @@ export function ContractSetupWizard({
                 </CrmSelectContent>
               </Select>
             </Field>
-            <Field label="Início da vigência">
+            <Field label="Início da vigência" hint={hintFor("startsAt")}>
               <DateInputBr
                 value={configuration.startsAt ?? ""}
                 disabled={!canConfigure}
@@ -407,8 +516,9 @@ export function ContractSetupWizard({
                 }
               />
               Prazo indeterminado
+              {hintFor("indefinite")}
             </label>
-            <Field label="Dia de vencimento">
+            <Field label="Dia de vencimento" hint={hintFor("dueDay")}>
               <Input
                 type="number"
                 min={1}
@@ -440,7 +550,7 @@ export function ContractSetupWizard({
                 onChange={(ymd) => patch({ renewalAlertDate: ymd || null })}
               />
             </Field>
-            <Field label="Índice de reajuste">
+            <Field label="Índice de reajuste" hint={hintFor("adjustmentIndex")}>
               <Select
                 items={ADJUSTMENT_INDEX_LABELS}
                 value={configuration.adjustmentIndex ?? ""}
@@ -471,7 +581,7 @@ export function ContractSetupWizard({
                 </CrmSelectContent>
               </Select>
             </Field>
-            <Field label="Primeiro vencimento">
+            <Field label="Primeiro vencimento" hint={hintFor("firstInvoiceAt")}>
               <DateInputBr
                 value={configuration.firstInvoiceAt ?? ""}
                 disabled={!canConfigure || configuration.firstInvoiceConditioned}
@@ -492,6 +602,7 @@ export function ContractSetupWizard({
                 }
               />
               Vencimento condicionado
+              {hintFor("firstInvoiceConditioned")}
             </label>
             <ContractResponsiblesEditor
               value={configuration.responsibles}
@@ -506,6 +617,7 @@ export function ContractSetupWizard({
           <ContractAreasEditor
             value={configuration.areas}
             disabled={!canConfigure}
+            aiHint={hintFor("areas")}
             onChange={(areas) => {
               setConfiguration((current) => {
                 if (!current) return current;
@@ -533,7 +645,14 @@ export function ContractSetupWizard({
             areas={configuration.areas}
             startsAt={configuration.startsAt}
             disabled={!canConfigure}
-            sioeUsage={contract.sioeUsage}
+            sioeUsage={sioeUsage}
+            sioeUsageLoading={sioeUsageLoading}
+            aiHint={
+              <>
+                {hintFor("components")}
+                {hintFor("taxMode")}
+              </>
+            }
             onChange={(components) => patchVersion({ components })}
           />
         ) : null}
@@ -544,6 +663,7 @@ export function ContractSetupWizard({
             areas={configuration.areas}
             components={configuration.version.components}
             disabled={!canConfigure}
+            aiHint={hintFor("allocations")}
             onChange={(areaAllocations) => patchVersion({ areaAllocations })}
           />
         ) : null}
@@ -564,7 +684,7 @@ export function ContractSetupWizard({
             <div className="rounded-2xl bg-[#102033] p-5 text-white">
               <p className="text-xs uppercase tracking-wide text-slate-400">Projeção mensal estimada</p>
               <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">
-                {centsToMaskedBrl(projection(configuration, contract.sioeUsage)) || "R$ 0,00"}
+                {sioeUsageLoading ? "…" : centsToMaskedBrl(projection(configuration, sioeUsage)) || "R$ 0,00"}
               </p>
               <p className="mt-2 text-xs text-slate-400">
                 Inclui mensalidades e variáveis projetadas com a quantidade atual do SIOE (pastas ativas / horas do mês). Gatilhos de êxito ficam de fora até liberação manual.
@@ -623,19 +743,39 @@ export function ContractSetupWizard({
               </p>
             ) : null}
 
+            <UnreviewedSummary
+              items={contract.aiProvenance}
+              reviewedFieldKeys={reviewedFieldKeys}
+              onGoToStep={setStep}
+            />
+
             <Button type="button" onClick={activate} disabled={!canConfigure || busy} className="w-full">
               Ativar contrato e avançar etapa
             </Button>
           </div>
         ) : null}
 
-        {sourceChanges.length ? (
+        {step < 5 ? (
+          <ConferirEtapaPanel
+            items={uniqueProvenanceForStep(contract.aiProvenance, step)}
+            reviewedFieldKeys={reviewedFieldKeys}
+            disabled={!canConfigure}
+            onToggle={(field, reviewed) => {
+              const next = reviewed
+                ? [...new Set([...reviewedFieldKeys, field])]
+                : reviewedFieldKeys.filter((key) => key !== field);
+              void persistReviewed(next);
+            }}
+          />
+        ) : null}
+
+        {identityChanges.length ? (
           <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="flex gap-2 text-sm text-amber-900">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <p>
-                Você alterou sugestões vindas de{" "}
-                {sourceChanges.map(([, field]) => sourceLabels[field.source]).join(", ")}.
+                Você alterou sugestões de identificação/vigência vindas de{" "}
+                {identityChanges.map(([, field]) => sourceLabels[field.source]).join(", ")}.
               </p>
             </div>
             <label className="mt-3 flex items-center gap-2 text-sm">
@@ -710,11 +850,12 @@ export function ContractSetupWizard({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: React.ReactNode; children: React.ReactNode }) {
   return (
     <label className="space-y-1 text-sm font-medium text-zinc-700">
       <span>{label}</span>
       {children}
+      {hint}
     </label>
   );
 }
@@ -722,10 +863,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function SourceBadges({
   fields,
   keys,
+  sioeAllocation,
 }: {
   fields: ContractDetailViewModel["sourceFields"];
   keys: string[];
+  sioeAllocation?: boolean;
 }) {
+  if (sioeAllocation) {
+    return (
+      <div className="flex flex-wrap gap-1">
+        <Badge variant="outline">Origem: SIOE</Badge>
+      </div>
+    );
+  }
   const sources = [
     ...new Set(
       keys

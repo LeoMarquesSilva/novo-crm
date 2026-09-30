@@ -68,6 +68,34 @@ export interface D4SignFolderInfo {
   parent_uuid?: string | null;
 }
 
+function parseDocumentSummaries(body: unknown): D4SignDocumentSummary[] {
+  const record = body && typeof body === "object" ? (body as Record<string, unknown>) : null;
+  const rawDocs: Record<string, unknown>[] = Array.isArray(body)
+    ? (body as Record<string, unknown>[])
+    : Array.isArray(record?.documents)
+      ? (record.documents as Record<string, unknown>[])
+      : record && (record.uuidDoc || record.uuid_doc)
+        ? [record]
+        : [];
+
+  return rawDocs
+    .filter((row) => Boolean(row.uuidDoc ?? row.uuid_doc ?? row.uuid))
+    .map(normalizeDocSummary);
+}
+
+function readTotalPages(body: unknown): number | null {
+  const rows = Array.isArray(body) ? body : [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const total = (row as Record<string, unknown>).totalOfPages
+      ?? (row as Record<string, unknown>).total_of_pages
+      ?? (row as Record<string, unknown>).totalPages;
+    if (typeof total === "number" && total > 0) return total;
+    if (typeof total === "string" && /^\d+$/.test(total)) return Number(total);
+  }
+  return null;
+}
+
 /**
  * Normaliza um documento bruto da API para campos canônicos snake_case.
  *
@@ -651,6 +679,43 @@ export class D4SignConnector {
               : undefined,
       };
     });
+  }
+
+  /**
+   * Lista documentos de uma fase, em qualquer pasta da conta.
+   * `GET /documents/{ID-FASE}/status` — até 500 docs por página.
+   * Fases usadas no backfill: 2 = aguardando signatários, 3 = aguardando assinaturas.
+   */
+  async listDocumentsByPhase(
+    phaseId: number,
+    options?: { pg?: number; source?: string },
+  ): Promise<{ documents: D4SignDocumentSummary[]; totalPages: number | null }> {
+    const q = new URLSearchParams();
+    q.set("tokenAPI", this.tokenApi);
+    if (this.cryptKey) q.set("cryptKey", this.cryptKey);
+    if (options?.pg) q.set("pg", String(options.pg));
+
+    const url = `${this.apiBaseUrl.replace(/\/$/, "")}/documents/${encodeURIComponent(String(phaseId))}/status?${q.toString()}`;
+    const res = await this.d4Fetch(
+      url,
+      { headers: { Accept: "application/json" } },
+      "documents/status",
+      options?.source ?? "pending-backfill",
+    );
+    let body: unknown;
+    try {
+      body = await this.parseJsonResponse(res);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/400|404/.test(message) && /nenhum|não encontrado|nao encontrado|not found|empty/i.test(message)) {
+        return { documents: [], totalPages: 1 };
+      }
+      throw error;
+    }
+    return {
+      documents: parseDocumentSummaries(body),
+      totalPages: readTotalPages(body),
+    };
   }
 
   /** Lista documentos de um cofre (paginado, pg começa em 1). */

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
@@ -19,11 +20,12 @@ type Props = {
   value: AreaDraft[];
   disabled?: boolean;
   onChange: (next: AreaDraft[]) => void;
+  aiHint?: ReactNode;
 };
 
 const AREA_LABELS = Object.fromEntries(CRM_PRACTICE_AREAS.map((area) => [area, area]));
 
-export function ContractAreasEditor({ value, disabled, onChange }: Props) {
+export function ContractAreasEditor({ value, disabled, onChange, aiHint }: Props) {
   function updateAt(index: number, patch: Partial<AreaDraft>) {
     onChange(value.map((entry, entryIndex) => (entryIndex === index ? { ...entry, ...patch } : entry)));
   }
@@ -50,6 +52,7 @@ export function ContractAreasEditor({ value, disabled, onChange }: Props) {
         <div>
           <p className="text-sm font-semibold text-[#102033]">Áreas, franquias e preços excedentes</p>
           <p className="text-xs text-slate-500">Defina o que está incluso e o valor do excedente.</p>
+          {aiHint}
         </div>
         {disabled ? null : (
           <Button type="button" size="sm" variant="outline" onClick={addArea}>
