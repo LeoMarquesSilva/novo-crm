@@ -8,6 +8,13 @@ import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { countDocumentsNeedingEnrich } from "@/lib/d4sign/enrich-documents";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+/** Origem curta para o painel. Cursor interno (JSON ou `page=N`) não entra aqui. */
+function usageSourceLabel(source: string | null): string {
+  const key = source?.trim() || "sem origem";
+  if (key.startsWith("{") || key.startsWith("page=") || key.length > 32) return "interno";
+  return key;
+}
+
 export async function GET() {
   try {
     const auth = await requireAuthApi();
@@ -54,15 +61,16 @@ export async function GET() {
         .maybeSingle(),
       supabase
         .from("d4sign_api_usage")
-        .select("endpoint, source, created_at")
+        .select("source")
         .gte("created_at", since24h)
-        .order("created_at", { ascending: false })
-        .limit(100),
+        .gte("http_status", 200)
+        .lt("http_status", 300)
+        .limit(300),
     ]);
 
     const usageBySource: Record<string, number> = {};
     for (const row of usageRows ?? []) {
-      const key = row.source ?? "unknown";
+      const key = usageSourceLabel(row.source);
       usageBySource[key] = (usageBySource[key] ?? 0) + 1;
     }
 

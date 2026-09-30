@@ -4,8 +4,12 @@
  * Serve o PDF de um documento D4Sign com cache em Supabase Storage.
  *
  * Fluxo:
- *   1ª visualização  → baixa da D4Sign (1 req quota) → salva no bucket → serve ao browser
+ *   1ª visualização  → POST /documents/{uuid}/download (1 req quota) → baixa a URL
+ *                      devolvida → só então salva no bucket e serve ao browser
  *   Próximas vezes   → serve direto do bucket (0 req quota D4Sign)
+ *
+ * Cache vazio ou que não começa com `%PDF` é apagado e baixado de novo.
+ * Corpo inválido responde 422 e não é gravado.
  *
  * Bucket: `d4sign-contracts` (privado, acesso via service_role)
  */
@@ -15,10 +19,11 @@ import {
   canViewD4SignDocumentRecord,
 } from "@/lib/auth/crm-access-policy";
 import { requireAuthApi } from "@/lib/auth/server";
+import { logD4SignApiCall } from "@/lib/d4sign/api-usage";
+import { downloadD4SignDocumentPdf } from "@/lib/d4sign/download-document";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { isFirmSignerEmail } from "@/lib/d4sign/firm-signers";
-import { logD4SignApiCall } from "@/lib/d4sign/api-usage";
-import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+import { isPdfBytes, readCachedPdf } from "@/lib/d4sign/pdf-bytes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -87,67 +92,42 @@ export async function GET(
     }
   }
 
-  // ── 1. Tentar servir do cache (Supabase Storage) ──────────────────────────
-  const { data: cached, error: cacheErr } = await supabase.storage
-    .from(BUCKET)
-    .download(filePath);
+  const bucket = supabase.storage.from(BUCKET);
+  const cached = await readCachedPdf(bucket, filePath);
+  if (cached) return pdfResponse(cached, uuid);
 
-  if (!cacheErr && cached) {
-    const buf = await cached.arrayBuffer();
-    return pdfResponse(buf, uuid);
-  }
-
-  // ── 2. Cache miss → baixar da D4Sign (consome 1 req da quota) ────────────
   const env = getD4SignEnv();
   if (!env.tokenApi) {
     return NextResponse.json({ error: "D4Sign não configurado." }, { status: 503 });
   }
 
-  const qs = new URLSearchParams({
-    tokenAPI: env.tokenApi,
-    ...(env.cryptKey ? { cryptKey: env.cryptKey } : {}),
-    type: "0", // 0 = PDF
+  const downloaded = await downloadD4SignDocumentPdf({
+    uuid,
+    apiBaseUrl: env.apiBaseUrl,
+    tokenApi: env.tokenApi,
+    cryptKey: env.cryptKey,
   });
 
-  let upstream: Response;
-  try {
-    upstream = await fetchWithTimeout(
-      `${env.apiBaseUrl}/documents/${uuid}/download?${qs.toString()}`,
-      { cache: "no-store" },
-      20_000,
-    );
+  if (downloaded.apiStatus !== null) {
+    const apiStatus = downloaded.apiStatus;
     after(() => {
       logD4SignApiCall({
         endpoint: "documents/download",
-        method: "GET",
+        method: "POST",
         source: "view",
-        httpStatus: upstream.status,
+        httpStatus: apiStatus,
       });
     });
-  } catch {
-    return NextResponse.json({ error: "Falha ao conectar com a D4Sign." }, { status: 502 });
   }
 
-  if (!upstream.ok) {
-    await upstream.body?.cancel().catch(() => undefined);
-    return NextResponse.json(
-      { error: `D4Sign retornou ${upstream.status}.` },
-      { status: upstream.status >= 500 ? 502 : upstream.status },
-    );
+  if (!downloaded.ok) {
+    return NextResponse.json({ error: downloaded.error }, { status: downloaded.status });
+  }
+  if (!isPdfBytes(downloaded.bytes)) {
+    return NextResponse.json({ error: "D4Sign não retornou um arquivo PDF." }, { status: 422 });
   }
 
-  const contentType = upstream.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    await upstream.body?.cancel().catch(() => undefined);
-    return NextResponse.json(
-      { error: "D4Sign não retornou um arquivo PDF." },
-      { status: 422 },
-    );
-  }
-
-  const pdfBuffer = await upstream.arrayBuffer();
-
-  // ── 3. Salvar no cache sem perder o trabalho no encerramento serverless ───
+  const pdfBuffer = downloaded.bytes.slice(0);
   after(async () => {
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
@@ -160,8 +140,7 @@ export async function GET(
     }
   });
 
-  // ── 4. Servir ao browser ──────────────────────────────────────────────────
-  return pdfResponse(pdfBuffer, uuid);
+  return pdfResponse(downloaded.bytes, uuid);
 }
 
 function pdfResponse(buf: ArrayBuffer, uuid: string): NextResponse {

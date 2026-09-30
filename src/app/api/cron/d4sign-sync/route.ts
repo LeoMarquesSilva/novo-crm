@@ -1,10 +1,17 @@
 /**
- * Cron agendado (Vercel) — sincroniza cofre D4Sign + enrich + pré-cache PDF.
+ * Cron horário — listagem do cofre, pastas de cliente e signatários.
+ * Cota global: 10 req/h. A primeira vaga é sempre a página da raiz.
+ * Enquanto houver pasta de cliente ainda não varrida, o resto da hora
+ * importa contratos dessas pastas. Depois, 1 pasta por hora e o resto
+ * em signatários (pendentes primeiro). PDF só se ainda sobrar chamada.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
+import { getD4SignEnv } from "@/lib/d4sign/env";
+import { enrichDocuments, pickDocumentsToEnrich } from "@/lib/d4sign/enrich-documents";
 import { precacheD4SignPdfs } from "@/lib/d4sign/pdf-precache";
-import { cronEnrichBudget } from "@/lib/d4sign/enrich-documents";
-import { runVaultSync } from "@/lib/d4sign/vault-sync";
+import { runVaultFolderWalk } from "@/lib/d4sign/vault-folder-walk";
+import { runVaultSafeListing } from "@/lib/d4sign/vault-listing";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const maxDuration = 120;
@@ -13,6 +20,11 @@ function isAuthorized(request: NextRequest, secret: string): boolean {
   const auth = request.headers.get("authorization");
   if (auth === `Bearer ${secret}`) return true;
   return request.headers.get("x-cron-secret") === secret;
+}
+
+/** O log da chamada é assíncrono; usa o menor entre o banco e a conta local. */
+function callsLeft(reported: number, accounted: number): number {
+  return Math.min(reported, Math.max(0, accounted));
 }
 
 async function run(request: NextRequest) {
@@ -27,25 +39,59 @@ async function run(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
   }
 
-  // Teto de 6 (não 2): folders(1) + listing(~1, cofre <500 docs) + folder-walk(3)
-  // já consomem ~5 das 10 req/h antes de chegar aqui. `cronEnrichBudget` sempre
-  // limita ao que sobrou de verdade (`Math.min(maxDocs, quota.remaining)`), então
-  // subir o teto não corre risco de estourar a quota — só evita deixar ~5 reqs
-  // sobrando todo dia enquanto há um backlog grande de documentos sem
-  // signatários enriquecidos (a cada rodada, cada request já traz o máximo de
-  // informação possível via GET /documents/{uuid}/list — signers + status +
-  // nome numa chamada só; o gargalo era esse teto artificial, não o custo por
-  // requisição).
-  const enrichBudget = await cronEnrichBudget(6);
-  const syncResult = await runVaultSync({
-    apiSource: "cron",
-    maxFolderWalk: 3,
-    enrichAfter: enrichBudget,
-  });
+  const before = await getD4SignQuotaStatus();
+  if (before.remaining < 1) {
+    return NextResponse.json(
+      {
+        ok: false,
+        triggeredAt: new Date().toISOString(),
+        error: "Quota D4Sign esgotada. A vaga reservada é a listagem do cofre.",
+        rateLimited: true,
+        quota: before,
+        listing: null,
+        folders: null,
+        enrich: null,
+        precache: { cached: 0, skipped: 0 },
+      },
+      { status: 429 },
+    );
+  }
 
-  // Pré-cache PDF: até 1 doc pendente finalizado sem cache (se sobrar quota)
+  const listing = await runVaultSafeListing({ maxRequests: 1, apiSource: "cron" });
+  const afterListing = await getD4SignQuotaStatus();
+  const leftAfterListing = callsLeft(afterListing.remaining, before.remaining - listing.requests);
+
+  const folders =
+    listing.ok && leftAfterListing >= 1
+      ? await runVaultFolderWalk({ maxRequests: leftAfterListing, apiSource: "cron" })
+      : null;
+
+  const afterFolders = await getD4SignQuotaStatus();
+  const leftAfterFolders = callsLeft(
+    afterFolders.remaining,
+    leftAfterListing - (folders?.requests ?? 0),
+  );
+  const folderBacklog = Boolean(folders && folders.mode === "walk" && folders.foldersLeft > 0);
+  const enrichBudget =
+    listing.ok && folders?.ok !== false && !folderBacklog ? leftAfterFolders : 0;
+
+  let enrich: Awaited<ReturnType<typeof enrichDocuments>> | null = null;
+  let picked = 0;
+  if (enrichBudget > 0) {
+    const env = getD4SignEnv();
+    const rows = await pickDocumentsToEnrich({ limit: enrichBudget });
+    picked = rows.length;
+    if (rows.length > 0 && env.tokenApi) {
+      enrich = await enrichDocuments(env, rows, { apiSource: "cron" });
+    }
+  }
+
+  const usedByEnrich = enrich?.enriched ?? 0;
+  const afterEnrich = await getD4SignQuotaStatus();
+  const leftForPrecache = callsLeft(afterEnrich.remaining, enrichBudget - usedByEnrich);
+
   let precache = { cached: 0, skipped: 0 };
-  if (syncResult.ok) {
+  if (listing.ok && !folderBacklog && leftForPrecache >= 1 && picked < enrichBudget) {
     const supabase = createSupabaseAdminClient();
     const { data: candidates } = await supabase
       .from("d4sign_documents")
@@ -53,17 +99,21 @@ async function run(request: NextRequest) {
       .in("d4sign_status", ["1", "3", "sent", "2"])
       .order("updated_at", { ascending: false })
       .limit(1);
-    const uuids = (candidates ?? []).map((r) => r.uuid_doc);
+    const uuids = (candidates ?? []).map((row) => row.uuid_doc);
     if (uuids.length > 0) {
       precache = await precacheD4SignPdfs(uuids);
     }
   }
 
+  const ok = listing.ok && folders?.ok !== false;
   return NextResponse.json({
-    ok: syncResult.ok,
+    ok,
     triggeredAt: new Date().toISOString(),
-    sync: syncResult,
+    listing,
+    folders,
+    enrich,
     precache,
+    quota: await getD4SignQuotaStatus(),
   });
 }
 

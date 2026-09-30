@@ -5,12 +5,12 @@
  * Budget típico: folders(1) + listing(1–N) + client-walk(até 6) + enrich(0–4)
  * Area-walks REMOVIDOS (confirmado: não retornam docs filhos — economiza 6 req/run).
  *
- * `enrich` sobe conforme sobra de quota (nunca fixo) — `cronEnrichBudget` sempre
- * limita a `Math.min(teto, quota.remaining)`, então elevar o teto default não
- * corre risco de estourar as 10 req/h; só evita deixar cota sobrando ociosa
- * enquanto há documentos sem signatários enriquecidos (cada enrich já busca o
- * máximo de informação por requisição via GET /documents/{uuid}/list — signers +
- * status + nome numa chamada só, não há chamada redundante aí).
+ * O cron `d4sign-sync` não passa por este fluxo. A rodada horária
+ * começa em `runVaultSafeListing` (1 página da raiz), varre pastas de
+ * cliente em `runVaultFolderWalk` e só então enriquece signatários.
+ *
+ * `enrich` aqui continua disponível para o sync manual: sobe conforme sobra
+ * de quota (`cronEnrichBudget` limita a `Math.min(teto, quota.remaining)`).
  */
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { safeD4SignIso } from "@/lib/d4sign/api-usage";

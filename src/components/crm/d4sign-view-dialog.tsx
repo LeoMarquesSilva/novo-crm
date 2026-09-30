@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, ExternalLink, FileSignature, Loader2, X } from "lucide-react";
 import {
   Dialog,
@@ -9,13 +9,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { isPdfBytes } from "@/lib/d4sign/pdf-bytes";
 
 /**
  * Abre um documento D4Sign em modo leitura via proxy com cache.
  *
- * Fluxo:
- *   1ª abertura  → baixa da D4Sign (1 req quota) e salva no Supabase Storage
- *   Próximas     → serve do bucket (0 req D4Sign)
+ * O iframe só é montado com blob URL depois que a rota devolve um PDF
+ * (`%PDF`). 422/429/502 e corpo vazio caem no painel de erro.
  */
 
 type Props = {
@@ -37,18 +37,76 @@ export function D4SignViewDialog({
   portalUrl,
 }: Props) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
-  // Rota proxy com cache em Supabase Storage
-  const src = `/api/crm/d4sign/documents/${encodeURIComponent(documentUuid)}/view`;
+  useEffect(() => {
+    if (!open) {
+      setBlobUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+      return;
+    }
 
-  function handleOpenChange(v: boolean) {
-    if (v) setStatus("loading");
-    onOpenChange(v);
-  }
+    const controller = new AbortController();
+    let cancelled = false;
+    let createdUrl: string | null = null;
+
+    setStatus("loading");
+    setBlobUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/crm/d4sign/documents/${encodeURIComponent(documentUuid)}/view`,
+          { credentials: "include", signal: controller.signal, cache: "no-store" },
+        );
+        if (cancelled) return;
+        if (!response.ok) {
+          setStatus("error");
+          return;
+        }
+
+        const bytes = await response.arrayBuffer();
+        if (cancelled) return;
+        if (!isPdfBytes(bytes)) {
+          setStatus("error");
+          return;
+        }
+
+        createdUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+        if (cancelled) {
+          URL.revokeObjectURL(createdUrl);
+          createdUrl = null;
+          return;
+        }
+        setBlobUrl(createdUrl);
+        setStatus("ready");
+      } catch (error) {
+        if (cancelled || (error instanceof DOMException && error.name === "AbortError")) return;
+        setStatus("error");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+        createdUrl = null;
+      }
+    };
+  }, [open, documentUuid]);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent hideCloseButton className="max-w-[1100px] w-[95vw] h-[92vh] p-0 gap-0 overflow-hidden">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        hideCloseButton
+        className="grid-rows-[auto_minmax(0,1fr)_auto] max-w-[1100px] w-[95vw] h-[92vh] p-0 gap-0 overflow-hidden"
+      >
         <DialogTitle className="sr-only">Visualizar contrato D4Sign</DialogTitle>
         <DialogDescription className="sr-only">
           Pré-visualização do documento {documentUuid}.
@@ -93,7 +151,7 @@ export function D4SignViewDialog({
         </div>
 
         {/* Body */}
-        <div className="relative flex-1 overflow-hidden bg-neutral-100">
+        <div className="relative min-h-0 overflow-hidden bg-neutral-100">
           {/* Loading */}
           {status === "loading" ? (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/80 backdrop-blur-sm pointer-events-none">
@@ -135,15 +193,16 @@ export function D4SignViewDialog({
             </div>
           ) : null}
 
-          {/* PDF via proxy com cache */}
-          <iframe
-            key={documentUuid}
-            src={src}
-            className="h-full w-full border-0"
-            title="Visualização do contrato"
-            onLoad={() => setStatus("ready")}
-            onError={() => setStatus("error")}
-          />
+          {blobUrl && status !== "error" ? (
+            <iframe
+              key={blobUrl}
+              src={blobUrl}
+              className="h-full w-full border-0"
+              title="Visualização do contrato"
+              onLoad={() => setStatus("ready")}
+              onError={() => setStatus("error")}
+            />
+          ) : null}
         </div>
 
         {/* Footer */}

@@ -81,21 +81,30 @@ export async function pickDocumentsToEnrich(options: {
     return row ? [row] : [];
   }
 
-  const { data: rows, error } = await supabase
+  const pendingStatuses = [...PENDING_D4SIGN_STATUSES];
+  const { data: pending, error } = await supabase
+    .from("d4sign_documents")
+    .select("uuid_doc, name_document, d4sign_status")
+    .or(SIGNERS_EMPTY_FILTER)
+    .in("d4sign_status", pendingStatuses)
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  const pendingRows = pending ?? [];
+  if (pendingRows.length >= limit) return pendingRows.slice(0, limit);
+
+  const { data: rest, error: restError } = await supabase
     .from("d4sign_documents")
     .select("uuid_doc, name_document, d4sign_status")
     .or(SIGNERS_EMPTY_FILTER)
     .not("d4sign_status", "is", null)
-    .order("created_at_d4sign", { ascending: false })
-    .limit(Math.max(limit * 2, limit));
+    .not("d4sign_status", "in", '("2","3","sent","processing")')
+    .order("updated_at", { ascending: true })
+    .limit(limit - pendingRows.length);
 
-  if (error) throw error;
-
-  const all = rows ?? [];
-  return [
-    ...all.filter((r) => PENDING_D4SIGN_STATUSES.has(r.d4sign_status ?? "")),
-    ...all.filter((r) => !PENDING_D4SIGN_STATUSES.has(r.d4sign_status ?? "")),
-  ].slice(0, limit);
+  if (restError) throw restError;
+  return [...pendingRows, ...(rest ?? [])];
 }
 
 export async function countDocumentsNeedingEnrich(): Promise<number> {

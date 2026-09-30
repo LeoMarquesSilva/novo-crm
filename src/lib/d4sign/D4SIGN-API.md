@@ -305,11 +305,14 @@ Body:
 
 ## Tipos de Download
 
-`POST /documents/{uuid}/download` aceita `type`:
-- `"1"` = PDF (default)
-- `"2"` = PDF/A
-- `"3"` = ZIP (com certificados)
-- `"4"` = Base64
+`POST /documents/{uuid}/download` (body JSON). A resposta é `{"url","name"}`; o arquivo vem no GET dessa URL — não no corpo do POST.
+
+Doc oficial vigente (`https://docapi.d4sign.com.br/reference/download-de-um-documento`):
+- `type`: `"pdf"` (default) ou `"pdfa"`; `"ZIP"` pede o pacote completo
+- `language`: `"pt"` ou `"en"`
+- `encoding: true` devolve o conteúdo em Base64 (a URL passa a ser texto, não o PDF)
+
+O CRM pede `{"type":"pdf","language":"pt"}` e só cacheia o arquivo se o corpo começar com `%PDF`.
 
 ---
 

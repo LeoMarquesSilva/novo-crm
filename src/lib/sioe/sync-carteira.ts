@@ -5,6 +5,7 @@ import { persistGestorAtividade } from "@/lib/crm/carteira-grupo-enrichment";
 import { persistCarteiraCategoria } from "@/lib/crm/grupo-categoria";
 import { digitsOnly, normalizeGroupKey } from "@/lib/crm/normalize-document";
 import type { Database } from "@/lib/supabase/database.types";
+import { planCarteiraGrupoWrites } from "./sync-carteira-plan";
 
 export type CarteiraSyncResult =
   | {
@@ -78,6 +79,70 @@ async function fetchAllCrmRows<T extends Record<string, unknown>>(
     from += PAGE_SIZE;
   }
   return { data: rows, error: null };
+}
+
+type GrupoWriteRow = {
+  id: string;
+  nome: string;
+  chave_estavel: string;
+  orqestrai_id: string;
+  status: "ativo_aberto" | "ativo_pago" | "inativo";
+  categoria: string;
+  gestor_atividade: string | null;
+  responsible_area: string | null;
+  legal_areas: string[];
+  last_synced_at: string;
+  updated_at: string;
+};
+
+async function persistGruposEconomicos(
+  supabase: SupabaseClient<Database>,
+  inserts: GrupoWriteRow[],
+  updates: GrupoWriteRow[],
+): Promise<string | null> {
+  const write = async (includeCategoria: boolean, includeOrqestrai: boolean) => {
+    const mapRow = (row: GrupoWriteRow): Database["public"]["Tables"]["grupos_economicos"]["Insert"] => {
+      const base: Database["public"]["Tables"]["grupos_economicos"]["Insert"] = {
+        id: row.id,
+        nome: row.nome,
+        chave_estavel: row.chave_estavel,
+        orqestrai_id: row.orqestrai_id,
+        status: row.status,
+        last_synced_at: row.last_synced_at,
+        updated_at: row.updated_at,
+      };
+      if (includeCategoria) base.categoria = row.categoria;
+      if (includeOrqestrai) {
+        base.gestor_atividade = row.gestor_atividade;
+        base.responsible_area = row.responsible_area;
+        base.legal_areas = row.legal_areas;
+      }
+      return base;
+    };
+    if (inserts.length) {
+      for (let index = 0; index < inserts.length; index += 500) {
+        const chunk = inserts.slice(index, index + 500).map(mapRow);
+        const { error } = await supabase.from("grupos_economicos").insert(chunk);
+        if (error) return error.message;
+      }
+    }
+    for (const row of updates) {
+      const mapped = mapRow(row);
+      const { id, ...patch } = mapped;
+      if (!id) return "Grupo sem id para atualizar.";
+      const { error } = await supabase.from("grupos_economicos").update(patch).eq("id", id);
+      if (error) return error.message;
+    }
+    return null;
+  };
+
+  let error = await write(true, true);
+  if (!error) return null;
+  const missingOrqestrai = /gestor_atividade|responsible_area|legal_areas/.test(error);
+  const missingCategoria = /categoria/.test(error);
+  if (!missingOrqestrai && !missingCategoria) return `Falha ao gravar grupos: ${error}`;
+  error = await write(!missingCategoria, !missingOrqestrai);
+  return error ? `Falha ao gravar grupos: ${error}` : null;
 }
 
 export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Promise<CarteiraSyncResult> {
@@ -159,32 +224,21 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
   }
   const groupsToUpsert = [...uniqueByKey.values()];
 
-  if (groupsToUpsert.length) {
-    const withCategoria = groupsToUpsert.map(({ agg: _agg, ...row }) => row);
-    const { error } = await supabase.from("grupos_economicos").upsert(withCategoria, {
-      onConflict: "chave_estavel",
-    });
-    if (error) {
-      const missingOrqestrai = /gestor_atividade|responsible_area|legal_areas/.test(error.message);
-      const missingCategoria = /categoria/.test(error.message);
-      if (!missingOrqestrai && !missingCategoria) {
-        return { ok: false, error: `Falha ao gravar grupos: ${error.message}` };
-      }
-      const stripped = withCategoria.map(
-        ({
-          categoria: _categoria,
-          gestor_atividade: _gestor,
-          responsible_area: _area,
-          legal_areas: _legal,
-          ...row
-        }) => (missingCategoria ? row : { ...row, categoria: _categoria }),
-      );
-      const retry = await supabase.from("grupos_economicos").upsert(stripped, {
-        onConflict: "chave_estavel",
-      });
-      if (retry.error) return { ok: false, error: `Falha ao gravar grupos: ${retry.error.message}` };
-    }
+  const { data: existingGroups, error: existingGroupsError } = await fetchAllCrmRows<{
+    id: string;
+    chave_estavel: string;
+    orqestrai_id: string | null;
+  }>(supabase, "grupos_economicos", "id, chave_estavel, orqestrai_id");
+  if (existingGroupsError) {
+    return { ok: false, error: `Falha ao ler grupos: ${existingGroupsError}` };
   }
+
+  const planned = planCarteiraGrupoWrites(
+    groupsToUpsert.map(({ agg: _agg, ...row }) => row),
+    existingGroups ?? [],
+  );
+  const persistError = await persistGruposEconomicos(supabase, planned.inserts, planned.updates);
+  if (persistError) return { ok: false, error: persistError };
 
   const { data: persistedGroups, error: loadGroupsError } = await fetchAllCrmRows<{
     id: string;

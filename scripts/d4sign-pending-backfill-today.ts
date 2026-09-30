@@ -1,9 +1,11 @@
 /**
- * Espera a cota D4Sign liberar e importa as fases 3 e 2 até fechar o ciclo.
- * Uso: node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/d4sign-pending-backfill-today.ts
+ * Espera a cota D4Sign liberar e lista o cofre inteiro, página a página.
+ * Cada chamada é GET /documents/{safe}/safe (até 500 documentos). Sem enrich.
+ * Uso: node --env-file=.env.local --env-file=.env ./node_modules/tsx/dist/cli.mjs scripts/d4sign-pending-backfill-today.ts
+ * `.env.local` deixa o token D4Sign vazio; o arquivo `.env` preenche essa chave.
  */
 import { getD4SignQuotaStatus } from "../src/lib/d4sign/api-usage";
-import { runPendingSignatureBackfill } from "../src/lib/d4sign/pending-backfill";
+import { runVaultSafeListing } from "../src/lib/d4sign/vault-listing";
 
 const MAX_WINDOWS = 4;
 
@@ -34,8 +36,8 @@ async function waitForQuota(): Promise<void> {
 async function main() {
   for (let window = 1; window <= MAX_WINDOWS; window++) {
     await waitForQuota();
-    console.log(`[${stamp()}] janela ${window}: puxando contratos sem assinatura finalizada`);
-    const result = await runPendingSignatureBackfill({ maxRequests: 10 });
+    console.log(`[${stamp()}] janela ${window}: listando o cofre (até 500 contratos por chamada, sem enrich)`);
+    const result = await runVaultSafeListing({ maxRequests: 10, apiSource: "vault-listing" });
     console.log(`[${stamp()}] resultado ${JSON.stringify(result)}`);
     if (result.finishedCycle) {
       console.log(`[${stamp()}] ciclo concluído`);

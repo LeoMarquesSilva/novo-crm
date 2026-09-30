@@ -1,6 +1,6 @@
 /**
- * Cron — importa contratos D4Sign ainda sem assinatura finalizada.
- * Roda fora da janela do sync diário do cofre (cota global de 10 req/h).
+ * Importação manual das fases 2 e 3. Fora do `vercel.json`: a cota
+ * horária ficou no `d4sign-sync` (raiz + pastas de cliente + signatários).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { runPendingSignatureBackfill } from "@/lib/d4sign/pending-backfill";

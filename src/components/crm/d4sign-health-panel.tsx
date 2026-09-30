@@ -63,7 +63,7 @@ export function D4SignHealthPanel({ className }: { className?: string }) {
         <Stat label="No cofre" value={data.documents.total} detail={`${data.documents.from_vault} histórico · ${data.documents.from_crm} CRM`} />
         <Stat label="Sem signatários" value={data.documents.without_signers} warn={data.documents.without_signers > 0} />
         <Stat label="Pendentes desatualizados" value={data.documents.stale_pending} warn={data.documents.stale_pending > 0} />
-        <Stat label="Reqs (24h)" value={data.usage_24h.total} detail={Object.entries(data.usage_24h.by_source).map(([k, v]) => `${k}:${v}`).join(" · ") || "—"} />
+        <Stat label="Reqs (24h)" value={data.usage_24h.total} detail={usageDetail(data.usage_24h.by_source)} />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
@@ -76,6 +76,13 @@ export function D4SignHealthPanel({ className }: { className?: string }) {
       </div>
     </div>
   );
+}
+
+function usageDetail(bySource: Record<string, number>): string {
+  const parts = Object.entries(bySource)
+    .filter(([key]) => !key.startsWith("{") && !key.startsWith("page=") && key.length <= 32)
+    .map(([key, count]) => `${key}:${count}`);
+  return parts.join(" · ") || "—";
 }
 
 function Stat({
@@ -93,7 +100,7 @@ function Stat({
     <div className={cn("rounded-(--radius-v2-md) border px-3 py-2", warn ? "border-warning-border bg-warning-bg/50" : "border-neutral-100 bg-neutral-50")}>
       <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className={cn("text-xl font-black tabular-nums", warn ? "text-warning-text" : "text-foreground")}>{value}</p>
-      {detail ? <p className="text-[10px] text-muted-foreground">{detail}</p> : null}
+      {detail ? <p className="line-clamp-2 break-all text-[10px] text-muted-foreground">{detail}</p> : null}
     </div>
   );
 }

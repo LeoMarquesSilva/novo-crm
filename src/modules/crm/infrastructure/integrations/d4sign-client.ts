@@ -718,11 +718,14 @@ export class D4SignConnector {
     };
   }
 
-  /** Lista documentos de um cofre (paginado, pg começa em 1). */
-  async listDocumentsBySafe(
+  /**
+   * Uma página de `GET /documents/{safe}/safe` (até 500 itens).
+   * O primeiro bloco é metadado (`totalOfPages`), não um documento.
+   */
+  async listDocumentsBySafePage(
     safeUuid: string,
     options?: { pg?: number; statusId?: number; uuidFolder?: string | null; source?: string },
-  ): Promise<D4SignDocumentSummary[]> {
+  ): Promise<{ documents: D4SignDocumentSummary[]; totalPages: number | null }> {
     const q = new URLSearchParams();
     q.set("tokenAPI", this.tokenApi);
     if (this.cryptKey) q.set("cryptKey", this.cryptKey);
@@ -739,29 +742,48 @@ export class D4SignConnector {
     );
     const body = (await this.parseJsonResponse(res)) as unknown;
 
-    // Resposta pode ser array direto ou { documents: [...] }
     const rawDocs: Record<string, unknown>[] = Array.isArray(body)
       ? (body as Record<string, unknown>[])
       : Array.isArray((body as Record<string, unknown>)?.documents)
         ? ((body as { documents: Record<string, unknown>[] }).documents)
         : [];
 
-    // CONFIRMADO pela docs D4Sign: o 1º elemento da array é metadata de paginação
-    // (algo como `{ "totalOfPages": N }`), não um documento. Documentos têm `uuidDoc`.
-    const onlyDocs = rawDocs.filter((r) => {
-      return Boolean(r.uuidDoc ?? r.uuid_doc ?? r.uuid);
-    });
+    const onlyDocs = rawDocs.filter((r) => Boolean(r.uuidDoc ?? r.uuid_doc ?? r.uuid));
+    const totalFromRows = readTotalPages(rawDocs);
+    const totalFromBody =
+      totalFromRows ??
+      (body && typeof body === "object" && !Array.isArray(body) ? readTotalPages([body]) : null);
 
-    return onlyDocs.map(normalizeDocSummary);
+    return {
+      documents: onlyDocs.map(normalizeDocSummary),
+      totalPages: totalFromBody,
+    };
+  }
+
+  /** Lista documentos de um cofre (paginado, pg começa em 1). */
+  async listDocumentsBySafe(
+    safeUuid: string,
+    options?: { pg?: number; statusId?: number; uuidFolder?: string | null; source?: string },
+  ): Promise<D4SignDocumentSummary[]> {
+    const page = await this.listDocumentsBySafePage(safeUuid, options);
+    return page.documents;
   }
 
   /**
    * Lista pastas de um cofre. D4Sign endpoint: GET /folders/{safeUuid}/find
    * Retorna array (ou {folders:[...]}). Campos podem vir em snake_case ou camelCase.
    */
-  async getFoldersBySafe(safeUuid: string): Promise<D4SignFolderInfo[]> {
+  async getFoldersBySafe(
+    safeUuid: string,
+    options?: { source?: string },
+  ): Promise<D4SignFolderInfo[]> {
     const url = `${this.apiBaseUrl.replace(/\/$/, "")}/folders/${encodeURIComponent(safeUuid)}/find${this.authSearchParams()}`;
-    const res = await this.d4Fetch(url, { headers: { Accept: "application/json" } }, "folders/find", "import");
+    const res = await this.d4Fetch(
+      url,
+      { headers: { Accept: "application/json" } },
+      "folders/find",
+      options?.source ?? "import",
+    );
     const body = (await this.parseJsonResponse(res)) as unknown;
 
     const rows: Record<string, unknown>[] = Array.isArray(body)
@@ -831,27 +853,34 @@ export class D4SignConnector {
   async listDocumentsByFolder(
     safeUuid: string,
     folderUuid: string,
-    options?: { pg?: number },
+    options?: { pg?: number; source?: string },
   ): Promise<D4SignDocumentSummary[]> {
+    const page = await this.listDocumentsByFolderPage(safeUuid, folderUuid, options);
+    return page.documents;
+  }
+
+  async listDocumentsByFolderPage(
+    safeUuid: string,
+    folderUuid: string,
+    options?: { pg?: number; source?: string },
+  ): Promise<{ documents: D4SignDocumentSummary[]; totalPages: number | null }> {
     const q = new URLSearchParams();
     q.set("tokenAPI", this.tokenApi);
     if (this.cryptKey) q.set("cryptKey", this.cryptKey);
     if (options?.pg) q.set("pg", String(options.pg));
 
     const url = `${this.apiBaseUrl.replace(/\/$/, "")}/documents/${encodeURIComponent(safeUuid)}/safe/${encodeURIComponent(folderUuid)}?${q.toString()}`;
-    const res = await this.d4Fetch(url, { headers: { Accept: "application/json" } }, "documents/safe/folder", "import");
-    const body = (await this.parseJsonResponse(res)) as unknown;
-
-    const rawDocs: Record<string, unknown>[] = Array.isArray(body)
-      ? (body as Record<string, unknown>[])
-      : Array.isArray((body as Record<string, unknown>)?.documents)
-        ? ((body as { documents: Record<string, unknown>[] }).documents)
-        : [];
-
-    const onlyDocs = rawDocs.filter((r) =>
-      Boolean(r.uuidDoc ?? r.uuid_doc ?? r.uuid),
+    const res = await this.d4Fetch(
+      url,
+      { headers: { Accept: "application/json" } },
+      "documents/safe/folder",
+      options?.source ?? "import",
     );
-    return onlyDocs.map(normalizeDocSummary);
+    const body = (await this.parseJsonResponse(res)) as unknown;
+    return {
+      documents: parseDocumentSummaries(body),
+      totalPages: readTotalPages(body),
+    };
   }
 
   /** Detalhes de um documento específico, incluindo signatários. */
