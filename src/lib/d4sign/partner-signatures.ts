@@ -113,8 +113,15 @@ export type ClassifiedPartnerDoc = {
   area: string | null;
   status: string | null;
   lifecycle: PartnerDocLifecycle;
+  /** Envio real (só existe para documentos enviados pelo CRM — a API D4Sign não expõe data de criação). */
   createdAt: string | null;
   finalizedAt: string | null;
+  /** Data no início do nome do arquivo ("2025 09 24 CONTRATO…"), quando houver. */
+  contractDate: string | null;
+  /** Assinatura mais recente de qualquer signatário. */
+  lastSignedAt: string | null;
+  /** Referência de "parado desde": última assinatura → envio → data do nome. */
+  waitingSince: string | null;
   signers: D4SignSignerInfo[];
   /** e-mail canônico do sócio → situação dele neste documento */
   partners: Record<string, PartnerSignatureSlot>;
@@ -131,6 +138,25 @@ export function lifecycleFromStatus(status: string | null): PartnerDocLifecycle 
   if (s === "1") return "finalizado";
   if (s === "4" || s === "6" || s === "7") return "cancelado";
   return "em_andamento";
+}
+
+/** Data `AAAA MM DD` (separador espaço, ponto, hífen ou _) no início do nome → ISO (meio-dia UTC). */
+export function dateFromDocumentName(name: string | null): string | null {
+  const m = name?.trim().match(/^(\d{4})[ ._-](\d{2})[ ._-](\d{2})(?!\d)/);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(Date.UTC(y, mo - 1, d, 12));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  return date.toISOString();
+}
+
+function latestIso(values: (string | null | undefined)[]): string | null {
+  let best: string | null = null;
+  for (const v of values) {
+    if (!v || !Number.isFinite(new Date(v).getTime())) continue;
+    if (!best || new Date(v).getTime() > new Date(best).getTime()) best = v;
+  }
+  return best;
 }
 
 /** `null` quando nenhum sócio é signatário do documento. */
@@ -159,6 +185,9 @@ export function classifyPartnerDoc(
 
   if (Object.keys(slots).length === 0) return null;
 
+  const contractDate = dateFromDocumentName(row.name_document);
+  const lastSignedAt = latestIso(signers.filter((s) => !signerIsPending(s)).map((s) => s.signed_at));
+
   return {
     uuid: row.uuid_doc,
     name: row.name_document,
@@ -168,6 +197,9 @@ export function classifyPartnerDoc(
     lifecycle: lifecycleFromStatus(row.d4sign_status),
     createdAt: row.created_at_d4sign,
     finalizedAt: row.finalized_at,
+    contractDate,
+    lastSignedAt,
+    waitingSince: lastSignedAt ?? row.created_at_d4sign ?? contractDate,
     signers,
     partners: slots,
   };

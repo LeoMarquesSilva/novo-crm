@@ -95,7 +95,8 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, d4
       return [d.name, d.clientName, d.area].some((v) => v?.toLowerCase().includes(q));
     });
     // Pendentes: mais antigos primeiro (o que está parado há mais tempo). Demais: mais recentes primeiro.
-    const key = (d: ClassifiedPartnerDoc) => new Date(d.finalizedAt ?? d.createdAt ?? 0).getTime();
+    const key = (d: ClassifiedPartnerDoc) =>
+      new Date((tab === "pendente" ? d.waitingSince : d.finalizedAt ?? d.waitingSince) ?? 0).getTime();
     return list.sort((a, b) => (tab === "pendente" ? key(a) - key(b) : key(b) - key(a)));
   }, [docs, partnerFilter, tab, query]);
 
@@ -118,6 +119,13 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, d4
 
   return (
     <div className="space-y-4">
+      {currentPartnerEmail === null ? (
+        <p className="rounded-(--radius-v2-lg) border border-info-border bg-info-bg px-4 py-2.5 text-xs text-info-text">
+          Você está vendo como administrador. O botão <strong>Assinar</strong> aparece só quando o próprio
+          sócio (Gustavo ou Ricardo) acessa com o login dele.
+        </p>
+      ) : null}
+
       {/* Filtro por sócio */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Sócio</span>
@@ -197,8 +205,8 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, d4
       ) : (
         <ul className="divide-y divide-neutral-100 overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
           {visible.map((doc) => {
-            const days = daysSince(doc.createdAt);
-            const stale = tab === "pendente" && days >= STALE_DAYS;
+            const days = doc.waitingSince ? daysSince(doc.waitingSince) : null;
+            const stale = tab === "pendente" && days !== null && days >= STALE_DAYS;
             const mySlot = currentPartnerEmail ? doc.partners[currentPartnerEmail] : undefined;
             const canSign = doc.lifecycle === "em_andamento" && mySlot !== undefined && !mySlot.signed;
             const pendingPartnerNames = Object.entries(doc.partners)
@@ -215,10 +223,17 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, d4
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                     {doc.clientName ? <span className="font-medium text-foreground/80">{doc.clientName}</span> : null}
                     {doc.area ? <span>· {doc.area}</span> : null}
-                    <span>· enviado em {fmtDate(doc.createdAt)}</span>
-                    {doc.lifecycle === "finalizado" ? <span>· finalizado em {fmtDate(doc.finalizedAt)}</span> : null}
+                    {doc.createdAt ? (
+                      <span>· enviado em {fmtDate(doc.createdAt)}</span>
+                    ) : doc.contractDate ? (
+                      <span>· contrato de {fmtDate(doc.contractDate)}</span>
+                    ) : null}
+                    {doc.lastSignedAt && doc.lifecycle !== "finalizado" ? <span>· última assinatura em {fmtDate(doc.lastSignedAt)}</span> : null}
+                    {doc.lifecycle === "finalizado" && (doc.finalizedAt ?? doc.lastSignedAt) ? (
+                      <span>· finalizado em {fmtDate(doc.finalizedAt ?? doc.lastSignedAt)}</span>
+                    ) : null}
                   </p>
-                  {tab === "pendente" ? (
+                  {tab === "pendente" && days !== null ? (
                     <p
                       className={cn(
                         "inline-flex items-center gap-1 text-[11px] font-semibold",
@@ -226,7 +241,7 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, d4
                       )}
                     >
                       <Clock className="size-3" aria-hidden />
-                      {days === 0 ? "Enviado hoje" : `Parado há ${days} dia${days !== 1 ? "s" : ""}`}
+                      {days === 0 ? "Movimentado hoje" : `Parado há ${days} dia${days !== 1 ? "s" : ""}`}
                       {partnerFilter === "all" && pendingPartnerNames.length > 0
                         ? ` · falta ${pendingPartnerNames.join(" e ")}`
                         : null}

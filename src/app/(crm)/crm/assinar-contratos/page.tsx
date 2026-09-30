@@ -88,7 +88,10 @@ export default async function AssinarContratosPage() {
   }));
   const waitingOthers = countPartnerTabs(docs, "all").aguardando_outros;
   const finalizedLast30 = docs.filter(
-    (d) => d.lifecycle === "finalizado" && d.finalizedAt && daysSince(d.finalizedAt) <= 30,
+    (d) => {
+      const at = d.finalizedAt ?? d.lastSignedAt;
+      return d.lifecycle === "finalizado" && at !== null && daysSince(at) <= 30;
+    },
   ).length;
 
   const stats: HeaderStat[] = [

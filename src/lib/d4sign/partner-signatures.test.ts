@@ -3,6 +3,7 @@ import {
   canAccessPartnerSignatures,
   classifyPartnerDoc,
   countPartnerTabs,
+  dateFromDocumentName,
   daysSince,
   partnerDocTab,
   resolvePartnerEmail,
@@ -149,5 +150,39 @@ describe("daysSince", () => {
     expect(daysSince("2026-09-27T11:00:00Z", now)).toBe(3);
     expect(daysSince(null, now)).toBe(0);
     expect(daysSince("2026-10-05T00:00:00Z", now)).toBe(0);
+  });
+});
+
+describe("datas do documento", () => {
+  it("lê a data do início do nome do arquivo", () => {
+    expect(dateFromDocumentName("2025 09 24 CONTRATO DE HONORÁRIOS TRACKER[1] pdf")).toBe("2025-09-24T12:00:00.000Z");
+    expect(dateFromDocumentName("2026-01-13 Contrato")).toBe("2026-01-13T12:00:00.000Z");
+    expect(dateFromDocumentName("2025 13 40 inválida")).toBeNull();
+    expect(dateFromDocumentName("Contrato sem data")).toBeNull();
+    expect(dateFromDocumentName(null)).toBeNull();
+  });
+
+  it("parado desde = última assinatura, senão envio, senão data do nome", () => {
+    const signed = classifyPartnerDoc(
+      row({
+        name_document: "2025 09 24 Contrato",
+        signers: [
+          { email: G, signed: "0" },
+          { email: "c@x.com", signed: true, signed_at: "2025-10-13T11:06:39.000Z" },
+        ],
+      }),
+      partners,
+    )!;
+    expect(signed.lastSignedAt).toBe("2025-10-13T11:06:39.000Z");
+    expect(signed.waitingSince).toBe("2025-10-13T11:06:39.000Z");
+
+    const byName = classifyPartnerDoc(
+      row({ name_document: "2025 09 24 Contrato", signers: [{ email: G, signed: "0" }] }),
+      partners,
+    )!;
+    expect(byName.waitingSince).toBe("2025-09-24T12:00:00.000Z");
+
+    const none = classifyPartnerDoc(row({ signers: [{ email: G, signed: "0" }] }), partners)!;
+    expect(none.waitingSince).toBeNull();
   });
 });
