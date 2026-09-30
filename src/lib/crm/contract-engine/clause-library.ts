@@ -5,7 +5,7 @@ import type { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
-const CLAUSE_ROLES: ClauseRole[] = [
+export const CLAUSE_ROLES: ClauseRole[] = [
   "object",
   "scope",
   "limitation",
@@ -26,7 +26,10 @@ const CLAUSE_ROLES: ClauseRole[] = [
 const CLAUSE_STATUSES: ClauseCatalogStatus[] = ["pending_legal_review", "approved", "retired"];
 
 export type ClauseLibraryRow = {
+  id?: string;
   stable_key: string | null;
+  area_key?: string | null;
+  scope_subtype_key?: string | null;
   title: string;
   content: string;
   role: string | null;
@@ -59,11 +62,28 @@ function asConflictsList(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
+/** Prefixo das chaves derivadas do id para cláusulas do admin sem `stable_key`. */
+export const DB_CLAUSE_KEY_PREFIX = "db_clause:";
+
+/**
+ * Chave usada pelo motor: `stable_key` quando existe; para cláusula sem chave vinculada a
+ * um subtipo (criada no admin), `db_clause:<id>` — imutável e sem colidir com o catálogo.
+ * Sem chave e sem vínculo continua fora da biblioteca, como antes.
+ */
+export function clauseEngineKey(row: ClauseLibraryRow): string | null {
+  if (row.stable_key) return row.stable_key;
+  if (row.id && row.scope_subtype_key) return `${DB_CLAUSE_KEY_PREFIX}${row.id}`;
+  return null;
+}
+
 /** Converte uma linha ativa de `contract_clause_templates` no shape usado pelo motor. */
 export function rowToClauseTemplate(row: ClauseLibraryRow): ContractClauseTemplate | null {
-  if (!row.stable_key) return null;
+  const stableKey = clauseEngineKey(row);
+  if (!stableKey) return null;
+  const subtypeKey = row.scope_subtype_key?.trim();
   return {
-    stableKey: row.stable_key,
+    ...(subtypeKey ? { scopeLink: { areaKey: row.area_key?.trim() || null, subtypeKey } } : {}),
+    stableKey,
     title: toTitleCasePt(row.title),
     content: row.content,
     role: asClauseRole(row.role),

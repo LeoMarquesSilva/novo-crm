@@ -269,16 +269,23 @@ export function ContractComponentsEditor({ value, areas, startsAt, disabled, sio
                       </Field>
                       <div className="md:col-span-2 rounded-(--radius-v2-md) border border-info-border bg-info-bg px-3 py-2 text-sm text-info-text">
                         <p className="font-medium">
-                          {entry.kind === "variavel_hora"
-                            ? `SIOE no mês: ${formatSioeHours(sioeQuantity)}h`
-                            : `SIOE: ${formatSioeCount(sioeQuantity)} pasta${sioeQuantity === 1 ? "" : "s"} ativa${sioeQuantity === 1 ? "" : "s"}`}
-                          {entry.chargeMode === "excedente"
+                          {!sioeUsage
+                            ? "Não foi possível carregar pastas/horas do SIOE nesta sessão."
+                            : entry.kind === "variavel_hora"
+                              ? `SIOE no mês: ${formatSioeHours(sioeQuantity)}h`
+                              : `SIOE: ${formatSioeCount(sioeQuantity)} pasta${sioeQuantity === 1 ? "" : "s"} ativa${sioeQuantity === 1 ? "" : "s"}`}
+                          {sioeUsage && entry.chargeMode === "excedente"
                             ? ` · cobrável ${entry.kind === "variavel_hora" ? `${formatSioeHours(billable)}h` : formatSioeCount(billable)}`
                             : null}
                         </p>
                         <p className="mt-0.5 tabular-nums">
                           Valor projetado: {centsToMaskedBrl(projectedCents) || "R$ 0,00"}
                         </p>
+                        {sioeUsage && isVariable && !selectedArea ? (
+                          <p className="mt-0.5 text-xs">
+                            Sem área no componente — a quantidade usa o total do grupo.
+                          </p>
+                        ) : null}
                       </div>
                     </>
                   ) : (

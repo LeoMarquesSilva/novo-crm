@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toTitleCasePt } from "@/lib/crm/contract-engine/title-case";
+import { CLAUSE_ROLES } from "@/lib/crm/contract-engine/clause-library";
+import type { ClauseRole } from "@/lib/crm/contract-engine/types";
 
 const createSchema = z.object({
   title:      z.string().min(1).max(200),
@@ -13,6 +15,8 @@ const createSchema = z.object({
   area_key:   z.string().min(1).max(60).nullable().optional(),
   /** subtype_key do catálogo de propostas; null = cláusula de área inteira/transversal. */
   scope_subtype_key: z.string().min(1).max(120).nullable().optional(),
+  /** Seção do contrato em que a cláusula entra; null = Disposições Gerais. */
+  role: z.enum(CLAUSE_ROLES as [ClauseRole, ...ClauseRole[]]).nullable().optional(),
 });
 
 async function requireAdmin() {

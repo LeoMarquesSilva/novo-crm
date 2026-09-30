@@ -74,6 +74,19 @@ export function resolveContractClauses(params: {
     });
   };
 
+  const dbLinkedScopes = params.scopes.filter((s) => !s.profile && s.linkedClauseKeys?.length);
+  const pushDbLinked = (accept: (role: ContractClauseTemplate["role"]) => boolean) => {
+    for (const scope of dbLinkedScopes) {
+      for (const key of scope.linkedClauseKeys ?? []) {
+        const template = resolveTemplate(key);
+        if (template && accept(template.role)) {
+          push(template, "profile", scope.label.toUpperCase(), scope.subtypeId);
+        }
+      }
+    }
+  };
+  const isObjectRole = (role: ContractClauseTemplate["role"]) => OBJECT_ROLES.has(role);
+
   if (params.contractObject && params.contractObject.blocks.length > 0) {
     for (const line of params.contractObject.numberedLines) {
       const role =
@@ -115,6 +128,7 @@ export function resolveContractClauses(params: {
       }
     }
   }
+  pushDbLinked(isObjectRole);
 
   push(resolveTemplate("exclusion_geral_base"), "standard", "PADRÃO BP");
   for (const scope of params.scopes) {
@@ -123,6 +137,7 @@ export function resolveContractClauses(params: {
       push(resolveTemplate(key), "profile", scope.profile.label.toUpperCase(), scope.subtypeId);
     }
   }
+  pushDbLinked((role) => role === "exclusion");
   push(resolveTemplate("exclusion_scope_change"), "standard", "PADRÃO BP");
 
   collected.push({
@@ -156,9 +171,12 @@ export function resolveContractClauses(params: {
     }
     push(resolveTemplate(required.stableKey), "standard", "PADRÃO BP");
   }
+  pushDbLinked((role) => !isObjectRole(role) && role !== "exclusion");
 
   return { clauses: collected, sections: numberSections(collected) };
 }
+
+const OBJECT_ROLES = new Set<ContractClauseTemplate["role"]>(["object", "scope", "limitation", "nature"]);
 
 function fillPlaceholders(
   content: string,

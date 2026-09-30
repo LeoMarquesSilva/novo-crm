@@ -58,6 +58,7 @@ describe("usageQuantityForKind", () => {
   });
 
   it("não mistura pastas de outra área quando o componente tem área", () => {
+    expect(usageQuantityForKind("variavel_processo", "trabalhista", pagueMenosUsage)).toBe(850);
     expect(usageQuantityForKind("variavel_processo", "Cível", pagueMenosUsage)).toBe(0);
     expect(usageQuantityForKind("variavel_processo", null, pagueMenosUsage)).toBe(850);
   });

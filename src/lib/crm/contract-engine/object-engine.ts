@@ -288,6 +288,11 @@ export function resolveContractObject(params: {
     }
   }
 
+  // Subtipo sem perfil em código: a redação vem das cláusulas do banco (clause-engine).
+  for (const scope of scopes) {
+    if (!scope.profile && scope.linkedClauseKeys?.length) represented.add(scope.entryId);
+  }
+
   const coverage = validateContractObjectCoverage({
     scopes,
     representedScopeIds: [...represented],

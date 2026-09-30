@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  BookText,
   CheckCircle2,
   Eye,
   Loader2,
@@ -49,13 +50,15 @@ type EditorMode =
 
 type Props = {
   mode: EditorMode;
+  /** Só para subtipos de escopo; `null` quando a biblioteca de cláusulas não carregou. */
+  contractClauses?: { linked: number; linkedActive: number; onOpen: () => void } | null;
   /** Notifica quando salvar com sucesso (com payload novo para o shell sincronizar). */
   onSaved: (catalog: ProposalCatalogAdminData) => void;
   onDeleted: (catalog: ProposalCatalogAdminData) => void;
   onDirtyChange?: (dirty: boolean) => void;
 };
 
-export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) {
+export function ScopeEditor({ mode, contractClauses, onSaved, onDeleted, onDirtyChange }: Props) {
   // ── Estado: draft vs saved ───────────────────────────────────────────────────
   type Draft =
     | {
@@ -223,6 +226,43 @@ export function ScopeEditor({ mode, onSaved, onDeleted, onDirtyChange }: Props) 
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {mode.kind === "scope" && contractClauses ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn(
+                "h-9 gap-1.5",
+                contractClauses.linked === 0 &&
+                  "border-warning-border bg-warning-bg text-warning-text hover:bg-warning-bg/80",
+              )}
+              disabled={saving}
+              onClick={contractClauses.onOpen}
+              title={
+                contractClauses.linked === 0
+                  ? "Nenhuma cláusula do contrato vinculada a este escopo"
+                  : `${contractClauses.linkedActive} ativa(s) de ${contractClauses.linked} vinculada(s)`
+              }
+            >
+              {contractClauses.linked === 0 ? (
+                <AlertTriangle className="size-3.5" aria-hidden />
+              ) : (
+                <BookText className="size-3.5" aria-hidden />
+              )}
+              Cláusulas do contrato
+              <span
+                className={cn(
+                  "min-w-[1.25rem] rounded-(--radius-v2-full) px-1.5 py-0.5 text-center text-[10px] font-black tabular-nums",
+                  contractClauses.linked === 0
+                    ? "bg-white text-warning-text"
+                    : "bg-neutral-100 text-foreground",
+                )}
+              >
+                {contractClauses.linked}
+              </span>
+            </Button>
+          ) : null}
+
           <CatalogDeleteButton
             kind={mode.kind === "scope" ? "scope_subtype" : "investment_subtype"}
             id={mode.row.id}

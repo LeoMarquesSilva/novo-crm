@@ -54,15 +54,14 @@ export function usageQuantityForKind(
   usage: VariableUsageSnapshot | null | undefined,
 ): number {
   if (!usage) return 0;
-  if (kind === "variavel_processo") {
-    if (areaKey) return usage.foldersByArea[areaKey] ?? 0;
-    return usage.foldersTotal;
-  }
-  if (kind === "variavel_hora") {
-    if (areaKey) return usage.hoursByArea[areaKey] ?? 0;
-    return usage.hoursTotal;
-  }
-  return 0;
+  const byArea = kind === "variavel_processo" ? usage.foldersByArea : kind === "variavel_hora" ? usage.hoursByArea : null;
+  const total = kind === "variavel_processo" ? usage.foldersTotal : kind === "variavel_hora" ? usage.hoursTotal : 0;
+  if (!byArea) return 0;
+  if (!areaKey) return total;
+  if (byArea[areaKey] != null) return byArea[areaKey];
+  const needle = areaKey.toLocaleLowerCase("pt-BR");
+  const match = Object.entries(byArea).find(([key]) => key.toLocaleLowerCase("pt-BR") === needle);
+  return match?.[1] ?? 0;
 }
 
 export function projectMonthlyComponentCents(

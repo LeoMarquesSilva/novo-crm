@@ -268,8 +268,8 @@ async function loadSioeUsageByGrupoIds(
             .filter((id): id is string => Boolean(id)),
         });
         if (usage) result.set(group.id, usage);
-      } catch {
-        /* projeção variável fica zerada se o SIOE falhar */
+      } catch (error) {
+        console.error("Falha ao projetar uso SIOE do grupo", group.id, error);
       }
     }),
   );

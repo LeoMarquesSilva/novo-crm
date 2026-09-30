@@ -1,6 +1,7 @@
 import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
 import type { Database } from "@/lib/supabase/database.types";
 
+import { bindOrphanedAreaIdsToSingleArea } from "../../domain/reattach-area-ids";
 import {
   validateContractConfiguration,
   type ContractConfigurationInput,
@@ -148,7 +149,8 @@ export async function saveContractConfiguration(
     );
   }
 
-  const issues = validateContractConfiguration(input.configuration).filter(
+  const configuration = bindOrphanedAreaIdsToSingleArea(input.configuration);
+  const issues = validateContractConfiguration(configuration).filter(
     (issue) => issue.severity === "error",
   );
   if (issues.length > 0) {
@@ -159,7 +161,7 @@ export async function saveContractConfiguration(
     );
   }
 
-  const versionId = input.configuration.version.id;
+  const versionId = configuration.version.id;
   const context = await repository.findVersionContext(input.contractId, versionId);
   if (!context) {
     throw new ContractConfigurationError("CONTRACT_NOT_FOUND", "Contrato ou versão não encontrado.");
@@ -192,6 +194,6 @@ export async function saveContractConfiguration(
     contractId: input.contractId,
     versionId,
     expectedVersionUpdatedAt: input.expectedVersionUpdatedAt,
-    configuration: input.configuration,
+    configuration,
   });
 }

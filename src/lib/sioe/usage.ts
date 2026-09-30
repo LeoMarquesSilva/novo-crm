@@ -127,31 +127,98 @@ export async function fetchSioeContractUsage(input: {
 }): Promise<VariableUsageSnapshot | null> {
   const client = sioeClient();
   if (!client) return null;
+  const sioe = client;
 
   const competency = input.competency ?? competencyMonthStart();
   const hourUntil = nextCompetencyMonth(competency);
   const pessoaIds = new Set<string>((input.sioePessoaIds ?? []).filter(Boolean));
   const groupNames = [...new Set((input.groupNames ?? []).map((name) => name.trim()).filter(Boolean))];
-  const uniqueDocs = [...new Set((input.documents ?? []).map(digitsOnly).filter(Boolean))];
 
-  for (const digits of uniqueDocs) {
-    const filters: string[] = [];
-    if (isCnpj(digits)) {
-      filters.push(`cpf_cnpj.eq.${formatCnpj(digits)}`);
-      filters.push(`cpf_cnpj.like.${formatCnpjRoot(digits)}%`);
-    } else if (isCpf(digits)) {
-      filters.push(`cpf_cnpj.eq.${formatCpf(digits)}`);
-      filters.push(`cpf_cnpj.eq.${digits}`);
-    } else {
-      continue;
+  async function loadByGroupNames(names: string[]) {
+    const unique = [...new Set(names.map((name) => name.trim()).filter(Boolean))];
+    if (!unique.length) {
+      return {
+        folderRows: [] as Array<{ id: string; area: string | null; departamento: string | null }>,
+        hourRows: [] as Array<{ id: string; area: string | null; hours: number }>,
+      };
     }
-    const { data, error } = await client.from("pessoas").select("id, grupo_cliente").or(filters.join(","));
-    if (error) throw new Error(`Falha ao localizar pessoa no SIOE: ${error.message}`);
-    for (const row of data ?? []) {
-      pessoaIds.add(String((row as { id: string }).id));
-      const grupo = String((row as { grupo_cliente?: string | null }).grupo_cliente ?? "").trim();
-      if (grupo) groupNames.push(grupo);
-    }
+    const [folderRows, hourRows] = await Promise.all([
+      inChunks(unique, 40, async (chunk) =>
+        fetchPaged<{ id: string; area: string | null; departamento: string | null }>((from, to) =>
+          sioe
+            .from("processos_completo")
+            .select("id, area, departamento")
+            .eq("processo_encerrado", "Não")
+            .eq("situacao_processo", "Ativo")
+            .in("grupo_cliente", chunk)
+            .range(from, to),
+        ),
+      ),
+      inChunks(unique, 40, async (chunk) =>
+        fetchPaged<{ id: string; area: string | null; total_horas_decimal: number | string | null }>((from, to) =>
+          sioe
+            .from("timesheets")
+            .select("id, area, total_horas_decimal")
+            .gte("data", competency)
+            .lt("data", hourUntil)
+            .in("grupo_cliente", chunk)
+            .range(from, to),
+        ).then((rows) =>
+          rows.map((row) => ({
+            id: String(row.id),
+            area: row.area,
+            hours: Number(row.total_horas_decimal ?? 0),
+          })),
+        ),
+      ),
+    ]);
+    return { folderRows, hourRows };
+  }
+
+  const seeded = await loadByGroupNames(groupNames);
+  if (seeded.folderRows.length || seeded.hourRows.length) {
+    return aggregateSioeUsage({
+      competency,
+      folderRows: seeded.folderRows.map((row) => ({
+        id: String(row.id),
+        area: row.area,
+        departamento: row.departamento,
+      })),
+      hourRows: seeded.hourRows,
+    });
+  }
+
+  const uniqueDocs = [...new Set((input.documents ?? []).map(digitsOnly).filter(Boolean))];
+  const pessoaLookups = await inChunks(uniqueDocs, 20, async (chunk) => {
+    const rows: Array<{ id: string; grupo_cliente: string | null }> = [];
+    await Promise.all(
+      chunk.map(async (digits) => {
+        const filters: string[] = [];
+        if (isCnpj(digits)) {
+          filters.push(`cpf_cnpj.eq.${formatCnpj(digits)}`);
+          filters.push(`cpf_cnpj.like.${formatCnpjRoot(digits)}%`);
+        } else if (isCpf(digits)) {
+          filters.push(`cpf_cnpj.eq.${formatCpf(digits)}`);
+          filters.push(`cpf_cnpj.eq.${digits}`);
+        } else {
+          return;
+        }
+        const { data, error } = await client.from("pessoas").select("id, grupo_cliente").or(filters.join(","));
+        if (error) throw new Error(`Falha ao localizar pessoa no SIOE: ${error.message}`);
+        for (const row of data ?? []) {
+          rows.push({
+            id: String((row as { id: string }).id),
+            grupo_cliente: (row as { grupo_cliente?: string | null }).grupo_cliente ?? null,
+          });
+        }
+      }),
+    );
+    return rows;
+  });
+  for (const row of pessoaLookups) {
+    pessoaIds.add(row.id);
+    const grupo = (row.grupo_cliente ?? "").trim();
+    if (grupo) groupNames.push(grupo);
   }
 
   const uniqueGroupNames = [...new Set(groupNames.map((name) => name.trim()).filter(Boolean))];
@@ -168,77 +235,50 @@ export async function fetchSioeContractUsage(input: {
     return aggregateSioeUsage({ competency, folderRows: [], hourRows: [] });
   }
 
-  const folderRows: Array<{ id: string; area: string | null; departamento: string | null }> = [];
-  const hourRows: Array<{ id: string; area: string | null; hours: number }> = [];
-  const pessoaList = [...pessoaIds];
-
-  if (uniqueGroupNames.length) {
-    folderRows.push(
-      ...(await inChunks(uniqueGroupNames, 40, async (chunk) =>
-        fetchPaged<{ id: string; area: string | null; departamento: string | null }>((from, to) =>
-          client
-            .from("processos_completo")
-            .select("id, area, departamento")
-            .eq("processo_encerrado", "Não")
-            .eq("situacao_processo", "Ativo")
-            .in("grupo_cliente", chunk)
-            .range(from, to),
-        ),
-      )),
-    );
-    hourRows.push(
-      ...(await inChunks(uniqueGroupNames, 40, async (chunk) =>
-        fetchPaged<{ id: string; area: string | null; total_horas_decimal: number | string | null }>((from, to) =>
-          client
-            .from("timesheets")
-            .select("id, area, total_horas_decimal")
-            .gte("data", competency)
-            .lt("data", hourUntil)
-            .in("grupo_cliente", chunk)
-            .range(from, to),
-        ).then((rows) =>
-          rows.map((row) => ({
-            id: String(row.id),
-            area: row.area,
-            hours: Number(row.total_horas_decimal ?? 0),
-          })),
-        ),
-      )),
-    );
-  } else if (pessoaList.length) {
-    folderRows.push(
-      ...(await inChunks(pessoaList, 80, async (chunk) =>
-        fetchPaged<{ id: string; area: string | null; departamento: string | null }>((from, to) =>
-          client
-            .from("processos_completo")
-            .select("id, area, departamento")
-            .eq("processo_encerrado", "Não")
-            .eq("situacao_processo", "Ativo")
-            .in("pessoa_id", chunk)
-            .range(from, to),
-        ),
-      )),
-    );
-    hourRows.push(
-      ...(await inChunks(pessoaList, 80, async (chunk) =>
-        fetchPaged<{ id: string; area: string | null; total_horas_decimal: number | string | null }>((from, to) =>
-          client
-            .from("timesheets")
-            .select("id, area, total_horas_decimal")
-            .gte("data", competency)
-            .lt("data", hourUntil)
-            .in("pessoa_id", chunk)
-            .range(from, to),
-        ).then((rows) =>
-          rows.map((row) => ({
-            id: String(row.id),
-            area: row.area,
-            hours: Number(row.total_horas_decimal ?? 0),
-          })),
-        ),
-      )),
-    );
+  const fromNames = await loadByGroupNames(uniqueGroupNames);
+  if (fromNames.folderRows.length || fromNames.hourRows.length) {
+    return aggregateSioeUsage({
+      competency,
+      folderRows: fromNames.folderRows.map((row) => ({
+        id: String(row.id),
+        area: row.area,
+        departamento: row.departamento,
+      })),
+      hourRows: fromNames.hourRows,
+    });
   }
+
+  const pessoaList = [...pessoaIds];
+  const [folderRows, hourRows] = await Promise.all([
+    inChunks(pessoaList, 80, async (chunk) =>
+      fetchPaged<{ id: string; area: string | null; departamento: string | null }>((from, to) =>
+        client
+          .from("processos_completo")
+          .select("id, area, departamento")
+          .eq("processo_encerrado", "Não")
+          .eq("situacao_processo", "Ativo")
+          .in("pessoa_id", chunk)
+          .range(from, to),
+      ),
+    ),
+    inChunks(pessoaList, 80, async (chunk) =>
+      fetchPaged<{ id: string; area: string | null; total_horas_decimal: number | string | null }>((from, to) =>
+        client
+          .from("timesheets")
+          .select("id, area, total_horas_decimal")
+          .gte("data", competency)
+          .lt("data", hourUntil)
+          .in("pessoa_id", chunk)
+          .range(from, to),
+      ).then((rows) =>
+        rows.map((row) => ({
+          id: String(row.id),
+          area: row.area,
+          hours: Number(row.total_horas_decimal ?? 0),
+        })),
+      ),
+    ),
+  ]);
 
   return aggregateSioeUsage({
     competency,

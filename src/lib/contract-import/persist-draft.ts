@@ -108,8 +108,18 @@ export async function writeImportedVersionContents(input: {
       created_at: now,
       updated_at: now,
     });
-    if (error && error.code !== "23505") throw new Error(error.message);
-    areaIdByKey.set(area.areaKey, area.id);
+    if (error) {
+      if (error.code !== "23505") throw new Error(error.message);
+      const existing = await input.supabase
+        .from("contrato_areas")
+        .select("id")
+        .eq("versao_id", input.versionId)
+        .eq("area_key", area.areaKey)
+        .maybeSingle();
+      if (existing.data?.id) areaIdByKey.set(area.areaKey, existing.data.id);
+    } else {
+      areaIdByKey.set(area.areaKey, area.id);
+    }
   }
 
   const resolveAreaId = (areaId: string | undefined | null) => {
@@ -258,8 +268,18 @@ export async function syncSioeRateioOntoVersion(input: {
       created_at: now,
       updated_at: now,
     });
-    if (error && error.code !== "23505") throw new Error(error.message);
-    areaIdByKey.set(share.areaKey, id);
+    if (error) {
+      if (error.code !== "23505") throw new Error(error.message);
+      const existing = await input.supabase
+        .from("contrato_areas")
+        .select("id")
+        .eq("versao_id", input.versionId)
+        .eq("area_key", share.areaKey)
+        .maybeSingle();
+      if (existing.data?.id) areaIdByKey.set(share.areaKey, existing.data.id);
+    } else {
+      areaIdByKey.set(share.areaKey, id);
+    }
   }
 
   for (const share of shares) {

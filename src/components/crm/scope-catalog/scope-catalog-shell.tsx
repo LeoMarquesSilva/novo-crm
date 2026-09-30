@@ -3,7 +3,22 @@
 import { useMemo, useState } from "react";
 import { BookOpenText, Loader2, Sparkles, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import type { ClauseRow } from "@/components/crm/clause-templates-admin-panel";
 import type { ProposalCatalogAdminData } from "@/lib/crm/proposal-catalog-db";
+import {
+  findSubtypeKeySiblings,
+  summarizeSubtypeClauseCoverage,
+} from "@/lib/crm/contract-engine/clause-scope-link";
 import { cn } from "@/lib/utils";
 import {
   buildInvestmentTree,
@@ -17,6 +32,7 @@ import { CatalogEmptyDetail } from "./catalog-empty-detail";
 import { CatalogTypeEditor } from "./catalog-type-editor";
 import { NewItemButton, NewItemDialog, type NewItemKind } from "./new-item-dialog";
 import { ScopeEditor } from "./scope-editor";
+import { ScopeContractClausesDialog, type ScopeClausesTarget } from "./scope-contract-clauses-dialog";
 import { ScopeTree, type ScopeTreeSelection } from "./scope-tree";
 
 type Tab = "scope" | "investment";
@@ -91,8 +107,42 @@ function selectionForCreatedItem(
   };
 }
 
-export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalogAdminData }) {
+function clausesTargetForSubtype(
+  catalog: ProposalCatalogAdminData,
+  subtypeId: string,
+): ScopeClausesTarget | null {
+  const row = catalog.adminRows.scopeSubtypes.find((s) => s.id === subtypeId);
+  if (!row) return null;
+  const type = catalog.adminRows.scopeTypes.find((t) => t.id === row.scopeTypeId);
+  if (!type) return null;
+  return {
+    areaKey: type.areaKey,
+    subtypeKey: row.subtypeKey,
+    label: `${type.areaKey} › ${type.label} › ${row.label}`,
+    hasContractProfile: summarizeSubtypeClauseCoverage([], {
+      areaKey: type.areaKey,
+      subtypeKey: row.subtypeKey,
+    }).hasContractProfile,
+    keySiblings: findSubtypeKeySiblings(
+      catalog.adminRows.scopeSubtypes,
+      catalog.adminRows.scopeTypes,
+      row.id,
+    ),
+  };
+}
+
+export function ScopeCatalogShell({
+  initialData,
+  initialClauses,
+}: {
+  initialData: ProposalCatalogAdminData;
+  /** `null` quando a biblioteca de cláusulas não pôde ser carregada. */
+  initialClauses: ClauseRow[] | null;
+}) {
   const [data, setData] = useState<ProposalCatalogAdminData>(initialData);
+  const [clauses, setClauses] = useState<ClauseRow[] | null>(initialClauses);
+  const [clausesSubtypeId, setClausesSubtypeId] = useState<string | null>(null);
+  const [clausesPromptSubtypeId, setClausesPromptSubtypeId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("scope");
   const [newItem, setNewItem] = useState<NewItemKind | null>(null);
   const [seeding, setSeeding] = useState(false);
@@ -139,6 +189,10 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
         : null);
 
     if (!resolved) return;
+
+    if (resolved.tab === "scope" && resolved.level === "subtype" && clauses) {
+      setClausesPromptSubtypeId(resolved.id);
+    }
 
     const selection = selectionForCreatedItem(next, resolved);
     if (!selection) return;
@@ -217,6 +271,24 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
     if (tab !== "scope" || scopeSelection?.level !== "subtype") return null;
     return data.adminRows.scopeSubtypes.find((s) => s.id === scopeSelection.subtypeId) ?? null;
   }, [tab, scopeSelection, data.adminRows.scopeSubtypes]);
+
+  const selectedScopeClauseCoverage = useMemo(() => {
+    if (!selectedScopeSubtype || !clauses) return null;
+    const type = data.adminRows.scopeTypes.find((t) => t.id === selectedScopeSubtype.scopeTypeId);
+    if (!type) return null;
+    return summarizeSubtypeClauseCoverage(clauses, {
+      areaKey: type.areaKey,
+      subtypeKey: selectedScopeSubtype.subtypeKey,
+    });
+  }, [selectedScopeSubtype, clauses, data.adminRows.scopeTypes]);
+
+  const clausesTarget = useMemo(
+    () => (clausesSubtypeId ? clausesTargetForSubtype(data, clausesSubtypeId) : null),
+    [clausesSubtypeId, data],
+  );
+  const clausesPromptRow = clausesPromptSubtypeId
+    ? data.adminRows.scopeSubtypes.find((s) => s.id === clausesPromptSubtypeId) ?? null
+    : null;
 
   const selectedScopeType = useMemo(() => {
     if (tab !== "scope" || scopeSelection?.level !== "type") return null;
@@ -342,6 +414,15 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
                 row: selectedScopeSubtype,
                 breadcrumb: scopeSelection.breadcrumb,
               }}
+              contractClauses={
+                clauses
+                  ? {
+                      linked: selectedScopeClauseCoverage?.linked ?? 0,
+                      linkedActive: selectedScopeClauseCoverage?.linkedActive ?? 0,
+                      onOpen: () => setClausesSubtypeId(selectedScopeSubtype.id),
+                    }
+                  : null
+              }
               onSaved={handleEditorSaved}
               onDeleted={handleCatalogDeleted}
               onDirtyChange={setEditorDirty}
@@ -429,6 +510,50 @@ export function ScopeCatalogShell({ initialData }: { initialData: ProposalCatalo
           }}
           kind={newItem}
           onCreated={(next) => handleCreated(next, undefined, newItem)}
+        />
+      ) : null}
+
+      <AlertDialog
+        open={Boolean(clausesPromptRow)}
+        onOpenChange={(open) => {
+          if (!open) setClausesPromptSubtypeId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Deseja incluir as cláusulas do contrato vinculadas a este escopo?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              O escopo &quot;{clausesPromptRow?.label}&quot; foi criado. Vincule agora as cláusulas
+              do contrato para que ele não fique sem cláusulas — também é possível fazer isso depois,
+              pelo botão &quot;Cláusulas do contrato&quot; no editor.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Agora não</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setClausesSubtypeId(clausesPromptSubtypeId);
+                setClausesPromptSubtypeId(null);
+              }}
+            >
+              Sim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {clausesTarget && clauses ? (
+        <ScopeContractClausesDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setClausesSubtypeId(null);
+          }}
+          target={clausesTarget}
+          clauses={clauses}
+          catalog={data.scope}
+          onClausesChange={setClauses}
         />
       ) : null}
     </section>

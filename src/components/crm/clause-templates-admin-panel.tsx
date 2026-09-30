@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   BookText,
@@ -74,9 +75,13 @@ type ClauseForm = {
   scopeKind: ScopeKind;
   areaKey: string;
   subtypeKey: string;
+  /** Seção do contrato (`role`). */
+  role: string;
 };
 
-function blankForm(defaults: Partial<Pick<ClauseForm, "scopeKind" | "areaKey" | "subtypeKey">> = {}): ClauseForm {
+type FormDefaults = Partial<Pick<ClauseForm, "scopeKind" | "areaKey" | "subtypeKey" | "role">>;
+
+function blankForm(defaults: FormDefaults = {}): ClauseForm {
   return {
     title: "",
     content: "",
@@ -86,6 +91,7 @@ function blankForm(defaults: Partial<Pick<ClauseForm, "scopeKind" | "areaKey" | 
     scopeKind: defaults.scopeKind ?? "transversal",
     areaKey: defaults.areaKey ?? "",
     subtypeKey: defaults.subtypeKey ?? "",
+    role: defaults.role ?? "general",
   };
 }
 
@@ -127,14 +133,31 @@ function statusBadgeClass(status: string | null | undefined) {
   return "border-warning-border bg-warning-bg text-warning-text";
 }
 
+export type ClausePanelFocusSubtype = {
+  areaKey: string;
+  subtypeKey: string;
+  /** Rótulo completo exibido no seletor de subtipo (ex.: "Cível › Tipo › Subtipo"). */
+  label: string;
+};
+
 export function ClauseTemplatesAdminPanel({
   initialClauses,
   catalog,
+  focusSubtype,
+  onClausesChange,
 }: {
   initialClauses: ClauseRow[];
   catalog: PropostaTiposCatalog;
+  /** Restringe a lista às cláusulas do subtipo e pré-preenche a abrangência ao criar.
+   * Usado quando o painel é aberto dentro de outro Dialog (catálogo de escopos). */
+  focusSubtype?: ClausePanelFocusSubtype;
+  onClausesChange?: (clauses: ClauseRow[]) => void;
 }) {
   const [clauses, setClauses] = useState<ClauseRow[]>(initialClauses);
+
+  useEffect(() => {
+    onClausesChange?.(clauses);
+  }, [clauses, onClausesChange]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ClauseForm>(blankForm());
@@ -152,16 +175,41 @@ export function ClauseTemplatesAdminPanel({
   );
 
   const scopeOptions = useMemo(() => {
-    return liveTree.areas.flatMap((area) =>
-      area.types.flatMap((type) =>
-        type.subtypes.map((subtype) => ({
-          value: subtype.subtypeKey,
-          areaKey: area.areaKey,
-          label: `${area.areaKey} › ${type.typeLabel} › ${subtype.subtypeLabel}`,
-        })),
-      ),
+    const options: Array<{ value: string; areaKey: string; label: string }> = liveTree.areas.flatMap(
+      (area) =>
+        area.types.flatMap((type) =>
+          type.subtypes.map((subtype) => ({
+            value: subtype.subtypeKey,
+            areaKey: area.areaKey,
+            label: `${area.areaKey} › ${type.typeLabel} › ${subtype.subtypeLabel}`,
+          })),
+        ),
     );
-  }, [liveTree]);
+    // Subtipo recém-criado ou inativo pode não estar na árvore mesclada do catálogo.
+    if (focusSubtype && !options.some((o) => o.value === focusSubtype.subtypeKey)) {
+      options.unshift({
+        value: focusSubtype.subtypeKey,
+        areaKey: focusSubtype.areaKey,
+        label: focusSubtype.label,
+      });
+    }
+    return options;
+  }, [liveTree, focusSubtype]);
+
+  const focusClauses = useMemo(
+    () =>
+      focusSubtype ? clauses.filter((c) => c.scope_subtype_key === focusSubtype.subtypeKey) : [],
+    [clauses, focusSubtype],
+  );
+  const focusAreaWideCount = focusSubtype
+    ? clauses.filter((c) => c.is_active && c.area_key === focusSubtype.areaKey && !c.scope_subtype_key)
+        .length
+    : 0;
+  const focusTransversalCount = focusSubtype
+    ? clauses.filter((c) => c.is_active && !c.area_key).length
+    : 0;
+  // Dentro de outro Dialog (catálogo de escopos), o editor e a confirmação sobem uma camada.
+  const nestedLayerClass = focusSubtype ? "z-(--z-nested-dialog)" : undefined;
 
   const searchResults = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -177,7 +225,7 @@ export function ClauseTemplatesAdminPanel({
     });
   }, [clauses, query]);
 
-  function openCreate(defaults: Partial<Pick<ClauseForm, "scopeKind" | "areaKey" | "subtypeKey">> = {}) {
+  function openCreate(defaults: FormDefaults = {}) {
     setEditingId(null);
     setForm(blankForm(defaults));
     setError(null);
@@ -196,6 +244,7 @@ export function ClauseTemplatesAdminPanel({
       scopeKind: clause.scope_subtype_key ? "subtype" : clause.area_key ? "area" : "transversal",
       areaKey: clause.area_key ?? "",
       subtypeKey: clause.scope_subtype_key ?? "",
+      role: clause.role && ROLE_LABELS[clause.role] ? clause.role : "general",
     });
     setError(null);
     setFeedback(null);
@@ -234,6 +283,7 @@ export function ClauseTemplatesAdminPanel({
       category: form.category,
       sort_order: form.sort_order,
       is_active: form.is_active,
+      role: form.role,
       ...resolveScopeFields(),
     };
 
@@ -324,6 +374,65 @@ export function ClauseTemplatesAdminPanel({
         </div>
       ) : null}
 
+      {focusSubtype ? (
+        <section className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+          <div className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              {focusClauses.length === 0
+                ? "Nenhuma cláusula vinculada a este subtipo."
+                : `${focusClauses.filter((c) => c.is_active).length} de ${focusClauses.length} ativa${focusClauses.length !== 1 ? "s" : ""}`}
+            </p>
+            <Button
+              type="button"
+              variant="teal"
+              size="sm"
+              className="h-9 gap-1.5"
+              onClick={() =>
+                openCreate({
+                  scopeKind: "subtype",
+                  areaKey: focusSubtype.areaKey,
+                  subtypeKey: focusSubtype.subtypeKey,
+                  role: "object",
+                })
+              }
+            >
+              <Plus className="size-3.5" aria-hidden />
+              Nova cláusula
+            </Button>
+          </div>
+          {focusClauses.length === 0 ? (
+            <div className="flex items-start gap-2 border-b border-warning-border bg-warning-bg px-4 py-3 text-xs leading-relaxed text-warning-text">
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <span>
+                Este escopo ainda não tem cláusulas do contrato. Crie as cláusulas específicas dele
+                (objeto, limites, exclusões…) para não deixar o escopo descoberto.
+              </span>
+            </div>
+          ) : (
+            <div className="divide-y divide-neutral-200">
+              {focusClauses.map((clause) => (
+                <ClauseListItem
+                  key={clause.id}
+                  clause={clause}
+                  onEdit={openEdit}
+                  onDelete={setDeleteId}
+                  onToggle={toggleActive}
+                />
+              ))}
+            </div>
+          )}
+          <p className="bg-neutral-50 px-4 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
+            Também existem {focusAreaWideCount} cláusula{focusAreaWideCount !== 1 ? "s" : ""} ativa
+            {focusAreaWideCount !== 1 ? "s" : ""} da área {focusSubtype.areaKey} e{" "}
+            {focusTransversalCount} transversa{focusTransversalCount !== 1 ? "is" : "l"} —
+            gerencie-as na{" "}
+            <Link href="/crm/admin/clausulas" className="font-semibold text-interactive-700 hover:underline">
+              Biblioteca de Cláusulas
+            </Link>
+            .
+          </p>
+        </section>
+      ) : (
       <section className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
         <div className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
@@ -384,10 +493,12 @@ export function ClauseTemplatesAdminPanel({
           </div>
         )}
       </section>
+      )}
 
       <Dialog modal={false} open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
-          className="max-w-lg gap-0 p-0"
+          className={cn("max-w-lg gap-0 p-0", nestedLayerClass)}
+          overlayClassName={nestedLayerClass}
           onPointerDownOutside={(event) => {
             if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
           }}
@@ -504,6 +615,29 @@ export function ClauseTemplatesAdminPanel({
             ) : null}
 
             <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Seção no contrato</Label>
+              <Select
+                items={ROLE_LABELS}
+                value={form.role}
+                onValueChange={(next) => setForm((f) => ({ ...f, role: next ?? "general" }))}
+              >
+                <SelectTrigger className="h-10 w-full">
+                  <CrmSelectValue value={form.role} labels={ROLE_LABELS} placeholder="Selecione a seção" />
+                </SelectTrigger>
+                <CrmSelectContent>
+                  {Object.entries(ROLE_LABELS).map(([value, label]) => (
+                    <CrmSelectItem key={value} value={value}>
+                      {label}
+                    </CrmSelectItem>
+                  ))}
+                </CrmSelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Define onde a cláusula entra no contrato gerado (ex.: Objeto, Exclusão, Vigência).
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Categoria</Label>
               <Input
                 value={form.category}
@@ -591,7 +725,7 @@ export function ClauseTemplatesAdminPanel({
       </Dialog>
 
       <AlertDialog open={Boolean(deleteId)} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className={nestedLayerClass} overlayClassName={nestedLayerClass}>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir cláusula?</AlertDialogTitle>
             <AlertDialogDescription>

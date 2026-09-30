@@ -23,6 +23,7 @@ import type {
 } from "./types";
 import { validateProposalContractAlignment } from "./alignment";
 import { listForbiddenDraftTokens, listUnresolvedPlaceholders } from "./placeholders";
+import { applyDatabaseLinkedClauses } from "./scope-linked-clauses";
 
 export function buildCanonicalContract(input: {
   snapshot: ProposalContractSnapshot;
@@ -39,9 +40,9 @@ export function buildCanonicalContract(input: {
 }): CanonicalContractBuildResult {
   const generatedAt = input.generatedAt ?? new Date();
   const firm = getContractedFirm();
-  const scopes = applyScopeAdjustments(
-    resolveContractScopes(input.snapshot.escopoJson),
-    input.scopeAdjustment,
+  const scopes = applyDatabaseLinkedClauses(
+    applyScopeAdjustments(resolveContractScopes(input.snapshot.escopoJson), input.scopeAdjustment),
+    input.clauseLibrary,
   );
   const investment = {
     ...resolveContractInvestment(input.snapshot.escopoJson),

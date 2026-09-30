@@ -17,6 +17,7 @@ import {
   inferRenewalAlertDate,
 } from "@/lib/crm/contract-renewal-date";
 import { projectMonthlyTotalCents } from "@/modules/contracts/domain/variable-usage-projection";
+import { reattachOptionalAreaIds, reattachRequiredAreaIds } from "@/modules/contracts/domain/reattach-area-ids";
 import type {
   ContractConfigurationDraft,
   ContractDetailViewModel,
@@ -505,7 +506,24 @@ export function ContractSetupWizard({
           <ContractAreasEditor
             value={configuration.areas}
             disabled={!canConfigure}
-            onChange={(areas) => patch({ areas })}
+            onChange={(areas) => {
+              setConfiguration((current) => {
+                if (!current) return current;
+                return {
+                  ...current,
+                  areas,
+                  version: {
+                    ...current.version,
+                    components: reattachOptionalAreaIds(current.version.components, current.areas, areas),
+                    areaAllocations: reattachRequiredAreaIds(
+                      current.version.areaAllocations,
+                      current.areas,
+                      areas,
+                    ),
+                  },
+                };
+              });
+            }}
           />
         ) : null}
 

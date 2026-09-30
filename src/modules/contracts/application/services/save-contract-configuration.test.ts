@@ -181,6 +181,25 @@ describe("saveContractConfiguration", () => {
       configuration,
     }]);
   });
+
+  it("religa componentes órfãos à única área da versão antes de validar", async () => {
+    const { saveContractConfiguration, repository, writes } = await subject();
+    const configuration = validConfiguration();
+    configuration.version.components[0]!.areaId = "99999999-9999-4999-8999-999999999999";
+    configuration.version.areaAllocations[0]!.areaId = "99999999-9999-4999-8999-999999999999";
+
+    await saveContractConfiguration(repository, {
+      role: "controladoria",
+      actorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      contractId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      expectedVersionUpdatedAt: expectedUpdatedAt,
+      configuration,
+    });
+
+    const written = writes[0] as { configuration: ReturnType<typeof validConfiguration> };
+    expect(written.configuration.version.components[0]?.areaId).toBe("33333333-3333-4333-8333-333333333333");
+    expect(written.configuration.version.areaAllocations[0]?.areaId).toBe("33333333-3333-4333-8333-333333333333");
+  });
 });
 
 describe("assertContractActivationOpportunityPolicy", () => {

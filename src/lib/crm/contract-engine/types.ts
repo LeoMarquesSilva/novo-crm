@@ -105,6 +105,8 @@ export type ContractClauseTemplate = {
   placeholders: string[];
   conflictsWithSubtypeIds: string[];
   legalReviewNote: string;
+  /** Vínculo da linha do banco com um subtipo do catálogo (`scope_subtype_key` + `area_key`). */
+  scopeLink?: { areaKey: string | null; subtypeKey: string };
 };
 
 export type ContractObjectMode = "simple" | "subscope" | "complex";
@@ -279,6 +281,8 @@ export type ContractEngineEvent = {
 export type ContractScope = ProposalScopeRef & {
   profile: ContractScopeProfile | null;
   missingProfile: boolean;
+  /** Subtipo sem perfil em código: chaves das cláusulas ativas do banco vinculadas a ele. */
+  linkedClauseKeys?: string[];
 };
 
 export type ContractInvestmentItem = {

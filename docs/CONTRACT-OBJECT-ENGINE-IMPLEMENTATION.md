@@ -43,7 +43,7 @@ Os 5 perfis trabalhistas ganharam `objectDefinition`, `requiredContractFields` e
 | `canal_de_denuncias_gestao_e_triagem` | simple | — |
 | `diagnostico_organizacional_de_riscos_psicossociais_nr_1` | simple | — |
 
-Cível / Societário / Reestruturação: sem perfil. O motor marca pendência e **não** inventa cláusula. O renderer já aceita objeto complexo (paragraph + lista romana + limitation) para quando esses perfis existirem.
+Cível / Societário / Reestruturação: sem perfil em código. O motor **não** inventa cláusula: usa as cláusulas **ativas** de `contract_clause_templates` com `scope_subtype_key` = subtipo (e `area_key` = área da proposta, quando preenchido) — `scope-linked-clauses.ts`. Com ao menos uma, o escopo deixa de ser `missingProfile` e conta como representado no objeto; sem nenhuma, a pendência continua. Ordem: `sort_order`, título, chave. Entram por `role`: objeto/escopo/limites/natureza depois do objeto; exclusões junto das exclusões de perfil; demais papéis após as cláusulas padrão. Cláusula sem `stable_key` usa a chave derivada `db_clause:<id>`. Subtipos com perfil em código ignoram o vínculo do banco (contratos trabalhistas inalterados). O renderer já aceita objeto complexo (paragraph + lista romana + limitation) para quando esses perfis existirem.
 
 ## Campos dinâmicos
 
