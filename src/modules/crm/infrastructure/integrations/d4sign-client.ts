@@ -603,6 +603,32 @@ export class D4SignConnector {
   }
 
   /**
+   * URL temporária (5 min) para visualizar o documento sem login no portal.
+   * `POST /documents/{uuid}/generate-document-view` → `{ doc_principal, anexos }`.
+   * @see https://docapi.d4sign.com.br/docs/endpoints-2
+   */
+  async generateDocumentView(documentUuid: string, options?: { source?: string }): Promise<string> {
+    const url = `${this.apiBaseUrl.replace(/\/$/, "")}/documents/${encodeURIComponent(documentUuid)}/generate-document-view${this.authSearchParams()}`;
+    const res = await this.d4Fetch(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ with_attachments: false }),
+        cache: "no-store",
+      },
+      "documents/generate-document-view",
+      options?.source ?? "open",
+    );
+    const body = (await this.parseJsonResponse(res)) as { doc_principal?: unknown };
+    const link = typeof body.doc_principal === "string" ? body.doc_principal.trim() : "";
+    if (!/^https:\/\//i.test(link)) {
+      throw new Error("Resposta generate-document-view sem doc_principal.");
+    }
+    return link;
+  }
+
+  /**
    * Reenvia o link de assinatura para um signatário (caso ele perca o e-mail).
    * `POST /documents/{uuid}/resend`
    */

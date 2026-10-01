@@ -27,6 +27,7 @@ import {
   type PartnerSigner,
   type PartnerTab,
 } from "@/lib/d4sign/partner-signatures";
+import { d4signDocumentOpenPath } from "@/lib/d4sign/portal-url";
 import { cn } from "@/lib/utils";
 
 const TAB_LABEL: Record<PartnerTab, string> = {
@@ -56,10 +57,9 @@ type Props = {
   partners: PartnerSigner[];
   /** E-mail canônico do sócio logado; `null` para admin que não é sócio. */
   currentPartnerEmail: string | null;
-  d4signPortalBase: string;
 };
 
-export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, d4signPortalBase }: Props) {
+export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail }: Props) {
   const router = useRouter();
   const [partnerFilter, setPartnerFilter] = useState<PartnerFilter>(currentPartnerEmail ?? "all");
   const [tab, setTab] = useState<PartnerTab>("pendente");
@@ -101,7 +101,7 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, d4
   }, [docs, partnerFilter, tab, query]);
 
   function portalUrl(uuid: string) {
-    return `${d4signPortalBase}/desk/viewdoc/${uuid}`;
+    return d4signDocumentOpenPath(uuid);
   }
 
   const chip = (active: boolean) =>

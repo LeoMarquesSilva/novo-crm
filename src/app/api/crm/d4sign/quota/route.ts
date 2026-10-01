@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ ok: false, error: "Apenas admin/comercial." }, { status: 403 });
     }
 
-    const quota = await getD4SignQuotaStatus();
+    const quota = await getD4SignQuotaStatus("documents/list");
     return NextResponse.json({ ok: true, ...quota });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao consultar quota.";

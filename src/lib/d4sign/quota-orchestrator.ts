@@ -1,6 +1,7 @@
 import {
   D4SIGN_HOURLY_LIMIT,
   getD4SignQuotaStatus,
+  type D4SignQuotaMethod,
   type D4SignQuotaStatus,
 } from "@/lib/d4sign/api-usage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -22,12 +23,13 @@ export function isRateLimitError(message: string): boolean {
   return /401|429|tempo limite|rate.?limit|limite para este método/i.test(message);
 }
 
-/** Verifica se há quota suficiente antes de uma operação multi-req. */
+/** Verifica se o método tem quota suficiente antes de uma operação multi-req. */
 export async function assertD4SignQuota(
+  method: D4SignQuotaMethod,
   needed: number,
   operationLabel: string,
 ): Promise<QuotaReservation | QuotaDenied> {
-  const quota = await getD4SignQuotaStatus();
+  const quota = await getD4SignQuotaStatus(method);
   if (quota.remaining < needed) {
     const resetHint = quota.resetAt
       ? ` Libera ${new Date(quota.resetAt).toLocaleTimeString("pt-BR")}.`

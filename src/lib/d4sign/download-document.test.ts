@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { downloadD4SignDocumentPdf, readD4SignDownloadUrl } from "./download-document";
+import {
+  decodeBase64Pdf,
+  downloadD4SignDocumentPdf,
+  readD4SignDownloadUrl,
+} from "./download-document";
 
 const UUID = "c686dbc1-1111-4111-8111-111111111111";
 const FILE_URL = "https://secure.d4sign.com.br/download/CODE";
@@ -19,8 +23,10 @@ afterEach(() => {
 });
 
 describe("readD4SignDownloadUrl", () => {
-  it("aceita https no host da D4Sign", () => {
+  it("aceita https no host da D4Sign e no storage AWS", () => {
     expect(readD4SignDownloadUrl({ url: FILE_URL, name: "test.pdf" })).toBe(FILE_URL);
+    const s3 = "https://d4sign-docs.s3.sa-east-1.amazonaws.com/x.pdf?X-Amz-Signature=abc";
+    expect(readD4SignDownloadUrl({ url: s3 })).toBe(s3);
   });
 
   it("recusa URL fora da D4Sign, http e corpo sem url", () => {
@@ -85,8 +91,52 @@ describe("downloadD4SignDocumentPdf", () => {
 
     const result = await downloadD4SignDocumentPdf(input);
 
-    expect(result).toMatchObject({ ok: false, status: 429, apiStatus: 429 });
+    expect(result).toMatchObject({ ok: false, status: 429, apiStatus: 429, stage: "api" });
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("trata a mensagem de limite por método como 429 e repassa o texto", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({ message: "Esta chave da API já atingiu o tempo limite para este método" }, 401),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await downloadD4SignDocumentPdf(input);
+
+    expect(result).toMatchObject({ ok: false, status: 429, apiStatus: 401 });
+    if (result.ok) return;
+    expect(result.error).toContain("tempo limite");
+  });
+
+  it("segue o cabeçalho Refresh até o PDF", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ url: FILE_URL, name: "contrato.pdf" }))
+      .mockResolvedValueOnce(
+        new Response("\uFEFF", {
+          status: 200,
+          headers: { "Content-Type": "text/html", Refresh: "0;url=https://secure.d4sign.com.br/arquivo/real.pdf" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(PDF, { status: 200, headers: { "Content-Type": "application/pdf" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await downloadD4SignDocumentPdf(input);
+
+    expect(result.ok).toBe(true);
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe("https://secure.d4sign.com.br/arquivo/real.pdf");
+  });
+
+  it("decodifica PDF entregue em Base64", async () => {
+    const base64 = Buffer.from(PDF).toString("base64");
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ url: FILE_URL, name: "contrato.pdf" }))
+      .mockResolvedValueOnce(new Response(base64, { status: 200, headers: { "Content-Type": "text/plain" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await downloadD4SignDocumentPdf(input);
+
+    expect(result.ok).toBe(true);
+    expect(decodeBase64Pdf(new TextEncoder().encode("<html>"))).toBeNull();
   });
 
   it("não segue url que não é da D4Sign", async () => {
@@ -97,7 +147,7 @@ describe("downloadD4SignDocumentPdf", () => {
 
     const result = await downloadD4SignDocumentPdf(input);
 
-    expect(result).toMatchObject({ ok: false, status: 422, apiStatus: 200 });
+    expect(result).toMatchObject({ ok: false, status: 422, apiStatus: 200, stage: "url" });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

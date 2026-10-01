@@ -211,6 +211,10 @@ function mapOpportunity(row: {
       typeof (row as Record<string, unknown>).d4sign_status === "string"
         ? ((row as Record<string, unknown>).d4sign_status as string)
         : null,
+    d4signDocumentUuid:
+      typeof (row as Record<string, unknown>).d4sign_document_uuid === "string"
+        ? ((row as Record<string, unknown>).d4sign_document_uuid as string)
+        : null,
     dueAreaTasksSummary: row.dueAreaTasksSummary ?? null,
     dueAreaReviewSummary: row.dueAreaReviewSummary ?? null,
     dueReviewAdjustments: row.dueReviewAdjustments ?? null,

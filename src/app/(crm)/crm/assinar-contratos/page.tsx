@@ -4,7 +4,6 @@ import { CheckCircle2, Clock, Hourglass, PenLine } from "lucide-react";
 import { CrmPageHeader, type HeaderStat } from "@/components/crm/crm-page-header";
 import { PartnerSignaturesBoard } from "@/components/crm/partner-signatures/partner-signatures-board";
 import { requireAuth } from "@/lib/auth/server";
-import { getD4SignEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import {
   canAccessPartnerSignatures,
@@ -79,8 +78,6 @@ export default async function AssinarContratosPage() {
 
   const currentPartnerEmail = resolvePartnerEmail(user.email, partners);
   const isAdmin = profile.role === "admin";
-  const env = getD4SignEnv();
-  const d4signPortalBase = env.apiBaseUrl.replace(/\/api\/.*$/, "");
 
   const pendingByPartner = partners.map((p) => ({
     partner: p,
@@ -149,7 +146,6 @@ export default async function AssinarContratosPage() {
         docs={docs}
         partners={partners}
         currentPartnerEmail={currentPartnerEmail}
-        d4signPortalBase={d4signPortalBase}
       />
     </div>
   );

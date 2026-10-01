@@ -114,7 +114,7 @@ export async function runVaultSync(options: VaultSyncOptions = {}): Promise<Vaul
   const apiSource = options.apiSource ?? "vault-sync";
 
   // Mínimo: folders + 1 página listing
-  const quotaCheck = await assertD4SignQuota(2, "atualizar cofre");
+  const quotaCheck = await assertD4SignQuota("documents/safe", 2, "atualizar cofre");
   if (!quotaCheck.ok) {
     await notifyQuotaExhausted({ operation: "atualizar cofre" });
     return {
@@ -263,7 +263,7 @@ export async function runVaultSync(options: VaultSyncOptions = {}): Promise<Vaul
         ? `Rate-limit D4Sign. Aguarde ~1h. (${listingError ?? ""})`
         : listingError ?? "Nenhum documento retornado.",
       rateLimited: rateLimitHit,
-      quota: await getD4SignQuotaStatus(),
+      quota: await getD4SignQuotaStatus("documents/list"),
     };
   }
 
@@ -452,6 +452,6 @@ export async function runVaultSync(options: VaultSyncOptions = {}): Promise<Vaul
     missing_names: records.filter((r) => !r.name_document).length,
     statusChanges,
     enrich: enrichResult,
-    quota: await getD4SignQuotaStatus(),
+    quota: await getD4SignQuotaStatus("documents/list"),
   };
 }

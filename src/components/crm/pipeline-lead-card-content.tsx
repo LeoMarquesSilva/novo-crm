@@ -28,6 +28,7 @@ import { getLeadPipelineSituation } from "@/modules/crm/application/lead-pipelin
 import type { DemandType, Oportunidade } from "@/modules/crm/domain/entities";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { latestSignerSignedAt } from "@/lib/crm/d4sign-kanban-signers";
+import { d4signDocumentOpenPath } from "@/lib/d4sign/portal-url";
 
 function normalizePersonName(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -236,6 +237,11 @@ export function PipelineLeadCardContent({
   const showPropostaEnviadaPanel = item.etapa === "proposta_enviada";
   const showContractElaborationPanel =
     item.etapa === "confeccao_contrato" || item.etapa === "contrato_elaborado";
+  // Com contrato na D4Sign, abre o documento; `linkContrato` é o link de
+  // assinatura do 1º signatário e deixa de abrir depois que ele assina.
+  const contractHref = item.d4signDocumentUuid
+    ? d4signDocumentOpenPath(item.d4signDocumentUuid)
+    : item.linkContrato?.trim() || null;
   const contractSigners =
     (item.etapa === "contrato_enviado" || item.etapa === "contrato_assinado") &&
     Array.isArray(item.d4signSigners) &&
@@ -385,7 +391,7 @@ export function PipelineLeadCardContent({
           signers={contractSigners}
           sentAt={contractSentAt}
           finalizedAt={contractFullySignedAt}
-          linkContrato={item.linkContrato}
+          linkContrato={contractHref}
           variant={item.etapa === "contrato_assinado" ? "completed" : "pending"}
           appUsersByEmail={appUsersByEmail}
         />
@@ -411,9 +417,9 @@ export function PipelineLeadCardContent({
                   Aguardando dados dos signatários
                 </p>
               )}
-              {item.linkContrato?.trim() ? (
+              {contractHref ? (
                 <a
-                  href={item.linkContrato.trim()}
+                  href={contractHref}
                   target="_blank"
                   rel="noreferrer"
                   className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"

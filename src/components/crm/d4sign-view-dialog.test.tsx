@@ -45,6 +45,21 @@ describe("D4SignViewDialog", () => {
 
     expect(await screen.findByRole("heading", { name: "Não foi possível carregar o documento" })).toBeTruthy();
     expect(screen.queryByTitle("Visualização do contrato")).toBeNull();
+    // Mostra o motivo devolvido pela rota, não uma mensagem genérica.
+    expect(screen.getByText("falha")).toBeTruthy();
+  });
+
+  it("aponta \"Abrir no D4Sign\" para a rota /open por padrão", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ error: "falha" }), { status: 502 })),
+    );
+
+    renderDialog();
+
+    await screen.findByRole("heading", { name: "Não foi possível carregar o documento" });
+    const links = screen.getAllByRole("link", { name: /Abrir no (portal )?D4Sign/ });
+    expect(links.every((a) => a.getAttribute("href")?.endsWith("/open"))).toBe(true);
   });
 
   it("trata corpo vazio como erro", async () => {

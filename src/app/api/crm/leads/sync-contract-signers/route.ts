@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const quota = await getD4SignQuotaStatus();
+    const quota = await getD4SignQuotaStatus("documents/list");
     if (isD4SignQuotaExhausted(quota)) {
       return NextResponse.json(
         { ok: false, error: "Quota D4Sign esgotada.", quota, synced: 0 },
@@ -93,14 +93,14 @@ export async function POST(request: NextRequest) {
           });
         }
       }
-      if (isD4SignQuotaExhausted(await getD4SignQuotaStatus())) break;
+      if (isD4SignQuotaExhausted(await getD4SignQuotaStatus("documents/list"))) break;
     }
 
     return NextResponse.json({
       ok: true,
       synced,
       items,
-      quota: await getD4SignQuotaStatus(),
+      quota: await getD4SignQuotaStatus("documents/list"),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao sincronizar assinaturas.";

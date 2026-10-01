@@ -103,7 +103,7 @@ export async function runVaultSafeListing(options?: {
     });
   }
 
-  const quota = await getD4SignQuotaStatus();
+  const quota = await getD4SignQuotaStatus("documents/safe");
   if (quota.remaining < 1) {
     return emptyResult(cursor, {
       rateLimited: true,

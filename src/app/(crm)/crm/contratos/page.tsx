@@ -6,7 +6,6 @@ import { ContractsHub } from "@/components/crm/contracts/contracts-hub";
 import { ContractHubOrphanGroupsTrigger } from "@/components/crm/contracts/contract-hub-orphan-groups";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/server";
-import { getD4SignEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { EnsureContractDraftBanner } from "@/components/crm/contracts/ensure-contract-draft-banner";
@@ -157,12 +156,10 @@ export default async function ContratosPage({
   const [{ linked, unlinked, missingNames, error }, appUsersByEmail, quota, portfolioResult, coverage] = await Promise.all([
     getD4SignData(),
     getAppUsersByEmail(),
-    getD4SignQuotaStatus(),
+    getD4SignQuotaStatus("documents/list"),
     getContractsPortfolio(),
     loadActiveGroupCoverage(),
   ]);
-  const env = getD4SignEnv();
-  const d4signPortalBase = env.apiBaseUrl.replace(/\/api\/.*$/, "");
   const firmSigners = getFirmSigners().map((s) => ({
     email: s.email,
     firstName: s.name.split(" ")[0],
@@ -305,7 +302,6 @@ export default async function ContratosPage({
           initialMissingNames: missingNames,
           initialQuota: quota,
           firmSigners,
-          d4signPortalBase,
           appUsersByEmail,
         }}
       />

@@ -1,59 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { planD4SignSyncBudget } from "./sync-budget";
+import { D4SIGN_HUMAN_RESERVE, planD4SignSyncBudget } from "./sync-budget";
+
+const full = { safe: 10, status: 10, list: 10, download: 10 };
 
 describe("planD4SignSyncBudget", () => {
-  it("gasta a janela na listagem de fases enquanto o ciclo está aberto", () => {
+  it("usa a cota de cada método sem invadir a reserva humana", () => {
+    expect(
+      planD4SignSyncBudget({ remaining: full, phaseCycleOpen: true, folderMode: "backlog" }),
+    ).toEqual({
+      listing: 1,
+      phases: 10,
+      enrich: 10 - D4SIGN_HUMAN_RESERVE.list,
+      folders: 10 - D4SIGN_HUMAN_RESERVE.safe - 1,
+      precache: 1,
+    });
+  });
+
+  it("com o ciclo de fases fechado, só atualiza a página 1", () => {
+    expect(
+      planD4SignSyncBudget({ remaining: full, phaseCycleOpen: false, folderMode: "rotate" }),
+    ).toEqual({ listing: 1, phases: 1, enrich: 7, folders: 1, precache: 1 });
+  });
+
+  it("listagem esgotada não trava signatários nem PDF", () => {
     expect(
       planD4SignSyncBudget({
-        remaining: 10,
+        remaining: { safe: 0, status: 0, list: 5, download: 9 },
         phaseCycleOpen: true,
-        pendingWithoutSigners: 40,
         folderMode: "backlog",
       }),
-    ).toEqual({ listing: 1, phases: 9, enrich: 0, folders: 0 });
+    ).toEqual({ listing: 0, phases: 0, enrich: 2, folders: 0, precache: 1 });
   });
 
-  it("com o ciclo fechado, atualiza a página 1 e enriquece pendentes antes das pastas", () => {
-    expect(
-      planD4SignSyncBudget({
-        remaining: 10,
-        phaseCycleOpen: false,
-        pendingWithoutSigners: 8,
-        folderMode: "backlog",
-      }),
-    ).toEqual({ listing: 1, phases: 1, enrich: 8, folders: 0 });
-  });
-
-  it("varre pastas só quando não há pendente sem signatário", () => {
-    expect(
-      planD4SignSyncBudget({
-        remaining: 10,
-        phaseCycleOpen: false,
-        pendingWithoutSigners: 0,
-        folderMode: "backlog",
-      }),
-    ).toEqual({ listing: 1, phases: 1, enrich: 0, folders: 8 });
-  });
-
-  it("em modo estável reserva uma pasta e o resto vai para signatário", () => {
-    expect(
-      planD4SignSyncBudget({
-        remaining: 4,
-        phaseCycleOpen: false,
-        pendingWithoutSigners: 0,
-        folderMode: "rotate",
-      }),
-    ).toEqual({ listing: 1, phases: 1, enrich: 1, folders: 1 });
-  });
-
-  it("com uma vaga só, fica na raiz", () => {
-    expect(
-      planD4SignSyncBudget({
-        remaining: 1,
-        phaseCycleOpen: true,
-        pendingWithoutSigners: 3,
-        folderMode: "backlog",
-      }),
-    ).toEqual({ listing: 1, phases: 0, enrich: 0, folders: 0 });
+  it("não pré-carrega PDF quando só restam as vagas de quem está no CRM", () => {
+    const plan = planD4SignSyncBudget({
+      remaining: { ...full, download: D4SIGN_HUMAN_RESERVE.download },
+      phaseCycleOpen: false,
+      folderMode: "none",
+    });
+    expect(plan.precache).toBe(0);
+    expect(plan.folders).toBe(0);
   });
 });

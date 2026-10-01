@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { isPdfBytes } from "@/lib/d4sign/pdf-bytes";
+import { d4signDocumentOpenPath } from "@/lib/d4sign/portal-url";
 
 /**
  * Abre um documento D4Sign em modo leitura via proxy com cache.
@@ -25,7 +26,7 @@ type Props = {
   documentUuid: string;
   /** Nome exibido no header do dialog (opcional) */
   documentName?: string | null;
-  /** Link externo de fallback (portal D4Sign) */
+  /** Link "Abrir no D4Sign". Default: rota do CRM com URL temporária da D4Sign. */
   portalUrl?: string;
 };
 
@@ -34,15 +35,18 @@ export function D4SignViewDialog({
   onOpenChange,
   documentUuid,
   documentName,
-  portalUrl,
+  portalUrl: portalUrlProp,
 }: Props) {
+  const portalUrl = portalUrlProp ?? d4signDocumentOpenPath(documentUuid);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [viewKey, setViewKey] = useState(`${open}:${documentUuid}`);
   const nextViewKey = `${open}:${documentUuid}`;
   if (viewKey !== nextViewKey) {
     setViewKey(nextViewKey);
     setStatus("loading");
+    setErrorDetail(null);
     setBlobUrl((current) => {
       if (current) URL.revokeObjectURL(current);
       return null;
@@ -64,6 +68,9 @@ export function D4SignViewDialog({
         );
         if (cancelled) return;
         if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+          if (cancelled) return;
+          setErrorDetail(typeof body?.error === "string" ? body.error : null);
           setStatus("error");
           return;
         }
@@ -169,7 +176,8 @@ export function D4SignViewDialog({
                   Não foi possível carregar o documento
                 </h3>
                 <p className="mt-1 text-sm text-danger-text/90">
-                  O arquivo pode estar sendo processado ou houve falha na comunicação com a D4Sign.
+                  {errorDetail ??
+                    "O arquivo pode estar sendo processado ou houve falha na comunicação com a D4Sign."}
                 </p>
               </div>
               <div className="flex gap-2">

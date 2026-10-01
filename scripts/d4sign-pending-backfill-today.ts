@@ -20,7 +20,7 @@ function stamp(): string {
 async function waitForQuota(): Promise<void> {
   const started = Date.now();
   for (;;) {
-    const quota = await getD4SignQuotaStatus();
+    const quota = await getD4SignQuotaStatus("documents/status");
     const resetMs = quota.resetAt ? new Date(quota.resetAt).getTime() - Date.now() : 0;
     console.log(
       `[${stamp()}] cota ${quota.used}/${quota.limit}, livres ${quota.remaining}` +

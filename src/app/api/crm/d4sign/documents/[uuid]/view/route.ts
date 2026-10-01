@@ -4,7 +4,8 @@
  * Serve o PDF de um documento D4Sign com cache em Supabase Storage.
  *
  * Fluxo:
- *   1ª visualização  → POST /documents/{uuid}/download (1 req quota) → baixa a URL
+ *   1ª visualização  → POST /documents/{uuid}/download (1 req da cota desse método,
+ *                      10/h, separada da listagem/signatários) → baixa a URL
  *                      devolvida → só então salva no bucket e serve ao browser
  *   Próximas vezes   → serve direto do bucket (0 req quota D4Sign)
  *
@@ -14,83 +15,25 @@
  * Bucket: `d4sign-contracts` (privado, acesso via service_role)
  */
 import { after, NextResponse } from "next/server";
-import {
-  canViewD4SignDocument,
-  canViewD4SignDocumentRecord,
-} from "@/lib/auth/crm-access-policy";
-import { requireAuthApi } from "@/lib/auth/server";
-import { logD4SignApiCall } from "@/lib/d4sign/api-usage";
+import { getD4SignQuotaStatus, logD4SignApiCall } from "@/lib/d4sign/api-usage";
 import { downloadD4SignDocumentPdf } from "@/lib/d4sign/download-document";
 import { getD4SignEnv } from "@/lib/d4sign/env";
-import { isFirmSignerEmail } from "@/lib/d4sign/firm-signers";
+import { authorizeD4SignDocumentAccess } from "@/lib/d4sign/document-access";
 import { isPdfBytes, readCachedPdf } from "@/lib/d4sign/pdf-bytes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BUCKET  = "d4sign-contracts";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ uuid: string }> },
 ) {
-  const authResult = await requireAuthApi();
-  if (!authResult.ok) return authResult.response;
-
-  if (!canViewD4SignDocument({ role: authResult.profile.role })) {
-    return NextResponse.json({ error: "Sem permissão para visualizar documentos D4Sign." }, { status: 403 });
-  }
-
   const { uuid } = await params;
-  if (!UUID_RE.test(uuid)) {
-    return NextResponse.json({ error: "UUID inválido." }, { status: 400 });
-  }
+  const access = await authorizeD4SignDocumentAccess(uuid);
+  if (!access.ok) return access.response;
 
   const supabase = createSupabaseAdminClient();
   const filePath = `${uuid}.pdf`;
-
-  const { data: document, error: documentError } = await supabase
-    .from("d4sign_documents")
-    .select("uuid_doc, oportunidade_id")
-    .eq("uuid_doc", uuid)
-    .maybeSingle();
-
-  if (documentError) {
-    console.error("Falha ao autorizar visualização D4Sign", documentError);
-    return NextResponse.json(
-      { error: "Não foi possível validar o documento." },
-      { status: 500 },
-    );
-  }
-  if (!document) {
-    return NextResponse.json({ error: "Documento não encontrado." }, { status: 404 });
-  }
-
-  if (!canViewD4SignDocumentRecord({
-    role: authResult.profile.role,
-    oportunidadeId: document.oportunidade_id,
-    isFirmPartner: isFirmSignerEmail(authResult.user.email),
-  })) {
-    return NextResponse.json({ error: "Sem permissão para visualizar documentos D4Sign." }, { status: 403 });
-  }
-
-  if (document.oportunidade_id) {
-    const { data: opportunity, error: opportunityError } = await supabase
-      .from("oportunidades")
-      .select("id")
-      .eq("id", document.oportunidade_id)
-      .maybeSingle();
-
-    if (opportunityError) {
-      console.error("Falha ao validar oportunidade do documento D4Sign", opportunityError);
-      return NextResponse.json(
-        { error: "Não foi possível validar o documento." },
-        { status: 500 },
-      );
-    }
-    if (!opportunity) {
-      return NextResponse.json({ error: "Documento não encontrado." }, { status: 404 });
-    }
-  }
 
   const bucket = supabase.storage.from(BUCKET);
   const cached = await readCachedPdf(bucket, filePath);
@@ -99,6 +42,17 @@ export async function GET(
   const env = getD4SignEnv();
   if (!env.tokenApi) {
     return NextResponse.json({ error: "D4Sign não configurado." }, { status: 503 });
+  }
+
+  const quota = await getD4SignQuotaStatus("documents/download");
+  if (quota.remaining < 1) {
+    const reset = quota.resetAt
+      ? ` Libera às ${new Date(quota.resetAt).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}.`
+      : "";
+    return NextResponse.json(
+      { error: `Limite de 10 downloads de PDF por hora da D4Sign atingido.${reset} Use "Abrir no D4Sign" enquanto isso.` },
+      { status: 429 },
+    );
   }
 
   const downloaded = await downloadD4SignDocumentPdf({
@@ -121,17 +75,29 @@ export async function GET(
   }
 
   if (!downloaded.ok) {
-    return NextResponse.json({ error: downloaded.error }, { status: downloaded.status });
+    console.error("[D4Sign] visualização de PDF falhou", {
+      uuid,
+      stage: downloaded.stage,
+      apiStatus: downloaded.apiStatus,
+      error: downloaded.error,
+    });
+    return NextResponse.json(
+      { error: downloaded.error, stage: downloaded.stage },
+      { status: downloaded.status },
+    );
   }
   if (!isPdfBytes(downloaded.bytes)) {
-    return NextResponse.json({ error: "D4Sign não retornou um arquivo PDF." }, { status: 422 });
+    return NextResponse.json({ error: "D4Sign não retornou um arquivo PDF.", stage: "content" }, { status: 422 });
   }
 
-  const pdfBuffer = downloaded.bytes.slice(0);
+  // Duas cópias: a resposta pode destacar o buffer servido, e o `after`
+  // gravaria 0 bytes se reutilizasse o mesmo ArrayBuffer.
+  const pdfBytes = new Uint8Array(downloaded.bytes.slice(0));
+  const cacheBytes = pdfBytes.slice();
   after(async () => {
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(filePath, pdfBuffer, {
+      .upload(filePath, new Blob([cacheBytes], { type: "application/pdf" }), {
         contentType: "application/pdf",
         upsert: true,
       });
@@ -140,7 +106,7 @@ export async function GET(
     }
   });
 
-  return pdfResponse(downloaded.bytes, uuid);
+  return pdfResponse(pdfBytes.buffer, uuid);
 }
 
 function pdfResponse(buf: ArrayBuffer, uuid: string): NextResponse {

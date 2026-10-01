@@ -1,45 +1,61 @@
 /**
- * Reparte a cota de uma janela do sync D4Sign.
+ * Reparte a cota de uma rodada do sync D4Sign.
  *
- * A listagem por fase (até 500 contratos por chamada, em qualquer pasta)
- * vem antes do signatário (1 contrato por chamada). Enquanto essa listagem
- * não fecha, a janela inteira — menos 1 página da raiz — importa contratos.
- * Depois, 1 página da fase 3 atualiza os pendentes mais recentes e o resto
- * busca signatários. Pasta de cliente só entra quando não há pendente sem
- * signatário: é o que a fase 2/3 não devolve (contrato já finalizado).
+ * A D4Sign limita 10 req/h por método, então cada etapa usa a cota do seu
+ * método: listagem da raiz e pastas (`documents/safe`), fases
+ * (`documents/status`), signatários (`documents/list`) e PDF
+ * (`documents/download`). O cron nunca encosta nas vagas reservadas para
+ * quem está usando o CRM — abrir um PDF ou buscar signatários na hora.
  */
+
+/** Vagas por hora que o cron deixa livres para ações manuais. */
+export const D4SIGN_HUMAN_RESERVE = {
+  safe: 2,
+  list: 3,
+  download: 6,
+} as const;
 
 export type D4SignSyncBudget = {
   listing: number;
   phases: number;
   enrich: number;
   folders: number;
+  precache: number;
 };
 
+export type D4SignSyncRemaining = {
+  safe: number;
+  status: number;
+  list: number;
+  download: number;
+};
+
+function free(remaining: number, reserve = 0): number {
+  const n = Number.isFinite(remaining) ? Math.floor(remaining) : 0;
+  return Math.max(0, n - reserve);
+}
+
 export function planD4SignSyncBudget(input: {
-  remaining: number;
+  remaining: D4SignSyncRemaining;
   phaseCycleOpen: boolean;
-  pendingWithoutSigners: number;
-  /** `backlog` = primeira volta nas pastas. `rotate` = uma pasta por janela. */
+  /** `backlog` = primeira volta nas pastas. `rotate` = uma pasta por rodada. */
   folderMode: "backlog" | "rotate" | "none";
 }): D4SignSyncBudget {
-  let left = Number.isFinite(input.remaining) ? Math.max(0, Math.floor(input.remaining)) : 0;
-  const listing = Math.min(1, left);
-  left -= listing;
-
-  if (input.phaseCycleOpen) {
-    return { listing, phases: left, enrich: 0, folders: 0 };
-  }
-
-  const phases = Math.min(1, left);
-  left -= phases;
-
-  if (input.pendingWithoutSigners > 0) {
-    return { listing, phases, enrich: left, folders: 0 };
-  }
+  let safe = free(input.remaining.safe, D4SIGN_HUMAN_RESERVE.safe);
+  const listing = Math.min(1, safe);
+  safe -= listing;
 
   const folders =
-    input.folderMode === "none" ? 0 : input.folderMode === "rotate" ? Math.min(1, left) : left;
-  left -= folders;
-  return { listing, phases, enrich: left, folders };
+    input.folderMode === "none" ? 0 : input.folderMode === "rotate" ? Math.min(1, safe) : safe;
+
+  const status = free(input.remaining.status);
+  const phases = input.phaseCycleOpen ? status : Math.min(1, status);
+
+  return {
+    listing,
+    phases,
+    enrich: free(input.remaining.list, D4SIGN_HUMAN_RESERVE.list),
+    folders,
+    precache: Math.min(1, free(input.remaining.download, D4SIGN_HUMAN_RESERVE.download)),
+  };
 }

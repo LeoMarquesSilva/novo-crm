@@ -34,6 +34,7 @@ import { D4SignHealthPanel } from "@/components/crm/d4sign-health-panel";
 import { D4SignLinkLeadDialog, D4SignOriginBadge } from "@/components/crm/d4sign-link-lead-dialog";
 import { useD4SignDocumentsRealtime } from "@/lib/crm/use-d4sign-realtime";
 import type { D4SignQuotaStatus } from "@/lib/d4sign/api-usage";
+import { d4signDocumentOpenPath } from "@/lib/d4sign/portal-url";
 import { D4SIGN_HOURLY_LIMIT } from "@/lib/d4sign/api-usage";
 import {
   parseSigners,
@@ -291,7 +292,7 @@ function QuotaBanner({
             "text-[11px] font-bold uppercase tracking-wide",
             exhausted ? "text-danger-text" : low ? "text-warning-text" : "text-muted-foreground",
           )}>
-            API D4Sign
+            Busca de signatários
           </span>
           <span className={cn(
             "font-mono text-[11px] font-bold",
@@ -554,7 +555,6 @@ type Props = {
   initialMissingNames: number;
   initialQuota:        D4SignQuotaStatus;
   firmSigners:         FirmSigner[];
-  d4signPortalBase:    string;
   /** email.toLowerCase() → avatar + nome do usuário interno */
   appUsersByEmail?:    Record<string, AppUserInfo>;
 };
@@ -565,7 +565,6 @@ export function D4SignDashboard({
   initialMissingNames,
   initialQuota,
   firmSigners,
-  d4signPortalBase,
   appUsersByEmail = {},
 }: Props) {
   const router = useRouter();
@@ -584,6 +583,7 @@ export function D4SignDashboard({
       const json = (await res.json()) as D4SignQuotaStatus & { ok?: boolean };
       if (res.ok && json.ok !== false) {
         setQuota({
+          method: json.method ?? "documents/list",
           used: json.used,
           limit: json.limit ?? D4SIGN_HOURLY_LIMIT,
           remaining: json.remaining,
@@ -683,7 +683,7 @@ export function D4SignDashboard({
 
   // ── Portal URL (fallback para abrir no D4Sign logado) ──
   function portalUrl(uuid: string): string {
-    return `${d4signPortalBase}/desk/viewdoc/${uuid}`;
+    return d4signDocumentOpenPath(uuid);
   }
 
   // ── Signer filter logic ──
@@ -744,10 +744,6 @@ export function D4SignDashboard({
 
   // ── Ações ──
   function handleVaultSync() {
-    if (quotaExhausted) {
-      setSyncMsg({ ok: false, text: "Quota D4Sign esgotada nesta hora. Aguarde o reset." });
-      return;
-    }
     setSyncMsg(null);
     startVaultSync(async () => {
       try {
@@ -1092,8 +1088,8 @@ export function D4SignDashboard({
           </Button>
 
           <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5"
-            disabled={isWorking || quotaExhausted} onClick={handleVaultSync}
-            title={quotaExhausted ? "Quota esgotada" : "Sync + pastas + enrich automático (até 2 docs). ~3-9 req."}>
+            disabled={isWorking} onClick={handleVaultSync}
+            title="Sync + pastas + enrich automático (até 2 docs). Usa a cota de listagem do cofre.">
             {syncing ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <RefreshCw className="size-3.5" aria-hidden />}
             {syncing ? "Atualizando…" : "Atualizar cofre"}
           </Button>

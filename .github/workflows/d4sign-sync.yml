@@ -2,8 +2,8 @@ name: D4Sign sync
 
 on:
   schedule:
-    # A cada 5 minutos. A cota da D4Sign é uma janela móvel de 1 hora;
-    # no minuto 0 a vaga da rodada anterior ainda pode estar fechada.
+    # A cada 5 minutos. A cota da D4Sign é uma janela móvel de 1 hora por
+    # método; o cron só usa o que sobra além da reserva para uso no CRM.
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
@@ -55,7 +55,7 @@ jobs:
               "folderImported": folders.get("imported"),
               "foldersLeft": folders.get("foldersLeft"),
               "enriched": enrich.get("enriched"),
-              "remaining": quota.get("remaining"),
+              "quotaRemaining": quota,
               "rateLimited": data.get("rateLimited") or phases.get("rateLimited") or folders.get("rateLimited") or listing.get("rateLimited"),
           }, ensure_ascii=False))
           PY

@@ -5,18 +5,20 @@
 
 ---
 
-## ⚠️ Rate Limit (CRÍTICO — verificado oficialmente)
+## ⚠️ Rate Limit (CRÍTICO — verificado oficialmente em 2026-09-30)
 
-**Default: 10 requisições/hora GLOBAL** (não por endpoint, não por grupo).
+**Default: 10 requisições/hora POR MÉTODO** (cada endpoint tem sua janela).
 
-> Fonte: [Introdução à API D4Sign](https://ajuda.d4sign.com.br/introdu%C3%A7%C3%A3o-%C3%A0-api-d4sign-leia-antes-de-come%C3%A7ar):
-> *"Por padrão, você tem um limite de 10 requisições por hora na API D4Sign."*
+> [Introdução à API](https://docapi.d4sign.com.br/docs/introdu%C3%A7%C3%A3o-a-api): *"Você terá um limite de 10 requisições por hora."*
+> [Erros comuns](https://ajuda.d4sign.com.br/solu%C3%A7%C3%A3o-de-problemas-e-erros-comuns-na-api): erro *"Esta chave da API já atingiu o tempo limite para este método"* — *"limite de requisições por hora para o método utilizado"*.
 
-**Para aumentar**:
-- Email **`comercial@d4sign.com.br`** (não `suporte@`) — é decisão comercial
-- Plano **Premium API** disponível
+Confirmado nos logs do CRM: 10 `GET /documents/{uuid}/list` às 19:48 e `POST /download` respondendo 200 às 19:52 da mesma hora.
 
-**NÃO existe** "cota separada" para diferentes endpoints — toda chamada à API conta no mesmo balde de 10/h. Minha afirmação anterior estava ERRADA.
+**No código**: `getD4SignQuotaStatus(método)` em `api-usage.ts` conta só o método. Raiz e pasta do cofre (`/documents/{safe}/safe[/{folder}]`) dividem a mesma cota por precaução. O cron reserva vagas para uso humano (`D4SIGN_HUMAN_RESERVE` em `sync-budget.ts`).
+
+**Para aumentar**: e-mail **`comercial@d4sign.com.br`** ou plano Premium API.
+
+> ❌ A versão anterior deste documento dizia "10/h GLOBAL". Estava errado e travava a visualização de PDF sempre que o cron listava pastas.
 
 ---
 
@@ -107,7 +109,7 @@ Todos os endpoints exigem dois query params:
 | POST | `/documents/{UUID-SAFE}/makedocumentbytemplate` | Cria doc por template HTML |
 | POST | `/documents/{UUID-SAFE}/makedocumentbytemplateword` | Cria doc por template Word |
 | POST | `/documents/{UUID-DOCUMENT}/addhighlight` | Destaca cláusulas |
-| POST | `/documents/{UUID-DOCUMENT}/generate-document-view` | URL temporária de visualização |
+| POST | `/documents/{UUID-DOCUMENT}/generate-document-view` | URL temporária de visualização (5 min, sem login) — usada em `/open` |
 | POST | `/documents/{UUID-DOCUMENT}/scheduling` | Agenda envio |
 | POST | `/documents/{UUID-DOCUMENT}/powerformresponses` | Respostas de Power Form |
 | POST | `/documents/{UUID-DOCUMENT}/addtrustid` | Ativa Trust ID |
@@ -312,7 +314,11 @@ Doc oficial vigente (`https://docapi.d4sign.com.br/reference/download-de-um-docu
 - `language`: `"pt"` ou `"en"`
 - `encoding: true` devolve o conteúdo em Base64 (a URL passa a ser texto, não o PDF)
 
-O CRM pede `{"type":"pdf","language":"pt"}` e só cacheia o arquivo se o corpo começar com `%PDF`.
+O CRM pede `{"type":"pdf","language":"pt"}` e só cacheia o arquivo se o corpo começar com `%PDF`. A URL pode estar em `*.d4sign.com.br`, `*.amazonaws.com` ou `*.cloudfront.net`; `Refresh`/meta refresh e Base64 são tratados (`download-document.ts`).
+
+## Visualização sem login — `generate-document-view`
+
+`POST /documents/{uuid}/generate-document-view` com `{"with_attachments": false}` → `{"doc_principal": "<url>", "anexos": []}`. URL válida por 5 minutos. A rota `GET /api/crm/d4sign/documents/[uuid]/open` gera e redireciona; sem cota cai em `/desk/viewblob/{uuid}` (exige login na conta dona do cofre).
 
 ---
 
@@ -334,7 +340,7 @@ O CRM pede `{"type":"pdf","language":"pt"}` e só cacheia o arquivo se o corpo c
 
 1. **`uuidFolder` na listagem**: campo existe mas vem vazio para a maioria dos docs.
 2. **`parent_uuid` nas pastas**: NÃO existe — hierarquia identificada manualmente.
-3. **Rate limit 10/h GLOBAL**: compartilhado entre TODOS os endpoints. Aumentar via comercial@d4sign.com.br.
+3. **Rate limit 10/h por método**: cada endpoint tem sua janela. Aumentar via comercial@d4sign.com.br.
 4. **Listagem inconsistente**: `uuidDoc`/`nameDoc` (camelCase) vs detalhes `uuid_doc`/`name_document` (snake_case).
 5. **1º elemento da listagem é metadata**: filtrar por presença de `uuidDoc`.
 6. **NÃO existe endpoint bulk** para signatários — cada doc requer 1 req individual.

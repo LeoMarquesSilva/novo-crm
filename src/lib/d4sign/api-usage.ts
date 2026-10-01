@@ -1,11 +1,40 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-/** Limite padrão da API D4Sign (global, todas as rotas). */
+/**
+ * Limite padrão da API D4Sign: 10 requisições por hora **por método**.
+ * A central de ajuda descreve o erro como "limite de requisições por hora
+ * para o método utilizado" — listar pastas não consome a cota do download.
+ * @see https://ajuda.d4sign.com.br/solu%C3%A7%C3%A3o-de-problemas-e-erros-comuns-na-api
+ */
 export const D4SIGN_HOURLY_LIMIT = 10;
 
 const WINDOW_MS = 60 * 60 * 1000;
 
+/**
+ * Método da D4Sign que tem cota própria. É o `endpoint` gravado em
+ * `d4sign_api_usage`, exceto a listagem do cofre: raiz e pasta usam a mesma
+ * rota (`/documents/{safe}/safe[/{folder}]`) e dividem a cota por precaução.
+ */
+export type D4SignQuotaMethod =
+  | "documents/download"
+  | "documents/generate-document-view"
+  | "documents/list"
+  | "documents/safe"
+  | "documents/status"
+  | "folders/find";
+
+const METHOD_ENDPOINTS: Record<D4SignQuotaMethod, string[]> = {
+  "documents/download": ["documents/download"],
+  "documents/generate-document-view": ["documents/generate-document-view"],
+  "documents/list": ["documents/list"],
+  "documents/safe": ["documents/safe", "documents/safe/folder"],
+  "documents/status": ["documents/status"],
+  "folders/find": ["folders/find"],
+};
+
 export type D4SignQuotaStatus = {
+  /** Método medido (cada método tem sua própria janela de 10 req/h). */
+  method: D4SignQuotaMethod;
   used: number;
   limit: number;
   remaining: number;
@@ -39,21 +68,26 @@ export function logD4SignApiCall(input: LogD4SignApiCallInput): void {
   })();
 }
 
-/** Conta requisições bem-sucedidas (2xx) na última hora — alinhado ao limite D4Sign. */
-export async function getD4SignQuotaStatus(): Promise<D4SignQuotaStatus> {
+/** Conta requisições bem-sucedidas (2xx) do método na última hora. */
+export async function getD4SignQuotaStatus(
+  method: D4SignQuotaMethod,
+): Promise<D4SignQuotaStatus> {
   const supabase = createSupabaseAdminClient();
   const since = new Date(Date.now() - WINDOW_MS).toISOString();
+  const endpoints = METHOD_ENDPOINTS[method];
 
   const [{ count }, { data: oldest }, { data: lastDoc }] = await Promise.all([
     supabase
       .from("d4sign_api_usage")
       .select("*", { count: "exact", head: true })
+      .in("endpoint", endpoints)
       .gte("created_at", since)
       .gte("http_status", 200)
       .lt("http_status", 300),
     supabase
       .from("d4sign_api_usage")
       .select("created_at")
+      .in("endpoint", endpoints)
       .gte("created_at", since)
       .gte("http_status", 200)
       .lt("http_status", 300)
@@ -75,6 +109,7 @@ export async function getD4SignQuotaStatus(): Promise<D4SignQuotaStatus> {
     : null;
 
   return {
+    method,
     used,
     limit: D4SIGN_HOURLY_LIMIT,
     remaining: Math.max(0, D4SIGN_HOURLY_LIMIT - used),

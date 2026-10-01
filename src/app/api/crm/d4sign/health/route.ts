@@ -37,7 +37,7 @@ export async function GET() {
       { data: lastWebhook },
       { data: usageRows },
     ] = await Promise.all([
-      getD4SignQuotaStatus(),
+      getD4SignQuotaStatus("documents/list"),
       countDocumentsNeedingEnrich(),
       supabase.from("d4sign_documents").select("*", { count: "exact", head: true }),
       supabase

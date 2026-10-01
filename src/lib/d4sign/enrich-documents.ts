@@ -149,7 +149,7 @@ export async function enrichDocuments(
   let lastError: string | null = null;
 
   for (const row of rows) {
-    const quotaNow = await getD4SignQuotaStatus();
+    const quotaNow = await getD4SignQuotaStatus("documents/list");
     if (isD4SignQuotaExhausted(quotaNow)) {
       lastError = "Quota esgotada durante o enriquecimento.";
       break;
@@ -224,13 +224,13 @@ export async function enrichDocuments(
   }
 
   const remaining = await countDocumentsNeedingEnrich();
-  const quota = await getD4SignQuotaStatus();
+  const quota = await getD4SignQuotaStatus("documents/list");
 
   return { enriched, remaining, items, lastError, quota };
 }
 
 /** Quantos docs o cron pode enriquecer após sync (máx. 2, respeitando quota). */
 export async function cronEnrichBudget(maxDocs = 2): Promise<number> {
-  const quota = await getD4SignQuotaStatus();
+  const quota = await getD4SignQuotaStatus("documents/list");
   return Math.min(maxDocs, quota.remaining);
 }

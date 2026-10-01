@@ -2,6 +2,13 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-09-30 — D4Sign: cota por método, PDF e "Abrir no D4Sign"
+
+- Cota: a D4Sign limita 10 req/h **por método**, não global. `getD4SignQuotaStatus(método)` conta só o método; o cron (`planD4SignSyncBudget`) usa a cota de cada etapa e preserva `D4SIGN_HUMAN_RESERVE`. Antes, 10 listagens de pasta do cron bloqueavam a visualização de PDF por 1 hora.
+- PDF: `download-document.ts` aceita URL temporária em `*.d4sign.com.br`/`*.amazonaws.com`/`*.cloudfront.net`, segue `Refresh`/meta refresh, decodifica Base64 e devolve `stage` do erro; o dialog mostra o motivo real. Diagnóstico: 5 `POST /download` com 200 em 24h e bucket `d4sign-contracts` vazio.
+- "Abrir no D4Sign": nova rota `GET /api/crm/d4sign/documents/[uuid]/open` (`generate-document-view`, sem login), com `/desk/viewblob` como reserva. Card do lead usa a rota quando há `d4sign_document_uuid` (antes abria o link de assinatura do 1º signatário).
+- Validações: `npx tsc --noEmit` ok; `npx vitest run` 114 arquivos / 719 testes ok; eslint sem novos avisos.
+
 ## 2026-07-28 — Onda 1 (fechada)
 
 - Spec: `docs/superpowers/specs/2026-07-28-crm-ajuste-completo-design.md`

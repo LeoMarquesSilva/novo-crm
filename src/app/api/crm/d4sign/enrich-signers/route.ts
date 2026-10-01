@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "Apenas admin/comercial." }, { status: 403 });
     }
 
-    const quotaBefore = await getD4SignQuotaStatus();
+    const quotaBefore = await getD4SignQuotaStatus("documents/list");
     if (isD4SignQuotaExhausted(quotaBefore)) {
       await notifyQuotaExhausted({ operation: "enriquecer signatários" });
       return NextResponse.json(
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     if (sorted.length === 0) {
       const remaining = await countDocumentsNeedingEnrich();
-      const quota = await getD4SignQuotaStatus();
+      const quota = await getD4SignQuotaStatus("documents/list");
       return NextResponse.json({
         ok: true,
         enriched: 0,
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : String(error);
     if (isRateLimitError(message)) {
       await notifyQuotaExhausted({ operation: "enriquecer signatários" });
-      const quota = await getD4SignQuotaStatus();
+      const quota = await getD4SignQuotaStatus("documents/list");
       return NextResponse.json(
         { ok: false, error: "Quota D4Sign esgotada.", quota },
         { status: 429 },

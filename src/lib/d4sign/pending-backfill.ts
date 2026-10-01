@@ -93,7 +93,7 @@ export async function runPendingSignatureBackfill(options?: {
     };
   }
 
-  const quota = await getD4SignQuotaStatus();
+  const quota = await getD4SignQuotaStatus("documents/status");
   if (quota.remaining < 1) {
     return {
       ok: false,

@@ -99,6 +99,8 @@ export interface Oportunidade {
   d4signUpdatedAt?: string | null;
   /** Status D4Sign desnormalizado (`sent`, `3`, `1`, etc.). */
   d4signStatus?: string | null;
+  /** UUID do contrato na D4Sign (último envio). */
+  d4signDocumentUuid?: string | null;
   /** Revisão Societário e Contratos (etapas de elaboração do contrato). */
   contractReviewSummary?: {
     status: "pendente" | "em_revisao" | "concluido";
