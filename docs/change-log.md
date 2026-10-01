@@ -2,6 +2,11 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — D4Sign: EMBED conforme a documentação, atrás de chave
+
+- `D4SignSignButton`: `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=1` usa o EMBED; sem a variável, o link de assinatura. Basta ligar a variável (e redeploy) quando a D4Sign reativar o EMBED da conta.
+- `EmbedSignDialog` ganhou a correção de Safari da página de instalação (`embed/safari_fix` + cookie `fixed`); URL, parâmetros e callback já seguiam a página.
+
 ## 2026-10-01 — D4Sign: botão Assinar sem EMBED
 
 - A conta não tem EMBED ("Esse documento não pode ser exibido via EMBED"). "Assinar" (área dos sócios) e "Assinar agora" (painel técnico) abrem `/api/crm/d4sign/documents/[uuid]/sign`, que redireciona para o link de assinatura da D4Sign só quando o logado é o próprio sócio pendente; os demais caem no painel da D4Sign. Antes o painel técnico deixava qualquer admin abrir a assinatura de um sócio.

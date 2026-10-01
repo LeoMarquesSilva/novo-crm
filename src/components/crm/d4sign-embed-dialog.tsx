@@ -9,16 +9,19 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { D4SIGN_SAFARI_FIX_COOKIE, d4signSafariFixUrl } from "@/lib/d4sign/embed";
 import { cn } from "@/lib/utils";
 
 /**
  * EMBED D4Sign — assinatura inline via iframe.
  *
- * REQUISITO: a conta D4Sign precisa ter o EMBED ATIVADO.
- * Solicitação ao suporte: e-mail para `suporte@d4sign.com.br` pedindo
- * "Ativação do EMBED para a API token X".
+ * REQUISITO: a conta D4Sign precisa ter o EMBED ATIVADO (pedido ao suporte,
+ * `suporte@d4sign.com.br`); sem isso a D4Sign responde "EMBED DESABILITADO".
+ * O documento precisa estar em "Aguardando assinaturas". O CRM só usa este
+ * dialog com `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=1` (ver `D4SignSignButton`).
  *
- * Fonte: https://docapi.d4sign.com.br/docs/instala%C3%A7%C3%A3o
+ * Fonte: https://docapi.d4sign.com.br/docs/instala%C3%A7%C3%A3o (URL, parâmetros,
+ * callback `signed`/`wrong-data` e correção de Safari seguem a página).
  */
 
 type EmbedSignDialogProps = {
@@ -73,6 +76,20 @@ function EmbedSignDialogContent({
     "loading",
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Correção de Safari da documentação: sem o cookie, a página passa uma vez
+  // por embed/safari_fix e volta; o usuário clica em Assinar de novo.
+  useEffect(() => {
+    if (!open) return;
+    const target = d4signSafariFixUrl({
+      userAgent: navigator.userAgent,
+      cookie: document.cookie,
+      href: window.location.href,
+    });
+    if (!target) return;
+    document.cookie = `${D4SIGN_SAFARI_FIX_COOKIE}=fixed; expires=Tue, 19 Jan 2038 03:14:07 UTC; path=/`;
+    window.location.replace(target);
+  }, [open]);
 
   // Listener para mensagens do iframe
   useEffect(() => {

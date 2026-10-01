@@ -27,13 +27,14 @@ import {
   XCircle,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { D4SignSignButton } from "@/components/crm/d4sign-sign-button";
 import { cn } from "@/lib/utils";
 import { D4SignViewDialog } from "@/components/crm/d4sign-view-dialog";
 import { D4SignHealthPanel } from "@/components/crm/d4sign-health-panel";
 import { D4SignLinkLeadDialog, D4SignOriginBadge } from "@/components/crm/d4sign-link-lead-dialog";
 import { useD4SignDocumentsRealtime } from "@/lib/crm/use-d4sign-realtime";
 import type { D4SignQuotaStatus } from "@/lib/d4sign/api-usage";
-import { d4signDocumentOpenPath, d4signDocumentSignPath } from "@/lib/d4sign/portal-url";
+import { d4signDocumentOpenPath } from "@/lib/d4sign/portal-url";
 import { D4SIGN_HOURLY_LIMIT } from "@/lib/d4sign/api-usage";
 import {
   parseSigners,
@@ -1280,18 +1281,20 @@ export function D4SignDashboard({
                       );
                       if (firmPending && docPending) {
                         return (
-                          // Link de assinatura da D4Sign: só abre para o próprio
-                          // sócio logado; os demais caem no painel da D4Sign.
-                          <a
-                            href={d4signDocumentSignPath(row.uuid_doc)}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          // EMBED com NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=1; senão o link de
+                          // assinatura, que só abre para o próprio sócio logado.
+                          <D4SignSignButton
+                            documentUuid={row.uuid_doc}
+                            signerEmail={firmPending.email ?? ""}
+                            signerName={firmPending.name}
+                            keySigner={firmPending.key_signer}
                             className={cn(buttonVariants({ size: "sm" }), "h-8 gap-1 px-2.5 text-[11px] font-bold")}
-                            title={`Assinar como ${firmPending.name ?? firmPending.email} (abre a D4Sign)`}
+                            title={`Assinar como ${firmPending.name ?? firmPending.email}`}
+                            onClosed={() => router.refresh()}
                           >
                             <PenLine className="size-3" />
                             Assinar agora
-                          </a>
+                          </D4SignSignButton>
                         );
                       }
                       return null;

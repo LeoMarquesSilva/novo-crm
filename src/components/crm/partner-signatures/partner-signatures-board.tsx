@@ -12,6 +12,7 @@ import {
   Search,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { D4SignSignButton } from "@/components/crm/d4sign-sign-button";
 import { Input } from "@/components/ui/input";
 import { D4SignViewDialog } from "@/components/crm/d4sign-view-dialog";
 import { useD4SignDocumentsRealtime } from "@/lib/crm/use-d4sign-realtime";
@@ -26,7 +27,7 @@ import {
   type PartnerSigner,
   type PartnerTab,
 } from "@/lib/d4sign/partner-signatures";
-import { d4signDocumentOpenPath, d4signDocumentSignPath } from "@/lib/d4sign/portal-url";
+import { d4signDocumentOpenPath } from "@/lib/d4sign/portal-url";
 import { cn } from "@/lib/utils";
 
 const TAB_LABEL: Record<PartnerTab, string> = {
@@ -281,17 +282,18 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail }: 
 
                 {/* Ações */}
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  {canSign ? (
-                    // Link de assinatura da D4Sign (o EMBED não está habilitado na conta).
-                    <a
-                      href={d4signDocumentSignPath(doc.uuid)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                  {canSign && mySlot ? (
+                    <D4SignSignButton
+                      documentUuid={doc.uuid}
+                      signerEmail={mySlot.signerEmail}
+                      signerName={mySlot.signerName}
+                      keySigner={mySlot.keySigner}
                       className={buttonVariants({ size: "sm" })}
+                      onClosed={() => router.refresh()}
                     >
                       <PenLine />
                       Assinar
-                    </a>
+                    </D4SignSignButton>
                   ) : null}
                   <Button
                     size="sm"
