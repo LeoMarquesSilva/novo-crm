@@ -123,6 +123,7 @@ export async function runPendingSignatureBackfill(options?: {
   let updated = 0;
   let skippedOtherSafe = 0;
   let finishedCycle = false;
+  const skipped: string[] = [];
 
   while (requests < budget) {
     let page: Awaited<ReturnType<D4SignConnector["listDocumentsByPhase"]>>;
@@ -146,6 +147,21 @@ export async function runPendingSignatureBackfill(options?: {
           rateLimited: true,
           error: message,
         };
+      }
+      // Erro de servidor da D4Sign (já respondeu 500 vazio de madrugada):
+      // pula para a próxima fase em vez de travar o ciclo — ele se repete.
+      if (/D4Sign HTTP 5\d\d/.test(message)) {
+        requests += 1;
+        skipped.push(`${formatPendingCursor(cursor)}: ${message}`);
+        const next = advancePendingCursor(cursor, { docs: 0, totalPages: null });
+        if (next === "done") {
+          await writeCursor("done");
+          finishedCycle = true;
+          break;
+        }
+        cursor = next;
+        await writeCursor(cursor);
+        continue;
       }
       throw error;
     }
@@ -265,5 +281,6 @@ export async function runPendingSignatureBackfill(options?: {
     requests,
     cursor: finishedCycle ? "done" : formatPendingCursor(cursor),
     finishedCycle,
+    ...(skipped.length > 0 ? { error: `Fases puladas por erro da D4Sign: ${skipped.join(" | ")}` } : {}),
   };
 }

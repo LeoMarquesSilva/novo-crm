@@ -95,57 +95,80 @@ export async function runD4SignSyncRound(trigger: string) {
     };
   }
 
+  // Cada etapa é isolada: erro de uma (ex.: 500 da D4Sign) não impede as outras.
+  const errors: string[] = [];
+  async function stage<T>(name: string, run: () => Promise<T>): Promise<T | null> {
+    try {
+      return await run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${name}: ${message}`);
+      console.error(`[D4Sign] etapa ${name} do sync falhou`, message);
+      return null;
+    }
+  }
+
   // Fases primeiro: trazem documentos novos e mudança de status de qualquer
   // pasta, e alimentam a fila de signatários desta mesma rodada.
   const phases =
     budget.phases > 0
-      ? await runPendingSignatureBackfill({ maxRequests: budget.phases, apiSource: "cron" })
+      ? await stage("fases", () =>
+          runPendingSignatureBackfill({ maxRequests: budget.phases, apiSource: "cron" }),
+        )
       : null;
 
-  let enrich: Awaited<ReturnType<typeof enrichDocuments>> | null = null;
-  if (budget.enrich > 0) {
-    const env = getD4SignEnv();
-    const rows = await pickDocumentsToEnrich({ limit: budget.enrich });
-    if (rows.length > 0 && env.tokenApi) {
-      enrich = await enrichDocuments(env, rows, { apiSource: "cron" });
-    }
-  }
+  const enrich =
+    budget.enrich > 0
+      ? await stage("signatários", async () => {
+          const env = getD4SignEnv();
+          const rows = await pickDocumentsToEnrich({ limit: budget.enrich });
+          return rows.length > 0 && env.tokenApi
+            ? enrichDocuments(env, rows, { apiSource: "cron" })
+            : null;
+        })
+      : null;
 
   const listing =
     budget.listing > 0
-      ? await runVaultSafeListing({ maxRequests: budget.listing, apiSource: "cron" })
+      ? await stage("raiz", () =>
+          runVaultSafeListing({ maxRequests: budget.listing, apiSource: "cron" }),
+        )
       : null;
 
   // Pastas dividem a cota com a listagem da raiz: recalcula depois dela.
-  const safeLeft = Math.max(
-    0,
-    (await getD4SignQuotaStatus("documents/safe")).remaining - D4SIGN_HUMAN_RESERVE.safe,
-  );
-  const folderBudget = Math.min(budget.folders, safeLeft);
-  const folders =
-    listing?.rateLimited !== true && folderBudget > 0
-      ? await runVaultFolderWalk({ maxRequests: folderBudget, apiSource: "cron" })
+  const folders = await stage("pastas", async () => {
+    const safeLeft = Math.max(
+      0,
+      (await getD4SignQuotaStatus("documents/safe")).remaining - D4SIGN_HUMAN_RESERVE.safe,
+    );
+    const folderBudget = Math.min(budget.folders, safeLeft);
+    return listing?.rateLimited !== true && folderBudget > 0
+      ? runVaultFolderWalk({ maxRequests: folderBudget, apiSource: "cron" })
       : null;
+  });
 
-  let precache: Awaited<ReturnType<typeof precacheD4SignPdfs>> = { cached: 0, skipped: 0 };
-  if (budget.precache > 0) {
-    const supabase = createSupabaseAdminClient();
-    const { data: candidates } = await supabase
-      .from("d4sign_documents")
-      .select("uuid_doc")
-      // Só finalizado: o PDF de pendente muda a cada assinatura.
-      .eq("d4sign_status", "1")
-      .order("created_at_d4sign", { ascending: false, nullsFirst: false })
-      .order("name_document", { ascending: false, nullsFirst: false })
-      .limit(10);
-    const uuids = (candidates ?? []).map((row) => row.uuid_doc);
-    if (uuids.length > 0) {
-      precache = await precacheD4SignPdfs(uuids, { maxDownloads: budget.precache });
-    }
-  }
+  const precache =
+    (budget.precache > 0
+      ? await stage("pré-cache", async () => {
+          const supabase = createSupabaseAdminClient();
+          const { data: candidates } = await supabase
+            .from("d4sign_documents")
+            .select("uuid_doc")
+            // Só finalizado: o PDF de pendente muda a cada assinatura.
+            .eq("d4sign_status", "1")
+            .order("created_at_d4sign", { ascending: false, nullsFirst: false })
+            .order("name_document", { ascending: false, nullsFirst: false })
+            .limit(10);
+          const uuids = (candidates ?? []).map((row) => row.uuid_doc);
+          return uuids.length > 0
+            ? precacheD4SignPdfs(uuids, { maxDownloads: budget.precache })
+            : null;
+        })
+      : null) ?? { cached: 0, skipped: 0 };
 
   return {
-    ok: listing?.ok !== false && phases?.ok !== false && folders?.ok !== false,
+    ok: errors.length === 0 && listing?.ok !== false && phases?.ok !== false && folders?.ok !== false,
+    errors,
     triggeredAt: new Date().toISOString(),
     trigger,
     webhook,

@@ -49,6 +49,8 @@ jobs:
           print(json.dumps({
               "ok": data.get("ok"),
               "error": data.get("error"),
+              "errors": data.get("errors") or None,
+              "phasesError": phases.get("error"),
               "listingImported": listing.get("imported"),
               "phasesImported": phases.get("imported"),
               "phasesDone": phases.get("finishedCycle"),

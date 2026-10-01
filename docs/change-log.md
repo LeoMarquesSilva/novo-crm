@@ -2,6 +2,11 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — D4Sign: sync resistente a erro da D4Sign
+
+- 1ª execução agendada do GitHub (06:26 UTC) falhou: a D4Sign respondeu 500 vazio na fase 4 (que respondia 200 às 02:17) e a exceção derrubou a rodada inteira (500 no endpoint, e-mail de falha).
+- Agora: 5xx numa fase pula para a próxima; cada etapa da rodada é isolada e o erro vai em `errors` (endpoint responde 200); o workflow imprime `errors`.
+
 ## 2026-10-01 — D4Sign: EMBED conforme a documentação, atrás de chave
 
 - `D4SignSignButton`: `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=1` usa o EMBED; sem a variável, o link de assinatura. Basta ligar a variável (e redeploy) quando a D4Sign reativar o EMBED da conta.
