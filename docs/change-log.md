@@ -9,7 +9,7 @@ Formato: data (ISO) | onda | resumo | validações.
 - Finalização do 2.0 traz os signatários completos e grava sem `GET /list`; assinatura/bounce acrescentam signatário ausente; documento fora do catálogo é criado na hora; evento atrasado não reabre documento encerrado.
 - Sem `Content-Hmac`, o evento só reenfileira o documento (não altera dados).
 - Pendentes com signatários: atualização periódica de 12h para 24h (o webhook cobre o tempo real).
-- Pendência: migration `20260727170000_harden_webhooks` não aplicada em produção; webhook tolera a ausência das colunas.
+- Migration `20260727170000_harden_webhooks` aplicada em produção (2026-10-01) só no trecho de webhooks: colunas de controle, check, índice único por (documento, tipo, e-mail) e índice de falhas. A `finalize_d4sign_opportunity` dela ficou de fora (a de `20260812122000` é mais nova).
 
 ## 2026-10-01 — D4Sign: coleta de documentos e signatários
 

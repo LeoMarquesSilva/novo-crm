@@ -1,3 +1,9 @@
+-- ATENÇÃO (2026-10-01): em produção foi aplicado só o trecho de webhooks deste
+-- arquivo. A `finalize_d4sign_opportunity` abaixo é anterior à versão de
+-- 20260812122000_contract_management_workflow (que chama
+-- ensure_contract_draft_for_opportunity); reaplicar este arquivo inteiro faria
+-- a função regredir.
+
 alter table public.d4sign_webhook_events
   add column if not exists processing_status text not null default 'processing',
   add column if not exists attempt_count integer not null default 1,
