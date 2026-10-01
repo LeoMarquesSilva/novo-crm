@@ -63,7 +63,11 @@ function resolveFinalizedAt(
   return signedDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
 }
 
-/** Seleciona docs sem signatários, pendentes primeiro. */
+/**
+ * Seleciona docs sem signatários, pendentes primeiro.
+ * Com data da D4Sign, o mais novo vem antes. Sem data, o que acabou de
+ * entrar na listagem (last_synced_at mais recente) vem antes.
+ */
 export async function pickDocumentsToEnrich(options: {
   limit: number;
   uuidDoc?: string | null;
@@ -87,7 +91,8 @@ export async function pickDocumentsToEnrich(options: {
     .select("uuid_doc, name_document, d4sign_status")
     .or(SIGNERS_EMPTY_FILTER)
     .in("d4sign_status", pendingStatuses)
-    .order("updated_at", { ascending: true })
+    .order("created_at_d4sign", { ascending: false, nullsFirst: false })
+    .order("last_synced_at", { ascending: false, nullsFirst: false })
     .limit(limit);
 
   if (error) throw error;
@@ -100,11 +105,23 @@ export async function pickDocumentsToEnrich(options: {
     .or(SIGNERS_EMPTY_FILTER)
     .not("d4sign_status", "is", null)
     .not("d4sign_status", "in", '("2","3","sent","processing")')
-    .order("updated_at", { ascending: true })
+    .order("created_at_d4sign", { ascending: false, nullsFirst: false })
+    .order("last_synced_at", { ascending: false, nullsFirst: false })
     .limit(limit - pendingRows.length);
 
   if (restError) throw restError;
   return [...pendingRows, ...(rest ?? [])];
+}
+
+export async function countPendingDocumentsNeedingEnrich(): Promise<number> {
+  const supabase = createSupabaseAdminClient();
+  const { count, error } = await supabase
+    .from("d4sign_documents")
+    .select("uuid_doc", { count: "exact", head: true })
+    .or(SIGNERS_EMPTY_FILTER)
+    .in("d4sign_status", [...PENDING_D4SIGN_STATUSES]);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function countDocumentsNeedingEnrich(): Promise<number> {

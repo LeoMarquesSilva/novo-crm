@@ -43,7 +43,7 @@ function asInt(value: string | number | undefined): number | null {
   return null;
 }
 
-async function readCursor(): Promise<PendingBackfillCursor> {
+export async function peekPendingPhaseCursor(): Promise<PendingBackfillCursor | "done"> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("d4sign_api_usage")
@@ -53,8 +53,8 @@ async function readCursor(): Promise<PendingBackfillCursor> {
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  const parsed = parsePendingCursor(data?.source);
-  return parsed === "done" ? initialPendingCursor() : parsed;
+  if (!data) return initialPendingCursor();
+  return parsePendingCursor(data.source);
 }
 
 async function writeCursor(cursor: PendingBackfillCursor | "done"): Promise<void> {
@@ -70,6 +70,13 @@ async function writeCursor(cursor: PendingBackfillCursor | "done"): Promise<void
 
 export async function runPendingSignatureBackfill(options?: {
   maxRequests?: number;
+  apiSource?: string;
+  /**
+   * Com o ciclo já fechado, baixa só a página 1 da fase 3 (os pendentes que
+   * a D4Sign devolve primeiro) e não reabre as páginas seguintes, a menos
+   * que essa página venha cheia.
+   */
+  refreshFirstPage?: boolean;
 }): Promise<PendingBackfillResult> {
   const env = getD4SignEnv();
   if (!env.tokenApi || !env.safeUuid) {
@@ -95,7 +102,7 @@ export async function runPendingSignatureBackfill(options?: {
       updated: 0,
       skippedOtherSafe: 0,
       requests: 0,
-      cursor: formatPendingCursor(await readCursor()),
+      cursor: formatPendingCursor(await peekPendingPhaseCursor()),
       finishedCycle: false,
       rateLimited: true,
       error: "Quota D4Sign esgotada. A próxima janela libera em cerca de 1 hora.",
@@ -106,7 +113,9 @@ export async function runPendingSignatureBackfill(options?: {
   const budget = Math.min(cap, PENDING_BACKFILL_MAX_REQUESTS, quota.remaining);
   const connector = D4SignConnector.fromEnv(env);
   const supabase = createSupabaseAdminClient();
-  let cursor = await readCursor();
+  const stored = await peekPendingPhaseCursor();
+  const refreshing = stored === "done" && options?.refreshFirstPage === true;
+  let cursor: PendingBackfillCursor = stored === "done" ? { phase: 3, page: 1 } : stored;
   let requests = 0;
   let imported = 0;
   let created = 0;
@@ -119,7 +128,7 @@ export async function runPendingSignatureBackfill(options?: {
     try {
       page = await connector.listDocumentsByPhase(cursor.phase, {
         pg: cursor.page,
-        source: "pending-backfill",
+        source: options?.apiSource ?? "pending-backfill",
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -215,6 +224,16 @@ export async function runPendingSignatureBackfill(options?: {
       docs: page.documents.length,
       totalPages: page.totalPages,
     });
+    if (refreshing) {
+      if (next === "done") {
+        await writeCursor("done");
+        finishedCycle = true;
+      } else {
+        await writeCursor(next);
+        cursor = next;
+      }
+      break;
+    }
     if (next === "done") {
       await writeCursor("done");
       finishedCycle = true;

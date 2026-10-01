@@ -1,16 +1,23 @@
 /**
- * Sync horário do cofre, disparado pelo GitHub Actions (não pela Vercel).
- * Cota global: 10 req/h. A primeira vaga é sempre a página da raiz.
- * Enquanto houver pasta de cliente ainda não varrida, o resto da hora
- * importa contratos dessas pastas. Depois, 1 pasta por hora e o resto
- * em signatários (pendentes primeiro). PDF só se ainda sobrar chamada.
+ * Sync do cofre, disparado pelo GitHub Actions a cada 5 minutos.
+ * Usa só a cota que já estiver livre (janela móvel de 10 req/h).
+ * Uma página da raiz, depois as fases 3 e 2 (pendentes em qualquer pasta).
+ * Com o ciclo de fases fechado, signatários dos pendentes mais recentes.
+ * Pasta de cliente entra quando não há pendente sem signatário.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { getD4SignEnv } from "@/lib/d4sign/env";
-import { enrichDocuments, pickDocumentsToEnrich } from "@/lib/d4sign/enrich-documents";
+import {
+  countPendingDocumentsNeedingEnrich,
+  enrichDocuments,
+  pickDocumentsToEnrich,
+} from "@/lib/d4sign/enrich-documents";
+import { peekPendingPhaseCursor, runPendingSignatureBackfill } from "@/lib/d4sign/pending-backfill";
 import { precacheD4SignPdfs } from "@/lib/d4sign/pdf-precache";
-import { runVaultFolderWalk } from "@/lib/d4sign/vault-folder-walk";
+import { planD4SignSyncBudget } from "@/lib/d4sign/sync-budget";
+import { peekVaultFolderWalk, runVaultFolderWalk } from "@/lib/d4sign/vault-folder-walk";
+import { foldersLeftInWalk } from "@/lib/d4sign/vault-folder-walk-plan";
 import { runVaultSafeListing } from "@/lib/d4sign/vault-listing";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -45,10 +52,11 @@ async function run(request: NextRequest) {
       {
         ok: false,
         triggeredAt: new Date().toISOString(),
-        error: "Quota D4Sign esgotada. A vaga reservada é a listagem do cofre.",
+        error: "Quota D4Sign esgotada.",
         rateLimited: true,
         quota: before,
         listing: null,
+        phases: null,
         folders: null,
         enrich: null,
         precache: { cached: 0, skipped: 0 },
@@ -57,24 +65,58 @@ async function run(request: NextRequest) {
     );
   }
 
-  const listing = await runVaultSafeListing({ maxRequests: 1, apiSource: "cron" });
-  const afterListing = await getD4SignQuotaStatus();
-  const leftAfterListing = callsLeft(afterListing.remaining, before.remaining - listing.requests);
+  const phaseCursor = await peekPendingPhaseCursor();
+  const folderCursor = await peekVaultFolderWalk();
+  const pendingWithoutSigners = await countPendingDocumentsNeedingEnrich();
+  const folderMode =
+    !folderCursor.catalogued || foldersLeftInWalk(folderCursor) > 0
+      ? "backlog"
+      : folderCursor.folders.length > 0
+        ? "rotate"
+        : "none";
+  const budget = planD4SignSyncBudget({
+    remaining: before.remaining,
+    phaseCycleOpen: phaseCursor !== "done",
+    pendingWithoutSigners,
+    folderMode,
+  });
 
-  const folders =
-    listing.ok && leftAfterListing >= 1
-      ? await runVaultFolderWalk({ maxRequests: leftAfterListing, apiSource: "cron" })
+  const listing =
+    budget.listing > 0
+      ? await runVaultSafeListing({ maxRequests: budget.listing, apiSource: "cron" })
       : null;
-
-  const afterFolders = await getD4SignQuotaStatus();
-  const leftAfterFolders = callsLeft(
-    afterFolders.remaining,
-    leftAfterListing - (folders?.requests ?? 0),
+  let left = callsLeft(
+    (await getD4SignQuotaStatus()).remaining,
+    before.remaining - (listing?.requests ?? 0),
   );
-  const folderBacklog = Boolean(folders && folders.mode === "walk" && folders.foldersLeft > 0);
-  const enrichBudget =
-    listing.ok && folders?.ok !== false && !folderBacklog ? leftAfterFolders : 0;
 
+  const phases =
+    listing?.ok !== false && Math.min(budget.phases, left) > 0
+      ? await runPendingSignatureBackfill({
+          maxRequests: Math.min(budget.phases, left),
+          apiSource: "cron",
+          refreshFirstPage: phaseCursor === "done",
+        })
+      : null;
+  left = callsLeft((await getD4SignQuotaStatus()).remaining, left - (phases?.requests ?? 0));
+
+  let enrichPlanned = budget.enrich;
+  let foldersPlanned = budget.folders;
+  if (
+    listing?.ok !== false &&
+    phases?.ok !== false &&
+    phases?.finishedCycle &&
+    left > 0 &&
+    enrichPlanned === 0 &&
+    foldersPlanned === 0
+  ) {
+    const stillPending = await countPendingDocumentsNeedingEnrich();
+    if (stillPending > 0) enrichPlanned = left;
+    else if (folderMode === "rotate") foldersPlanned = Math.min(1, left);
+    else if (folderMode === "backlog") foldersPlanned = left;
+  }
+
+  const enrichBudget = listing?.ok !== false && phases?.ok !== false ? Math.min(enrichPlanned, left) : 0;
   let enrich: Awaited<ReturnType<typeof enrichDocuments>> | null = null;
   let picked = 0;
   if (enrichBudget > 0) {
@@ -85,19 +127,35 @@ async function run(request: NextRequest) {
       enrich = await enrichDocuments(env, rows, { apiSource: "cron" });
     }
   }
+  left = callsLeft((await getD4SignQuotaStatus()).remaining, left - (enrich?.enriched ?? 0));
 
-  const usedByEnrich = enrich?.enriched ?? 0;
-  const afterEnrich = await getD4SignQuotaStatus();
-  const leftForPrecache = callsLeft(afterEnrich.remaining, enrichBudget - usedByEnrich);
+  const folders =
+    listing?.ok !== false && phases?.ok !== false && Math.min(foldersPlanned, left) > 0
+      ? await runVaultFolderWalk({
+          maxRequests: Math.min(foldersPlanned, left),
+          apiSource: "cron",
+        })
+      : null;
 
   let precache = { cached: 0, skipped: 0 };
-  if (listing.ok && !folderBacklog && leftForPrecache >= 1 && picked < enrichBudget) {
+  const leftForPrecache = callsLeft(
+    (await getD4SignQuotaStatus()).remaining,
+    left - (folders?.requests ?? 0),
+  );
+  if (
+    listing?.ok !== false &&
+    phases?.ok !== false &&
+    folders?.ok !== false &&
+    foldersPlanned === 0 &&
+    leftForPrecache >= 1 &&
+    picked < enrichBudget
+  ) {
     const supabase = createSupabaseAdminClient();
     const { data: candidates } = await supabase
       .from("d4sign_documents")
       .select("uuid_doc")
       .in("d4sign_status", ["1", "3", "sent", "2"])
-      .order("updated_at", { ascending: false })
+      .order("created_at_d4sign", { ascending: false, nullsFirst: false })
       .limit(1);
     const uuids = (candidates ?? []).map((row) => row.uuid_doc);
     if (uuids.length > 0) {
@@ -105,11 +163,13 @@ async function run(request: NextRequest) {
     }
   }
 
-  const ok = listing.ok && folders?.ok !== false;
+  const ok = listing?.ok !== false && phases?.ok !== false && folders?.ok !== false;
   return NextResponse.json({
     ok,
     triggeredAt: new Date().toISOString(),
+    budget,
     listing,
+    phases,
     folders,
     enrich,
     precache,

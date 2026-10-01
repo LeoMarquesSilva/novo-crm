@@ -43,6 +43,10 @@ function isEmptyFolderError(message: string): boolean {
   return /400|404/.test(message) && /nenhum|não encontrado|nao encontrado|not found|empty|não existe|nao existe/i.test(message);
 }
 
+export async function peekVaultFolderWalk(): Promise<FolderWalkCursor> {
+  return readCursor();
+}
+
 async function readCursor(): Promise<FolderWalkCursor> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase

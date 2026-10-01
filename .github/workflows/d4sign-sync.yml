@@ -2,8 +2,9 @@ name: D4Sign sync
 
 on:
   schedule:
-    # De hora em hora (UTC). O plano Hobby da Vercel só aceita cron diário.
-    - cron: "0 * * * *"
+    # A cada 5 minutos. A cota da D4Sign é uma janela móvel de 1 hora;
+    # no minuto 0 a vaga da rodada anterior ainda pode estar fechada.
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -41,18 +42,21 @@ jobs:
               print(raw[:500])
               raise SystemExit(1)
           listing = data.get("listing") or {}
+          phases = data.get("phases") or {}
           folders = data.get("folders") or {}
           enrich = data.get("enrich") or {}
+          quota = data.get("quota") or {}
           print(json.dumps({
               "ok": data.get("ok"),
               "error": data.get("error"),
-              "listingRequests": listing.get("requests"),
               "listingImported": listing.get("imported"),
-              "folderRequests": folders.get("requests"),
+              "phasesImported": phases.get("imported"),
+              "phasesDone": phases.get("finishedCycle"),
               "folderImported": folders.get("imported"),
               "foldersLeft": folders.get("foldersLeft"),
               "enriched": enrich.get("enriched"),
-              "rateLimited": data.get("rateLimited") or folders.get("rateLimited") or listing.get("rateLimited"),
+              "remaining": quota.get("remaining"),
+              "rateLimited": data.get("rateLimited") or phases.get("rateLimited") or folders.get("rateLimited") or listing.get("rateLimited"),
           }, ensure_ascii=False))
           PY
           if [ "$code" = "429" ]; then
