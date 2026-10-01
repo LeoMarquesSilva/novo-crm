@@ -14,7 +14,7 @@
 export const D4SIGN_HUMAN_RESERVE = {
   safe: 2,
   list: 2,
-  download: 4,
+  download: 2,
 } as const;
 
 export type D4SignSyncBudget = {

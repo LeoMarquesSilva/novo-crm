@@ -1,7 +1,8 @@
 /**
  * Remetente dos documentos D4Sign pelo log do PDF (`pdf-log.ts`).
  *
- * Fila: `log_parsed_at` nulo, do mais recente ao mais antigo. PDF já no bucket
+ * Fila: `log_parsed_at` nulo; pendentes primeiro, cada grupo do mais recente
+ * ao mais antigo. PDF já no bucket
  * `d4sign-contracts` é lido sem cota; os demais custam 1 `documents/download`
  * cada (e, se finalizados, ficam no bucket — substitui o antigo pré-cache).
  */
@@ -53,15 +54,25 @@ export async function collectD4SignPdfLogs(options: {
     error?: string;
   };
 
-  const { data: queue, error } = await supabase
-    .from("d4sign_documents")
-    .select("uuid_doc, d4sign_status")
-    .is("log_parsed_at", null)
-    .order("created_at_d4sign", { ascending: false, nullsFirst: false })
-    .order("name_document", { ascending: false, nullsFirst: false })
-    .limit(60);
+  // Pendentes primeiro (é o que a área dos sócios mostra), depois o resto;
+  // em cada grupo, do mais recente ao mais antigo.
+  const pendingIn = '("2","3","sent","processing")';
+  const base = () =>
+    supabase
+      .from("d4sign_documents")
+      .select("uuid_doc, d4sign_status")
+      .is("log_parsed_at", null)
+      .order("created_at_d4sign", { ascending: false, nullsFirst: false })
+      .order("name_document", { ascending: false, nullsFirst: false })
+      .limit(60);
+  const [{ data: pending, error }, { data: rest, error: restError }] = await Promise.all([
+    base().in("d4sign_status", ["2", "3", "sent", "processing"]),
+    base().not("d4sign_status", "in", pendingIn),
+  ]);
   if (error) throw error;
-  if (!queue?.length) return result;
+  if (restError) throw restError;
+  const queue = [...(pending ?? []), ...(rest ?? [])];
+  if (queue.length === 0) return result;
 
   const { data: files } = await bucket.list("", { limit: 1000 });
   const cachedNames = new Set(

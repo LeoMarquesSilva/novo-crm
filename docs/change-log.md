@@ -8,6 +8,7 @@ Formato: data (ISO) | onda | resumo | validações.
 - Migration `20261001120000_d4sign_documents_sender_from_log`: `sent_by_name`, `sent_by_email`, `sent_at`, `log_parsed_at`.
 - Etapa "remetente" no sync substitui o pré-cache: lê PDFs do bucket sem cota e baixa os demais (reserva humana de download 6→4/h); `/view` também lê o log. Envios pelo CRM gravam `sent_at`.
 - Exibição: painel técnico e área dos sócios mostram "enviado em DATA por NOME" (usuário do CRM quando enviado pelo CRM ou quando o e-mail do log é de um usuário).
+- Ajuste: fila do remetente lê os pendentes primeiro (área dos sócios) e a reserva humana de download caiu de 4 para 2/h. Gargalo é a cota de 10 downloads/h da D4Sign.
 
 ## 2026-10-01 — D4Sign: finalizado com signatário "pendente"
 
