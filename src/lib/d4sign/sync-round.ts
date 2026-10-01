@@ -26,11 +26,11 @@ export const SYNC_ROUND_ENDPOINT = "cursor/sync-round";
 export const SYNC_ROUND_MIN_INTERVAL_MS = 4 * 60 * 1000;
 
 /**
- * Tempo da rodada, abaixo do `maxDuration` (120s) da rota do cron e do layout.
- * Cada PDF baixado leva ~30s; sem limite, 3 PDFs estouravam e a Vercel
- * respondia 504.
+ * Tempo da rodada, abaixo do `maxDuration` (300s) da rota do cron e do layout.
+ * As etapas antes do remetente levam 50–70s e cada PDF baixado ~30s; com
+ * 120s a Vercel respondia 504 e, com orçamento de 95s, só cabia 1 PDF.
  */
-export const SYNC_ROUND_BUDGET_MS = 95_000;
+export const SYNC_ROUND_BUDGET_MS = 260_000;
 
 async function remainingByMethod() {
   const [safe, status, list, download] = await Promise.all([

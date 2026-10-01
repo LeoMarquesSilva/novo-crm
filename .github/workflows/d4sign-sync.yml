@@ -14,7 +14,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 7
     steps:
       - name: Puxar contratos e signatários
         env:
@@ -25,7 +25,7 @@ jobs:
             echo "Secret CRON_SECRET ausente neste repositório. Use o mesmo valor configurado na Vercel."
             exit 1
           fi
-          code=$(curl --silent --show-error --max-time 150 \
+          code=$(curl --silent --show-error --max-time 290 \
             -o /tmp/d4sign-cron.json \
             -w "%{http_code}" \
             -X POST \

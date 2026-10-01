@@ -5,7 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runD4SignSyncRound } from "@/lib/d4sign/sync-round";
 
-export const maxDuration = 120;
+/** Cada PDF baixado para ler o remetente leva ~30s; ver SYNC_ROUND_BUDGET_MS. */
+export const maxDuration = 300;
 
 function isAuthorized(request: NextRequest, secret: string): boolean {
   const auth = request.headers.get("authorization");

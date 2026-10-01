@@ -4,7 +4,7 @@ Formato: data (ISO) | onda | resumo | validações.
 
 ## 2026-10-01 — Sync D4Sign: limite de tempo da rodada
 
-- Rodada de 121s deu 504 na Vercel (`maxDuration` 120s): cada PDF baixado para ler o remetente leva ~30s. Agora a rodada tem orçamento de 95s; download no sync tem prazo de 15s+25s e só começa se couber. O que não couber fica para a próxima rodada.
+- Rodada de 121s deu 504 na Vercel (`maxDuration` 120s): cada PDF baixado para ler o remetente leva ~30s. Download no sync tem prazo de 15s+25s e só começa se couber no orçamento da rodada. O orçamento de 95s deixava só 0–1 PDF por rodada (as etapas anteriores levam 50–70s); passou para 260s com `maxDuration` 300s na rota e no layout, e o workflow espera até 290s.
 
 ## 2026-10-01 — Modo sócio
 

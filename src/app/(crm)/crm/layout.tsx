@@ -8,7 +8,7 @@ import { isPartnerOnlyEmail } from "@/lib/d4sign/partner-only";
 import { runD4SignSyncRoundIfStale } from "@/lib/d4sign/sync-round";
 
 /** Tempo para a rodada D4Sign em segundo plano (`after`) terminar. */
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export default async function CrmLayout({
   children,
