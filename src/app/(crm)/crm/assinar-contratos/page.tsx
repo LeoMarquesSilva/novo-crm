@@ -153,6 +153,7 @@ export default async function AssinarContratosPage() {
         docs={docs}
         partners={partners}
         currentPartnerEmail={currentPartnerEmail}
+        canCancel={isAdmin}
       />
     </div>
   );

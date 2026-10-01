@@ -681,7 +681,11 @@ export class D4SignConnector {
    * Cancela um documento.
    * `POST /documents/{uuid}/cancel`
    */
-  async cancelDocument(documentUuid: string, comment?: string): Promise<void> {
+  async cancelDocument(
+    documentUuid: string,
+    comment?: string,
+    options?: { source?: string },
+  ): Promise<{ statusId: string | null; statusName: string | null; whoCanceled: string | null }> {
     const url = `${this.apiBaseUrl.replace(/\/$/, "")}/documents/${encodeURIComponent(documentUuid)}/cancel${this.authSearchParams()}`;
     const res = await this.d4Fetch(
       url,
@@ -691,9 +695,16 @@ export class D4SignConnector {
         body: JSON.stringify(comment ? { comment } : {}),
       },
       "documents/cancel",
-      "connector",
+      options?.source ?? "connector",
     );
-    await this.parseJsonResponse(res);
+    // Resposta: o documento com statusId "6" (Cancelado) e whoCanceled.
+    const body = (await this.parseJsonResponse(res)) as Record<string, unknown>;
+    const str = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v) : null);
+    return {
+      statusId: str(body.statusId ?? body.status_id),
+      statusName: str(body.statusName ?? body.status_name),
+      whoCanceled: str(body.whoCanceled ?? body.who_canceled),
+    };
   }
 
   /**

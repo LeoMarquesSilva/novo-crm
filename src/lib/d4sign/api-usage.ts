@@ -16,6 +16,7 @@ const WINDOW_MS = 60 * 60 * 1000;
  * rota (`/documents/{safe}/safe[/{folder}]`) e dividem a cota por precaução.
  */
 export type D4SignQuotaMethod =
+  | "documents/cancel"
   | "documents/download"
   | "documents/generate-document-view"
   | "documents/list"
@@ -25,6 +26,7 @@ export type D4SignQuotaMethod =
   | "folders/find";
 
 const METHOD_ENDPOINTS: Record<D4SignQuotaMethod, string[]> = {
+  "documents/cancel": ["documents/cancel"],
   "documents/download": ["documents/download"],
   "documents/generate-document-view": ["documents/generate-document-view"],
   "documents/list": ["documents/list"],

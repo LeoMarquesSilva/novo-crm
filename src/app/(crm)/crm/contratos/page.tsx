@@ -287,6 +287,7 @@ export default async function ContratosPage({
           initialMissingNames: missingNames,
           initialQuota: quota,
           firmSigners,
+          canCancel: profile.role === "admin",
           appUsersByEmail,
         }}
       />

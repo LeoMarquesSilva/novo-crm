@@ -12,6 +12,7 @@ import {
   Search,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { D4SignCancelButton } from "@/components/crm/d4sign-cancel-button";
 import { D4SignSignButton } from "@/components/crm/d4sign-sign-button";
 import { Input } from "@/components/ui/input";
 import { D4SignViewDialog } from "@/components/crm/d4sign-view-dialog";
@@ -57,9 +58,11 @@ type Props = {
   partners: PartnerSigner[];
   /** E-mail canônico do sócio logado; `null` para admin que não é sócio. */
   currentPartnerEmail: string | null;
+  /** Admin pode cancelar contrato em andamento na D4Sign. */
+  canCancel?: boolean;
 };
 
-export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail }: Props) {
+export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, canCancel = false }: Props) {
   const router = useRouter();
   const [partnerFilter, setPartnerFilter] = useState<PartnerFilter>(currentPartnerEmail ?? "all");
   const [tab, setTab] = useState<PartnerTab>("pendente");
@@ -315,6 +318,9 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail }: 
                     <Eye />
                     Ver PDF
                   </Button>
+                  {canCancel && doc.lifecycle === "em_andamento" ? (
+                    <D4SignCancelButton documentUuid={doc.uuid} documentName={doc.name} />
+                  ) : null}
                   <a
                     href={portalUrl(doc.uuid)}
                     target="_blank"

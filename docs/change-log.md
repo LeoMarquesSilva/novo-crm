@@ -2,6 +2,10 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — D4Sign: cancelar contrato
+
+- Botão "Cancelar" (só admin, só em andamento) na área dos sócios e no painel técnico, com confirmação e motivo obrigatório. Rota `POST /api/crm/d4sign/documents/[uuid]/cancel` → `POST /documents/{uuid}/cancel` (motivo em `comment`); grava status cancelado no catálogo e na oportunidade.
+
 ## 2026-10-01 — D4Sign: quem enviou o contrato
 
 - Contratos enviados direto na D4Sign: remetente e data real de envio lidos do log de eventos do PDF ("Assinaturas iniciadas por …"). A API não informa isso.

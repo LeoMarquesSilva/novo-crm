@@ -27,6 +27,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { D4SignCancelButton } from "@/components/crm/d4sign-cancel-button";
 import { D4SignSignButton } from "@/components/crm/d4sign-sign-button";
 import { cn } from "@/lib/utils";
 import { D4SignViewDialog } from "@/components/crm/d4sign-view-dialog";
@@ -565,6 +566,8 @@ type Props = {
   initialMissingNames: number;
   initialQuota:        D4SignQuotaStatus;
   firmSigners:         FirmSigner[];
+  /** Admin pode cancelar contrato em andamento na D4Sign. */
+  canCancel?:          boolean;
   /** email.toLowerCase() → avatar + nome do usuário interno */
   appUsersByEmail?:    Record<string, AppUserInfo>;
 };
@@ -575,6 +578,7 @@ export function D4SignDashboard({
   initialMissingNames,
   initialQuota,
   firmSigners,
+  canCancel = false,
   appUsersByEmail = {},
 }: Props) {
   const router = useRouter();
@@ -1003,6 +1007,13 @@ export function D4SignDashboard({
           >
             <Eye className="size-3" />Ver PDF
           </button>
+          {canCancel && PENDING_STATUSES.has(String(doc.d4sign_status ?? "")) ? (
+            <D4SignCancelButton
+              documentUuid={doc.uuid_doc}
+              documentName={doc.name_document}
+              className="h-8 gap-1 px-2.5 text-[11px] font-semibold"
+            />
+          ) : null}
           <span className="inline-flex items-center rounded-(--radius-v2-full) border border-warning-border bg-warning-bg px-2.5 py-1 text-[10px] font-semibold text-warning-text">
             Cofre histórico
           </span>
@@ -1317,6 +1328,13 @@ export function D4SignDashboard({
                     >
                       <Eye className="size-3" />Ver PDF
                     </button>
+                    {canCancel && PENDING_STATUSES.has(String(row.d4sign_status ?? "")) ? (
+                      <D4SignCancelButton
+                        documentUuid={row.uuid_doc}
+                        documentName={row.name_document}
+                        className="h-8 gap-1 px-2.5 text-[11px] font-semibold"
+                      />
+                    ) : null}
                     {row.link_contrato ? (
                       <a href={row.link_contrato} target="_blank" rel="noopener noreferrer"
                         className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-interactive-300 bg-interactive-50 px-2.5 text-[11px] font-semibold text-interactive-700 transition-colors hover:bg-interactive-100">
