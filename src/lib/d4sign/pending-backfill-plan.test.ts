@@ -16,6 +16,8 @@ describe("parsePendingCursor", () => {
   it("retoma a página gravada", () => {
     expect(parsePendingCursor("phase=3;page=4")).toEqual({ phase: 3, page: 4 });
     expect(parsePendingCursor("phase=2;page=1")).toEqual({ phase: 2, page: 1 });
+    expect(parsePendingCursor("phase=4;page=2")).toEqual({ phase: 4, page: 2 });
+    expect(parsePendingCursor("phase=9;page=2")).toEqual({ phase: 3, page: 1 });
   });
 });
 
@@ -32,9 +34,18 @@ describe("advancePendingCursor", () => {
     ).toEqual({ phase: 2, page: 1 });
   });
 
-  it("encerra o ciclo depois da fase 2", () => {
+  it("depois dos pendentes lista finalizados e as demais fases", () => {
     expect(
       advancePendingCursor({ phase: 2, page: 1 }, { docs: 12, totalPages: 1 }),
+    ).toEqual({ phase: 4, page: 1 });
+    expect(
+      advancePendingCursor({ phase: 4, page: 1 }, { docs: 12, totalPages: 1 }),
+    ).toEqual({ phase: 1, page: 1 });
+  });
+
+  it("encerra o ciclo depois da última fase", () => {
+    expect(
+      advancePendingCursor({ phase: 7, page: 1 }, { docs: 0, totalPages: 1 }),
     ).toBe("done");
     expect(formatPendingCursor("done")).toBe("done");
   });

@@ -14,6 +14,7 @@
  */
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { safeD4SignIso } from "@/lib/d4sign/api-usage";
+import { estimateD4SignCreatedAt } from "@/lib/d4sign/created-at-estimate";
 import {
   cronEnrichBudget,
   enrichDocuments,
@@ -333,6 +334,29 @@ export async function runVaultSync(options: VaultSyncOptions = {}): Promise<Vaul
     (opps ?? []).map((o) => [o.d4sign_document_uuid ?? "", o]),
   );
 
+  // Valores já coletados (pasta, datas) por outras rotas: a listagem não os
+  // traz e o upsert gravaria NULL por cima.
+  type PrevDoc = {
+    name_document: string | null;
+    folder_uuid: string | null;
+    folder_name: string | null;
+    folder_path: string | null;
+    created_at_d4sign: string | null;
+    finalized_at: string | null;
+    details_fetched_at: string | null;
+  };
+  const prevByUuid = new Map<string, PrevDoc>();
+  const listedUuids = [...new Set(allDocs.map((d) => d.uuid_doc))];
+  for (let i = 0; i < listedUuids.length; i += 150) {
+    const { data: prevRows } = await supabase
+      .from("d4sign_documents")
+      .select(
+        "uuid_doc, name_document, folder_uuid, folder_name, folder_path, created_at_d4sign, finalized_at, details_fetched_at",
+      )
+      .in("uuid_doc", listedUuids.slice(i, i + 150));
+    for (const row of prevRows ?? []) prevByUuid.set(row.uuid_doc, row);
+  }
+
   const nowIso = new Date().toISOString();
   const seen = new Set<string>();
   let statusChanges = 0;
@@ -352,8 +376,8 @@ export async function runVaultSync(options: VaultSyncOptions = {}): Promise<Vaul
         ? null
         : (STATUSID_TO_STATUS[rawId] ?? String(rawId));
 
-      const prev = dbByUuid.get(doc.uuid_doc);
-      if (prev && prev.d4sign_status !== d4signStatus) statusChanges += 1;
+      const before = dbByUuid.get(doc.uuid_doc);
+      if (before && before.d4sign_status !== d4signStatus) statusChanges += 1;
 
       const sizeBytes =
         typeof doc.size === "number"
@@ -368,22 +392,35 @@ export async function runVaultSync(options: VaultSyncOptions = {}): Promise<Vaul
             ? Number.parseInt(doc.pages, 10) || null
             : null;
 
+      const prev = prevByUuid.get(doc.uuid_doc);
       const folderAssignment = docFolderMap.get(doc.uuid_doc);
-      const folderUuid = folderAssignment?.folder_uuid ?? doc.uuidFolder ?? null;
+      const folderUuid =
+        folderAssignment?.folder_uuid ?? (doc.uuidFolder || null) ?? prev?.folder_uuid ?? null;
       const folderName = folderUuid
-        ? (folderAssignment?.folder_name ?? folderNameByUuid.get(folderUuid) ?? null)
+        ? (folderAssignment?.folder_name ??
+          folderNameByUuid.get(folderUuid) ??
+          (folderUuid === prev?.folder_uuid ? prev?.folder_name : null) ??
+          null)
         : null;
+      const folderPath = folderUuid
+        ? (folderNameByUuid.has(folderUuid)
+          ? buildFolderPath(folderUuid)
+          : folderUuid === prev?.folder_uuid
+            ? (prev?.folder_path ?? null)
+            : null)
+        : null;
+      const nameDocument = doc.name_document ?? prev?.name_document ?? null;
 
       const opp = oppByUuid[doc.uuid_doc];
 
       return {
         uuid_doc: doc.uuid_doc,
-        name_document: doc.name_document ?? null,
+        name_document: nameDocument,
         safe_uuid: env.safeUuid,
         safe_name: safeName,
         folder_uuid: folderUuid,
         folder_name: folderName,
-        folder_path: folderUuid ? buildFolderPath(folderUuid) : null,
+        folder_path: folderPath,
         d4sign_status: d4signStatus,
         status_name: doc.statusName ?? null,
         status_comment: doc.statusComment ?? null,
@@ -393,9 +430,13 @@ export async function runVaultSync(options: VaultSyncOptions = {}): Promise<Vaul
         who_canceled: (doc.whoCanceled ?? null) as never,
         oportunidade_id: opp?.id ?? null,
         link_contrato: opp?.link_contrato ?? null,
-        created_at_d4sign: doc.created_at ? safeIso(doc.created_at) : null,
-        finalized_at: doc.finalized_at ? safeIso(doc.finalized_at) : null,
-        details_fetched_at: doc.name_document ? nowIso : null,
+        created_at_d4sign:
+          (doc.created_at ? safeIso(doc.created_at) : null) ??
+          prev?.created_at_d4sign ??
+          estimateD4SignCreatedAt(doc.uuid_doc, nameDocument),
+        finalized_at: (doc.finalized_at ? safeIso(doc.finalized_at) : null) ?? prev?.finalized_at ?? null,
+        // Só a busca de signatários (`enrichDocuments`) marca esse campo.
+        details_fetched_at: prev?.details_fetched_at ?? null,
         last_synced_at: nowIso,
         updated_at: nowIso,
       };

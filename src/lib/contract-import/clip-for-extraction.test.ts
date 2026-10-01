@@ -100,4 +100,28 @@ describe("parseContractImportExtraction evidence", () => {
     expect(parsed.extras.objectText?.endsWith("…")).toBe(true);
     expect((parsed.extras.objectText ?? "").length).toBeLessThanOrEqual(240);
   });
+
+  it("corta citação longa e descarta excedentes em vez de reprovar", () => {
+    const parsed = parseContractImportExtraction({
+      extras: {
+        objectText: null,
+        solidarity: false,
+        exitoBands: null,
+        lgpd: false,
+        confidentiality: false,
+        moraFinePercent: null,
+        kmRateCents: null,
+      },
+      evidence: [
+        { field: "components", quote: "B".repeat(400), clause: "C".repeat(120) },
+        { field: "startsAt", quote: "   ", clause: null },
+        ...Array.from({ length: 20 }, (_, i) => ({ field: "areas", quote: `trecho ${i}`, clause: null })),
+      ],
+    });
+    expect(parsed.evidence).toHaveLength(16);
+    expect(parsed.evidence[0].quote.length).toBeLessThanOrEqual(160);
+    expect(parsed.evidence[0].quote.endsWith("…")).toBe(true);
+    expect((parsed.evidence[0].clause ?? "").length).toBeLessThanOrEqual(80);
+    expect(parsed.evidence.some((item) => item.field === "startsAt")).toBe(false);
+  });
 });

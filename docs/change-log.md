@@ -2,6 +2,14 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — D4Sign: coleta de documentos e signatários
+
+- Cron: o workflow `d4sign-sync` nunca rodou pelo agendamento. Reforço: o layout de `/crm` dispara a rodada em `after()` se a última tiver mais de 4 min (`runD4SignSyncRoundIfStale`).
+- Fases: o ciclo de `/documents/{fase}/status` cobre todas as fases (3, 2, 4, 1, 6, 5, 7). Antes só 3 e 2: finalizado em pasta ainda não varrida nunca entrava.
+- Data: `created_at_d4sign` estimado por UUIDv7 ou prefixo `AAAA MM DD` do nome (320 de 321 estavam sem data), para a fila ir do mais recente ao mais antigo.
+- Signatários: fila em 4 faixas; pendentes com signatários voltam a ser atualizados a cada 12h; documento que voltou vazio não é refeito antes de 6h.
+- Dados: upserts em lote passam a mandar sempre as mesmas colunas (o supabase-js gravava NULL em `oportunidade_id`, pasta e datas); "Atualizar cofre" não apaga mais pasta/datas; listagens não marcam mais `details_fetched_at`.
+
 ## 2026-09-30 — D4Sign: cota por método, PDF e "Abrir no D4Sign"
 
 - Cota: a D4Sign limita 10 req/h **por método**, não global. `getD4SignQuotaStatus(método)` conta só o método; o cron (`planD4SignSyncBudget`) usa a cota de cada etapa e preserva `D4SIGN_HUMAN_RESERVE`. Antes, 10 listagens de pasta do cron bloqueavam a visualização de PDF por 1 hora.

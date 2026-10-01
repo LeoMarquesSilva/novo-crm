@@ -6,6 +6,7 @@
 import { safeD4SignIso } from "@/lib/d4sign/api-usage";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { documentBelongsToSafe, mapPendingStatusId } from "@/lib/d4sign/pending-backfill-plan";
+import { estimateD4SignCreatedAt } from "@/lib/d4sign/created-at-estimate";
 import { isRateLimitError } from "@/lib/d4sign/quota-orchestrator";
 import {
   VAULT_FOLDER_CURSOR_ENDPOINT,
@@ -214,6 +215,8 @@ async function upsertFolderDocuments(
       folder_name: string | null;
       created_at_d4sign: string | null;
       finalized_at: string | null;
+      oportunidade_id: string | null;
+      link_contrato: string | null;
     }
   >();
   const oppByUuid = new Map<string, { id: string; link_contrato: string | null }>();
@@ -223,7 +226,9 @@ async function upsertFolderDocuments(
     const [{ data: rows, error }, { data: opps, error: oppError }] = await Promise.all([
       supabase
         .from("d4sign_documents")
-        .select("uuid_doc, name_document, safe_name, folder_name, created_at_d4sign, finalized_at")
+        .select(
+          "uuid_doc, name_document, safe_name, folder_name, created_at_d4sign, finalized_at, oportunidade_id, link_contrato",
+        )
         .in("uuid_doc", slice),
       supabase
         .from("oportunidades")
@@ -263,13 +268,13 @@ async function upsertFolderDocuments(
       size_bytes: asInt(doc?.size),
       pages: asInt(doc?.pages),
       who_canceled: (doc?.whoCanceled ?? null) as never,
-      ...(opp
-        ? {
-            oportunidade_id: opp.id,
-            ...(opp.link_contrato ? { link_contrato: opp.link_contrato } : {}),
-          }
-        : {}),
-      created_at_d4sign: createdAt ?? prev?.created_at_d4sign ?? null,
+      // Upsert em lote grava NULL em coluna ausente: colunas sempre presentes.
+      oportunidade_id: opp?.id ?? prev?.oportunidade_id ?? null,
+      link_contrato: opp?.link_contrato ?? prev?.link_contrato ?? null,
+      created_at_d4sign:
+        createdAt ??
+        prev?.created_at_d4sign ??
+        estimateD4SignCreatedAt(uuid, doc?.name_document ?? prev?.name_document),
       finalized_at: finalizedAt ?? prev?.finalized_at ?? null,
       last_synced_at: nowIso,
       updated_at: nowIso,

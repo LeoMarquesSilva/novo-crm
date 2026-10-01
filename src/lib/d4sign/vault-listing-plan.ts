@@ -19,7 +19,7 @@ export const VAULT_LISTING_PAGE_CAP = 500;
 /** Documentos numa página cheia, depois de descartar `totalOfPages`. */
 export const VAULT_LISTING_FULL_PAGE_DOCS = VAULT_LISTING_PAGE_CAP - 1;
 
-/** Cota global da hora. A listagem em lote não passa disso numa janela. */
+/** Cota do método por hora. A listagem em lote não passa disso numa janela. */
 export const VAULT_LISTING_MAX_REQUESTS = 10;
 
 export function parseVaultPageCursor(source: string | null | undefined): number {

@@ -2,16 +2,18 @@
  * Reparte a cota de uma rodada do sync D4Sign.
  *
  * A D4Sign limita 10 req/h por método, então cada etapa usa a cota do seu
- * método: listagem da raiz e pastas (`documents/safe`), fases
- * (`documents/status`), signatários (`documents/list`) e PDF
- * (`documents/download`). O cron nunca encosta nas vagas reservadas para
- * quem está usando o CRM — abrir um PDF ou buscar signatários na hora.
+ * método: fases (`documents/status`, cobre a conta inteira, qualquer pasta),
+ * signatários (`documents/list`), listagem da raiz e pastas
+ * (`documents/safe`) e PDF (`documents/download`). O cron nunca encosta nas
+ * vagas reservadas para quem está usando o CRM — abrir um PDF ou buscar
+ * signatários na hora. Ninguém mais usa `documents/status`, então as fases
+ * não têm reserva.
  */
 
-/** Vagas por hora que o cron deixa livres para ações manuais. */
+/** Vagas por hora que o sync deixa livres para ações manuais. */
 export const D4SIGN_HUMAN_RESERVE = {
   safe: 2,
-  list: 3,
+  list: 2,
   download: 6,
 } as const;
 
@@ -37,7 +39,6 @@ function free(remaining: number, reserve = 0): number {
 
 export function planD4SignSyncBudget(input: {
   remaining: D4SignSyncRemaining;
-  phaseCycleOpen: boolean;
   /** `backlog` = primeira volta nas pastas. `rotate` = uma pasta por rodada. */
   folderMode: "backlog" | "rotate" | "none";
 }): D4SignSyncBudget {
@@ -48,12 +49,9 @@ export function planD4SignSyncBudget(input: {
   const folders =
     input.folderMode === "none" ? 0 : input.folderMode === "rotate" ? Math.min(1, safe) : safe;
 
-  const status = free(input.remaining.status);
-  const phases = input.phaseCycleOpen ? status : Math.min(1, status);
-
   return {
     listing,
-    phases,
+    phases: free(input.remaining.status),
     enrich: free(input.remaining.list, D4SIGN_HUMAN_RESERVE.list),
     folders,
     precache: Math.min(1, free(input.remaining.download, D4SIGN_HUMAN_RESERVE.download)),

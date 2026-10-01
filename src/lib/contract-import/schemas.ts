@@ -74,10 +74,20 @@ export const CONTRACT_IMPORT_EVIDENCE_FIELDS = [
 
 export type ContractImportEvidenceField = (typeof CONTRACT_IMPORT_EVIDENCE_FIELDS)[number];
 
+function clipText(value: string, max: number): string {
+  return value.length > max ? value.slice(0, max - 1).trimEnd() + "…" : value;
+}
+
+/** A IA às vezes ignora o limite do prompt: cortamos em vez de reprovar o lote inteiro. */
 const evidenceSchema = z.object({
-  field: z.string().trim().min(1),
-  quote: z.string().trim().min(1).max(CONTRACT_IMPORT_QUOTE_MAX),
-  clause: z.string().trim().max(80).nullable().optional(),
+  field: z.string().trim(),
+  quote: z.string().trim().transform((quote) => clipText(quote, CONTRACT_IMPORT_QUOTE_MAX)),
+  clause: z
+    .string()
+    .trim()
+    .transform((clause) => clipText(clause, 80))
+    .nullable()
+    .optional(),
 });
 
 export type ContractImportEvidence = z.infer<typeof evidenceSchema>;
@@ -105,7 +115,12 @@ export const contractImportExtractionSchema = z.object({
       ? extras.objectText.slice(0, 237).trimEnd() + "…"
       : extras.objectText,
   })),
-  evidence: z.array(evidenceSchema).max(CONTRACT_IMPORT_EVIDENCE_MAX).default([]),
+  evidence: z
+    .array(evidenceSchema)
+    .default([])
+    .transform((items) =>
+      items.filter((item) => item.field && item.quote).slice(0, CONTRACT_IMPORT_EVIDENCE_MAX),
+    ),
 });
 
 export type ContractImportExtraction = z.infer<typeof contractImportExtractionSchema>;

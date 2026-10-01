@@ -6,6 +6,7 @@
  * O cursor fica em `d4sign_api_usage` com `http_status` nulo, fora da cota.
  */
 import { getD4SignQuotaStatus, safeD4SignIso } from "@/lib/d4sign/api-usage";
+import { estimateD4SignCreatedAt } from "@/lib/d4sign/created-at-estimate";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { mapPendingStatusId } from "@/lib/d4sign/pending-backfill-plan";
 import { isRateLimitError } from "@/lib/d4sign/quota-orchestrator";
@@ -263,9 +264,11 @@ export async function runVaultSafeListing(options?: {
           who_canceled: (doc.whoCanceled ?? null) as never,
           oportunidade_id: opp?.id ?? null,
           link_contrato: opp?.link_contrato ?? null,
-          created_at_d4sign: createdAt ?? prev?.created_at_d4sign ?? null,
+          created_at_d4sign:
+            createdAt ?? prev?.created_at_d4sign ?? estimateD4SignCreatedAt(uuid, nameDocument),
           finalized_at: finalizedAt ?? prev?.finalized_at ?? null,
-          details_fetched_at: nameDocument ? nowIso : (prev?.details_fetched_at ?? null),
+          // Só a busca de signatários (`enrichDocuments`) marca esse campo.
+          details_fetched_at: prev?.details_fetched_at ?? null,
           last_synced_at: nowIso,
           updated_at: nowIso,
         };

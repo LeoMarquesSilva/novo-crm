@@ -63,14 +63,28 @@ function resolveFinalizedAt(
   return signedDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
 }
 
+/** Documento cuja busca de signatários voltou vazia não é refeito antes disso. */
+export const ENRICH_EMPTY_RETRY_MS = 6 * 60 * 60 * 1000;
+/** Pendente com signatários: atualiza quem já assinou a cada 12h. */
+export const ENRICH_PENDING_REFRESH_MS = 12 * 60 * 60 * 1000;
+
+const PENDING_IN = '("2","3","sent","processing")';
+
 /**
- * Seleciona docs sem signatários, pendentes primeiro.
- * Com data da D4Sign, o mais novo vem antes. Sem data, o que acabou de
- * entrar na listagem (last_synced_at mais recente) vem antes.
+ * Fila da busca de signatários (`GET /documents/{uuid}/list`, 10 req/h),
+ * por prioridade e, em cada faixa, do mais recente ao mais antigo:
+ * 1. pendente sem signatários;
+ * 2. pendente com signatários desatualizados (12h) e finalizado com
+ *    signatário ainda marcado como não assinado;
+ * 3. finalizado sem signatários;
+ * 4. demais (cancelado, arquivado) sem signatários.
+ * O que foi buscado há menos de 6h e voltou vazio fica de fora, para não
+ * gastar a cota toda rodada no mesmo documento.
  */
 export async function pickDocumentsToEnrich(options: {
   limit: number;
   uuidDoc?: string | null;
+  now?: Date;
 }): Promise<EnrichDocRow[]> {
   const supabase = createSupabaseAdminClient();
   const { limit, uuidDoc } = options;
@@ -84,33 +98,62 @@ export async function pickDocumentsToEnrich(options: {
     if (error) throw error;
     return row ? [row] : [];
   }
+  if (limit <= 0) return [];
 
-  const pendingStatuses = [...PENDING_D4SIGN_STATUSES];
-  const { data: pending, error } = await supabase
-    .from("d4sign_documents")
-    .select("uuid_doc, name_document, d4sign_status")
-    .or(SIGNERS_EMPTY_FILTER)
-    .in("d4sign_status", pendingStatuses)
-    .order("created_at_d4sign", { ascending: false, nullsFirst: false })
-    .order("last_synced_at", { ascending: false, nullsFirst: false })
-    .limit(limit);
+  const now = options.now?.getTime() ?? Date.now();
+  const notFetchedSince = (ms: number) =>
+    `details_fetched_at.is.null,details_fetched_at.lt.${new Date(now - ms).toISOString()}`;
+  const base = () =>
+    supabase.from("d4sign_documents").select("uuid_doc, name_document, d4sign_status");
 
-  if (error) throw error;
-  const pendingRows = pending ?? [];
-  if (pendingRows.length >= limit) return pendingRows.slice(0, limit);
+  const tiers = [
+    () =>
+      base()
+        .or(SIGNERS_EMPTY_FILTER)
+        .or(notFetchedSince(ENRICH_EMPTY_RETRY_MS))
+        .in("d4sign_status", [...PENDING_D4SIGN_STATUSES]),
+    () =>
+      base()
+        .not("signers", "is", null)
+        .not("signers", "eq", "[]")
+        .or(notFetchedSince(ENRICH_PENDING_REFRESH_MS))
+        .in("d4sign_status", [...PENDING_D4SIGN_STATUSES]),
+    () =>
+      base()
+        .contains("signers", JSON.stringify([{ signed: false }]))
+        .or(notFetchedSince(ENRICH_EMPTY_RETRY_MS))
+        .eq("d4sign_status", "1"),
+    () =>
+      base()
+        .or(SIGNERS_EMPTY_FILTER)
+        .or(notFetchedSince(ENRICH_EMPTY_RETRY_MS))
+        .eq("d4sign_status", "1"),
+    () =>
+      base()
+        .or(SIGNERS_EMPTY_FILTER)
+        .or(notFetchedSince(ENRICH_EMPTY_RETRY_MS))
+        .not("d4sign_status", "is", null)
+        .neq("d4sign_status", "1")
+        .not("d4sign_status", "in", PENDING_IN),
+  ];
 
-  const { data: rest, error: restError } = await supabase
-    .from("d4sign_documents")
-    .select("uuid_doc, name_document, d4sign_status")
-    .or(SIGNERS_EMPTY_FILTER)
-    .not("d4sign_status", "is", null)
-    .not("d4sign_status", "in", '("2","3","sent","processing")')
-    .order("created_at_d4sign", { ascending: false, nullsFirst: false })
-    .order("last_synced_at", { ascending: false, nullsFirst: false })
-    .limit(limit - pendingRows.length);
-
-  if (restError) throw restError;
-  return [...pendingRows, ...(rest ?? [])];
+  const picked: EnrichDocRow[] = [];
+  const seen = new Set<string>();
+  for (const tier of tiers) {
+    const missing = limit - picked.length;
+    if (missing <= 0) break;
+    const { data, error } = await tier()
+      .order("created_at_d4sign", { ascending: false, nullsFirst: false })
+      .order("name_document", { ascending: false, nullsFirst: false })
+      .limit(missing);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      if (seen.has(row.uuid_doc)) continue;
+      seen.add(row.uuid_doc);
+      picked.push(row);
+    }
+  }
+  return picked.slice(0, limit);
 }
 
 export async function countPendingDocumentsNeedingEnrich(): Promise<number> {

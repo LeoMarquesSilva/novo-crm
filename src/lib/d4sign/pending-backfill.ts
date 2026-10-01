@@ -1,10 +1,11 @@
 /**
- * Importa contratos D4Sign que ainda não finalizaram a assinatura
- * (fase 3 e, em seguida, fase 2), inclusive os que estão em pasta.
- * Continua de onde parou: o cursor fica em `d4sign_api_usage` com
- * http_status nulo, para não consumir a cota de 10 req/h.
+ * Importa contratos D4Sign de todas as fases (`PENDING_SIGNATURE_PHASES`),
+ * inclusive os que estão em pasta. Continua de onde parou: o cursor fica em
+ * `d4sign_api_usage` com http_status nulo, fora da cota.
+ * Documento sem data recebe a estimativa de `estimateD4SignCreatedAt`.
  */
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
+import { estimateD4SignCreatedAt } from "@/lib/d4sign/created-at-estimate";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { isRateLimitError } from "@/lib/d4sign/quota-orchestrator";
 import {
@@ -156,12 +157,22 @@ export async function runPendingSignatureBackfill(options?: {
     skippedOtherSafe += page.documents.length - ours.length;
 
     const uuids = [...new Set(ours.map((doc) => doc.uuid_doc).filter((id): id is string => Boolean(id)))];
-    const existing = new Set<string>();
+    type Prev = {
+      created_at_d4sign: string | null;
+      name_document: string | null;
+      safe_name: string | null;
+      oportunidade_id: string | null;
+      link_contrato: string | null;
+    };
+    const existing = new Map<string, Prev>();
     const oppByUuid = new Map<string, { id: string; link_contrato: string | null }>();
     for (let i = 0; i < uuids.length; i += 150) {
       const slice = uuids.slice(i, i + 150);
       const [{ data: rows, error }, { data: opps, error: oppError }] = await Promise.all([
-        supabase.from("d4sign_documents").select("uuid_doc").in("uuid_doc", slice),
+        supabase
+          .from("d4sign_documents")
+          .select("uuid_doc, created_at_d4sign, name_document, safe_name, oportunidade_id, link_contrato")
+          .in("uuid_doc", slice),
         supabase
           .from("oportunidades")
           .select("id, d4sign_document_uuid, link_contrato")
@@ -169,7 +180,7 @@ export async function runPendingSignatureBackfill(options?: {
       ]);
       if (error) throw error;
       if (oppError) throw oppError;
-      for (const row of rows ?? []) existing.add(row.uuid_doc);
+      for (const row of rows ?? []) existing.set(row.uuid_doc, row);
       for (const opp of opps ?? []) {
         if (opp.d4sign_document_uuid) {
           oppByUuid.set(opp.d4sign_document_uuid, {
@@ -185,11 +196,18 @@ export async function runPendingSignatureBackfill(options?: {
       .map((doc) => {
         const uuid = doc.uuid_doc as string;
         const opp = oppByUuid.get(uuid);
+        const prev = existing.get(uuid);
+        // O upsert em lote grava NULL em coluna ausente: toda linha leva as
+        // mesmas colunas, caindo para o valor que já está no banco.
         return {
           uuid_doc: uuid,
-          name_document: doc.name_document ?? null,
+          name_document: doc.name_document ?? prev?.name_document ?? null,
           safe_uuid: doc.uuidSafe ?? env.safeUuid,
-          safe_name: doc.safeName ?? null,
+          safe_name: doc.safeName ?? prev?.safe_name ?? null,
+          created_at_d4sign:
+            prev?.created_at_d4sign ?? estimateD4SignCreatedAt(uuid, doc.name_document),
+          oportunidade_id: opp?.id ?? prev?.oportunidade_id ?? null,
+          link_contrato: opp?.link_contrato ?? prev?.link_contrato ?? null,
           d4sign_status: mapPendingStatusId(doc.statusId),
           status_name: doc.statusName ?? null,
           status_comment: doc.statusComment ?? null,
@@ -199,12 +217,6 @@ export async function runPendingSignatureBackfill(options?: {
           who_canceled: (doc.whoCanceled ?? null) as never,
           last_synced_at: nowIso,
           updated_at: nowIso,
-          ...(opp
-            ? {
-                oportunidade_id: opp.id,
-                ...(opp.link_contrato ? { link_contrato: opp.link_contrato } : {}),
-              }
-            : {}),
         };
       });
 
