@@ -8,6 +8,7 @@ Formato: data (ISO) | onda | resumo | validações.
 - PDF: `download-document.ts` aceita URL temporária em `*.d4sign.com.br`/`*.amazonaws.com`/`*.cloudfront.net`, segue `Refresh`/meta refresh, decodifica Base64 e devolve `stage` do erro; o dialog mostra o motivo real. Diagnóstico: 5 `POST /download` com 200 em 24h e bucket `d4sign-contracts` vazio.
 - "Abrir no D4Sign": nova rota `GET /api/crm/d4sign/documents/[uuid]/open` (`generate-document-view`, sem login), com `/desk/viewblob` como reserva. Card do lead usa a rota quando há `d4sign_document_uuid` (antes abria o link de assinatura do 1º signatário).
 - Validações: `npx tsc --noEmit` ok; `npx vitest run` 114 arquivos / 719 testes ok; eslint sem novos avisos.
+- Ajuste pós-teste: `generate-document-view` abre o original **sem assinaturas**. `/open` passa a redirecionar para `/desk/viewblob/{uuid}` (versão assinada). Cache e pré-cache só para contrato finalizado. Busca do arquivo do `/download` com redirecionamento manual + cookies, 45s e erro com host/motivo; `generate-document-view` vira 2ª via só para pendentes.
 
 ## 2026-07-28 — Onda 1 (fechada)
 

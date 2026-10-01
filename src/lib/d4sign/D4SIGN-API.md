@@ -109,7 +109,7 @@ Todos os endpoints exigem dois query params:
 | POST | `/documents/{UUID-SAFE}/makedocumentbytemplate` | Cria doc por template HTML |
 | POST | `/documents/{UUID-SAFE}/makedocumentbytemplateword` | Cria doc por template Word |
 | POST | `/documents/{UUID-DOCUMENT}/addhighlight` | Destaca cláusulas |
-| POST | `/documents/{UUID-DOCUMENT}/generate-document-view` | URL temporária de visualização (5 min, sem login) — usada em `/open` |
+| POST | `/documents/{UUID-DOCUMENT}/generate-document-view` | URL temporária (5 min, sem login) do **original sem assinaturas** |
 | POST | `/documents/{UUID-DOCUMENT}/scheduling` | Agenda envio |
 | POST | `/documents/{UUID-DOCUMENT}/powerformresponses` | Respostas de Power Form |
 | POST | `/documents/{UUID-DOCUMENT}/addtrustid` | Ativa Trust ID |
@@ -318,7 +318,9 @@ O CRM pede `{"type":"pdf","language":"pt"}` e só cacheia o arquivo se o corpo c
 
 ## Visualização sem login — `generate-document-view`
 
-`POST /documents/{uuid}/generate-document-view` com `{"with_attachments": false}` → `{"doc_principal": "<url>", "anexos": []}`. URL válida por 5 minutos. A rota `GET /api/crm/d4sign/documents/[uuid]/open` gera e redireciona; sem cota cai em `/desk/viewblob/{uuid}` (exige login na conta dona do cofre).
+`POST /documents/{uuid}/generate-document-view` com `{"with_attachments": false}` → `{"doc_principal": "<url>", "anexos": []}`. URL válida por 5 minutos.
+
+⚠️ Confirmado em uso (2026-09-30): `doc_principal` é o **arquivo original enviado, sem assinaturas**. Não serve para mostrar contrato finalizado. O CRM só usa como 2ª via do PDF de contrato pendente. "Abrir no D4Sign" (`/open`) redireciona para `/desk/viewblob/{uuid}`, que mostra a versão assinada (exige login).
 
 ---
 

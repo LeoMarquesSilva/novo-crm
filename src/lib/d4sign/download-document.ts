@@ -6,7 +6,8 @@
  * O arquivo só existe no GET dessa URL (temporária).
  *
  * O GET pode responder de três jeitos além do PDF direto, e todos são tratados:
- * - redirecionamento HTTP (seguido pelo fetch);
+ * - redirecionamento HTTP, seguido à mão guardando cookies (sem cookie a
+ *   D4Sign pode redirecionar para a mesma URL em loop);
  * - página com cabeçalho `Refresh: 0;url=...` ou `<meta http-equiv="refresh">`
  *   (o mesmo truque que o portal usa para mandar ao login) — seguido uma vez;
  * - corpo em Base64 (`JVBERi…`), quando a conta devolve o arquivo codificado.
@@ -39,6 +40,16 @@ export type D4SignPdfDownloadResult =
 function isAllowedHost(hostname: string): boolean {
   const host = hostname.replace(/\.$/, "").toLowerCase();
   return ALLOWED_FILE_HOSTS.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+}
+
+/** URL https em host aceito para baixar arquivo da D4Sign. */
+export function isAllowedFileUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && isAllowedHost(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 export function readD4SignDownloadUrl(body: unknown): string | null {
@@ -86,6 +97,35 @@ export function decodeBase64Pdf(bytes: Uint8Array): ArrayBuffer | null {
   return isPdfBytes(out) ? out.buffer : null;
 }
 
+const MAX_FILE_HOPS = 6;
+
+function followTarget(location: string, base: string): string | null {
+  try {
+    const url = new URL(location, base);
+    return url.protocol === "https:" && isAllowedHost(url.hostname) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeCookies(jar: Map<string, string>, response: Response): void {
+  for (const raw of response.headers.getSetCookie?.() ?? []) {
+    const pair = raw.split(";", 1)[0] ?? "";
+    const eq = pair.indexOf("=");
+    if (eq > 0) jar.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+  }
+}
+
+/** Motivo legível de um erro de fetch (timeout, DNS, TLS…), sem URL nem token. */
+export function describeFetchError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  if (error.name === "TimeoutError" || error.name === "AbortError") return "tempo esgotado";
+  const cause = (error as { cause?: { code?: unknown; message?: unknown } }).cause;
+  const code = typeof cause?.code === "string" ? cause.code : null;
+  const message = typeof cause?.message === "string" ? cause.message : error.message;
+  return code ? `${code}: ${message}` : message;
+}
+
 function clientStatus(apiStatus: number): number {
   return apiStatus >= 500 ? 502 : apiStatus;
 }
@@ -112,7 +152,10 @@ export async function downloadD4SignDocumentPdf(input: {
   apiBaseUrl: string;
   tokenApi: string;
   cryptKey?: string;
+  /** Prazo do POST /download. */
   timeoutMs?: number;
+  /** Prazo total para baixar o arquivo (todas as etapas de redirecionamento). */
+  fileTimeoutMs?: number;
 }): Promise<D4SignPdfDownloadResult> {
   const timeoutMs = input.timeoutMs ?? 20_000;
   const query = new URLSearchParams({ tokenAPI: input.tokenApi });
@@ -168,27 +211,88 @@ export async function downloadD4SignDocumentPdf(input: {
     return failure("url", 422, `A D4Sign não devolveu uma URL de download aceita (${host}).`, apiStatus);
   }
 
-  let url = fileUrl;
-  for (let hop = 0; hop < 2; hop++) {
-    let fileResponse: Response;
-    try {
-      fileResponse = await fetchWithTimeout(url, { cache: "no-store", redirect: "follow" }, timeoutMs);
-    } catch {
-      return failure("file", 502, "Falha ao baixar o PDF da D4Sign.", apiStatus);
-    }
+  return fetchD4SignPdfFromUrl(fileUrl, { apiStatus, timeoutMs: input.fileTimeoutMs });
+}
 
-    if (!fileResponse.ok) {
-      await fileResponse.body?.cancel().catch(() => undefined);
+/**
+ * Baixa o PDF de uma URL temporária da D4Sign (`/download` ou
+ * `generate-document-view`), com redirecionamento manual, cookies,
+ * `Refresh` e Base64. `apiStatus` é o status da chamada que gerou a URL.
+ */
+export async function fetchD4SignPdfFromUrl(
+  startUrl: string,
+  options: { apiStatus: number; timeoutMs?: number },
+): Promise<D4SignPdfDownloadResult> {
+  if (!isAllowedFileUrl(startUrl)) {
+    let host = "url inválida";
+    try {
+      host = new URL(startUrl).host;
+    } catch {
+      // mantém "url inválida"
+    }
+    return failure("url", 422, `URL de arquivo da D4Sign fora dos hosts aceitos (${host}).`, options.apiStatus);
+  }
+  const fileTimeoutMs = options.timeoutMs ?? 45_000;
+  const startedAt = Date.now();
+  const cookies = new Map<string, string>();
+  const apiStatus = options.apiStatus;
+  let url = startUrl;
+  for (let hop = 0; hop < MAX_FILE_HOPS; hop++) {
+    const host = new URL(url).host;
+    let fileResponse: Response;
+    let bytes: Uint8Array;
+    try {
+      // Redirecionamento manual: a D4Sign pode mandar cookie de sessão e
+      // redirecionar para a mesma URL; sem guardar o cookie, o fetch entra em loop.
+      fileResponse = await fetchWithTimeout(
+        url,
+        {
+          cache: "no-store",
+          redirect: "manual",
+          headers: {
+            Accept: "application/pdf,*/*",
+            ...(cookies.size > 0
+              ? { Cookie: [...cookies].map(([k, v]) => `${k}=${v}`).join("; ") }
+              : {}),
+          },
+        },
+        Math.max(1_000, fileTimeoutMs - (Date.now() - startedAt)),
+      );
+      storeCookies(cookies, fileResponse);
+
+      const location = fileResponse.headers.get("location");
+      if (fileResponse.status >= 300 && fileResponse.status < 400 && location) {
+        await fileResponse.body?.cancel().catch(() => undefined);
+        const next = followTarget(location, url);
+        if (!next) {
+          return failure("file", 502, `A D4Sign redirecionou o download para um destino recusado (${host}).`, apiStatus);
+        }
+        url = next;
+        continue;
+      }
+
+      if (!fileResponse.ok) {
+        await fileResponse.body?.cancel().catch(() => undefined);
+        return failure(
+          "file",
+          502,
+          `A URL de download da D4Sign respondeu ${fileResponse.status} (${host}).`,
+          apiStatus,
+        );
+      }
+
+      bytes = new Uint8Array(await fileResponse.arrayBuffer());
+    } catch (error) {
+      const seconds = Math.round((Date.now() - startedAt) / 1000);
       return failure(
         "file",
         502,
-        `A URL de download da D4Sign respondeu ${fileResponse.status}.`,
+        `Falha ao baixar o PDF da D4Sign (${host}, ${describeFetchError(error)}, ${seconds}s, etapa ${hop + 1}).`,
         apiStatus,
       );
     }
 
-    const bytes = new Uint8Array(await fileResponse.arrayBuffer());
-    if (isPdfBytes(bytes)) return { ok: true, bytes: bytes.buffer, apiStatus };
+    if (isPdfBytes(bytes)) return { ok: true, bytes: bytes.buffer as ArrayBuffer, apiStatus };
 
     const decoded = decodeBase64Pdf(bytes);
     if (decoded) return { ok: true, bytes: decoded, apiStatus };
@@ -204,10 +308,10 @@ export async function downloadD4SignDocumentPdf(input: {
     return failure(
       "content",
       422,
-      `A D4Sign não retornou um PDF (${contentType}, ${bytes.byteLength} bytes).`,
+      `A D4Sign não retornou um PDF (${host}, ${contentType}, ${bytes.byteLength} bytes).`,
       apiStatus,
     );
   }
 
-  return failure("content", 422, "A D4Sign redirecionou o download mais de uma vez.", apiStatus);
+  return failure("file", 502, `A D4Sign redirecionou o download mais de ${MAX_FILE_HOPS} vezes.`, apiStatus);
 }

@@ -127,7 +127,8 @@ async function run(request: NextRequest) {
     const { data: candidates } = await supabase
       .from("d4sign_documents")
       .select("uuid_doc")
-      .in("d4sign_status", ["1", "3", "sent", "2"])
+      // Só finalizado: o PDF de pendente muda a cada assinatura.
+      .eq("d4sign_status", "1")
       .order("created_at_d4sign", { ascending: false, nullsFirst: false })
       .limit(10);
     const uuids = (candidates ?? []).map((row) => row.uuid_doc);

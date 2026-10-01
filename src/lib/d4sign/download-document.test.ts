@@ -126,6 +126,44 @@ describe("downloadD4SignDocumentPdf", () => {
     expect(String(fetchMock.mock.calls[2]?.[0])).toBe("https://secure.d4sign.com.br/arquivo/real.pdf");
   });
 
+  it("segue redirecionamento guardando o cookie de sessão", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ url: FILE_URL, name: "contrato.pdf" }))
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { Location: FILE_URL, "Set-Cookie": "ci_session=abc; path=/; secure" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(PDF, { status: 200, headers: { "Content-Type": "application/pdf" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await downloadD4SignDocumentPdf(input);
+
+    expect(result.ok).toBe(true);
+    const headers = fetchMock.mock.calls[2]?.[1]?.headers as Record<string, string>;
+    expect(headers.Cookie).toBe("ci_session=abc");
+    expect(fetchMock.mock.calls[1]?.[1]?.redirect).toBe("manual");
+  });
+
+  it("diz o host e o motivo quando a busca do arquivo lança erro", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ url: FILE_URL, name: "contrato.pdf" }))
+      .mockRejectedValueOnce(
+        Object.assign(new TypeError("fetch failed"), {
+          cause: { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE", message: "unable to verify the first certificate" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await downloadD4SignDocumentPdf(input);
+
+    expect(result).toMatchObject({ ok: false, status: 502, stage: "file", apiStatus: 200 });
+    if (result.ok) return;
+    expect(result.error).toContain("secure.d4sign.com.br");
+    expect(result.error).toContain("UNABLE_TO_VERIFY_LEAF_SIGNATURE");
+  });
+
   it("decodifica PDF entregue em Base64", async () => {
     const base64 = Buffer.from(PDF).toString("base64");
     const fetchMock = vi.fn<typeof fetch>()
