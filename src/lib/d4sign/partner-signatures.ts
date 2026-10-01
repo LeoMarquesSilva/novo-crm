@@ -100,6 +100,10 @@ export type PartnerDocRow = {
   folder_name: string | null;
   signers: unknown;
   client_name: string | null;
+  /** Data real do envio (log do PDF ou envio pelo CRM). */
+  sent_at?: string | null;
+  /** Quem enviou (`resolveD4SignSenders`). */
+  sent_by?: { full_name: string; avatar_url: string | null; source: "crm" | "d4sign" } | null;
 };
 
 export type PartnerDocLifecycle = "em_andamento" | "finalizado" | "cancelado";
@@ -120,8 +124,10 @@ export type ClassifiedPartnerDoc = {
   area: string | null;
   status: string | null;
   lifecycle: PartnerDocLifecycle;
-  /** Envio real (só existe para documentos enviados pelo CRM — a API D4Sign não expõe data de criação). */
+  /** Envio: data real (log do PDF ou CRM), senão a criação estimada. */
   createdAt: string | null;
+  /** Quem enviou para assinatura. */
+  sentBy: { full_name: string; avatar_url: string | null; source: "crm" | "d4sign" } | null;
   finalizedAt: string | null;
   /** Data no início do nome do arquivo ("2025 09 24 CONTRATO…"), quando houver. */
   contractDate: string | null;
@@ -202,11 +208,12 @@ export function classifyPartnerDoc(
     area: row.folder_area,
     status: row.d4sign_status,
     lifecycle: lifecycleFromStatus(row.d4sign_status),
-    createdAt: row.created_at_d4sign,
+    createdAt: row.sent_at ?? row.created_at_d4sign,
+    sentBy: row.sent_by ?? null,
     finalizedAt: row.finalized_at,
     contractDate,
     lastSignedAt,
-    waitingSince: lastSignedAt ?? row.created_at_d4sign ?? contractDate,
+    waitingSince: lastSignedAt ?? row.sent_at ?? row.created_at_d4sign ?? contractDate,
     signers,
     partners: slots,
   };

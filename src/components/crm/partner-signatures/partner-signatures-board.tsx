@@ -224,6 +224,18 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail }: 
                     ) : doc.contractDate ? (
                       <span>· contrato de {fmtDate(doc.contractDate)}</span>
                     ) : null}
+                    {doc.sentBy ? (
+                      <span
+                        title={
+                          doc.sentBy.source === "crm"
+                            ? "Enviado pelo CRM"
+                            : "Enviado direto na D4Sign (log do documento)"
+                        }
+                      >
+                        {doc.createdAt || doc.contractDate ? "por " : "· enviado por "}
+                        <span className="font-medium text-foreground/80">{doc.sentBy.full_name}</span>
+                      </span>
+                    ) : null}
                     {doc.lastSignedAt && doc.lifecycle !== "finalizado" ? <span>· última assinatura em {fmtDate(doc.lastSignedAt)}</span> : null}
                     {doc.lifecycle === "finalizado" && (doc.finalizedAt ?? doc.lastSignedAt) ? (
                       <span>· finalizado em {fmtDate(doc.finalizedAt ?? doc.lastSignedAt)}</span>

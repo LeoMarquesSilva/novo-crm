@@ -176,6 +176,7 @@ export async function POST(request: Request) {
         updated_at: nowIso,
         signers: initialSigners as never,
         sent_by_app_user_id: appUser?.id ?? null,
+        sent_at: nowIso,
       },
       { onConflict: "uuid_doc", ignoreDuplicates: false },
     );

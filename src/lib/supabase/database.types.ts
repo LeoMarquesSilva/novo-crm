@@ -1470,6 +1470,10 @@ export type Database = {
           safe_name: string | null
           safe_uuid: string
           sent_by_app_user_id: string | null
+          log_parsed_at: string | null
+          sent_at: string | null
+          sent_by_email: string | null
+          sent_by_name: string | null
           signers: Json
           size_bytes: number | null
           status_comment: string | null
@@ -1498,6 +1502,10 @@ export type Database = {
           safe_name?: string | null
           safe_uuid?: string
           sent_by_app_user_id?: string | null
+          log_parsed_at?: string | null
+          sent_at?: string | null
+          sent_by_email?: string | null
+          sent_by_name?: string | null
           signers?: Json
           size_bytes?: number | null
           status_comment?: string | null
@@ -1526,6 +1534,10 @@ export type Database = {
           safe_name?: string | null
           safe_uuid?: string
           sent_by_app_user_id?: string | null
+          log_parsed_at?: string | null
+          sent_at?: string | null
+          sent_by_email?: string | null
+          sent_by_name?: string | null
           signers?: Json
           size_bytes?: number | null
           status_comment?: string | null

@@ -182,6 +182,8 @@ export async function runPendingSignatureBackfill(options?: {
       link_contrato: string | null;
       d4sign_status: string | null;
       details_fetched_at: string | null;
+      log_parsed_at: string | null;
+      sent_by_name: string | null;
     };
     const existing = new Map<string, Prev>();
     const oppByUuid = new Map<string, { id: string; link_contrato: string | null }>();
@@ -191,7 +193,7 @@ export async function runPendingSignatureBackfill(options?: {
         supabase
           .from("d4sign_documents")
           .select(
-            "uuid_doc, created_at_d4sign, name_document, safe_name, oportunidade_id, link_contrato, d4sign_status, details_fetched_at",
+            "uuid_doc, created_at_d4sign, name_document, safe_name, oportunidade_id, link_contrato, d4sign_status, details_fetched_at, log_parsed_at, sent_by_name",
           )
           .in("uuid_doc", slice),
         supabase
@@ -237,6 +239,9 @@ export async function runPendingSignatureBackfill(options?: {
           link_contrato: opp?.link_contrato ?? prev?.link_contrato ?? null,
           d4sign_status: status,
           details_fetched_at: closedNow ? null : (prev?.details_fetched_at ?? null),
+          // Log lido sem achar remetente (PDF de pendente): lê de novo ao encerrar.
+          log_parsed_at:
+            closedNow && !prev?.sent_by_name ? null : (prev?.log_parsed_at ?? null),
           status_name: doc.statusName ?? null,
           status_comment: doc.statusComment ?? null,
           mime_type: doc.type ?? null,

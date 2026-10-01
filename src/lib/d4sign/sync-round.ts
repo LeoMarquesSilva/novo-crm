@@ -1,7 +1,7 @@
 /**
  * Uma rodada do sync D4Sign: garante o Webhook 2.0 no cofre (uma vez), fases
  * (conta inteira), signatários, raiz,
- * pastas de cliente e pré-cache de 1 PDF — cada etapa com a cota livre do
+ * pastas de cliente e remetente pelo log do PDF — cada etapa com a cota livre do
  * seu método, sem invadir `D4SIGN_HUMAN_RESERVE`.
  *
  * Disparada pelo GitHub Actions (`/api/cron/d4sign-sync`) e, como reforço,
@@ -14,7 +14,7 @@ import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { enrichDocuments, pickDocumentsToEnrich } from "@/lib/d4sign/enrich-documents";
 import { runPendingSignatureBackfill } from "@/lib/d4sign/pending-backfill";
-import { precacheD4SignPdfs } from "@/lib/d4sign/pdf-precache";
+import { collectD4SignPdfLogs } from "@/lib/d4sign/pdf-log-sync";
 import { D4SIGN_HUMAN_RESERVE, planD4SignSyncBudget } from "@/lib/d4sign/sync-budget";
 import { peekVaultFolderWalk, runVaultFolderWalk } from "@/lib/d4sign/vault-folder-walk";
 import { foldersLeftInWalk } from "@/lib/d4sign/vault-folder-walk-plan";
@@ -91,7 +91,7 @@ export async function runD4SignSyncRound(trigger: string) {
       phases: null,
       folders: null,
       enrich: null,
-      precache: { cached: 0, skipped: 0 },
+      pdfLogs: null,
     };
   }
 
@@ -147,24 +147,11 @@ export async function runD4SignSyncRound(trigger: string) {
       : null;
   });
 
-  const precache =
-    (budget.precache > 0
-      ? await stage("pré-cache", async () => {
-          const supabase = createSupabaseAdminClient();
-          const { data: candidates } = await supabase
-            .from("d4sign_documents")
-            .select("uuid_doc")
-            // Só finalizado: o PDF de pendente muda a cada assinatura.
-            .eq("d4sign_status", "1")
-            .order("created_at_d4sign", { ascending: false, nullsFirst: false })
-            .order("name_document", { ascending: false, nullsFirst: false })
-            .limit(10);
-          const uuids = (candidates ?? []).map((row) => row.uuid_doc);
-          return uuids.length > 0
-            ? precacheD4SignPdfs(uuids, { maxDownloads: budget.precache })
-            : null;
-        })
-      : null) ?? { cached: 0, skipped: 0 };
+  // Remetente pelo log do PDF: lê os PDFs já guardados (sem cota) e baixa
+  // os demais com a cota de download acima da reserva humana.
+  const pdfLogs = await stage("remetente", () =>
+    collectD4SignPdfLogs({ maxDownloads: budget.pdfLogs }),
+  );
 
   return {
     ok: errors.length === 0 && listing?.ok !== false && phases?.ok !== false && folders?.ok !== false,
@@ -177,7 +164,7 @@ export async function runD4SignSyncRound(trigger: string) {
     enrich,
     listing,
     folders,
-    precache,
+    pdfLogs,
     quota: await remainingByMethod(),
   };
 }

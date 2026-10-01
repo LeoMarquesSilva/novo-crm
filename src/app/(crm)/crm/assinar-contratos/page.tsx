@@ -4,6 +4,7 @@ import { CheckCircle2, Clock, Hourglass, PenLine } from "lucide-react";
 import { CrmPageHeader, type HeaderStat } from "@/components/crm/crm-page-header";
 import { PartnerSignaturesBoard } from "@/components/crm/partner-signatures/partner-signatures-board";
 import { requireAuth } from "@/lib/auth/server";
+import { resolveD4SignSenders } from "@/lib/d4sign/document-sender";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import {
   canAccessPartnerSignatures,
@@ -31,6 +32,10 @@ type DocRow = {
   folder_area: string | null;
   folder_name: string | null;
   signers: unknown;
+  sent_by_app_user_id: string | null;
+  sent_by_name: string | null;
+  sent_by_email: string | null;
+  sent_at: string | null;
   oportunidades: { solicitante_nome: string } | null;
 };
 
@@ -42,7 +47,7 @@ async function loadAllDocuments(): Promise<{ rows: DocRow[]; error: string | nul
     const { data, error } = await supabase
       .from("d4sign_documents")
       .select(
-        "uuid_doc, name_document, d4sign_status, created_at_d4sign, finalized_at, folder_area, folder_name, signers, oportunidades(solicitante_nome)",
+        "uuid_doc, name_document, d4sign_status, created_at_d4sign, finalized_at, folder_area, folder_name, signers, sent_by_app_user_id, sent_by_name, sent_by_email, sent_at, oportunidades(solicitante_nome)",
       )
       .order("created_at_d4sign", { ascending: false, nullsFirst: false })
       .range(from, from + PAGE_SIZE - 1);
@@ -60,7 +65,9 @@ export default async function AssinarContratosPage() {
     redirect("/crm");
   }
 
-  const { rows, error } = await loadAllDocuments();
+  const loaded = await loadAllDocuments();
+  const error = loaded.error;
+  const rows = await resolveD4SignSenders(loaded.rows);
 
   const docs: ClassifiedPartnerDoc[] = [];
   let withoutSignersPending = 0;

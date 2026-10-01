@@ -46,7 +46,7 @@ import {
 
 type SignerInfo = D4SignSignerInfo;
 
-type SentByInfo = { full_name: string; avatar_url: string | null } | null;
+type SentByInfo = { full_name: string; avatar_url: string | null; source?: "crm" | "d4sign" } | null;
 
 type LinkedRow = {
   uuid_doc: string;
@@ -66,6 +66,8 @@ type LinkedRow = {
   oportunidade_id: string | null;
   sent_by_app_user_id: string | null;
   sent_by: SentByInfo;
+  /** Data real do envio (log do PDF da D4Sign ou envio pelo CRM). */
+  sent_at?: string | null;
   oportunidades: {
     id: string;
     solicitante_nome: string;
@@ -92,6 +94,8 @@ type UnlinkedRow = {
   signers: unknown;
   sent_by_app_user_id: string | null;
   sent_by: SentByInfo;
+  /** Data real do envio (log do PDF da D4Sign ou envio pelo CRM). */
+  sent_at?: string | null;
 };
 
 // ─── Agrupamento de pastas ────────────────────────────────────────────────────
@@ -376,8 +380,14 @@ function SentByBadge({
   sentAt: string | null | undefined;
 }) {
   if (!sentAt && !sentBy) return null;
+  const origin =
+    sentBy?.source === "crm"
+      ? `Enviado pelo CRM por ${sentBy.full_name}`
+      : sentBy
+        ? `Enviado direto na D4Sign por ${sentBy.full_name} (log do documento)`
+        : undefined;
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground" title={origin}>
       {sentBy?.avatar_url ? (
         <img src={sentBy.avatar_url} alt={sentBy.full_name} className="size-4 rounded-(--radius-v2-full) object-cover shrink-0" />
       ) : sentBy ? (
@@ -955,7 +965,7 @@ export function D4SignDashboard({
           </div>
           {doc.sent_by || doc.created_at_d4sign ? (
             <div className="mt-1">
-              <SentByBadge sentBy={doc.sent_by} sentAt={doc.created_at_d4sign} />
+              <SentByBadge sentBy={doc.sent_by} sentAt={doc.sent_at ?? doc.created_at_d4sign} />
             </div>
           ) : null}
         </div>
@@ -1266,7 +1276,7 @@ export function D4SignDashboard({
                       <p className="text-[9px] text-muted-foreground">Sync {fmtRelative(row.last_synced_at)}</p>
                     ) : null}
                     {row.sent_by || row.created_at_d4sign ? (
-                      <SentByBadge sentBy={row.sent_by} sentAt={row.created_at_d4sign} />
+                      <SentByBadge sentBy={row.sent_by} sentAt={row.sent_at ?? row.created_at_d4sign} />
                     ) : null}
                   </div>
                   {/* Col 5 — Ações */}

@@ -8,6 +8,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/server";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
+import { resolveD4SignSenders } from "@/lib/d4sign/document-sender";
 import { EnsureContractDraftBanner } from "@/components/crm/contracts/ensure-contract-draft-banner";
 import { canAccessContractCapability, canEnsureContractDraft } from "@/lib/auth/crm-access-policy";
 import { getContractsPortfolio } from "@/modules/contracts/infrastructure/contract-queries";
@@ -43,6 +44,9 @@ async function getD4SignData() {
       signers,
       oportunidade_id,
       sent_by_app_user_id,
+      sent_by_name,
+      sent_by_email,
+      sent_at,
       oportunidades (
         id,
         solicitante_nome,
@@ -57,7 +61,7 @@ async function getD4SignData() {
   const { data: unlinked, error: unlinkedErr } = await supabase
     .from("d4sign_documents")
     .select(
-      "uuid_doc, name_document, d4sign_status, status_name, created_at_d4sign, finalized_at, safe_name, folder_uuid, folder_name, folder_path, folder_area, details_fetched_at, last_synced_at, signers, sent_by_app_user_id",
+      "uuid_doc, name_document, d4sign_status, status_name, created_at_d4sign, finalized_at, safe_name, folder_uuid, folder_name, folder_path, folder_area, details_fetched_at, last_synced_at, signers, sent_by_app_user_id, sent_by_name, sent_by_email, sent_at",
     )
     .is("oportunidade_id", null)
     .order("updated_at", { ascending: false });
@@ -67,33 +71,14 @@ async function getD4SignData() {
     .select("uuid_doc", { count: "exact", head: true })
     .is("name_document", null);
 
-  const senderIds = [
-    ...new Set(
-      [...(linked ?? []), ...(unlinked ?? [])]
-        .map((r) => r.sent_by_app_user_id)
-        .filter((id): id is string => Boolean(id)),
-    ),
-  ];
-  const senderMap = new Map<string, { full_name: string; avatar_url: string | null }>();
-  if (senderIds.length > 0) {
-    const { data: senders } = await supabase
-      .from("app_users")
-      .select("id, full_name, avatar_url")
-      .in("id", senderIds);
-    for (const s of senders ?? []) {
-      senderMap.set(s.id, { full_name: s.full_name, avatar_url: s.avatar_url ?? null });
-    }
-  }
-
-  const withSender = <T extends { sent_by_app_user_id: string | null }>(rows: T[]) =>
-    rows.map((r) => ({
-      ...r,
-      sent_by: r.sent_by_app_user_id ? (senderMap.get(r.sent_by_app_user_id) ?? null) : null,
-    }));
+  const [linkedWithSender, unlinkedWithSender] = await Promise.all([
+    resolveD4SignSenders(linked ?? []),
+    resolveD4SignSenders(unlinked ?? []),
+  ]);
 
   return {
-    linked: withSender(linked ?? []),
-    unlinked: withSender(unlinked ?? []),
+    linked: linkedWithSender,
+    unlinked: unlinkedWithSender,
     missingNames: missingNamesCount ?? 0,
     error: linkedErr?.message ?? unlinkedErr?.message ?? null,
   };

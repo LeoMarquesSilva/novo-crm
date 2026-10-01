@@ -4,7 +4,7 @@
  * A D4Sign limita 10 req/h por método, então cada etapa usa a cota do seu
  * método: fases (`documents/status`, cobre a conta inteira, qualquer pasta),
  * signatários (`documents/list`), listagem da raiz e pastas
- * (`documents/safe`) e PDF (`documents/download`). O cron nunca encosta nas
+ * (`documents/safe`) e PDF para o log do remetente (`documents/download`). O cron nunca encosta nas
  * vagas reservadas para quem está usando o CRM — abrir um PDF ou buscar
  * signatários na hora. Ninguém mais usa `documents/status`, então as fases
  * não têm reserva.
@@ -14,7 +14,7 @@
 export const D4SIGN_HUMAN_RESERVE = {
   safe: 2,
   list: 2,
-  download: 6,
+  download: 4,
 } as const;
 
 export type D4SignSyncBudget = {
@@ -22,7 +22,8 @@ export type D4SignSyncBudget = {
   phases: number;
   enrich: number;
   folders: number;
-  precache: number;
+  /** Baixas de PDF para ler o remetente no log (e guardar os finalizados). */
+  pdfLogs: number;
 };
 
 export type D4SignSyncRemaining = {
@@ -54,6 +55,6 @@ export function planD4SignSyncBudget(input: {
     phases: free(input.remaining.status),
     enrich: free(input.remaining.list, D4SIGN_HUMAN_RESERVE.list),
     folders,
-    precache: Math.min(1, free(input.remaining.download, D4SIGN_HUMAN_RESERVE.download)),
+    pdfLogs: free(input.remaining.download, D4SIGN_HUMAN_RESERVE.download),
   };
 }

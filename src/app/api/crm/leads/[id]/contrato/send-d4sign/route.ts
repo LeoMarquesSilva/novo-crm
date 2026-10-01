@@ -449,6 +449,7 @@ export async function POST(
         updated_at:            nowIso,
         signers:               initialSigners as never,
         sent_by_app_user_id:   auth.profile.id,
+        sent_at:               nowIso,
         folder_uuid:           clientFolder?.uuid ?? null,
         folder_name:           clientFolder?.name ?? null,
         folder_path:           clientFolder?.name ?? null,

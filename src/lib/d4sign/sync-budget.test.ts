@@ -10,7 +10,7 @@ describe("planD4SignSyncBudget", () => {
       phases: 10,
       enrich: 10 - D4SIGN_HUMAN_RESERVE.list,
       folders: 10 - D4SIGN_HUMAN_RESERVE.safe - 1,
-      precache: 1,
+      pdfLogs: 10 - D4SIGN_HUMAN_RESERVE.download,
     });
   });
 
@@ -27,15 +27,15 @@ describe("planD4SignSyncBudget", () => {
         remaining: { safe: 0, status: 4, list: 5, download: 9 },
         folderMode: "backlog",
       }),
-    ).toEqual({ listing: 0, phases: 4, enrich: 3, folders: 0, precache: 1 });
+    ).toEqual({ listing: 0, phases: 4, enrich: 3, folders: 0, pdfLogs: 9 - D4SIGN_HUMAN_RESERVE.download });
   });
 
-  it("não pré-carrega PDF quando só restam as vagas de quem está no CRM", () => {
+  it("não baixa PDF quando só restam as vagas de quem está no CRM", () => {
     const plan = planD4SignSyncBudget({
       remaining: { ...full, download: D4SIGN_HUMAN_RESERVE.download },
       folderMode: "none",
     });
-    expect(plan.precache).toBe(0);
+    expect(plan.pdfLogs).toBe(0);
     expect(plan.folders).toBe(0);
   });
 });

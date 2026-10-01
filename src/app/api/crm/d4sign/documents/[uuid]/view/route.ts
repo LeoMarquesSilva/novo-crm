@@ -26,6 +26,7 @@ import {
 } from "@/lib/d4sign/download-document";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { authorizeD4SignDocumentAccess } from "@/lib/d4sign/document-access";
+import { recordD4SignPdfLog } from "@/lib/d4sign/pdf-log-sync";
 import { isPdfBytes, readCachedPdf } from "@/lib/d4sign/pdf-bytes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { D4SignConnector } from "@/modules/crm/infrastructure/integrations/d4sign-client";
@@ -132,6 +133,10 @@ export async function GET(
   // gravaria 0 bytes se reutilizasse o mesmo ArrayBuffer.
   const pdfBytes = new Uint8Array(downloaded.bytes.slice(0));
   const cacheBytes = pdfBytes.slice();
+  // PDF baixado de graça: aproveita para ler o remetente no log.
+  const logBytes = pdfBytes.slice();
+  after(() => recordD4SignPdfLog(uuid, logBytes));
+
   if (finalized) {
     after(async () => {
       const { error: uploadError } = await supabase.storage

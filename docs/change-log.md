@@ -2,6 +2,13 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — D4Sign: quem enviou o contrato
+
+- Contratos enviados direto na D4Sign: remetente e data real de envio lidos do log de eventos do PDF ("Assinaturas iniciadas por …"). A API não informa isso.
+- Migration `20261001120000_d4sign_documents_sender_from_log`: `sent_by_name`, `sent_by_email`, `sent_at`, `log_parsed_at`.
+- Etapa "remetente" no sync substitui o pré-cache: lê PDFs do bucket sem cota e baixa os demais (reserva humana de download 6→4/h); `/view` também lê o log. Envios pelo CRM gravam `sent_at`.
+- Exibição: painel técnico e área dos sócios mostram "enviado em DATA por NOME" (usuário do CRM quando enviado pelo CRM ou quando o e-mail do log é de um usuário).
+
 ## 2026-10-01 — D4Sign: finalizado com signatário "pendente"
 
 - 5 contratos finalizados mostravam sócio/cliente em amarelo/cinza: os signatários foram buscados quando ainda pendentes e o status virou "1" depois, pela listagem por fase.
