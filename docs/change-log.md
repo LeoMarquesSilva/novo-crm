@@ -2,6 +2,12 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — D4Sign: finalizado com signatário "pendente"
+
+- 5 contratos finalizados mostravam sócio/cliente em amarelo/cinza: os signatários foram buscados quando ainda pendentes e o status virou "1" depois, pela listagem por fase.
+- Exibição: `parseSigners(raw, status)` trata todos como assinados quando o status é finalizado (painel dos sócios e técnico).
+- Dados: a listagem por fase zera `details_fetched_at` quando o documento sai de pendente para encerrado, e ele volta para a fila de signatários (datas reais).
+
 ## 2026-10-01 — D4Sign: sync resistente a erro da D4Sign
 
 - 1ª execução agendada do GitHub (06:26 UTC) falhou: a D4Sign respondeu 500 vazio na fase 4 (que respondia 200 às 02:17) e a exceção derrubou a rodada inteira (500 no endpoint, e-mail de falha).

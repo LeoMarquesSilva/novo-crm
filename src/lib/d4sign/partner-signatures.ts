@@ -27,9 +27,16 @@ export type D4SignSignerInfo = {
   sign_info?: { ip?: string; geolocation?: string; date_signed?: string } | null;
 };
 
-export function parseSigners(raw: unknown): D4SignSignerInfo[] {
+/**
+ * Signatários gravados. Com `status` "1" (finalizado na D4Sign) todos contam
+ * como assinados: a lista pode ter sido buscada quando o documento ainda
+ * estava pendente e o status mudou depois (listagem por fase).
+ */
+export function parseSigners(raw: unknown, status?: string | null): D4SignSignerInfo[] {
   if (!raw || !Array.isArray(raw)) return [];
-  return raw as D4SignSignerInfo[];
+  const signers = raw as D4SignSignerInfo[];
+  if (String(status ?? "") !== "1") return signers;
+  return signers.map((s) => (signerIsPending(s) ? { ...s, signed: true } : s));
 }
 
 export function signerIsPending(s: D4SignSignerInfo): boolean {
@@ -164,7 +171,7 @@ export function classifyPartnerDoc(
   row: PartnerDocRow,
   partners: PartnerSigner[],
 ): ClassifiedPartnerDoc | null {
-  const signers = parseSigners(row.signers);
+  const signers = parseSigners(row.signers, row.d4sign_status);
   const slots: Record<string, PartnerSignatureSlot> = {};
 
   for (const s of signers) {

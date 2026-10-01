@@ -6,6 +6,7 @@
  */
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { estimateD4SignCreatedAt } from "@/lib/d4sign/created-at-estimate";
+import { PENDING_D4SIGN_STATUSES } from "@/lib/d4sign/enrich-documents";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { isRateLimitError } from "@/lib/d4sign/quota-orchestrator";
 import {
@@ -179,6 +180,8 @@ export async function runPendingSignatureBackfill(options?: {
       safe_name: string | null;
       oportunidade_id: string | null;
       link_contrato: string | null;
+      d4sign_status: string | null;
+      details_fetched_at: string | null;
     };
     const existing = new Map<string, Prev>();
     const oppByUuid = new Map<string, { id: string; link_contrato: string | null }>();
@@ -187,7 +190,9 @@ export async function runPendingSignatureBackfill(options?: {
       const [{ data: rows, error }, { data: opps, error: oppError }] = await Promise.all([
         supabase
           .from("d4sign_documents")
-          .select("uuid_doc, created_at_d4sign, name_document, safe_name, oportunidade_id, link_contrato")
+          .select(
+            "uuid_doc, created_at_d4sign, name_document, safe_name, oportunidade_id, link_contrato, d4sign_status, details_fetched_at",
+          )
           .in("uuid_doc", slice),
         supabase
           .from("oportunidades")
@@ -213,6 +218,12 @@ export async function runPendingSignatureBackfill(options?: {
         const uuid = doc.uuid_doc as string;
         const opp = oppByUuid.get(uuid);
         const prev = existing.get(uuid);
+        const status = mapPendingStatusId(doc.statusId);
+        // Saiu de pendente para encerrado: os signatários gravados ficaram
+        // velhos (quem faltava assinar). Volta para o topo da fila de busca.
+        const closedNow =
+          Boolean(prev?.d4sign_status && PENDING_D4SIGN_STATUSES.has(prev.d4sign_status)) &&
+          Boolean(status && !PENDING_D4SIGN_STATUSES.has(status));
         // O upsert em lote grava NULL em coluna ausente: toda linha leva as
         // mesmas colunas, caindo para o valor que já está no banco.
         return {
@@ -224,7 +235,8 @@ export async function runPendingSignatureBackfill(options?: {
             prev?.created_at_d4sign ?? estimateD4SignCreatedAt(uuid, doc.name_document),
           oportunidade_id: opp?.id ?? prev?.oportunidade_id ?? null,
           link_contrato: opp?.link_contrato ?? prev?.link_contrato ?? null,
-          d4sign_status: mapPendingStatusId(doc.statusId),
+          d4sign_status: status,
+          details_fetched_at: closedNow ? null : (prev?.details_fetched_at ?? null),
           status_name: doc.statusName ?? null,
           status_comment: doc.statusComment ?? null,
           mime_type: doc.type ?? null,

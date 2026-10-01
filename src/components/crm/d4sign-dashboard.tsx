@@ -207,7 +207,7 @@ function getSignedSummary(
   finalizedAt: string | null,
   signersRaw: unknown,
 ): SignedSummary | null {
-  const signers = parseSigners(signersRaw);
+  const signers = parseSigners(signersRaw, status);
   const signedOnes = signers.filter((s) => !signerIsPending(s));
 
   if (status === "1") {
@@ -686,9 +686,9 @@ export function D4SignDashboard({
   // Conta docs pendentes por signatário (para os chips)
   const allDocs = useMemo(() => {
     const arr: { signers: SignerInfo[]; status: string | null }[] = [];
-    for (const r of linked)  arr.push({ signers: parseSigners(r.signers), status: r.d4sign_status });
+    for (const r of linked)  arr.push({ signers: parseSigners(r.signers, r.d4sign_status), status: r.d4sign_status });
     if (showVault)
-      for (const r of unlinked) arr.push({ signers: parseSigners(r.signers), status: r.d4sign_status });
+      for (const r of unlinked) arr.push({ signers: parseSigners(r.signers, r.d4sign_status), status: r.d4sign_status });
     return arr;
   }, [linked, unlinked, showVault]);
 
@@ -874,7 +874,7 @@ export function D4SignDashboard({
         linked.filter((r) => {
           if (filter !== "all" && getStatus(r.d4sign_status).group !== filter) return false;
           if (!passesNoSignersFilter(r.signers)) return false;
-          return matchesSigner(parseSigners(r.signers));
+          return matchesSigner(parseSigners(r.signers, r.d4sign_status));
         }),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -888,7 +888,7 @@ export function D4SignDashboard({
             unlinked.filter((d) => {
               if (filter !== "all" && getStatus(d.d4sign_status).group !== filter) return false;
               if (!passesNoSignersFilter(d.signers)) return false;
-              return matchesSigner(parseSigners(d.signers));
+              return matchesSigner(parseSigners(d.signers, d.d4sign_status));
             }),
           )
         : [],
@@ -910,7 +910,7 @@ export function D4SignDashboard({
   function renderVaultDoc(doc: UnlinkedRow) {
     const status     = getStatus(doc.d4sign_status);
     const StatusIcon = status.icon;
-    const signers    = parseSigners(doc.signers);
+    const signers    = parseSigners(doc.signers, doc.d4sign_status);
     const needsEnrich = signers.length === 0;
     return (
       <div key={doc.uuid_doc}
@@ -1191,7 +1191,7 @@ export function D4SignDashboard({
               const opp        = row.oportunidades;
               const status     = getStatus(row.d4sign_status);
               const StatusIcon = status.icon;
-              const signers    = parseSigners(row.signers);
+              const signers    = parseSigners(row.signers, row.d4sign_status);
               const leadId     = opp?.id ?? row.oportunidade_id ?? "";
               return (
                 <div key={row.uuid_doc} className="grid grid-cols-1 gap-3 px-5 py-4 transition-colors hover:bg-neutral-50 sm:grid-cols-[2fr_1.5fr_1fr_1fr_auto] sm:items-start sm:gap-4">

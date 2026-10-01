@@ -126,6 +126,19 @@ describe("classifyPartnerDoc", () => {
       expect(partnerDocTab(cancelled, G)).toBe("cancelado");
     }
   });
+
+  it("documento finalizado mostra todos os signatários como assinados", () => {
+    const signers = [
+      { email: G, signed: "0" },
+      { email: "cliente@x.com", signed: false, signed_at: null },
+    ];
+    const done = classifyPartnerDoc(row({ d4sign_status: "1", signers }), partners)!;
+    expect(done.partners[G].signed).toBe(true);
+    expect(done.signers.every((s) => !signerIsPending(s))).toBe(true);
+    // Pendente continua pendente.
+    const open = classifyPartnerDoc(row({ d4sign_status: "3", signers }), partners)!;
+    expect(open.partners[G].signed).toBe(false);
+  });
 });
 
 describe("countPartnerTabs", () => {
