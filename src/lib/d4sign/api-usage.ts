@@ -20,6 +20,7 @@ export type D4SignQuotaMethod =
   | "documents/generate-document-view"
   | "documents/list"
   | "documents/safe"
+  | "documents/signaturelink"
   | "documents/status"
   | "folders/find";
 
@@ -28,6 +29,7 @@ const METHOD_ENDPOINTS: Record<D4SignQuotaMethod, string[]> = {
   "documents/generate-document-view": ["documents/generate-document-view"],
   "documents/list": ["documents/list"],
   "documents/safe": ["documents/safe", "documents/safe/folder"],
+  "documents/signaturelink": ["documents/signaturelink"],
   "documents/status": ["documents/status"],
   "folders/find": ["folders/find"],
 };

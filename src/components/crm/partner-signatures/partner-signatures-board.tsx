@@ -11,9 +11,8 @@ import {
   PenLine,
   Search,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EmbedSignDialog } from "@/components/crm/d4sign-embed-dialog";
 import { D4SignViewDialog } from "@/components/crm/d4sign-view-dialog";
 import { useD4SignDocumentsRealtime } from "@/lib/crm/use-d4sign-realtime";
 import {
@@ -27,7 +26,7 @@ import {
   type PartnerSigner,
   type PartnerTab,
 } from "@/lib/d4sign/partner-signatures";
-import { d4signDocumentOpenPath } from "@/lib/d4sign/portal-url";
+import { d4signDocumentOpenPath, d4signDocumentSignPath } from "@/lib/d4sign/portal-url";
 import { cn } from "@/lib/utils";
 
 const TAB_LABEL: Record<PartnerTab, string> = {
@@ -65,10 +64,6 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail }: 
   const [tab, setTab] = useState<PartnerTab>("pendente");
   const [query, setQuery] = useState("");
 
-  const [embed, setEmbed] = useState<
-    | { open: true; documentUuid: string; signerEmail: string; signerName: string | null; keySigner: string | null }
-    | { open: false }
-  >({ open: false });
   const [view, setView] = useState<
     | { open: true; documentUuid: string; documentName: string | null }
     | { open: false }
@@ -286,22 +281,17 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail }: 
 
                 {/* Ações */}
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  {canSign && mySlot ? (
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        setEmbed({
-                          open: true,
-                          documentUuid: doc.uuid,
-                          signerEmail: mySlot.signerEmail,
-                          signerName: mySlot.signerName,
-                          keySigner: mySlot.keySigner,
-                        })
-                      }
+                  {canSign ? (
+                    // Link de assinatura da D4Sign (o EMBED não está habilitado na conta).
+                    <a
+                      href={d4signDocumentSignPath(doc.uuid)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={buttonVariants({ size: "sm" })}
                     >
                       <PenLine />
                       Assinar
-                    </Button>
+                    </a>
                   ) : null}
                   <Button
                     size="sm"
@@ -326,22 +316,6 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail }: 
           })}
         </ul>
       )}
-
-      {embed.open ? (
-        <EmbedSignDialog
-          open
-          onOpenChange={(v) => {
-            if (!v) {
-              setEmbed({ open: false });
-              router.refresh();
-            }
-          }}
-          documentUuid={embed.documentUuid}
-          signerEmail={embed.signerEmail}
-          signerDisplayName={embed.signerName ?? undefined}
-          signerKeySigner={embed.keySigner ?? undefined}
-        />
-      ) : null}
 
       {view.open ? (
         <D4SignViewDialog

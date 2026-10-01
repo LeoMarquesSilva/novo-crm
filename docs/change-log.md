@@ -2,6 +2,10 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — D4Sign: botão Assinar sem EMBED
+
+- A conta não tem EMBED ("Esse documento não pode ser exibido via EMBED"). "Assinar" (área dos sócios) e "Assinar agora" (painel técnico) abrem `/api/crm/d4sign/documents/[uuid]/sign`, que redireciona para o link de assinatura da D4Sign só quando o logado é o próprio sócio pendente; os demais caem no painel da D4Sign. Antes o painel técnico deixava qualquer admin abrir a assinatura de um sócio.
+
 ## 2026-10-01 — D4Sign: conta de assinatura digital do Gustavo
 
 - `assinaturadigital@bismarchipires.com.br` e `assinaturadigital@bpplaw.com.br` são aliases do Gustavo (assina com o certificado dele no login de outro usuário).

@@ -26,15 +26,14 @@ import {
   Vault,
   XCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { EmbedSignDialog } from "@/components/crm/d4sign-embed-dialog";
 import { D4SignViewDialog } from "@/components/crm/d4sign-view-dialog";
 import { D4SignHealthPanel } from "@/components/crm/d4sign-health-panel";
 import { D4SignLinkLeadDialog, D4SignOriginBadge } from "@/components/crm/d4sign-link-lead-dialog";
 import { useD4SignDocumentsRealtime } from "@/lib/crm/use-d4sign-realtime";
 import type { D4SignQuotaStatus } from "@/lib/d4sign/api-usage";
-import { d4signDocumentOpenPath } from "@/lib/d4sign/portal-url";
+import { d4signDocumentOpenPath, d4signDocumentSignPath } from "@/lib/d4sign/portal-url";
 import { D4SIGN_HOURLY_LIMIT } from "@/lib/d4sign/api-usage";
 import {
   parseSigners,
@@ -605,23 +604,6 @@ export function D4SignDashboard({
     | { open: true; uuid: string; name: string | null; leadId: string | null }
     | { open: false }
   >({ open: false });
-
-  // EMBED dialog (assinar inline via iframe D4Sign)
-  const [embedState, setEmbedState] = useState<
-    | { open: true; documentUuid: string; signerEmail: string; signerName: string | null; signerKey: string | null }
-    | { open: false }
-  >({ open: false });
-
-  function openEmbed(documentUuid: string, signer: SignerInfo) {
-    if (!signer.email) return;
-    setEmbedState({
-      open: true,
-      documentUuid,
-      signerEmail: signer.email,
-      signerName: signer.name ?? null,
-      signerKey: signer.key_signer ?? null,
-    });
-  }
 
   // VIEW dialog (visualização do PDF via proxy)
   const [viewState, setViewState] = useState<
@@ -1298,16 +1280,18 @@ export function D4SignDashboard({
                       );
                       if (firmPending && docPending) {
                         return (
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-8 gap-1 px-2.5 text-[11px] font-bold"
-                            onClick={() => openEmbed(row.uuid_doc, firmPending)}
-                            title={`Assinar inline como ${firmPending.name ?? firmPending.email}`}
+                          // Link de assinatura da D4Sign: só abre para o próprio
+                          // sócio logado; os demais caem no painel da D4Sign.
+                          <a
+                            href={d4signDocumentSignPath(row.uuid_doc)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={cn(buttonVariants({ size: "sm" }), "h-8 gap-1 px-2.5 text-[11px] font-bold")}
+                            title={`Assinar como ${firmPending.name ?? firmPending.email} (abre a D4Sign)`}
                           >
                             <PenLine className="size-3" />
                             Assinar agora
-                          </Button>
+                          </a>
                         );
                       }
                       return null;
@@ -1513,27 +1497,6 @@ export function D4SignDashboard({
       ) : null}
 
       {/* EMBED Dialog — assinar inline */}
-      {embedState.open ? (
-        <EmbedSignDialog
-          open={embedState.open}
-          onOpenChange={(v) => {
-            if (!v) {
-              setEmbedState({ open: false });
-              router.refresh(); // recarrega para refletir nova assinatura
-            }
-          }}
-          documentUuid={embedState.documentUuid}
-          signerEmail={embedState.signerEmail}
-          signerDisplayName={embedState.signerName ?? undefined}
-          signerKeySigner={embedState.signerKey ?? undefined}
-          onSigned={() => {
-            // Sincroniza após pequeno delay (D4Sign precisa de tempo)
-            setTimeout(() => {
-              fetch("/api/crm/d4sign/vault-sync", { method: "POST" }).catch(() => undefined);
-            }, 1500);
-          }}
-        />
-      ) : null}
 
       {/* VIEW Dialog — visualização do PDF via proxy */}
       {viewState.open ? (
