@@ -4,6 +4,7 @@ import type { CrmSessionUser } from "@/components/crm/crm-session-user";
 import { requireAuth } from "@/lib/auth/server";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import { canAccessPartnerSignatures, toPartnerSigners } from "@/lib/d4sign/partner-signatures";
+import { isPartnerOnlyEmail } from "@/lib/d4sign/partner-only";
 import { runD4SignSyncRoundIfStale } from "@/lib/d4sign/sync-round";
 
 /** Tempo para a rodada D4Sign em segundo plano (`after`) terminar. */
@@ -27,6 +28,7 @@ export default async function CrmLayout({
       email: user.email,
       partners: toPartnerSigners(getFirmSigners()),
     }),
+    partnerOnly: isPartnerOnlyEmail(user.email),
   };
 
   // Reforço do cron do GitHub (que atrasa ou pula execuções): com o CRM em

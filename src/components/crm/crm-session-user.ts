@@ -8,6 +8,8 @@ export type CrmSessionUser = {
   role: Database["public"]["Enums"]["user_role"] | null;
   /** Admin ou sócio signatário — vê a área "Assinar Contratos". */
   canAccessPartnerSignatures: boolean;
+  /** Sócio: o CRM mostra só "Assinar Contratos" (e o perfil). */
+  partnerOnly: boolean;
 };
 
 export function initialsFromUser(fullName: string | null, email: string | null): string {

@@ -381,8 +381,10 @@ export function AppShell({
   });
   const [hydratedStorage, setHydratedStorage] = useState(false);
 
-  const showAdminNav = sessionUser.role === "admin";
-  const showPartnerNav = sessionUser.canAccessPartnerSignatures;
+  // Sócio vê só "Assinar Contratos" (o proxy redireciona as outras páginas).
+  const partnerOnly = sessionUser.partnerOnly;
+  const showAdminNav = sessionUser.role === "admin" && !partnerOnly;
+  const showPartnerNav = sessionUser.canAccessPartnerSignatures || partnerOnly;
   const canViewDueDiligence =
     sessionUser.role === "admin" || sessionUser.role === "comercial";
   const workspaceLabel = sessionUser.area?.trim() || "Workspace corporativo";
@@ -394,17 +396,21 @@ export function AppShell({
 
   const groups = useMemo<SidebarGroup[]>(
     () => [
-      {
-        id: "commercial",
-        title: "Comercial",
-        items: canViewDueDiligence
-          ? mainItems
-          : mainItems.filter((item) => item.href !== "/crm/due-diligence"),
-      },
+      ...(partnerOnly
+        ? []
+        : [
+            {
+              id: "commercial",
+              title: "Comercial",
+              items: canViewDueDiligence
+                ? mainItems
+                : mainItems.filter((item) => item.href !== "/crm/due-diligence"),
+            },
+          ]),
       ...(showPartnerNav ? [{ id: "partners", title: "Sócios", items: partnerItems }] : []),
       ...(showAdminNav ? [{ id: "admin", title: "Configurações", items: adminItems }] : []),
     ],
-    [canViewDueDiligence, showPartnerNav, showAdminNav],
+    [partnerOnly, canViewDueDiligence, showPartnerNav, showAdminNav],
   );
 
   const allItems = useMemo(() => groups.flatMap((group) => group.items), [groups]);
@@ -491,6 +497,7 @@ export function AppShell({
   }, []);
 
   useEffect(() => {
+    if (partnerOnly) return;
     function openSearchFromKeyboard(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -500,7 +507,7 @@ export function AppShell({
 
     window.addEventListener("keydown", openSearchFromKeyboard);
     return () => window.removeEventListener("keydown", openSearchFromKeyboard);
-  }, []);
+  }, [partnerOnly]);
 
   return (
     <TooltipProvider delayDuration={220} skipDelayDuration={80}>
@@ -520,14 +527,16 @@ export function AppShell({
             <p className="truncate text-[11px] text-slate-500">{workspaceLabel}</p>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setLeadSearchOpen(true)}
-              className="flex size-10 items-center justify-center rounded-(--radius-v2-lg) text-muted-foreground transition-colors hover:bg-white hover:text-foreground"
-              aria-label="Pesquisar leads"
-            >
-              <Search className="size-4.5" strokeWidth={1.9} />
-            </button>
+            {partnerOnly ? null : (
+              <button
+                type="button"
+                onClick={() => setLeadSearchOpen(true)}
+                className="flex size-10 items-center justify-center rounded-(--radius-v2-lg) text-muted-foreground transition-colors hover:bg-white hover:text-foreground"
+                aria-label="Pesquisar leads"
+              >
+                <Search className="size-4.5" strokeWidth={1.9} />
+              </button>
+            )}
             <CrmNotificationsBell />
           </div>
         </div>
@@ -726,20 +735,24 @@ export function AppShell({
           )}
         >
           <header className="sticky top-0 z-(--z-navigation) hidden h-16 items-center justify-between gap-5 border-b border-[#e6e9ef] bg-[#f8f9fb]/95 px-6 shadow-[0_1px_2px_rgba(16,31,46,0.03)] backdrop-blur-xl lg:flex">
-            <button
-              type="button"
-              onClick={() => setLeadSearchOpen(true)}
-              className="group/search flex h-10 w-full max-w-[420px] items-center gap-2.5 rounded-(--radius-v2-lg) border border-[#e1e5eb] bg-white px-3.5 text-left shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-colors hover:border-slate-300 focus-visible:outline focus-visible:ring-3 focus-visible:ring-primary/20"
-              aria-label="Pesquisar leads"
-            >
-              <Search className="size-4 shrink-0 text-slate-400 transition-colors group-hover/search:text-slate-600" strokeWidth={1.9} />
-              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-400">
-                Pesquisar leads…
-              </span>
-              <kbd className="rounded-(--radius-v2-sm) border border-slate-200 bg-[#f8f9fb] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
-                Ctrl K
-              </kbd>
-            </button>
+            {partnerOnly ? (
+              <div />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setLeadSearchOpen(true)}
+                className="group/search flex h-10 w-full max-w-[420px] items-center gap-2.5 rounded-(--radius-v2-lg) border border-[#e1e5eb] bg-white px-3.5 text-left shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-colors hover:border-slate-300 focus-visible:outline focus-visible:ring-3 focus-visible:ring-primary/20"
+                aria-label="Pesquisar leads"
+              >
+                <Search className="size-4 shrink-0 text-slate-400 transition-colors group-hover/search:text-slate-600" strokeWidth={1.9} />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-400">
+                  Pesquisar leads…
+                </span>
+                <kbd className="rounded-(--radius-v2-sm) border border-slate-200 bg-[#f8f9fb] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
+                  Ctrl K
+                </kbd>
+              </button>
+            )}
             <div className="flex shrink-0 items-center gap-2">
               <CrmNotificationsBell />
               <SidebarAccountMenu sessionUser={sessionUser} collapsed={false} placement="header" />

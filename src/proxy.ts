@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { PARTNER_HOME, isPartnerOnlyAllowedPath, isPartnerOnlyEmail } from "@/lib/d4sign/partner-only";
 
 function safeNextPath(next: string | null) {
   return next && next.startsWith("/") && !next.startsWith("//") ? next : "/crm";
@@ -69,6 +70,16 @@ export async function proxy(request: NextRequest) {
 
   if (pathname.startsWith("/crm") && !user) {
     return redirectToLogin(request);
+  }
+
+  // Sócio usa o CRM só para assinar: qualquer outra página vai para lá.
+  if (
+    pathname.startsWith("/crm") &&
+    user &&
+    isPartnerOnlyEmail(user.email) &&
+    !isPartnerOnlyAllowedPath(pathname)
+  ) {
+    return NextResponse.redirect(new URL(PARTNER_HOME, request.url));
   }
 
   if (isAdminPath(pathname) && user) {

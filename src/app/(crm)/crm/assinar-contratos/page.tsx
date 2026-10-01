@@ -6,6 +6,7 @@ import { PartnerSignaturesBoard } from "@/components/crm/partner-signatures/part
 import { requireAuth } from "@/lib/auth/server";
 import { resolveD4SignSenders } from "@/lib/d4sign/document-sender";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
+import { isPartnerOnlyEmail } from "@/lib/d4sign/partner-only";
 import {
   canAccessPartnerSignatures,
   classifyPartnerDoc,
@@ -141,7 +142,7 @@ export default async function AssinarContratosPage() {
           <Clock className="size-3.5" aria-hidden />
           {withoutSignersPending} documento{withoutSignersPending !== 1 ? "s" : ""} em andamento ainda sem
           dados de signatários não aparece{withoutSignersPending !== 1 ? "m" : ""} aqui.
-          {isAdmin ? (
+          {isAdmin && !isPartnerOnlyEmail(user.email) ? (
             <Link href="/crm/contratos?tab=d4sign" className="font-semibold text-interactive-700 hover:underline">
               Buscar na área técnica D4Sign
             </Link>

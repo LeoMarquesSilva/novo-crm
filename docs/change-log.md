@@ -2,6 +2,10 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — Modo sócio
+
+- Gustavo e Ricardo (por e-mail ou alias) veem só "Assinar Contratos" e o perfil: `proxy.ts` redireciona as demais páginas `/crm/...`, o menu mostra só "Sócios" e a busca de leads some. Vale mesmo com papel `admin`.
+
 ## 2026-10-01 — D4Sign: cancelar contrato
 
 - Botão "Cancelar" (só admin, só em andamento) na área dos sócios e no painel técnico, com confirmação e motivo obrigatório. Rota `POST /api/crm/d4sign/documents/[uuid]/cancel` → `POST /documents/{uuid}/cancel` (motivo em `comment`); grava status cancelado no catálogo e na oportunidade.
