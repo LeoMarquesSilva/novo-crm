@@ -15,6 +15,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const BUCKET = "d4sign-contracts";
 
+/** Prazos de 1 download no sync (medido ~30s); somados dão o pior caso. */
+const DOWNLOAD_API_TIMEOUT_MS = 15_000;
+const DOWNLOAD_FILE_TIMEOUT_MS = 25_000;
+const DOWNLOAD_WORST_CASE_MS = DOWNLOAD_API_TIMEOUT_MS + DOWNLOAD_FILE_TIMEOUT_MS;
+
 /** Lê o log e grava remetente/data de envio. Nunca lança. */
 export async function recordD4SignPdfLog(
   uuid: string,
@@ -44,6 +49,8 @@ export async function recordD4SignPdfLog(
 export async function collectD4SignPdfLogs(options: {
   maxDownloads: number;
   maxFromCache?: number;
+  /** Instante (ms) em que a rodada precisa ter terminado; novo download só se couber. */
+  deadline?: number;
 }): Promise<{ fromCache: number; downloaded: number; senders: number; error?: string }> {
   const supabase = createSupabaseAdminClient();
   const bucket = supabase.storage.from(BUCKET);
@@ -96,12 +103,18 @@ export async function collectD4SignPdfLogs(options: {
     }
 
     if (downloadsStopped || result.downloaded >= options.maxDownloads) continue;
+    if (options.deadline && Date.now() + DOWNLOAD_WORST_CASE_MS > options.deadline) {
+      downloadsStopped = true;
+      continue;
+    }
     result.downloaded += 1;
     const downloaded = await downloadD4SignDocumentPdf({
       uuid: doc.uuid_doc,
       apiBaseUrl: env.apiBaseUrl,
       tokenApi: env.tokenApi,
       cryptKey: env.cryptKey,
+      timeoutMs: DOWNLOAD_API_TIMEOUT_MS,
+      fileTimeoutMs: DOWNLOAD_FILE_TIMEOUT_MS,
     });
     if (downloaded.apiStatus !== null) {
       logD4SignApiCall({

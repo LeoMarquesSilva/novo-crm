@@ -2,6 +2,10 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — Sync D4Sign: limite de tempo da rodada
+
+- Rodada de 121s deu 504 na Vercel (`maxDuration` 120s): cada PDF baixado para ler o remetente leva ~30s. Agora a rodada tem orçamento de 95s; download no sync tem prazo de 15s+25s e só começa se couber. O que não couber fica para a próxima rodada.
+
 ## 2026-10-01 — Modo sócio
 
 - Gustavo e Ricardo (por e-mail ou alias) veem só "Assinar Contratos" e o perfil: `proxy.ts` redireciona as demais páginas `/crm/...`, o menu mostra só "Sócios" e a busca de leads some. Vale mesmo com papel `admin`.

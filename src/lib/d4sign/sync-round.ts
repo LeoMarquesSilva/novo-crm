@@ -25,6 +25,13 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 export const SYNC_ROUND_ENDPOINT = "cursor/sync-round";
 export const SYNC_ROUND_MIN_INTERVAL_MS = 4 * 60 * 1000;
 
+/**
+ * Tempo da rodada, abaixo do `maxDuration` (120s) da rota do cron e do layout.
+ * Cada PDF baixado leva ~30s; sem limite, 3 PDFs estouravam e a Vercel
+ * respondia 504.
+ */
+export const SYNC_ROUND_BUDGET_MS = 95_000;
+
 async function remainingByMethod() {
   const [safe, status, list, download] = await Promise.all([
     getD4SignQuotaStatus("documents/safe"),
@@ -63,6 +70,7 @@ async function markRound(trigger: string): Promise<void> {
 }
 
 export async function runD4SignSyncRound(trigger: string) {
+  const deadline = Date.now() + SYNC_ROUND_BUDGET_MS;
   await markRound(trigger);
   // Uma vez só (marcado em cursor/webhook-v2): eventos em tempo real do cofre.
   const webhook = await ensureSafeWebhookV2();
@@ -150,7 +158,7 @@ export async function runD4SignSyncRound(trigger: string) {
   // Remetente pelo log do PDF: lê os PDFs já guardados (sem cota) e baixa
   // os demais com a cota de download acima da reserva humana.
   const pdfLogs = await stage("remetente", () =>
-    collectD4SignPdfLogs({ maxDownloads: budget.pdfLogs }),
+    collectD4SignPdfLogs({ maxDownloads: budget.pdfLogs, deadline }),
   );
 
   return {
