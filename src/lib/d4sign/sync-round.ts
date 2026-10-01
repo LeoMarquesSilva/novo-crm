@@ -1,5 +1,6 @@
 /**
- * Uma rodada do sync D4Sign: fases (conta inteira), signatários, raiz,
+ * Uma rodada do sync D4Sign: garante o Webhook 2.0 no cofre (uma vez), fases
+ * (conta inteira), signatários, raiz,
  * pastas de cliente e pré-cache de 1 PDF — cada etapa com a cota livre do
  * seu método, sem invadir `D4SIGN_HUMAN_RESERVE`.
  *
@@ -18,6 +19,7 @@ import { D4SIGN_HUMAN_RESERVE, planD4SignSyncBudget } from "@/lib/d4sign/sync-bu
 import { peekVaultFolderWalk, runVaultFolderWalk } from "@/lib/d4sign/vault-folder-walk";
 import { foldersLeftInWalk } from "@/lib/d4sign/vault-folder-walk-plan";
 import { runVaultSafeListing } from "@/lib/d4sign/vault-listing";
+import { ensureSafeWebhookV2 } from "@/lib/d4sign/webhook-registration";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const SYNC_ROUND_ENDPOINT = "cursor/sync-round";
@@ -62,6 +64,8 @@ async function markRound(trigger: string): Promise<void> {
 
 export async function runD4SignSyncRound(trigger: string) {
   await markRound(trigger);
+  // Uma vez só (marcado em cursor/webhook-v2): eventos em tempo real do cofre.
+  const webhook = await ensureSafeWebhookV2();
 
   const before = await remainingByMethod();
   const folderCursor = await peekVaultFolderWalk();
@@ -80,6 +84,7 @@ export async function runD4SignSyncRound(trigger: string) {
       error: "Cota D4Sign do sync esgotada nesta hora (reserva humana preservada).",
       triggeredAt: new Date().toISOString(),
       trigger,
+      webhook,
       budget,
       quota: before,
       listing: null,
@@ -143,6 +148,7 @@ export async function runD4SignSyncRound(trigger: string) {
     ok: listing?.ok !== false && phases?.ok !== false && folders?.ok !== false,
     triggeredAt: new Date().toISOString(),
     trigger,
+    webhook,
     budget,
     phases,
     enrich,

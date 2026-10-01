@@ -2,6 +2,15 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — D4Sign: Webhook 2.0
+
+- Conta passou para o Webhook 2.0 (JSON). O endpoint aceitava só form-data e rejeitaria todo evento com 400. Agora lê JSON (2.0) e form-data (1.0).
+- Webhook cadastrado no cofre inteiro (`POST /webhooks/v2/`, `type: "cofre"`) uma vez, pela rodada do sync ou pelo envio; acabou o cadastro por documento.
+- Finalização do 2.0 traz os signatários completos e grava sem `GET /list`; assinatura/bounce acrescentam signatário ausente; documento fora do catálogo é criado na hora; evento atrasado não reabre documento encerrado.
+- Sem `Content-Hmac`, o evento só reenfileira o documento (não altera dados).
+- Pendentes com signatários: atualização periódica de 12h para 24h (o webhook cobre o tempo real).
+- Pendência: migration `20260727170000_harden_webhooks` não aplicada em produção; webhook tolera a ausência das colunas.
+
 ## 2026-10-01 — D4Sign: coleta de documentos e signatários
 
 - Cron: o workflow `d4sign-sync` nunca rodou pelo agendamento. Reforço: o layout de `/crm` dispara a rodada em `after()` se a última tiver mais de 4 min (`runD4SignSyncRoundIfStale`).

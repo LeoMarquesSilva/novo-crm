@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ensureSafeWebhookV2 } from "@/lib/d4sign/webhook-registration";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import {
@@ -28,7 +29,7 @@ import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
 import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
 import { enrichDocuments, pickDocumentsToEnrich } from "@/lib/d4sign/enrich-documents";
-import { assertD4SignSendEnv, getD4SignEnv } from "@/lib/d4sign/env";
+import { assertD4SignSendEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import { resolveClientFolder } from "@/lib/d4sign/resolve-client-folder";
 import { D4SignConnector } from "@/modules/crm/infrastructure/integrations/d4sign-client";
@@ -465,18 +466,9 @@ export async function POST(
       // signatários iniciais já foram gravados via createlist
     }
 
-    // Registrar webhook (tenta; não falha o envio se falhar)
-    const d4Env2 = getD4SignEnv();
-    const appBase =
-      process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ||
-      request.nextUrl.origin;
-    const webhookUrl = `${appBase}/api/integrations/d4sign/webhook`;
-    try {
-      await connector.registerWebhook(result.documentUuid, webhookUrl);
-    } catch {
-      // não critico — webhook pode ser configurado manualmente
-    }
-    void d4Env2; // usado acima via d4Env
+    // Webhook 2.0 no cofre cobre este documento; cadastra só se ainda não
+    // foi feito (não falha o envio).
+    await ensureSafeWebhookV2({ origin: request.nextUrl.origin });
 
     return NextResponse.json({
       ok: true,

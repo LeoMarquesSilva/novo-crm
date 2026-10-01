@@ -1,5 +1,30 @@
+/**
+ * POST /api/integrations/d4sign/webhook — POSTback da D4Sign (1.0 e 2.0).
+ *
+ * O Webhook 2.0 é cadastrado no cofre inteiro (`ensureSafeWebhookV2`) e manda
+ * JSON; o 1.0 manda form-data. `readD4SignWebhookRequest` lê os dois.
+ *
+ * Confiança: com `D4SIGN_WEBHOOK_HMAC_SECRET` e cabeçalho `Content-Hmac`
+ * válido, o evento é aplicado (signatários, status, notificações). Cabeçalho
+ * presente e inválido → 401. Sem cabeçalho (ou sem segredo configurado) o
+ * evento só é registrado e o documento volta para o topo da fila de
+ * signatários — um POST forjado não altera dados, só antecipa uma consulta.
+ *
+ * Documento que não está no catálogo (criado direto na D4Sign) é criado aqui,
+ * em vez de falhar e esperar o próximo sync.
+ *
+ * Os campos de controle do evento (`processing_status`…) dependem da
+ * migration `20260727170000_harden_webhooks`; a gravação deles é best-effort.
+ */
 import { NextResponse } from "next/server";
+import { estimateD4SignCreatedAt } from "@/lib/d4sign/created-at-estimate";
+import { getD4SignEnv } from "@/lib/d4sign/env";
 import { verifyD4SignContentHmac } from "@/lib/d4sign/webhook-hmac";
+import {
+  applyWebhookToSigners,
+  readD4SignWebhookRequest,
+  type StoredWebhookSigner,
+} from "@/lib/d4sign/webhook-payload";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   isAllowedD4SignTypePost,
@@ -12,31 +37,15 @@ import {
 } from "@/lib/crm/notify-lead-stakeholders";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-type D4SignSigner = {
-  email: string;
-  key_signer: string | null;
-  signed: boolean;
-  signed_at: string | null;
-  email_sent_status?: string | null;
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formToRecord(form: FormData): Record<string, string> {
-  const raw: Record<string, string> = {};
-  for (const [k, v] of form.entries()) raw[k] = typeof v === "string" ? v : "";
-  return raw;
-}
+type Admin = ReturnType<typeof createSupabaseAdminClient>;
 
 const TYPE_POST_TO_STATUS_NAME: Record<string, string> = {
   "1": "Finalizado",
   "2": "E-mail não entregue",
   "3": "Cancelado",
   "4": "Assinando",
-  sent:       "Enviado",
-  processing: "Processando",
 };
 
 /** Mapeia type_post do webhook → d4sign_status interno. */
@@ -47,21 +56,12 @@ const TYPE_POST_TO_D4SIGN_STATUS: Record<string, string> = {
   "4": "3",
 };
 
-/** Atualiza o signer matching `email` no array JSONB e retorna o novo array. */
-function updateSignerInArray(
-  signers: D4SignSigner[],
-  email: string,
-  patch: Partial<D4SignSigner>,
-): D4SignSigner[] {
-  const lower = email.toLowerCase();
-  return signers.map((s) =>
-    s.email.toLowerCase() === lower ? { ...s, ...patch } : s,
-  );
-}
+/** Status que um evento de assinatura/bounce atrasado não pode desfazer. */
+const TERMINAL_STATUSES = new Set(["1", "4", "6"]);
 
 /** Insere notificações in-app para todos os usuários admin/comercial. */
 async function notifyAdminComercial(
-  admin: ReturnType<typeof createSupabaseAdminClient>,
+  admin: Admin,
   tipo: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
@@ -82,21 +82,32 @@ async function notifyAdminComercial(
   );
 }
 
+/** Controle do evento; não derruba o webhook se as colunas não existirem. */
+async function markEvent(
+  admin: Admin,
+  eventId: string | null,
+  patch: { processing_status: "processed" | "failed"; last_error?: string | null },
+): Promise<void> {
+  if (!eventId) return;
+  const { error } = await admin
+    .from("d4sign_webhook_events")
+    .update({
+      processing_status: patch.processing_status,
+      processed_at: patch.processing_status === "processed" ? new Date().toISOString() : null,
+      last_error: patch.last_error ?? null,
+    })
+    .eq("id", eventId);
+  if (error) console.warn("[D4Sign webhook] controle do evento não gravado", error.message);
+}
+
 async function failWebhookProcessing(
-  admin: ReturnType<typeof createSupabaseAdminClient>,
-  eventId: string,
+  admin: Admin,
+  eventId: string | null,
   context: string,
   error: unknown,
 ) {
   console.error(context, error);
-  await admin
-    .from("d4sign_webhook_events")
-    .update({
-      processing_status: "failed",
-      last_error: context.slice(0, 500),
-    })
-    .eq("id", eventId);
-
+  await markEvent(admin, eventId, { processing_status: "failed", last_error: context.slice(0, 500) });
   return NextResponse.json(
     { ok: false, error: "Falha temporária ao processar o webhook." },
     { status: 503, headers: { "Retry-After": "10" } },
@@ -106,226 +117,162 @@ async function failWebhookProcessing(
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
-  const hmacSecret = process.env.D4SIGN_WEBHOOK_HMAC_SECRET?.trim();
-  if (!hmacSecret) {
-    return NextResponse.json(
-      { ok: false, error: "Webhook temporariamente indisponível." },
-      { status: 503, headers: { "Retry-After": "30" } },
-    );
-  }
-
-  if (!isPayloadLengthAllowed(request.headers.get("content-length"), 64_000)) {
+  if (!isPayloadLengthAllowed(request.headers.get("content-length"), 256_000)) {
     return NextResponse.json(
       { ok: false, error: "Payload excede o limite permitido." },
       { status: 413 },
     );
   }
 
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Body inválido (esperado form-data)." }, { status: 400 });
-  }
-
-  const documentUuid = String(form.get("uuid")      ?? "").trim();
-  const typePost     = String(form.get("type_post")  ?? "").trim();
-
-  if (!documentUuid || !typePost) {
-    return NextResponse.json({ ok: false, error: "Campos uuid e type_post são obrigatórios." }, { status: 400 });
-  }
-
-  if (!isAllowedD4SignTypePost(typePost)) {
+  const event = await readD4SignWebhookRequest(request);
+  if (!event) {
     return NextResponse.json(
-      { ok: false, error: "Tipo de evento não suportado." },
+      { ok: false, error: "Body inválido: esperado JSON (2.0) ou form-data (1.0) com uuid e type_post." },
       { status: 400 },
     );
   }
-
-  const contentHmac = request.headers.get("Content-Hmac");
-  if (!verifyD4SignContentHmac(documentUuid, hmacSecret, contentHmac)) {
-    return NextResponse.json({ ok: false, error: "Assinatura HMAC inválida." }, { status: 401 });
+  if (!isAllowedD4SignTypePost(event.typePost)) {
+    return NextResponse.json({ ok: false, error: "Tipo de evento não suportado." }, { status: 400 });
   }
 
-  const emailRaw    = form.get("email");
-  const signerEmail = emailRaw != null && String(emailRaw).trim() ? String(emailRaw).trim() : null;
-  const payload     = formToRecord(form);
+  const hmacSecret = process.env.D4SIGN_WEBHOOK_HMAC_SECRET?.trim();
+  const contentHmac = request.headers.get("Content-Hmac");
+  if (hmacSecret && contentHmac && !verifyD4SignContentHmac(event.uuid, hmacSecret, contentHmac)) {
+    return NextResponse.json({ ok: false, error: "Assinatura HMAC inválida." }, { status: 401 });
+  }
+  const trusted = Boolean(hmacSecret && contentHmac);
 
-  const admin  = createSupabaseAdminClient();
+  const documentUuid = event.uuid;
+  const typePost = event.typePost;
+  const signerEmail = event.signerEmail;
+  const admin = createSupabaseAdminClient();
   const nowIso = new Date().toISOString();
 
-  // 1. Registra evento
+  // 1. Registra evento (idempotência pelo índice único quando existir)
   const { data: insertedEvent, error: insertError } = await admin
     .from("d4sign_webhook_events")
     .insert({
       document_uuid: documentUuid,
       type_post: typePost,
       signer_email: signerEmail,
-      raw_payload: payload,
+      raw_payload: {
+        ...event.raw,
+        _crm: { version: event.version, hmac: trusted ? "valid" : contentHmac ? "invalid" : "missing" },
+      } as never,
     })
     .select("id")
     .single();
   let eventId = insertedEvent?.id ?? null;
   if (insertError) {
-    const code = (insertError as { code?: string }).code;
-    if (code === "23505") {
-      let duplicateQuery = admin
-        .from("d4sign_webhook_events")
-        .select("id, processing_status, attempt_count, created_at")
-        .eq("document_uuid", documentUuid)
-        .eq("type_post", typePost);
-      duplicateQuery = signerEmail
-        ? duplicateQuery.ilike("signer_email", signerEmail)
-        : duplicateQuery.is("signer_email", null);
-      const { data: duplicate, error: duplicateError } =
-        await duplicateQuery.maybeSingle();
-      if (duplicateError || !duplicate) {
-        console.error("Falha ao consultar webhook D4Sign duplicado", duplicateError);
-        return NextResponse.json(
-          { ok: false, error: "Falha temporária ao validar a duplicidade." },
-          { status: 503, headers: { "Retry-After": "10" } },
-        );
-      }
-      if (duplicate.processing_status === "processed") {
-        return NextResponse.json({ ok: true, duplicate: true });
-      }
-
-      const stale =
-        Date.now() - new Date(duplicate.created_at).getTime() > 5 * 60_000;
-      if (duplicate.processing_status === "processing" && !stale) {
-        return NextResponse.json(
-          { ok: true, duplicate: true, processing: true },
-          { status: 202 },
-        );
-      }
-
-      const { data: reclaimed, error: reclaimError } = await admin
-        .from("d4sign_webhook_events")
-        .update({
-          processing_status: "processing",
-          attempt_count: duplicate.attempt_count + 1,
-          last_error: null,
-          created_at: nowIso,
-        })
-        .eq("id", duplicate.id)
-        .neq("processing_status", "processed")
-        .select("id")
-        .maybeSingle();
-      if (reclaimError || !reclaimed) {
-        return NextResponse.json(
-          { ok: true, duplicate: true, processing: true },
-          { status: 202 },
-        );
-      }
-      eventId = reclaimed.id;
-    } else {
+    if ((insertError as { code?: string }).code !== "23505") {
       console.error("Falha ao registrar webhook D4Sign", insertError);
       return NextResponse.json(
         { ok: false, error: "Falha temporária ao registrar o webhook." },
         { status: 503, headers: { "Retry-After": "10" } },
       );
     }
-  }
-  if (!eventId) {
-    return NextResponse.json(
-      { ok: false, error: "Falha temporária ao registrar o webhook." },
-      { status: 503, headers: { "Retry-After": "10" } },
-    );
+    let duplicateQuery = admin
+      .from("d4sign_webhook_events")
+      .select("id, processing_status")
+      .eq("document_uuid", documentUuid)
+      .eq("type_post", typePost);
+    duplicateQuery = signerEmail
+      ? duplicateQuery.ilike("signer_email", signerEmail)
+      : duplicateQuery.is("signer_email", null);
+    const { data: duplicate, error: duplicateError } = await duplicateQuery.limit(1).maybeSingle();
+    // Sem a coluna de controle não dá para saber se terminou: trata como já processado.
+    if (duplicateError || !duplicate || duplicate.processing_status === "processed") {
+      return NextResponse.json({ ok: true, duplicate: true });
+    }
+    eventId = duplicate.id;
   }
 
-  // 2. Busca dados atuais do documento + oportunidade vinculada
+  // 2. Documento no catálogo
   const { data: d4doc, error: documentError } = await admin
     .from("d4sign_documents")
-    .select("signers, oportunidade_id, name_document, safe_name")
+    .select("signers, oportunidade_id, name_document, safe_name, d4sign_status")
     .eq("uuid_doc", documentUuid)
     .maybeSingle();
   if (documentError) {
-    return failWebhookProcessing(
-      admin,
-      eventId,
-      "Falha ao buscar documento D4Sign",
-      documentError,
-    );
-  }
-  if (!d4doc) {
-    return failWebhookProcessing(
-      admin,
-      eventId,
-      "Documento D4Sign recebido pelo webhook não está no catálogo",
-      { documentUuid },
-    );
+    return failWebhookProcessing(admin, eventId, "Falha ao buscar documento D4Sign", documentError);
   }
 
-  const { data: opp, error: opportunityError } = d4doc.oportunidade_id
+  // Evento sem HMAC: não altera dados; só antecipa a busca de signatários.
+  if (!trusted) {
+    if (d4doc) {
+      await admin
+        .from("d4sign_documents")
+        .update({ details_fetched_at: null, updated_at: nowIso })
+        .eq("uuid_doc", documentUuid);
+    }
+    await markEvent(admin, eventId, { processing_status: "processed", last_error: "sem HMAC: só reenfileirado" });
+    return NextResponse.json({ ok: true, trusted: false, queued: Boolean(d4doc) }, { status: 202 });
+  }
+
+  const oportunidadeId = d4doc?.oportunidade_id ?? null;
+  const documentName = d4doc?.name_document ?? event.documentName;
+
+  const { data: opp, error: opportunityError } = oportunidadeId
     ? await admin
         .from("oportunidades")
         .select("id, etapa, solicitante_nome, d4sign_signers, criado_por, solicitante_email")
-        .eq("id", d4doc.oportunidade_id)
+        .eq("id", oportunidadeId)
         .maybeSingle()
     : { data: null, error: null };
   if (opportunityError) {
-    return failWebhookProcessing(
-      admin,
-      eventId,
-      "Falha ao buscar oportunidade do documento D4Sign",
-      opportunityError,
-    );
+    return failWebhookProcessing(admin, eventId, "Falha ao buscar oportunidade do documento D4Sign", opportunityError);
   }
 
-  const currentSigners = (d4doc?.signers ?? []) as D4SignSigner[];
+  const currentStatus = d4doc?.d4sign_status ?? null;
+  const eventStatus = TYPE_POST_TO_D4SIGN_STATUS[typePost] ?? typePost;
+  // Assinatura ou bounce que chega depois da finalização não reabre o documento.
+  const d4signStatus =
+    (typePost === "2" || typePost === "4") && currentStatus && TERMINAL_STATUSES.has(currentStatus)
+      ? currentStatus
+      : eventStatus;
 
-  const d4signStatus = TYPE_POST_TO_D4SIGN_STATUS[typePost] ?? typePost;
-
-  // 3. Atualiza status em oportunidades (se vinculada)
-  if (d4doc.oportunidade_id) {
+  // 3. Status na oportunidade vinculada
+  if (oportunidadeId && d4signStatus !== currentStatus) {
     const { error: statusUpdateError } = await admin
       .from("oportunidades")
       .update({ d4sign_status: d4signStatus, d4sign_updated_at: nowIso, updated_at: nowIso } as never)
       .eq("d4sign_document_uuid", documentUuid);
     if (statusUpdateError) {
-      return failWebhookProcessing(
-        admin,
-        eventId,
-        "Falha ao atualizar status D4Sign da oportunidade",
-        statusUpdateError,
-      );
+      return failWebhookProcessing(admin, eventId, "Falha ao atualizar status D4Sign da oportunidade", statusUpdateError);
     }
   }
 
-  // 4. Lógica por tipo de evento (type_post oficial D4Sign)
-  let updatedSigners = currentSigners;
-  let finalizedAtForDoc: string | undefined;
-  let finalizedTransitionId: string | null = null;
+  // 4. Signatários
+  const currentSigners = ((d4doc?.signers ?? []) as StoredWebhookSigner[]).filter(
+    (s) => s && typeof s.email === "string",
+  );
+  const { signers: updatedSigners, finalizedAt } = applyWebhookToSigners(currentSigners, event, nowIso);
+  const docNome = documentName?.replace(/\.(docx?|pdf)$/i, "") ?? documentUuid;
+  const leadNome = opp?.solicitante_nome ?? "Lead";
+  const path = opp ? `/crm/leads/${opp.id}` : "/crm/contratos";
 
   // ── E-mail não entregue (type_post "2") ───────────────────────────────────
   if (typePost === "2" && signerEmail) {
-    updatedSigners = updateSignerInArray(currentSigners, signerEmail, {
-      email_sent_status: "Bounce",
-    });
+    const reason = updatedSigners.find((s) => s.email.toLowerCase() === signerEmail.toLowerCase())
+      ?.email_sent_status;
     await notifyAdminComercial(admin, "contrato_email_bounce", {
       uuid_doc: documentUuid,
-      name_document: d4doc?.name_document ?? documentUuid,
+      name_document: documentName ?? documentUuid,
       signer_email: signerEmail,
       title: "E-mail de contrato não entregue",
-      preview: `Bounce ao enviar contrato para ${signerEmail}.`,
+      preview: `Falha ao enviar o contrato para ${signerEmail}${reason && reason !== "Bounce" ? ` (${reason})` : ""}.`,
       path: "/crm/contratos",
     });
   }
 
   // ── Signatário assinou (type_post "4") ────────────────────────────────────
   if (typePost === "4" && signerEmail) {
-    updatedSigners = updateSignerInArray(currentSigners, signerEmail, {
-      signed: true,
-      signed_at: nowIso,
-    });
-
-    // Atualiza d4sign_signers em oportunidades também
     if (opp) {
-      const oppSigners = updateSignerInArray(
-        (opp.d4sign_signers ?? []) as D4SignSigner[],
-        signerEmail,
-        { signed: true, signed_at: nowIso },
-      );
+      const oppSigners = applyWebhookToSigners(
+        ((opp.d4sign_signers ?? []) as StoredWebhookSigner[]).filter((s) => s && typeof s.email === "string"),
+        event,
+        nowIso,
+      ).signers;
       const { error: signerUpdateError } = await admin
         .from("oportunidades")
         .update({
@@ -335,166 +282,115 @@ export async function POST(request: Request) {
         } as never)
         .eq("id", opp.id);
       if (signerUpdateError) {
-        return failWebhookProcessing(
-          admin,
-          eventId,
-          "Falha ao atualizar signatário da oportunidade",
-          signerUpdateError,
-        );
+        return failWebhookProcessing(admin, eventId, "Falha ao atualizar signatário da oportunidade", signerUpdateError);
       }
     }
 
     // Notificação de assinatura parcial (se houver mais de 1 signer)
-    if (currentSigners.length > 1) {
-      const signed   = updatedSigners.filter((s) => s.signed).length;
-      const total    = updatedSigners.length;
-      const leadNome = opp?.solicitante_nome ?? "Lead";
-      const docNome  = d4doc?.name_document?.replace(/\.docx?$/i, "") ?? documentUuid;
+    if (updatedSigners.length > 1) {
+      const signed = updatedSigners.filter((s) => s.signed).length;
+      const total = updatedSigners.length;
       await notifyAdminComercial(admin, "contrato_parcialmente_assinado", {
-        oportunidade_id: d4doc?.oportunidade_id ?? null,
+        oportunidade_id: oportunidadeId,
         solicitante_nome: leadNome,
         uuid_doc: documentUuid,
         name_document: docNome,
         signer_email: signerEmail,
         signed_count: signed,
         total_signers: total,
-        title:   `${leadNome} — ${signed}/${total} assinaram`,
+        title: `${leadNome} — ${signed}/${total} assinaram`,
         preview: `${signerEmail} assinou o contrato. Aguardando ${total - signed} signatário(s).`,
-        path:    opp ? `/crm/leads/${opp.id}` : "/crm/contratos",
+        path,
       });
     }
   }
 
   // ── Documento finalizado (todos assinaram) ───────────────────────────────
-  if (typePost === "1") {
-    // Marca todos como assinados; finalized_at = última assinatura conhecida
-    const signedDates = currentSigners
-      .map((s) => s.signed_at)
-      .filter((d): d is string => Boolean(d));
-    const docFinalizedAt =
-      signedDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? nowIso;
-    finalizedAtForDoc = docFinalizedAt;
-
-    updatedSigners = currentSigners.map((s) => ({
-      ...s,
-      signed: true,
-      signed_at: s.signed_at ?? nowIso,
-    }));
-
-    if (opp) {
-      const { data: transitionId, error: finalizeError } = await admin.rpc(
-        "finalize_d4sign_opportunity",
-        {
-          p_opportunity_id: opp.id,
-          p_signers: updatedSigners as never,
-          p_now: nowIso,
-        },
-      );
-      if (finalizeError) {
-        return failWebhookProcessing(
-          admin,
-          eventId,
-          "Falha ao finalizar oportunidade via D4Sign",
-          finalizeError,
-        );
-      }
-      finalizedTransitionId = transitionId;
+  if (typePost === "1" && opp) {
+    const { data: transitionId, error: finalizeError } = await admin.rpc(
+      "finalize_d4sign_opportunity",
+      {
+        p_opportunity_id: opp.id,
+        p_signers: updatedSigners as never,
+        p_now: nowIso,
+      },
+    );
+    if (finalizeError) {
+      return failWebhookProcessing(admin, eventId, "Falha ao finalizar oportunidade via D4Sign", finalizeError);
     }
 
-    if (opp && finalizedTransitionId) {
+    if (transitionId) {
       await recordLeadActivityEvent(admin, {
         oportunidadeId: opp.id,
         kind: "contrato_assinado",
-        title: `Contrato assinado — ${d4doc?.name_document?.replace(/\.docx?$/i, "") ?? "Documento"}`,
+        title: `Contrato assinado — ${docNome}`,
         detail: "Documento finalizado via D4Sign (todos os signatários).",
         etapa: "contrato_assinado",
-        sourceId: `trans:${finalizedTransitionId}`,
-        metadata: {
-          document_uuid: documentUuid,
-          transition_id: finalizedTransitionId,
-        },
+        sourceId: `trans:${transitionId}`,
+        metadata: { document_uuid: documentUuid, transition_id: transitionId },
       });
     }
 
-    // Notificação in-app
-    const leadNome = opp?.solicitante_nome ?? "Lead";
-    const docNome  = d4doc?.name_document?.replace(/\.docx?$/i, "") ?? documentUuid;
-    const path     = opp ? `/crm/leads/${opp.id}` : "/crm/contratos";
-
-    if (opp?.id) {
-      const stakeholderCtx = await fetchLeadStakeholderContext(admin, opp.id);
-      const stakeholderAuthIds = await resolveLeadStakeholderAuthUserIds(admin, stakeholderCtx);
-      await notifyLeadStakeholdersInApp(admin, stakeholderAuthIds, "contrato_assinado", {
-        oportunidade_id: d4doc?.oportunidade_id ?? null,
-        solicitante_nome: leadNome,
-        uuid_doc: documentUuid,
-        name_document: docNome,
-        signer_email: signerEmail,
-        title: `Contrato assinado — ${leadNome}`,
-        preview: `O documento "${docNome}" foi assinado por todos os signatários.`,
-        path,
-      });
-    }
-
+    const stakeholderCtx = await fetchLeadStakeholderContext(admin, opp.id);
+    const stakeholderAuthIds = await resolveLeadStakeholderAuthUserIds(admin, stakeholderCtx);
+    await notifyLeadStakeholdersInApp(admin, stakeholderAuthIds, "contrato_assinado", {
+      oportunidade_id: oportunidadeId,
+      solicitante_nome: leadNome,
+      uuid_doc: documentUuid,
+      name_document: docNome,
+      signer_email: signerEmail,
+      title: `Contrato assinado — ${leadNome}`,
+      preview: `O documento "${docNome}" foi assinado por todos os signatários.`,
+      path,
+    });
     // E-mail desligado por enquanto — apenas notificação in-app para envolvidos do lead.
   }
 
   // ── Documento cancelado (type_post "3") ─────────────────────────────────
   if (typePost === "3") {
-    const leadNome = opp?.solicitante_nome ?? "Lead";
-    const docNome  = d4doc?.name_document?.replace(/\.docx?$/i, "") ?? documentUuid;
-
     await notifyAdminComercial(admin, "contrato_cancelado", {
-      oportunidade_id: d4doc?.oportunidade_id ?? null,
+      oportunidade_id: oportunidadeId,
       solicitante_nome: leadNome,
       uuid_doc: documentUuid,
       name_document: docNome,
-      title:   `Contrato cancelado — ${leadNome}`,
-      preview: `O documento "${docNome}" foi cancelado na D4Sign.`,
-      path:    opp ? `/crm/leads/${opp.id}` : "/crm/contratos",
+      title: `Contrato cancelado — ${leadNome}`,
+      preview: event.cancellationMessage
+        ? `O documento "${docNome}" foi cancelado na D4Sign: ${event.cancellationMessage}`
+        : `O documento "${docNome}" foi cancelado na D4Sign.`,
+      path,
     });
   }
 
-  // 5. Persiste signers atualizados em d4sign_documents
+  // 5. Persiste no catálogo (cria o documento se ainda não existia)
   const { error: documentUpdateError } = await admin
     .from("d4sign_documents")
     .upsert(
       {
-        uuid_doc:      documentUuid,
+        uuid_doc: documentUuid,
         d4sign_status: d4signStatus,
-        status_name:   TYPE_POST_TO_STATUS_NAME[typePost] ?? typePost,
-        signers:       updatedSigners as never,
+        // Evento atrasado sobre documento já encerrado não troca o nome do status.
+        ...(d4signStatus === eventStatus ? { status_name: TYPE_POST_TO_STATUS_NAME[typePost] } : {}),
+        signers: updatedSigners as never,
         last_synced_at: nowIso,
-        updated_at:    nowIso,
-        ...(finalizedAtForDoc ? { finalized_at: finalizedAtForDoc } : {}),
+        updated_at: nowIso,
+        ...(finalizedAt ? { finalized_at: finalizedAt } : {}),
+        ...(typePost === "3" && event.cancellationMessage ? { status_comment: event.cancellationMessage } : {}),
+        // Finalização do 2.0 traz a lista completa: dispensa o GET /list.
+        ...(typePost === "1" && event.signers?.length ? { details_fetched_at: nowIso } : {}),
+        ...(d4doc
+          ? {}
+          : {
+              name_document: event.documentName,
+              ...(getD4SignEnv().safeUuid ? { safe_uuid: getD4SignEnv().safeUuid } : {}),
+              created_at_d4sign: estimateD4SignCreatedAt(documentUuid, event.documentName),
+            }),
       },
       { onConflict: "uuid_doc", ignoreDuplicates: false },
     );
   if (documentUpdateError) {
-    return failWebhookProcessing(
-      admin,
-      eventId,
-      "Falha ao persistir documento após webhook D4Sign",
-      documentUpdateError,
-    );
+    return failWebhookProcessing(admin, eventId, "Falha ao persistir documento após webhook D4Sign", documentUpdateError);
   }
 
-  const { error: completionError } = await admin
-    .from("d4sign_webhook_events")
-    .update({
-      processing_status: "processed",
-      processed_at: nowIso,
-      last_error: null,
-    })
-    .eq("id", eventId);
-  if (completionError) {
-    return failWebhookProcessing(
-      admin,
-      eventId,
-      "Falha ao concluir evento D4Sign",
-      completionError,
-    );
-  }
-
-  return NextResponse.json({ ok: true });
+  await markEvent(admin, eventId, { processing_status: "processed" });
+  return NextResponse.json({ ok: true, created: !d4doc });
 }

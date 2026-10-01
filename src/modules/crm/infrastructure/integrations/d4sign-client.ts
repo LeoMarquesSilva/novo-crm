@@ -535,6 +535,32 @@ export class D4SignConnector {
     await this.parseJsonResponse(res);
   }
 
+  /**
+   * Cadastra ou atualiza o Webhook 2.0 de um cofre ou documento.
+   * `POST /webhooks/v2/` com `{ type: "cofre" | "documento", uuid, url }`.
+   * Exige "Ativar Webhook 2.0" em Opções da conta > Dev(API) > Webhook.
+   * @see https://docapi.d4sign.com.br/docs/cadastrar-webhook-em-um-documento
+   */
+  async registerWebhookV2(
+    type: "cofre" | "documento",
+    uuid: string,
+    webhookUrl: string,
+    options?: { source?: string },
+  ): Promise<void> {
+    const url = `${this.apiBaseUrl.replace(/\/$/, "")}/webhooks/v2/${this.authSearchParams()}`;
+    const res = await this.d4Fetch(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ type, uuid, url: webhookUrl }),
+      },
+      "webhooks/v2",
+      options?.source ?? "webhook-setup",
+    );
+    await this.parseJsonResponse(res);
+  }
+
   async addPinsToDocument(
     documentUuid: string,
     pins: Array<{

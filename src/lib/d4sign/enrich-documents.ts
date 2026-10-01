@@ -65,8 +65,8 @@ function resolveFinalizedAt(
 
 /** Documento cuja busca de signatários voltou vazia não é refeito antes disso. */
 export const ENRICH_EMPTY_RETRY_MS = 6 * 60 * 60 * 1000;
-/** Pendente com signatários: atualiza quem já assinou a cada 12h. */
-export const ENRICH_PENDING_REFRESH_MS = 12 * 60 * 60 * 1000;
+/** Pendente com signatários: rede de segurança do Webhook 2.0 (que atualiza em tempo real). */
+export const ENRICH_PENDING_REFRESH_MS = 24 * 60 * 60 * 1000;
 
 const PENDING_IN = '("2","3","sent","processing")';
 
@@ -74,7 +74,7 @@ const PENDING_IN = '("2","3","sent","processing")';
  * Fila da busca de signatários (`GET /documents/{uuid}/list`, 10 req/h),
  * por prioridade e, em cada faixa, do mais recente ao mais antigo:
  * 1. pendente sem signatários;
- * 2. pendente com signatários desatualizados (12h) e finalizado com
+ * 2. pendente com signatários desatualizados (24h) e finalizado com
  *    signatário ainda marcado como não assinado;
  * 3. finalizado sem signatários;
  * 4. demais (cancelado, arquivado) sem signatários.

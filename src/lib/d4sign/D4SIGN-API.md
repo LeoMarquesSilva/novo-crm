@@ -226,17 +226,22 @@ Endpoint correto para listar signatários. **Diferente** de `GET /documents/{uui
 
 ---
 
-## Webhook (POSTback) — type_post
+## Webhook (POSTback) — 2.0 (ativo na conta desde 2026-10-01)
 
-`POST` em form-data para a URL registrada. **Apenas 4 valores possíveis**:
+Ativação: Opções da conta > Dev(API) > Webhook > Ativar Webhook 2.0.
+Cadastro: `POST /webhooks/v2/` com `{"type":"cofre"|"documento","uuid":"...","url":"..."}` — "cadastrar ou atualizar"; resposta `{"message","url"}`. O CRM cadastra **o cofre inteiro** (`ensureSafeWebhookV2`). O 1.0 era só por documento (`POST /documents/{uuid}/webhooks`).
 
-| type_post | Evento | Campos no payload |
+Payload 2.0 em **JSON** (o 1.0 era form-data), sempre com `uuid`, `type_post`, `message`, `event_datetime`, `document_name` (este falta no tipo 4):
+
+| type_post | Evento | Campos extras 2.0 |
 |---|---|---|
-| `1` | Documento finalizado | `uuid`, `type_post`, `message` |
-| `2` | E-mail não entregue | `uuid`, `type_post`, `message`, `email` |
-| `3` | Documento cancelado | `uuid`, `type_post`, `message` |
-| `4` | Signatário assinou | `uuid`, `type_post`, `message`, `email` |
+| `1` | Documento finalizado | `signers[]`: uuid, email, name, signed_at, identification_number |
+| `2` | E-mail não entregue | `signer` {uuid, email}, `error_details` {category, reason, smtp_code, diagnostic_message} |
+| `3` | Documento cancelado | `cancellation_message` |
+| `4` | Signatário assinou | `signer` {uuid, email, identification_number} |
 
+Não há evento de criação de documento: documento novo continua chegando pelo sync de fases.
+Segurança: cabeçalho `Content-Hmac: sha256=<HMAC-SHA256 do UUID do documento>` com a "Secret Key MAC" gerada no painel (`D4SIGN_WEBHOOK_HMAC_SECRET`). A doc não diz se o 2.0 manda o cabeçalho; o CRM grava em `raw_payload._crm.hmac` se veio.
 **Retry**: 7 tentativas em até 27 horas (imediato → 1h ×3 → 6h ×2 → 12h).
 
 ---

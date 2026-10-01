@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureSafeWebhookV2 } from "@/lib/d4sign/webhook-registration";
 import { assertD4SignSendEnv } from "@/lib/d4sign/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -179,15 +180,9 @@ export async function POST(request: Request) {
       { onConflict: "uuid_doc", ignoreDuplicates: false },
     );
 
-    const appBase =
-      process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ||
-      new URL(request.url).origin;
-    const webhookUrl = `${appBase}/api/integrations/d4sign/webhook`;
-    try {
-      await connector.registerWebhook(result.documentUuid, webhookUrl);
-    } catch {
-      // Não falhar o envio se o registro de webhook falhar
-    }
+    // Webhook 2.0 no cofre cobre este documento; cadastra só se ainda não
+    // foi feito (não falha o envio).
+    await ensureSafeWebhookV2({ origin: new URL(request.url).origin });
 
     return NextResponse.json({
       ok: true,
