@@ -57,6 +57,7 @@ jobs:
               "folderImported": folders.get("imported"),
               "foldersLeft": folders.get("foldersLeft"),
               "enriched": enrich.get("enriched"),
+              "pdfLogs": data.get("pdfLogs"),
               "quotaRemaining": quota,
               "rateLimited": data.get("rateLimited") or phases.get("rateLimited") or folders.get("rateLimited") or listing.get("rateLimited"),
           }, ensure_ascii=False))
