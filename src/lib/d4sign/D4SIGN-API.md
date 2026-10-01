@@ -378,7 +378,7 @@ Config em `src/lib/d4sign/firm-signers.ts`:
 
 | Nome | E-mail | OAB |
 |---|---|---|
-| Gustavo Bismarchi Motta | gustavo@bpplaw.com.br (aliases: gustavo@bismarchipires.com.br, assinaturadigital@bismarchipires.com.br) | OAB/SP 275.477 |
+| Gustavo Bismarchi Motta | gustavo@bpplaw.com.br (aliases: gustavo@bismarchipires.com.br, assinaturadigital@bismarchipires.com.br, assinaturadigital@bpplaw.com.br) | OAB/SP 275.477 |
 | Ricardo Viscardi Pires | ricardo@bpplaw.com.br | OAB/SP 353.389 |
 
 ---
@@ -401,7 +401,7 @@ Coluna `d4sign_documents.signers` (JSONB):
 ]
 ```
 
-`role` e `name` são **nossos campos** (não vêm da D4Sign). `signed` é normalizado de `0/1` → boolean.
+`role` e `name` são **nossos campos** (não vêm da D4Sign). Signatário com e-mail de sócio (canônico ou alias) é sempre gravado com o nome do sócio e `role: "CONTRATADA"` (`normalizeFirmSigner`): o `user_name` da D4Sign é o dono do login, não quem assinou — a conta `assinaturadigital@` é usada pelo Gustavo com o certificado dele, no login de outro usuário. `signed` é normalizado de `0/1` → boolean.
 
 ---
 

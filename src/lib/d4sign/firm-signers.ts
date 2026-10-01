@@ -29,8 +29,13 @@ const DEFAULT_FIRM_SIGNERS: FirmSigner[] = [
     name: "Gustavo Bismarchi Motta",
     oab: "OAB/SP 275.477",
     foreign: "0",
-    // `assinaturadigital@` é a conta de assinatura digital do Gustavo.
-    aliases: ["gustavo@bismarchipires.com.br", "assinaturadigital@bismarchipires.com.br"],
+    // `assinaturadigital@` (nos dois domínios) é a conta de assinatura digital
+    // do Gustavo: ele assina com o certificado dele, no login de outro usuário.
+    aliases: [
+      "gustavo@bismarchipires.com.br",
+      "assinaturadigital@bismarchipires.com.br",
+      "assinaturadigital@bpplaw.com.br",
+    ],
   },
   {
     email: "ricardo@bpplaw.com.br",
@@ -71,13 +76,30 @@ export function getFirmSigners(): FirmSigner[] {
   }
 }
 
-/** E-mail de sócio administrador (Gustavo/Ricardo), incluindo aliases de domínio antigo. */
-export function isFirmSignerEmail(email: string | null | undefined): boolean {
-  if (!email?.trim()) return false;
+/** Sócio dono do e-mail (canônico ou alias); null se não for sócio. */
+export function firmSignerForEmail(email: string | null | undefined): FirmSigner | null {
+  if (!email?.trim()) return null;
   const key = email.trim().toLowerCase();
   for (const f of getFirmSigners()) {
-    if (f.email.toLowerCase() === key) return true;
-    if (f.aliases?.some((alias) => alias.toLowerCase() === key)) return true;
+    if (f.email.toLowerCase() === key) return f;
+    if (f.aliases?.some((alias) => alias.toLowerCase() === key)) return f;
   }
-  return false;
+  return null;
+}
+
+/** E-mail de sócio administrador (Gustavo/Ricardo), incluindo aliases. */
+export function isFirmSignerEmail(email: string | null | undefined): boolean {
+  return firmSignerForEmail(email) !== null;
+}
+
+/**
+ * Signatário de e-mail de sócio aparece como o sócio, papel CONTRATADA.
+ * A D4Sign devolve em `user_name` o dono do login (ex.: a conta
+ * `assinaturadigital@` está no nome de outro usuário), não quem assinou.
+ */
+export function normalizeFirmSigner<T extends { email?: string | null; name?: string | null; role?: string | null }>(
+  signer: T,
+): T {
+  const firm = firmSignerForEmail(signer.email);
+  return firm ? { ...signer, name: firm.name, role: "CONTRATADA" } : signer;
 }

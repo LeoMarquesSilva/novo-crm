@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { normalizeFirmSigner } from "@/lib/d4sign/firm-signers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PersistedD4SignSigner = {
@@ -34,11 +35,12 @@ export function mergeOportunidadeD4SignSigners(
   }
   return incoming.map((s) => {
     const meta = metaByEmail.get(s.email.trim().toLowerCase());
-    return {
+    // E-mail de sócio (inclusive alias) é sempre o sócio, papel CONTRATADA.
+    return normalizeFirmSigner({
       ...s,
       role: meta?.role ?? s.role ?? "CONTRATANTE",
       name: meta?.name ?? s.name ?? null,
-    };
+    });
   });
 }
 

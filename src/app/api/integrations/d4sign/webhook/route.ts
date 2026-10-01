@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 import { estimateD4SignCreatedAt } from "@/lib/d4sign/created-at-estimate";
 import { getD4SignEnv } from "@/lib/d4sign/env";
+import { normalizeFirmSigner } from "@/lib/d4sign/firm-signers";
 import { verifyD4SignContentHmac } from "@/lib/d4sign/webhook-hmac";
 import {
   applyWebhookToSigners,
@@ -246,7 +247,9 @@ export async function POST(request: Request) {
   const currentSigners = ((d4doc?.signers ?? []) as StoredWebhookSigner[]).filter(
     (s) => s && typeof s.email === "string",
   );
-  const { signers: updatedSigners, finalizedAt } = applyWebhookToSigners(currentSigners, event, nowIso);
+  const applied = applyWebhookToSigners(currentSigners, event, nowIso);
+  const updatedSigners = applied.signers.map(normalizeFirmSigner);
+  const finalizedAt = applied.finalizedAt;
   const docNome = documentName?.replace(/\.(docx?|pdf)$/i, "") ?? documentUuid;
   const leadNome = opp?.solicitante_nome ?? "Lead";
   const path = opp ? `/crm/leads/${opp.id}` : "/crm/contratos";
@@ -272,7 +275,7 @@ export async function POST(request: Request) {
         ((opp.d4sign_signers ?? []) as StoredWebhookSigner[]).filter((s) => s && typeof s.email === "string"),
         event,
         nowIso,
-      ).signers;
+      ).signers.map(normalizeFirmSigner);
       const { error: signerUpdateError } = await admin
         .from("oportunidades")
         .update({

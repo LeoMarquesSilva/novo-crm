@@ -8,6 +8,7 @@ import {
   type D4SignQuotaStatus,
 } from "@/lib/d4sign/api-usage";
 import type { D4SignEnv } from "@/lib/d4sign/env";
+import { normalizeFirmSigner } from "@/lib/d4sign/firm-signers";
 import { D4SignConnector } from "@/modules/crm/infrastructure/integrations/d4sign-client";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
@@ -201,7 +202,7 @@ export async function enrichDocuments(
     try {
       const detail = await connector.listSignersByDocument(row.uuid_doc, { source: apiSource });
 
-        const signers = detail.signers.map((s) => ({
+        const signers = detail.signers.map((s) => normalizeFirmSigner({
           email: s.email,
           key_signer: s.key_signer,
           act: s.act ?? "1",

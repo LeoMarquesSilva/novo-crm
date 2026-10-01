@@ -2,6 +2,12 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-01 — D4Sign: conta de assinatura digital do Gustavo
+
+- `assinaturadigital@bismarchipires.com.br` e `assinaturadigital@bpplaw.com.br` são aliases do Gustavo (assina com o certificado dele no login de outro usuário).
+- `normalizeFirmSigner`: signatário com e-mail de sócio aparece com o nome do sócio e papel CONTRATADA (busca de signatários, webhook e oportunidade). Antes aparecia o dono do login na D4Sign ("Felipe Soares De Camargo") e a oportunidade marcava os sócios como CONTRATANTE.
+- Dados corrigidos: 74 documentos e 1 oportunidade.
+
 ## 2026-10-01 — D4Sign: Webhook 2.0
 
 - Conta passou para o Webhook 2.0 (JSON). O endpoint aceitava só form-data e rejeitaria todo evento com 400. Agora lê JSON (2.0) e form-data (1.0).
