@@ -378,7 +378,7 @@ Config em `src/lib/d4sign/firm-signers.ts`:
 
 | Nome | E-mail | OAB |
 |---|---|---|
-| Gustavo Bismarchi Motta | gustavo@bpplaw.com.br | OAB/SP 275.477 |
+| Gustavo Bismarchi Motta | gustavo@bpplaw.com.br (aliases: gustavo@bismarchipires.com.br, assinaturadigital@bismarchipires.com.br) | OAB/SP 275.477 |
 | Ricardo Viscardi Pires | ricardo@bpplaw.com.br | OAB/SP 353.389 |
 
 ---

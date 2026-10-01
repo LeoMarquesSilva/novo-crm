@@ -29,7 +29,8 @@ const DEFAULT_FIRM_SIGNERS: FirmSigner[] = [
     name: "Gustavo Bismarchi Motta",
     oab: "OAB/SP 275.477",
     foreign: "0",
-    aliases: ["gustavo@bismarchipires.com.br"],
+    // `assinaturadigital@` é a conta de assinatura digital do Gustavo.
+    aliases: ["gustavo@bismarchipires.com.br", "assinaturadigital@bismarchipires.com.br"],
   },
   {
     email: "ricardo@bpplaw.com.br",
