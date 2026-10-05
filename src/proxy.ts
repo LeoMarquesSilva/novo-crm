@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { mustChangePasswordRedirect, userMustChangePassword } from "@/lib/auth/must-change-password";
 import { PARTNER_HOME, isPartnerOnlyAllowedPath, isPartnerOnlyEmail } from "@/lib/d4sign/partner-only";
 
 function safeNextPath(next: string | null) {
@@ -31,7 +32,7 @@ export async function proxy(request: NextRequest) {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
-    if (pathname.startsWith("/crm")) {
+    if (pathname.startsWith("/crm") || pathname === "/trocar-senha") {
       return redirectToLogin(request, "missing_supabase_env");
     }
     return response;
@@ -61,6 +62,15 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const passwordRedirect = mustChangePasswordRedirect({
+    pathname,
+    signedIn: Boolean(user),
+    mustChange: userMustChangePassword(user),
+  });
+  if (passwordRedirect) {
+    return NextResponse.redirect(new URL(passwordRedirect, request.url));
+  }
 
   const loginReason = request.nextUrl.searchParams.get("reason");
   if (pathname === "/login" && user && loginReason !== "profile_missing") {
@@ -98,5 +108,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/crm", "/crm/:path*", "/login"],
+  matcher: ["/crm", "/crm/:path*", "/login", "/trocar-senha"],
 };

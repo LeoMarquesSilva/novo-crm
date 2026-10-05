@@ -7,6 +7,7 @@ import { Loader2, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { userMustChangePassword } from "@/lib/auth/must-change-password";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
 export function LoginForm() {
@@ -29,7 +30,7 @@ export function LoginForm() {
     setLoading(true);
     try {
       const supabase = createSupabaseClient();
-      const { error: signError } = await supabase.auth.signInWithPassword({
+      const { data, error: signError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -41,7 +42,7 @@ export function LoginForm() {
         );
         return;
       }
-      router.replace(nextPath);
+      router.replace(userMustChangePassword(data.user) ? "/trocar-senha" : nextPath);
       router.refresh();
     } finally {
       setLoading(false);
