@@ -104,6 +104,8 @@ export type PartnerDocRow = {
   sent_at?: string | null;
   /** Quem enviou (`resolveD4SignSenders`). */
   sent_by?: { full_name: string; avatar_url: string | null; source: "crm" | "d4sign" } | null;
+  /** Última leitura dos signatários na D4Sign (`details_fetched_at`). */
+  details_fetched_at?: string | null;
 };
 
 export type PartnerDocLifecycle = "em_andamento" | "finalizado" | "cancelado";
@@ -138,6 +140,8 @@ export type ClassifiedPartnerDoc = {
   signers: D4SignSignerInfo[];
   /** e-mail canônico do sócio → situação dele neste documento */
   partners: Record<string, PartnerSignatureSlot>;
+  /** Quando os signatários foram lidos na D4Sign pela última vez. */
+  signersFetchedAt: string | null;
 };
 
 export const PARTNER_TABS = ["pendente", "aguardando_outros", "finalizado", "cancelado"] as const;
@@ -216,6 +220,7 @@ export function classifyPartnerDoc(
     waitingSince: lastSignedAt ?? row.sent_at ?? row.created_at_d4sign ?? contractDate,
     signers,
     partners: slots,
+    signersFetchedAt: row.details_fetched_at ?? null,
   };
 }
 

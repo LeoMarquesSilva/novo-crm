@@ -21,6 +21,7 @@ export function D4SignSignButton({
   title,
   children,
   onClosed,
+  onOpen,
 }: {
   documentUuid: string;
   signerEmail: string;
@@ -31,6 +32,8 @@ export function D4SignSignButton({
   children: ReactNode;
   /** Ao fechar o EMBED (para recarregar a lista). */
   onClosed?: () => void;
+  /** Quando a janela de assinatura da D4Sign abre. */
+  onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -42,6 +45,7 @@ export function D4SignSignButton({
         rel="noopener noreferrer"
         className={className}
         title={title}
+        onClick={() => onOpen?.()}
       >
         {children}
       </a>
@@ -50,7 +54,15 @@ export function D4SignSignButton({
 
   return (
     <>
-      <button type="button" className={className} title={title} onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className={className}
+        title={title}
+        onClick={() => {
+          onOpen?.();
+          setOpen(true);
+        }}
+      >
         {children}
       </button>
       <EmbedSignDialog

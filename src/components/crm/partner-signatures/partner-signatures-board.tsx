@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Eye,
   FileSignature,
+  Hourglass,
   PenLine,
   Search,
 } from "lucide-react";
@@ -60,9 +61,20 @@ type Props = {
   currentPartnerEmail: string | null;
   /** Admin pode cancelar contrato em andamento na D4Sign. */
   canCancel?: boolean;
+  /** Sócios tratados como assinados até a D4Sign confirmar, por uuid do documento. */
+  provisionalByUuid?: Record<string, string[]>;
+  /** O sócio logado abriu a janela de assinatura deste contrato. */
+  onSignOpen?: (doc: ClassifiedPartnerDoc) => void;
 };
 
-export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, canCancel = false }: Props) {
+export function PartnerSignaturesBoard({
+  docs,
+  partners,
+  currentPartnerEmail,
+  canCancel = false,
+  provisionalByUuid = {},
+  onSignOpen,
+}: Props) {
   const router = useRouter();
   const [partnerFilter, setPartnerFilter] = useState<PartnerFilter>(currentPartnerEmail ?? "all");
   const [tab, setTab] = useState<PartnerTab>("pendente");
@@ -208,6 +220,7 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, ca
             const stale = tab === "pendente" && days !== null && days >= STALE_DAYS;
             const mySlot = currentPartnerEmail ? doc.partners[currentPartnerEmail] : undefined;
             const canSign = doc.lifecycle === "em_andamento" && mySlot !== undefined && !mySlot.signed;
+            const provisionalEmails = provisionalByUuid[doc.uuid] ?? [];
             const pendingPartnerNames = Object.entries(doc.partners)
               .filter(([, s]) => !s.signed)
               .map(([email]) => partnerByEmail.get(email)?.firstName ?? email);
@@ -239,6 +252,9 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, ca
                         <span className="font-medium text-foreground/80">{doc.sentBy.full_name}</span>
                       </span>
                     ) : null}
+                    {provisionalEmails.length > 0 ? (
+                      <span className="font-semibold text-info-text">· confirmação pendente na D4Sign</span>
+                    ) : null}
                     {doc.lastSignedAt && doc.lifecycle !== "finalizado" ? <span>· última assinatura em {fmtDate(doc.lastSignedAt)}</span> : null}
                     {doc.lifecycle === "finalizado" && (doc.finalizedAt ?? doc.lastSignedAt) ? (
                       <span>· finalizado em {fmtDate(doc.finalizedAt ?? doc.lastSignedAt)}</span>
@@ -265,6 +281,7 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, ca
                   {doc.signers.map((s, i) => {
                     const pending = signerIsPending(s);
                     const partnerEmail = resolvePartnerEmail(s.email, partners);
+                    const confirming = Boolean(partnerEmail && pending && provisionalEmails.includes(partnerEmail));
                     const label =
                       (partnerEmail && partnerByEmail.get(partnerEmail)?.firstName) ||
                       s.name?.trim() ||
@@ -277,14 +294,18 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, ca
                         title={s.email ?? undefined}
                         className={cn(
                           "inline-flex max-w-[180px] items-center gap-1 rounded-(--radius-v2-full) border px-2 py-0.5 text-[11px] font-medium",
-                          !pending
-                            ? "border-success-border bg-success-bg text-success-text"
-                            : partnerEmail
-                              ? "border-warning-border bg-warning-bg text-warning-text"
-                              : "border-neutral-200 bg-neutral-50 text-muted-foreground",
+                          confirming
+                            ? "border-info-border bg-info-bg text-info-text"
+                            : !pending
+                              ? "border-success-border bg-success-bg text-success-text"
+                              : partnerEmail
+                                ? "border-warning-border bg-warning-bg text-warning-text"
+                                : "border-neutral-200 bg-neutral-50 text-muted-foreground",
                         )}
                       >
-                        {pending ? (
+                        {confirming ? (
+                          <Hourglass className="size-3 shrink-0" aria-label="Confirmando" />
+                        ) : pending ? (
                           <Clock className="size-3 shrink-0" aria-label="Pendente" />
                         ) : (
                           <CheckCircle2 className="size-3 shrink-0" aria-label="Assinou" />
@@ -304,6 +325,7 @@ export function PartnerSignaturesBoard({ docs, partners, currentPartnerEmail, ca
                       signerName={mySlot.signerName}
                       keySigner={mySlot.keySigner}
                       className={buttonVariants({ size: "sm" })}
+                      onOpen={() => onSignOpen?.(doc)}
                       onClosed={() => router.refresh()}
                     >
                       <PenLine />

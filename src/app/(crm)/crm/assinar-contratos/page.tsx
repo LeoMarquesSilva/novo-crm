@@ -1,8 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CheckCircle2, Clock, Hourglass, PenLine } from "lucide-react";
-import { CrmPageHeader, type HeaderStat } from "@/components/crm/crm-page-header";
-import { PartnerSignaturesBoard } from "@/components/crm/partner-signatures/partner-signatures-board";
+import { PartnerSignaturesScreen } from "@/components/crm/partner-signatures/partner-signatures-screen";
 import { requireAuth } from "@/lib/auth/server";
 import { resolveD4SignSenders } from "@/lib/d4sign/document-sender";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
@@ -10,8 +7,6 @@ import { isPartnerOnlyEmail } from "@/lib/d4sign/partner-only";
 import {
   canAccessPartnerSignatures,
   classifyPartnerDoc,
-  countPartnerTabs,
-  daysSince,
   lifecycleFromStatus,
   parseSigners,
   resolvePartnerEmail,
@@ -33,6 +28,7 @@ type DocRow = {
   folder_area: string | null;
   folder_name: string | null;
   signers: unknown;
+  details_fetched_at: string | null;
   sent_by_app_user_id: string | null;
   sent_by_name: string | null;
   sent_by_email: string | null;
@@ -48,7 +44,7 @@ async function loadAllDocuments(): Promise<{ rows: DocRow[]; error: string | nul
     const { data, error } = await supabase
       .from("d4sign_documents")
       .select(
-        "uuid_doc, name_document, d4sign_status, created_at_d4sign, finalized_at, folder_area, folder_name, signers, sent_by_app_user_id, sent_by_name, sent_by_email, sent_at, oportunidades(solicitante_nome)",
+        "uuid_doc, name_document, d4sign_status, created_at_d4sign, finalized_at, folder_area, folder_name, signers, details_fetched_at, sent_by_app_user_id, sent_by_name, sent_by_email, sent_at, oportunidades(solicitante_nome)",
       )
       .order("created_at_d4sign", { ascending: false, nullsFirst: false })
       .range(from, from + PAGE_SIZE - 1);
@@ -87,75 +83,15 @@ export default async function AssinarContratosPage() {
   const currentPartnerEmail = resolvePartnerEmail(user.email, partners);
   const isAdmin = profile.role === "admin";
 
-  const pendingByPartner = partners.map((p) => ({
-    partner: p,
-    count: countPartnerTabs(docs, p.email).pendente,
-  }));
-  const waitingOthers = countPartnerTabs(docs, "all").aguardando_outros;
-  const finalizedLast30 = docs.filter(
-    (d) => {
-      const at = d.finalizedAt ?? d.lastSignedAt;
-      return d.lifecycle === "finalizado" && at !== null && daysSince(at) <= 30;
-    },
-  ).length;
-
-  const stats: HeaderStat[] = [
-    ...pendingByPartner.map(({ partner, count }) => ({
-      label: `Pendentes · ${partner.firstName}`,
-      value: count,
-      detail: count === 1 ? "contrato aguardando assinatura" : "contratos aguardando assinatura",
-      icon: PenLine,
-      tone: count > 0 ? ("warning" as const) : ("default" as const),
-    })),
-    {
-      label: "Aguardando outros",
-      value: waitingOthers,
-      detail: "sócios já assinaram, faltam outros signatários",
-      icon: Hourglass,
-    },
-    {
-      label: "Finalizados · 30 dias",
-      value: finalizedLast30,
-      detail: "contratos concluídos no período",
-      icon: CheckCircle2,
-    },
-  ];
-
   return (
-    <div className="space-y-6">
-      <CrmPageHeader
-        eyebrow="Sócios"
-        title="Assinar Contratos"
-        description="Contratos D4Sign em que Gustavo ou Ricardo são signatários, de todos os cofres."
-        icon={PenLine}
-        stats={stats}
-      />
-
-      {error ? (
-        <p className="rounded-(--radius-v2-lg) border border-danger-border bg-danger-bg px-4 py-2.5 text-sm font-semibold text-danger-text">
-          Não foi possível carregar os documentos: {error}
-        </p>
-      ) : null}
-
-      {withoutSignersPending > 0 ? (
-        <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <Clock className="size-3.5" aria-hidden />
-          {withoutSignersPending} documento{withoutSignersPending !== 1 ? "s" : ""} em andamento ainda sem
-          dados de signatários não aparece{withoutSignersPending !== 1 ? "m" : ""} aqui.
-          {isAdmin && !isPartnerOnlyEmail(user.email) ? (
-            <Link href="/crm/contratos?tab=d4sign" className="font-semibold text-interactive-700 hover:underline">
-              Buscar na área técnica D4Sign
-            </Link>
-          ) : null}
-        </p>
-      ) : null}
-
-      <PartnerSignaturesBoard
-        docs={docs}
-        partners={partners}
-        currentPartnerEmail={currentPartnerEmail}
-        canCancel={isAdmin}
-      />
-    </div>
+    <PartnerSignaturesScreen
+      docs={docs}
+      partners={partners}
+      currentPartnerEmail={currentPartnerEmail}
+      canCancel={isAdmin}
+      error={error}
+      withoutSignersPending={withoutSignersPending}
+      showTechnicalLink={isAdmin && !isPartnerOnlyEmail(user.email)}
+    />
   );
 }

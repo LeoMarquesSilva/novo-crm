@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Lock, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,6 @@ import { userMustChangePassword } from "@/lib/auth/must-change-password";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next");
   const nextPath =
@@ -40,11 +40,14 @@ export function LoginForm() {
             ? "E-mail ou senha incorretos."
             : signError.message,
         );
+        setLoading(false);
         return;
       }
-      router.replace(userMustChangePassword(data.user) ? "/trocar-senha" : nextPath);
-      router.refresh();
-    } finally {
+      // Recarrega a página inteira: a navegação do Next não leva o cookie novo
+      // e o CRM continua na tela de login até um refresh manual.
+      window.location.assign(userMustChangePassword(data.user) ? "/trocar-senha" : nextPath);
+    } catch {
+      setError("Não foi possível entrar. Tente de novo.");
       setLoading(false);
     }
   }
@@ -90,6 +93,11 @@ export function LoginForm() {
             className="h-11 pl-10"
             placeholder="••••••••"
           />
+        </div>
+        <div className="flex justify-end">
+          <Link href="/esqueci-senha" className="text-v2-body-sm font-semibold text-interactive-700 hover:underline">
+            Esqueci minha senha
+          </Link>
         </div>
       </div>
 
