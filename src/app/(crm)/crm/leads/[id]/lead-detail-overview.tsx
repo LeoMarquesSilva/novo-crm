@@ -35,7 +35,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
-import { leadAreas } from "@/modules/crm/application/services/new-lead-payload";
+import { leadAreas, leadDigitalPlatforms } from "@/modules/crm/application/services/new-lead-payload";
 import type { LeadActivityEvent } from "@/lib/crm/lead-lifecycle-timeline";
 import type { LeadDetailData } from "./page";
 import { LeadAddEmpresaButton } from "./lead-add-empresa-button";
@@ -59,7 +59,13 @@ export type LeadOverviewTabTarget =
 type IntakeField = LeadDetailData["intakeFields"][number];
 type IntakeGroupKey = "requester" | "schedule" | "commercial" | "other" | "integration";
 
-const HIDDEN_INTAKE_KEYS = new Set(["due_diligence_intake", "tipo_lead"]);
+const HIDDEN_INTAKE_KEYS = new Set([
+  "due_diligence_intake",
+  "tipo_lead",
+  "plataforma",
+  "area_cross_selling",
+  "decisor",
+]);
 const INTEGRATION_FIELD_PREFIX = "sharepoint_";
 const LONG_FIELD_KEYS = new Set(["areas_analise", "contexto_comercial", "sharepoint_agendamento_error"]);
 
@@ -147,7 +153,20 @@ export function LeadDetailOverview({
             />
           </CardHeader>
           <CardContent className="grid px-0 sm:grid-cols-2">
-            <OverviewValue label="Tipo de lead" value={leadTypeDisplay} />
+            <OverviewValue label="Origem do Lead" value={leadTypeDisplay} />
+            {leadTypeDisplay === "Lead Digital" ? (
+              <LeadDetailFieldEditor
+                leadId={lead.id}
+                scope="intake"
+                fieldKey="plataforma"
+                label="Plataforma *"
+                value={lead.intakeFields.find((field) => field.key === "plataforma")?.value ?? ""}
+                kind="select"
+                selectOptions={[...leadDigitalPlatforms]}
+                displayVariant="row"
+                className="border-t border-neutral-200"
+              />
+            ) : null}
             <OverviewValue label="Etapa atual" value={etapaLabel} icon={GitBranch} />
             <LeadDetailFieldEditor
               leadId={lead.id}
@@ -177,6 +196,29 @@ export function LeadDetailOverview({
                 muted={!lead.clienteId}
               />
             ) : null}
+            {isCrossSellingLead ? (
+              <LeadDetailFieldEditor
+                leadId={lead.id}
+                scope="intake"
+                fieldKey="area_cross_selling"
+                label="Área *"
+                value={lead.intakeFields.find((field) => field.key === "area_cross_selling")?.value ?? ""}
+                kind="select"
+                selectOptions={[...leadAreas]}
+                displayVariant="row"
+                className="border-t border-neutral-200"
+              />
+            ) : null}
+            <LeadDetailFieldEditor
+              leadId={lead.id}
+              scope="intake"
+              fieldKey="decisor"
+              label="Decisor"
+              value={lead.intakeFields.find((field) => field.key === "decisor")?.value ?? ""}
+              kind="text"
+              displayVariant="row"
+              className="border-t border-neutral-200"
+            />
             <OverviewValue
               label="Criado em"
               value={formatDateTimeBr(lead.criadoEm)}
@@ -425,7 +467,7 @@ function IntakeFieldGroup({
             leadId={leadId}
             scope="intake"
             fieldKey="solicitante_interno"
-            label="Solicitante interno"
+            label="Captador"
             value={solicitanteEmailField?.value ?? solicitanteNameField?.value ?? ""}
             kind="user"
             resolvedUser={solicitanteResolvedUser}

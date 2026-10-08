@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
+import { fetchAppUsersByEmailLookup } from "@/lib/crm/resolve-app-user-display";
+import { leadDigitalPlatforms } from "@/modules/crm/application/services/new-lead-payload";
 import {
   deriveGrupoAreasFromSignals,
   type GrupoAreaAtuacao,
@@ -21,6 +23,11 @@ export const saveGrupoCarteiraSchema = z.object({
   tipoIndicacao: z.string().nullable().optional(),
   nomeIndicacao: z.string().nullable().optional(),
   selectedAreaKeys: z.array(z.string()),
+  plataforma: z.string().nullable().optional(),
+  areaCrossSelling: z.string().nullable().optional(),
+  decisor: z.string().nullable().optional(),
+  captadorOportunidadeId: z.string().uuid().nullable().optional(),
+  captadorEmail: z.string().nullable().optional(),
 });
 
 export type SaveGrupoCarteiraInput = z.infer<typeof saveGrupoCarteiraSchema>;
@@ -31,6 +38,13 @@ const INTAKE_COLUMNS_MISSING =
 function isMissingIntakeColumn(message: string): boolean {
   return /tipo_lead|tipo_indicacao|nome_indicacao|areas_atuacao|intake_filled/.test(message);
 }
+
+function isMissingOriginExtraColumn(message: string): boolean {
+  return /plataforma|area_cross_selling|decisor/.test(message);
+}
+
+const ORIGIN_EXTRA_MIGRATION =
+  "Plataforma, área do cross selling e decisor não foram gravados. Aplique a migration local 20261008183000_lead_plataforma_area_cross_selling.sql.";
 
 export async function loadDerivedAreasForGrupo(
   grupoId: string,
@@ -118,6 +132,11 @@ export async function saveGrupoCarteira(
         tipoIndicacao: string | null;
         nomeIndicacao: string | null;
         areasAtuacao: GrupoAreaAtuacao[];
+        plataforma: string | null;
+        areaCrossSelling: string | null;
+        decisor: string | null;
+        captadorNome: string | null;
+        warning?: string;
       };
     }
   | { ok: false; status: 404 | 409 | 422; error: string }
@@ -151,24 +170,105 @@ export async function saveGrupoCarteira(
   });
   if (!prepared.ok) return { ok: false, status: 422, error: prepared.error };
 
+  const plataforma =
+    prepared.value.tipoLead === "Lead Digital" ? input.plataforma?.trim() || null : null;
+  const areaCrossSelling =
+    prepared.value.tipoLead === "Cross Selling" ? input.areaCrossSelling?.trim() || null : null;
+  const decisor = input.decisor?.trim() || null;
+  if (prepared.value.tipoLead === "Lead Digital" && !plataforma) {
+    return { ok: false, status: 422, error: "Plataforma é obrigatória para Lead Digital." };
+  }
+  if (plataforma && !(leadDigitalPlatforms as readonly string[]).includes(plataforma)) {
+    return { ok: false, status: 422, error: "Plataforma inválida." };
+  }
+  if (prepared.value.tipoLead === "Cross Selling" && !areaCrossSelling) {
+    return { ok: false, status: 422, error: "Área é obrigatória para Cross Selling." };
+  }
+  if (
+    areaCrossSelling &&
+    !(CRM_PRACTICE_AREAS as readonly string[]).includes(areaCrossSelling)
+  ) {
+    return { ok: false, status: 422, error: "Área inválida." };
+  }
+
+  if (input.captadorEmail?.trim() && !input.captadorOportunidadeId) {
+    return {
+      ok: false,
+      status: 422,
+      error: "Não há lead vinculado a este grupo para gravar o captador.",
+    };
+  }
+
   const now = prepared.value.intakeUpdatedAt;
+  const baseUpdate = {
+    tipo_lead: prepared.value.tipoLead,
+    tipo_indicacao: prepared.value.tipoIndicacao,
+    nome_indicacao: prepared.value.nomeIndicacao,
+    areas_atuacao: prepared.value.areas as unknown as Json,
+    intake_filled_at: prepared.value.intakeFilledAt,
+    intake_updated_at: now,
+    updated_at: now,
+  };
+  let warning: string | undefined;
   const { error: updateError } = await supabase
     .from("grupos_economicos")
     .update({
-      tipo_lead: prepared.value.tipoLead,
-      tipo_indicacao: prepared.value.tipoIndicacao,
-      nome_indicacao: prepared.value.nomeIndicacao,
-      areas_atuacao: prepared.value.areas as unknown as Json,
-      intake_filled_at: prepared.value.intakeFilledAt,
-      intake_updated_at: now,
-      updated_at: now,
+      ...baseUpdate,
+      plataforma,
+      area_cross_selling: areaCrossSelling,
+      decisor,
     })
     .eq("id", grupo.id);
-  if (updateError) {
+  if (updateError && isMissingOriginExtraColumn(updateError.message)) {
+    const retry = await supabase.from("grupos_economicos").update(baseUpdate).eq("id", grupo.id);
+    if (retry.error) {
+      if (isMissingIntakeColumn(retry.error.message)) {
+        return { ok: false, status: 409, error: INTAKE_COLUMNS_MISSING };
+      }
+      throw retry.error;
+    }
+    warning = ORIGIN_EXTRA_MIGRATION;
+  } else if (updateError) {
     if (isMissingIntakeColumn(updateError.message)) {
       return { ok: false, status: 409, error: INTAKE_COLUMNS_MISSING };
     }
     throw updateError;
+  }
+
+  let captadorNome: string | null = null;
+  if (input.captadorEmail !== undefined || input.captadorOportunidadeId) {
+    if (input.captadorOportunidadeId) {
+      const email = input.captadorEmail?.trim().toLowerCase() || null;
+      if (email) {
+        const users = await fetchAppUsersByEmailLookup(supabase);
+        const user = users[email];
+        if (!user) {
+          return { ok: false, status: 422, error: "Selecione um utilizador ativo do CRM para o captador." };
+        }
+        captadorNome = user.fullName;
+        const { error: intakeError } = await supabase
+          .from("lead_intakes")
+          .update({ solicitante_nome: user.fullName })
+          .eq("oportunidade_id", input.captadorOportunidadeId);
+        if (intakeError) return { ok: false, status: 422, error: intakeError.message };
+        const { error: oppError } = await supabase
+          .from("oportunidades")
+          .update({ solicitante_email: email, updated_at: now })
+          .eq("id", input.captadorOportunidadeId);
+        if (oppError) return { ok: false, status: 422, error: oppError.message };
+      } else {
+        const { error: intakeError } = await supabase
+          .from("lead_intakes")
+          .update({ solicitante_nome: null })
+          .eq("oportunidade_id", input.captadorOportunidadeId);
+        if (intakeError) return { ok: false, status: 422, error: intakeError.message };
+        const { error: oppError } = await supabase
+          .from("oportunidades")
+          .update({ solicitante_email: null, updated_at: now })
+          .eq("id", input.captadorOportunidadeId);
+        if (oppError) return { ok: false, status: 422, error: oppError.message };
+      }
+    }
   }
 
   await requestIndicatorApprovalIfNew({
@@ -187,6 +287,11 @@ export async function saveGrupoCarteira(
       tipoIndicacao: prepared.value.tipoIndicacao,
       nomeIndicacao: prepared.value.nomeIndicacao,
       areasAtuacao: prepared.value.areas,
+      plataforma: warning ? null : plataforma,
+      areaCrossSelling: warning ? null : areaCrossSelling,
+      decisor: warning ? null : decisor,
+      captadorNome,
+      warning,
     },
   };
 }

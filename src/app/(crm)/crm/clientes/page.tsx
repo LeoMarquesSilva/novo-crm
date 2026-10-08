@@ -18,6 +18,7 @@ import {
   enrichCarteiraGrupoOrqestrai,
 } from "@/lib/crm/carteira-grupo-enrichment";
 import { origemLinhaFromGrupoCategoria } from "@/lib/crm/grupo-categoria";
+import { loadCaptadoresByGrupo } from "@/lib/crm/grupo-captador";
 
 export const dynamic = "force-dynamic";
 
@@ -68,11 +69,13 @@ export default async function ClientesPage() {
     { data: clientes, error: clientesError },
     { data: titulos },
     orqestraiGroups,
+    captadoresByGrupo,
   ] = await Promise.all([
     fetchGruposEconomicosCarteira(supabase),
     fetchAllClientes(supabase),
     supabase.from("grupo_titulos_resumo").select("grupo_id, titulos_abertos, titulos_pagos, valor_aberto"),
     fetchOrqestraiClientGroups().catch(() => null),
+    loadCaptadoresByGrupo(supabase).catch(() => new Map()),
   ]);
 
   const titleByGroup = new Map((titulos ?? []).map((row) => [row.grupo_id, row]));
@@ -133,6 +136,12 @@ export default async function ClientesPage() {
       tipoLead: grupo.tipo_lead,
       tipoIndicacao: grupo.tipo_indicacao,
       nomeIndicacao: grupo.nome_indicacao,
+      plataforma: grupo.plataforma,
+      areaCrossSelling: grupo.area_cross_selling,
+      decisor: grupo.decisor,
+      captadorOportunidadeId: captadoresByGrupo.get(grupo.id)?.oportunidadeId ?? null,
+      captadorNome: captadoresByGrupo.get(grupo.id)?.nome ?? null,
+      captadorEmail: captadoresByGrupo.get(grupo.id)?.email ?? null,
       areasAtuacao: grupo.areas_atuacao,
       membros: membrosByGroup.get(grupo.id) ?? [],
     };
@@ -145,8 +154,8 @@ export default async function ClientesPage() {
         title="Cadastro único de clientes"
         description={
           lastSyncedAt
-            ? `Última sync do OrquestrAI em ${lastSyncedAt}. Categoria é Cliente ou Lead (hoje só Cliente). Status Ativo/Inativo vem de gestor_atividade. Áreas são a atuação jurídica (OrquestrAI responsible_area ∪ SIOE). Títulos ABERTO/PAGO vêm do SIOE. Indicação vem do preenchimento público ou da edição no modal.`
-            : "Grupos econômicos do OrquestrAI. Categoria é Cliente ou Lead (hoje só Cliente). Status é Cliente ativo ou inativo (gestor_atividade). Áreas são a atuação jurídica (responsible_area ∪ SIOE). Títulos ABERTO/PAGO vêm do SIOE. Indicação vem do preenchimento público ou da edição no modal."
+            ? `Última sync do OrquestrAI em ${lastSyncedAt}. Categoria é Cliente ou Lead (hoje só Cliente). Status Ativo/Inativo vem de gestor_atividade. Áreas são a atuação jurídica (OrquestrAI responsible_area ∪ SIOE). Títulos ABERTO/PAGO vêm do SIOE. Origem do Lead vem do preenchimento público ou da edição no modal.`
+            : "Grupos econômicos do OrquestrAI. Categoria é Cliente ou Lead (hoje só Cliente). Status é Cliente ativo ou inativo (gestor_atividade). Áreas são a atuação jurídica (responsible_area ∪ SIOE). Títulos ABERTO/PAGO vêm do SIOE. Origem do Lead vem do preenchimento público ou da edição no modal."
         }
         icon={Building2}
         stats={[

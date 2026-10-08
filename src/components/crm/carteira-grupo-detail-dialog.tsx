@@ -13,14 +13,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { IndicationNamePicker } from "@/components/crm/indication-name-picker";
 import { SelectField, TagSelectable } from "@/components/crm/new-lead-modal";
+import { UserPickerField, type SystemUserOption } from "@/components/crm/new-lead-modal/searchable-picker";
 import { dialogSelectOutsideHandlers } from "@/lib/ui/base-ui-select-dialog";
 import { AreaIconLabel, getAreaLucideIcon } from "@/lib/crm/area-lucide-icon";
 import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
+import { leadDigitalPlatforms } from "@/modules/crm/application/services/new-lead-payload";
 import {
   formatCarteiraDocumento,
   splitCarteiraGrupoMembros,
@@ -37,6 +40,7 @@ import {
   GRUPO_INTAKE_LEAD_TYPES,
   parseGrupoIntakeIndication,
 } from "@/lib/crm/grupo-intake-indication";
+import { LEAD_TYPE_SELECT_LABELS, leadTypeLabel } from "@/lib/crm/lead-type-label";
 import {
   CARTEIRA_CATEGORIA_BADGE_CLASS,
   CARTEIRA_CATEGORIA_LABEL,
@@ -54,7 +58,7 @@ import {
   type IndicationNameOptions,
 } from "@/lib/crm/indication-name-options";
 
-const LEAD_TYPE_ITEMS = Object.fromEntries(GRUPO_INTAKE_LEAD_TYPES.map((item) => [item, item]));
+const LEAD_TYPE_ITEMS = LEAD_TYPE_SELECT_LABELS;
 const INDICATION_TYPE_ITEMS = Object.fromEntries(
   GRUPO_INTAKE_INDICATION_TYPES.map((item) => [item, item]),
 );
@@ -69,6 +73,12 @@ export type CarteiraGrupoDetail = {
   tipoLead: string | null;
   tipoIndicacao: string | null;
   nomeIndicacao: string | null;
+  plataforma: string | null;
+  areaCrossSelling: string | null;
+  decisor: string | null;
+  captadorOportunidadeId: string | null;
+  captadorNome: string | null;
+  captadorEmail: string | null;
   areasAtuacao: unknown;
   membros: CarteiraGrupoMembro[];
 };
@@ -138,6 +148,10 @@ export function CarteiraGrupoDetailDialog({
     tipoLead: string;
     tipoIndicacao: string | null;
     nomeIndicacao: string | null;
+    plataforma: string | null;
+    areaCrossSelling: string | null;
+    decisor: string | null;
+    captadorNome: string | null;
     areasAtuacao: unknown;
   }) => void;
 }) {
@@ -149,6 +163,11 @@ export function CarteiraGrupoDetailDialog({
   const [tipoIndicacao, setTipoIndicacao] = useState("");
   const [nomeIndicacao, setNomeIndicacao] = useState("");
   const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<IndicationNameMode>("existing");
+  const [plataforma, setPlataforma] = useState("");
+  const [areaCrossSelling, setAreaCrossSelling] = useState("");
+  const [decisor, setDecisor] = useState("");
+  const [captadorUserId, setCaptadorUserId] = useState("");
+  const [systemUsers, setSystemUsers] = useState<SystemUserOption[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [derivedAreas, setDerivedAreas] = useState<GrupoAreaAtuacao[]>([]);
   const [indicationOptions, setIndicationOptions] = useState<IndicationNameOptions>(
@@ -175,6 +194,14 @@ export function CarteiraGrupoDetailDialog({
     [derivedAreas],
   );
   const isIndicacao = tipoLead === "Indicacao";
+
+  useEffect(() => {
+    if (!grupo?.captadorEmail || captadorUserId) return;
+    const match = systemUsers.find(
+      (user) => user.email.toLowerCase() === grupo.captadorEmail?.toLowerCase(),
+    );
+    if (match) setCaptadorUserId(match.id);
+  }, [systemUsers, grupo?.captadorEmail, captadorUserId]);
 
   useEffect(() => {
     setEditing(false);
@@ -206,6 +233,13 @@ export function CarteiraGrupoDetailDialog({
     setTipoLead(grupo.tipoLead ?? "");
     setTipoIndicacao(grupo.tipoIndicacao ?? "");
     setNomeIndicacao(grupo.nomeIndicacao ?? "");
+    setPlataforma(grupo.plataforma ?? "");
+    setAreaCrossSelling(grupo.areaCrossSelling ?? "");
+    setDecisor(grupo.decisor ?? "");
+    setCaptadorUserId(
+      systemUsers.find((user) => user.email.toLowerCase() === (grupo.captadorEmail ?? "").toLowerCase())
+        ?.id ?? "",
+    );
     setNomeIndicacaoMode(
       resolveIndicationNameMode({
         tipoIndicacao: grupo.tipoIndicacao,
@@ -223,6 +257,19 @@ export function CarteiraGrupoDetailDialog({
     setError(null);
     setEditing(true);
     void loadDerived(grupo.id);
+    void loadSystemUsers();
+  }
+
+  async function loadSystemUsers() {
+    try {
+      const res = await fetch("/api/crm/lead-form-options");
+      const json = (await res.json()) as { ok?: boolean; data?: { systemUsers?: SystemUserOption[] } };
+      if (res.ok && json.ok && json.data?.systemUsers) {
+        setSystemUsers(json.data.systemUsers);
+      }
+    } catch {
+      setSystemUsers([]);
+    }
   }
 
   async function loadDerived(grupoId: string) {
@@ -256,6 +303,19 @@ export function CarteiraGrupoDetailDialog({
 
   async function onSave() {
     if (!grupo) return;
+    if (tipoLead === "Lead Digital" && !plataforma) {
+      setError("Selecione a plataforma.");
+      return;
+    }
+    if (tipoLead === "Cross Selling" && !areaCrossSelling) {
+      setError("Selecione a área do cross selling.");
+      return;
+    }
+    const captadorUser = systemUsers.find((user) => user.id === captadorUserId) ?? null;
+    if (captadorUser && !grupo.captadorOportunidadeId) {
+      setError("Não há lead vinculado a este grupo para gravar o captador.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -267,6 +327,11 @@ export function CarteiraGrupoDetailDialog({
           tipoIndicacao: isIndicacao ? tipoIndicacao : null,
           nomeIndicacao: isIndicacao ? nomeIndicacao : null,
           selectedAreaKeys: selected,
+          plataforma: tipoLead === "Lead Digital" ? plataforma : null,
+          areaCrossSelling: tipoLead === "Cross Selling" ? areaCrossSelling : null,
+          decisor: decisor.trim() || null,
+          captadorOportunidadeId: grupo.captadorOportunidadeId,
+          captadorEmail: captadorUser?.email ?? null,
         }),
       });
       const json = (await res.json()) as
@@ -276,7 +341,12 @@ export function CarteiraGrupoDetailDialog({
               tipoLead: string;
               tipoIndicacao: string | null;
               nomeIndicacao: string | null;
+              plataforma: string | null;
+              areaCrossSelling: string | null;
+              decisor: string | null;
+              captadorNome: string | null;
               areasAtuacao: unknown;
+              warning?: string;
             };
           }
         | { ok?: false; error?: string };
@@ -288,8 +358,13 @@ export function CarteiraGrupoDetailDialog({
         tipoLead: json.data.tipoLead,
         tipoIndicacao: json.data.tipoIndicacao,
         nomeIndicacao: json.data.nomeIndicacao,
+        plataforma: json.data.plataforma,
+        areaCrossSelling: json.data.areaCrossSelling,
+        decisor: json.data.decisor,
+        captadorNome: json.data.captadorNome,
         areasAtuacao: json.data.areasAtuacao,
       });
+      if (json.data.warning) setError(json.data.warning);
       setEditing(false);
       router.refresh();
     } catch (cause) {
@@ -371,7 +446,7 @@ export function CarteiraGrupoDetailDialog({
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <SelectField label="Indicação *">
+                  <SelectField label="Origem do Lead *">
                     <Select
                       modal={false}
                       items={LEAD_TYPE_ITEMS}
@@ -384,6 +459,8 @@ export function CarteiraGrupoDetailDialog({
                           setNomeIndicacao("");
                           setNomeIndicacaoMode("existing");
                         }
+                        if (next !== "Lead Digital") setPlataforma("");
+                        if (next !== "Cross Selling") setAreaCrossSelling("");
                       }}
                     >
                       <SelectTrigger className="h-10 w-full justify-between font-normal">
@@ -396,7 +473,7 @@ export function CarteiraGrupoDetailDialog({
                       <CrmSelectContent inModal>
                         {GRUPO_INTAKE_LEAD_TYPES.map((item) => (
                           <CrmSelectItem key={item} value={item}>
-                            {item}
+                            {leadTypeLabel(item)}
                           </CrmSelectItem>
                         ))}
                       </CrmSelectContent>
@@ -466,6 +543,89 @@ export function CarteiraGrupoDetailDialog({
                   </div>
                 ) : null}
 
+                {tipoLead === "Lead Digital" ? (
+                  <SelectField label="Plataforma *">
+                    <Select
+                      modal={false}
+                      items={Object.fromEntries(leadDigitalPlatforms.map((item) => [item, item]))}
+                      value={plataforma}
+                      onValueChange={(value) => setPlataforma(value ?? "")}
+                    >
+                      <SelectTrigger className="h-10 w-full justify-between font-normal">
+                        <CrmSelectValue
+                          value={plataforma}
+                          labels={Object.fromEntries(leadDigitalPlatforms.map((item) => [item, item]))}
+                          placeholder="Selecione"
+                        />
+                      </SelectTrigger>
+                      <CrmSelectContent inModal>
+                        {leadDigitalPlatforms.map((item) => (
+                          <CrmSelectItem key={item} value={item}>
+                            {item}
+                          </CrmSelectItem>
+                        ))}
+                      </CrmSelectContent>
+                    </Select>
+                  </SelectField>
+                ) : null}
+                {tipoLead === "Cross Selling" ? (
+                  <SelectField label="Área *">
+                    <Select
+                      modal={false}
+                      items={Object.fromEntries(CRM_PRACTICE_AREAS.map((item) => [item, item]))}
+                      value={areaCrossSelling}
+                      onValueChange={(value) => setAreaCrossSelling(value ?? "")}
+                    >
+                      <SelectTrigger className="h-10 w-full justify-between font-normal">
+                        <CrmSelectValue
+                          value={areaCrossSelling}
+                          labels={Object.fromEntries(CRM_PRACTICE_AREAS.map((item) => [item, item]))}
+                          placeholder="Selecione"
+                        />
+                      </SelectTrigger>
+                      <CrmSelectContent inModal>
+                        {CRM_PRACTICE_AREAS.map((item) => (
+                          <CrmSelectItem key={item} value={item}>
+                            {item}
+                          </CrmSelectItem>
+                        ))}
+                      </CrmSelectContent>
+                    </Select>
+                  </SelectField>
+                ) : null}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="grupo-decisor" className="text-xs font-medium text-muted-foreground">
+                      Decisor
+                    </Label>
+                    <Input
+                      id="grupo-decisor"
+                      value={decisor}
+                      onChange={(event) => setDecisor(event.target.value)}
+                      placeholder="Nome do decisor na empresa"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <UserPickerField
+                      label="Captador"
+                      placeholder={
+                        grupo.captadorOportunidadeId
+                          ? "Selecione o captador"
+                          : "Sem lead vinculado"
+                      }
+                      options={systemUsers}
+                      value={captadorUserId}
+                      onChange={setCaptadorUserId}
+                      disabled={!grupo.captadorOportunidadeId}
+                    />
+                    {!grupo.captadorOportunidadeId ? (
+                      <p className="text-v2-caption text-muted-foreground">
+                        O captador fica no lead vinculado a este grupo.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
                 <div className="relative z-[1] space-y-2">
                   <p className="select-none text-v2-caption-medium text-muted-foreground">Áreas</p>
                   <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Áreas de atuação">
@@ -512,9 +672,15 @@ export function CarteiraGrupoDetailDialog({
                     {CARTEIRA_CATEGORIA_LABEL[grupo.origemLinha]}
                   </Badge>
                 </Field>
-                <Field label="Indicação">
+                <Field label="Origem do Lead">
                   {indication?.ok ? formatGrupoIntakeIndication(indication.value) : "—"}
+                  {grupo.tipoLead === "Lead Digital" && grupo.plataforma ? ` · ${grupo.plataforma}` : ""}
+                  {grupo.tipoLead === "Cross Selling" && grupo.areaCrossSelling
+                    ? ` · ${grupo.areaCrossSelling}`
+                    : ""}
                 </Field>
+                <Field label="Decisor">{grupo.decisor?.trim() || "—"}</Field>
+                <Field label="Captador">{grupo.captadorNome?.trim() || "—"}</Field>
                 <Field label="Áreas">
                   {areas.length ? (
                     <div className="flex flex-wrap gap-1.5">

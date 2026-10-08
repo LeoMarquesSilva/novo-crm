@@ -19,6 +19,12 @@ const GRUPO = {
   tipoLead: "Lead Ativa",
   tipoIndicacao: null,
   nomeIndicacao: null,
+  plataforma: null,
+  areaCrossSelling: null,
+  decisor: null,
+  captadorOportunidadeId: null,
+  captadorNome: null,
+  captadorEmail: null,
   areasAtuacao: [],
   membros: [],
 };

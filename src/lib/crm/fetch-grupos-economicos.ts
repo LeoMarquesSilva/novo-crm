@@ -5,6 +5,7 @@ const BASE_COLUMNS = "id, nome, chave_estavel, orqestrai_id, last_synced_at";
 const CATEGORIA_COLUMN = "categoria";
 const INTAKE_COLUMNS =
   "tipo_lead, tipo_indicacao, nome_indicacao, areas_atuacao, intake_filled_at, intake_updated_at";
+const ORIGIN_EXTRA_COLUMNS = "plataforma, area_cross_selling, decisor";
 const ORQESTRAI_COLUMNS = "gestor_atividade, responsible_area, legal_areas";
 
 export type GrupoEconomicoCarteiraRow = {
@@ -17,6 +18,9 @@ export type GrupoEconomicoCarteiraRow = {
   tipo_lead: string | null;
   tipo_indicacao: string | null;
   nome_indicacao: string | null;
+  plataforma: string | null;
+  area_cross_selling: string | null;
+  decisor: string | null;
   areas_atuacao: Json;
   intake_filled_at: string | null;
   gestor_atividade: string | null;
@@ -40,6 +44,9 @@ function withEmptyExtras(rows: GrupoBaseRow[]): GrupoEconomicoCarteiraRow[] {
     tipo_lead: null,
     tipo_indicacao: null,
     nome_indicacao: null,
+    plataforma: null,
+    area_cross_selling: null,
+    decisor: null,
     areas_atuacao: [] as Json,
     intake_filled_at: null,
     gestor_atividade: null,
@@ -55,6 +62,9 @@ function withOrqestraiDefaults(row: GrupoBaseRow & Partial<GrupoEconomicoCarteir
     gestor_atividade: row.gestor_atividade ?? null,
     responsible_area: row.responsible_area ?? null,
     legal_areas: Array.isArray(row.legal_areas) ? row.legal_areas : [],
+    plataforma: row.plataforma ?? null,
+    area_cross_selling: row.area_cross_selling ?? null,
+    decisor: row.decisor ?? null,
   };
 }
 
@@ -66,6 +76,7 @@ export async function fetchGruposEconomicosCarteira(
   supabase: SupabaseClient<Database>,
 ): Promise<{ data: GrupoEconomicoCarteiraRow[]; error: { message: string } | null }> {
   const selects = [
+    `${BASE_COLUMNS}, ${CATEGORIA_COLUMN}, ${INTAKE_COLUMNS}, ${ORIGIN_EXTRA_COLUMNS}, ${ORQESTRAI_COLUMNS}`,
     `${BASE_COLUMNS}, ${CATEGORIA_COLUMN}, ${INTAKE_COLUMNS}, ${ORQESTRAI_COLUMNS}`,
     `${BASE_COLUMNS}, ${CATEGORIA_COLUMN}, ${INTAKE_COLUMNS}`,
     `${BASE_COLUMNS}, ${INTAKE_COLUMNS}`,
@@ -97,6 +108,9 @@ export async function fetchGruposEconomicosCarteira(
       "gestor_atividade",
       "responsible_area",
       "legal_areas",
+      "plataforma",
+      "area_cross_selling",
+      "decisor",
     ]);
     if (!missingOptional) return { data: [], error: result.error };
   }

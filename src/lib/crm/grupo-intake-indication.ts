@@ -2,6 +2,7 @@ import {
   indicationTypes,
   leadTypes,
 } from "@/modules/crm/application/services/new-lead-payload";
+import { leadTypeLabel } from "@/lib/crm/lead-type-label";
 
 export const GRUPO_INTAKE_LEAD_TYPES = leadTypes;
 export const GRUPO_INTAKE_INDICATION_TYPES = indicationTypes;
@@ -27,8 +28,8 @@ export function isGrupoIntakeIndicationType(
 
 export function formatGrupoIntakeIndication(value: GrupoIntakeIndication | null | undefined): string {
   if (!value?.tipoLead) return "—";
-  if (value.tipoLead !== "Indicacao") return value.tipoLead;
-  const parts = [value.tipoLead, value.tipoIndicacao, value.nomeIndicacao?.trim()].filter(Boolean);
+  if (value.tipoLead !== "Indicacao") return leadTypeLabel(value.tipoLead);
+  const parts = [leadTypeLabel(value.tipoLead), value.tipoIndicacao, value.nomeIndicacao?.trim()].filter(Boolean);
   return parts.join(" · ");
 }
 

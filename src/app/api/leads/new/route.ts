@@ -132,6 +132,26 @@ export async function POST(request: Request) {
       );
     }
 
+    const warnings: string[] = [];
+
+    const { error: extraFieldsError } = await supabase
+      .from("lead_intakes")
+      .update({
+        plataforma: payload.tipo_de_lead === "Lead Digital" ? payload.plataforma ?? null : null,
+        area_cross_selling:
+          payload.tipo_de_lead === "Cross Selling" ? payload.area_cross_selling ?? null : null,
+        decisor: payload.decisor?.trim() || null,
+      })
+      .eq("oportunidade_id", oportunidade.id);
+    if (extraFieldsError) {
+      const missingColumn = /plataforma|area_cross_selling|decisor/.test(extraFieldsError.message);
+      warnings.push(
+        missingColumn
+          ? "Plataforma, área do cross selling e decisor não foram gravados. Aplique a migration local 20261008183000_lead_plataforma_area_cross_selling.sql."
+          : `Campos extras do lead: ${extraFieldsError.message}`,
+      );
+    }
+
     await recordLeadActivityEvent(supabase, {
       oportunidadeId: oportunidade.id,
       kind: "lead_criado",
@@ -157,8 +177,6 @@ export async function POST(request: Request) {
           : null,
       });
     }
-
-    const warnings: string[] = [];
 
     if (payload.due_diligence === "Sim") {
       try {

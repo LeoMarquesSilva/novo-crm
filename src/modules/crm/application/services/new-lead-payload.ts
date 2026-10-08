@@ -23,6 +23,9 @@ export const indicationTypes = [
   "Outros parceiros",
 ] as const;
 
+/** Subtipo de Lead Digital. A chave gravada é o próprio rótulo. */
+export const leadDigitalPlatforms = ["Instagram", "LinkedIn", "Site"] as const;
+
 const companySchema = z.object({
   tipo_documento: z.enum(["CPF", "CNPJ"]),
   razao_social: z.string().trim().min(1, "Razão social é obrigatória."),
@@ -45,6 +48,9 @@ export const newLeadPayloadSchema = z
     tipo_de_lead: z.enum(leadTypes),
     tipo_indicacao: z.enum(indicationTypes).optional().nullable(),
     nome_indicacao: z.string().optional().nullable(),
+    plataforma: z.enum(leadDigitalPlatforms).optional().nullable(),
+    area_cross_selling: z.enum(leadAreas).optional().nullable(),
+    decisor: z.string().trim().optional().nullable(),
     contexto_comercial: z.string().optional().nullable(),
     /** Cliente da carteira quando o CNPJ/CPF já existe na base. */
     cliente_id: z.string().uuid().optional().nullable(),
@@ -123,6 +129,22 @@ export const newLeadPayloadSchema = z
           message: "Nome da indicação é obrigatório para lead por indicação.",
         });
       }
+    }
+
+    if (value.tipo_de_lead === "Lead Digital" && !value.plataforma) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["plataforma"],
+        message: "Plataforma é obrigatória para Lead Digital.",
+      });
+    }
+
+    if (value.tipo_de_lead === "Cross Selling" && !value.area_cross_selling) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["area_cross_selling"],
+        message: "Área é obrigatória para Cross Selling.",
+      });
     }
   });
 

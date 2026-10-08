@@ -46,11 +46,11 @@ export function filledFieldsFromLeadIntake(
   };
 
   if (opts.solicitanteEmail) {
-    push("email_solicitante", "E-mail do solicitante", opts.solicitanteEmail);
+    push("email_solicitante", "E-mail do captador", opts.solicitanteEmail);
   }
 
   const solicitante = asString(intake.solicitante_nome);
-  if (solicitante) push("solicitante_nome", "Solicitante", solicitante);
+  if (solicitante) push("solicitante_nome", "Captador", solicitante);
 
   const cad = asString(intake.cadastrado_por_email);
   if (cad) push("cadastrado_por", "Cadastro realizado por", cad);
@@ -86,7 +86,13 @@ export function filledFieldsFromLeadIntake(
   const hReu = formatTimeHm(intake.horario_reuniao);
   if (hReu) push("horario_reuniao", "Horário da reunião", hReu);
 
-  push("tipo_lead", "Tipo de lead", asString(intake.tipo_lead));
+  push("tipo_lead", "Origem do Lead", asString(intake.tipo_lead));
+  const plataforma = asString(intake.plataforma);
+  if (plataforma) push("plataforma", "Plataforma", plataforma);
+  const areaCross = asString(intake.area_cross_selling);
+  if (areaCross) push("area_cross_selling", "Área", areaCross);
+  const decisor = asString(intake.decisor);
+  if (decisor) push("decisor", "Decisor", decisor);
   const ti = asString(intake.tipo_indicacao);
   if (ti) push("tipo_indicacao", "Tipo de indicação", ti);
   const ni = asString(intake.nome_indicacao);

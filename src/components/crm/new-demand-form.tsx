@@ -32,9 +32,11 @@ import {
 import {
   indicationTypes,
   leadAreas,
+  leadDigitalPlatforms,
   leadTypes,
   type NewLeadPayload,
 } from "@/modules/crm/application/services/new-lead-payload";
+import { leadTypeLabel } from "@/lib/crm/lead-type-label";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -198,12 +200,12 @@ const WIZARD_STEPS = [
   {
     id: "origem",
     label: "Origem",
-    description: "Tipo de lead e contexto comercial.",
+    description: "Origem do lead e contexto comercial.",
   },
   {
     id: "solicitante",
-    label: "Solicitante",
-    description: "Quem originou e quem cadastra.",
+    label: "Captador",
+    description: "Quem captou e quem cadastra.",
   },
   {
     id: "empresas",
@@ -350,6 +352,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [horarioReuniao, setHorarioReuniao] = useState("");
   const [tipoLead, setTipoLead] = useState<(typeof leadTypes)[number]>("Indicacao");
   const [tipoIndicacao, setTipoIndicacao] = useState("");
+  const [plataforma, setPlataforma] = useState("");
+  const [areaCrossSelling, setAreaCrossSelling] = useState("");
+  const [decisor, setDecisor] = useState("");
   const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<"existing" | "new" | "colaborador">(
     "existing",
   );
@@ -368,6 +373,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [contratoBaseId, setContratoBaseId] = useState("");
 
   const isCrossSelling = tipoLead === "Cross Selling";
+  const isLeadDigital = tipoLead === "Lead Digital";
   const hasAreasSelected = areasAnalise.length > 0;
   const solicitanteUser = useMemo(
     () => systemUsers.find((user) => user.id === solicitanteUserId) ?? null,
@@ -399,17 +405,21 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             (nomeIndicacaoMode === "colaborador" && nomeIndicacaoColaboradorId)),
       );
     }
+    if (isLeadDigital) return Boolean(plataforma);
     if (isCrossSelling) {
-      return Boolean(aditivoClientId);
+      return Boolean(aditivoClientId && areaCrossSelling);
     }
     return true;
   }, [
     aditivoClientId,
+    areaCrossSelling,
     isCrossSelling,
+    isLeadDigital,
     nomeIndicacaoColaboradorId,
     nomeIndicacaoExisting,
     nomeIndicacaoMode,
     nomeIndicacaoNew,
+    plataforma,
     tipoIndicacao,
     tipoLead,
   ]);
@@ -420,12 +430,12 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     () => [
       {
         label: "Origem qualificada",
-        description: "Tipo de lead e contexto comercial definidos.",
+        description: "Origem do lead e contexto comercial definidos.",
         done: hasLeadOrigin,
       },
       {
-        label: "Solicitante identificado",
-        description: "Usuário solicitante e responsável pelo cadastro conferidos.",
+        label: "Captador identificado",
+        description: "Captador e responsável pelo cadastro conferidos.",
         done: Boolean(solicitanteUser && currentUser?.email),
       },
       {
@@ -733,6 +743,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setHorarioReuniao("");
     setTipoLead("Indicacao");
     setTipoIndicacao("");
+    setPlataforma("");
+    setAreaCrossSelling("");
+    setDecisor("");
     setNomeIndicacaoMode("existing");
     setNomeIndicacaoExisting("");
     setNomeIndicacaoNew("");
@@ -809,15 +822,17 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       ) {
         return "Selecione o colaborador que fez a indicação.";
       }
+      if (isLeadDigital && !plataforma) return "Selecione a plataforma.";
       if (isCrossSelling && !aditivoClientId) {
         return "Selecione um cliente existente para o fluxo de cross selling.";
       }
+      if (isCrossSelling && !areaCrossSelling) return "Selecione a área do cross selling.";
       return null;
     }
 
     if (stepId === "solicitante") {
       if (!currentUser?.email) return "Não foi possível identificar o usuário logado.";
-      if (!solicitanteUser) return "Selecione o solicitante do lead.";
+      if (!solicitanteUser) return "Selecione o captador do lead.";
       return null;
     }
 
@@ -944,8 +959,18 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       return false;
     }
 
+    if (isLeadDigital && !plataforma) {
+      setError("Selecione a plataforma.");
+      return false;
+    }
+
     if (isCrossSelling && !aditivoClientId) {
       setError("Selecione um cliente existente para o fluxo de cross selling.");
+      return false;
+    }
+
+    if (isCrossSelling && !areaCrossSelling) {
+      setError("Selecione a área do cross selling.");
       return false;
     }
 
@@ -979,7 +1004,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     }
 
     if (!solicitanteUser || !currentUser?.email) {
-      setError("Selecione o solicitante e recarregue a identificação do usuário logado.");
+      setError("Selecione o captador e recarregue a identificação do usuário logado.");
       setConfirmOpen(false);
       return;
     }
@@ -1020,6 +1045,11 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               ? nomeIndicacaoColaboradorNome
               : nomeIndicacaoNew.trim()
           : null,
+      plataforma: isLeadDigital ? (plataforma as NewLeadPayload["plataforma"]) : null,
+      area_cross_selling: isCrossSelling
+        ? (areaCrossSelling as NewLeadPayload["area_cross_selling"])
+        : null,
+      decisor: decisor.trim() || null,
       contexto_comercial: null,
       cliente_id: vinculo.cliente_id,
       contrato_base_id: vinculo.contrato_base_id,
@@ -1112,14 +1142,14 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       <ModalHeader
         badge="NOVO LEAD"
         title="Abertura comercial guiada"
-        subtitle="Siga a jornada: qualifique a origem, identifique o solicitante, mapeie empresas, selecione áreas e prepare a agenda."
+        subtitle="Siga a jornada: qualifique a origem, identifique o captador, mapeie empresas, selecione áreas e prepare a agenda."
         onRequestClose={onRequestClose}
         pills={[
           {
             label: "Etapa",
             value: `${currentStepIndex + 1}/${WIZARD_STEPS.length}`,
           },
-          { label: "Tipo", value: tipoLead },
+          { label: "Origem", value: leadTypeLabel(tipoLead) },
           { label: "Progresso", value: `${journeyCompletion}%` },
         ]}
         steps={wizardStepStatus.map((step) => ({
@@ -1187,13 +1217,13 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
           {activeWizardStepId === "origem" ? (
           <SectionCard
             icon={Handshake}
-            title="Tipo de Lead"
+            title="Origem do Lead"
             subtitle="Este é o primeiro passo: a escolha aqui abre os campos certos e reduz retrabalho."
           >
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-foreground">Tipo de Lead *</Label>
+                  <Label className="text-xs font-medium text-foreground">Origem do Lead *</Label>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {leadTypes.map((item) => {
                       const active = tipoLead === item;
@@ -1202,7 +1232,11 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         <button
                           key={item}
                           type="button"
-                          onClick={() => setTipoLead(item)}
+                          onClick={() => {
+                            setTipoLead(item);
+                            if (item !== "Lead Digital") setPlataforma("");
+                            if (item !== "Cross Selling") setAreaCrossSelling("");
+                          }}
                           className={cn(
                             "rounded-(--radius-v2-xl) border px-3 py-2.5 text-left transition-colors duration-150",
                             active
@@ -1222,7 +1256,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                               <Icon className="h-4 w-4" />
                             </span>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-foreground">{item}</p>
+                              <p className="text-sm font-semibold text-foreground">{leadTypeLabel(item)}</p>
                             </div>
                           </div>
                         </button>
@@ -1263,7 +1297,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       Fluxo selecionado
                     </p>
                     <p className="mt-2 text-lg font-extrabold tracking-[-0.03em] text-foreground">
-                      {tipoLead}
+                      {leadTypeLabel(tipoLead)}
                     </p>
                     <p className="mt-1 text-sm font-normal leading-relaxed text-muted-foreground">
                       {LEAD_TYPE_HELP[tipoLead]}
@@ -1378,24 +1412,83 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                     </SelectField>
                     )}
                   </div>
+                ) : isLeadDigital ? (
+                  <SelectField label="Plataforma *" className="min-w-0">
+                    <Select
+                      modal={false}
+                      items={Object.fromEntries(leadDigitalPlatforms.map((item) => [item, item]))}
+                      value={plataforma}
+                      onValueChange={(value) => setPlataforma(value ?? "")}
+                    >
+                      <SelectTrigger
+                        className={cn(
+                          newLeadModalFieldClass,
+                          "h-10 w-full justify-between font-normal",
+                        )}
+                      >
+                        <CrmSelectValue
+                          value={plataforma}
+                          labels={Object.fromEntries(leadDigitalPlatforms.map((item) => [item, item]))}
+                          placeholder="Selecione"
+                        />
+                      </SelectTrigger>
+                      <CrmSelectContent inModal>
+                        {leadDigitalPlatforms.map((item) => (
+                          <CrmSelectItem key={item} value={item}>
+                            {item}
+                          </CrmSelectItem>
+                        ))}
+                      </CrmSelectContent>
+                    </Select>
+                  </SelectField>
                 ) : isCrossSelling ? (
-                  <ClientPickerField
-                    label="Cliente existente *"
-                    placeholder={
-                      loadingClients
-                        ? "Carregando clientes..."
-                        : "Selecione um cliente para cross selling"
-                    }
-                    options={clients}
-                    value={aditivoClientId}
-                    onChange={(id) => handleAditivoClientChange(id)}
-                    disabled={loadingClients}
-                    helperText="Ao selecionar um cliente, a razao social e o CNPJ da primeira empresa serao preenchidos automaticamente."
-                  />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <ClientPickerField
+                      label="Cliente existente *"
+                      placeholder={
+                        loadingClients
+                          ? "Carregando clientes..."
+                          : "Selecione um cliente para cross selling"
+                      }
+                      options={clients}
+                      value={aditivoClientId}
+                      onChange={(id) => handleAditivoClientChange(id)}
+                      disabled={loadingClients}
+                      helperText="Ao selecionar um cliente, a razão social e o CNPJ da primeira empresa serão preenchidos automaticamente."
+                    />
+                    <SelectField label="Área *" className="min-w-0">
+                      <Select
+                        modal={false}
+                        items={Object.fromEntries(leadAreas.map((item) => [item, item]))}
+                        value={areaCrossSelling}
+                        onValueChange={(value) => setAreaCrossSelling(value ?? "")}
+                      >
+                        <SelectTrigger
+                          className={cn(
+                            newLeadModalFieldClass,
+                            "h-10 w-full justify-between font-normal",
+                          )}
+                        >
+                          <CrmSelectValue
+                            value={areaCrossSelling}
+                            labels={Object.fromEntries(leadAreas.map((item) => [item, item]))}
+                            placeholder="Selecione"
+                          />
+                        </SelectTrigger>
+                        <CrmSelectContent inModal>
+                          {leadAreas.map((item) => (
+                            <CrmSelectItem key={item} value={item}>
+                              {item}
+                            </CrmSelectItem>
+                          ))}
+                        </CrmSelectContent>
+                      </Select>
+                    </SelectField>
+                  </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-border bg-surface-subtle px-3 py-3 text-sm text-muted-foreground">
                     Sem campos extras para este tipo de lead. Você pode seguir para os
-                    dados do solicitante.
+                    dados do captador.
                   </div>
                 )}
               </div>
@@ -1406,14 +1499,14 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
           {activeWizardStepId === "solicitante" ? (
           <SectionCard
             icon={UserCircle2}
-            title="Solicitante e cadastro"
-            subtitle="Defina quem originou o lead e confira quem está registrando esta jornada."
+            title="Captador e cadastro"
+            subtitle="Defina quem captou o lead e confira quem está registrando esta jornada."
           >
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
               <UserPickerField
-                label="Solicitante *"
+                label="Captador *"
                 placeholder={
-                  loadingFormOptions ? "Carregando usuários..." : "Selecione o solicitante"
+                  loadingFormOptions ? "Carregando usuários..." : "Selecione o captador"
                 }
                 options={systemUsers}
                 value={solicitanteUserId}
@@ -1438,6 +1531,16 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                 primeira empresa automaticamente.
               </div>
             ) : null}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Decisor</Label>
+              <Input
+                value={decisor}
+                onChange={(event) => setDecisor(event.target.value)}
+                placeholder="Nome do decisor na empresa"
+                className={newLeadModalFieldClass}
+              />
+            </div>
 
             <div className="space-y-3">
               {empresas.map((company, index) => (
@@ -1735,18 +1838,21 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               subtitle="Confira o resumo antes de criar o lead e disparar os próximos fluxos."
             >
               <div className="grid gap-3 md:grid-cols-2">
-                <ReviewItem label="Tipo de lead" value={tipoLead} />
+                <ReviewItem label="Origem do Lead" value={leadTypeLabel(tipoLead)} />
                 <ReviewItem
                   label="Origem"
                   value={
                     tipoLead === "Indicacao"
                       ? `${tipoIndicacao || "Sem tipo"} · ${indicationDisplay}`
-                      : isCrossSelling
-                        ? selectedClient?.razao_social ?? "Cliente não selecionado"
+                      : isLeadDigital
+                        ? plataforma || "Plataforma não selecionada"
+                        : isCrossSelling
+                        ? `${selectedClient?.razao_social ?? "Cliente não selecionado"} · ${areaCrossSelling || "Área não selecionada"}`
                         : "Sem campos extras"
                   }
                 />
-                <ReviewItem label="Solicitante" value={solicitanteUser?.name ?? "Não selecionado"} />
+                <ReviewItem label="Captador" value={solicitanteUser?.name ?? "Não selecionado"} />
+                <ReviewItem label="Decisor" value={decisor.trim() || "Não informado"} />
                 <ReviewItem label="Cadastrado por" value={currentUser?.name ?? currentUser?.email ?? "Não identificado"} />
                 <ReviewItem
                   label="Empresas/Pessoas"

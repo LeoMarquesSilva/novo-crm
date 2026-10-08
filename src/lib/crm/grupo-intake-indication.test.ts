@@ -76,6 +76,6 @@ describe("formatGrupoIntakeIndication", () => {
         tipoIndicacao: "Colaborador",
         nomeIndicacao: "Maria",
       }),
-    ).toBe("Indicacao · Colaborador · Maria");
+    ).toBe("Indicação · Colaborador · Maria");
   });
 });

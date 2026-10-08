@@ -68,6 +68,7 @@ describe("newLeadPayloadSchema", () => {
       horario_entrega_due: undefined,
       data_reuniao: undefined,
       tipo_de_lead: "Lead Digital" as const,
+      plataforma: "Site" as const,
       tipo_indicacao: null,
       nome_indicacao: null,
       cliente_id: "550e8400-e29b-41d4-a716-446655440000",
@@ -89,6 +90,7 @@ describe("newLeadPayloadSchema", () => {
       areas_analise: ["Cível"] as const,
       local_reuniao: "Local",
       tipo_de_lead: "Lead Digital" as const,
+      plataforma: "LinkedIn" as const,
     });
     expect(result.success).toBe(true);
     if (result.success) {
@@ -108,6 +110,7 @@ describe("newLeadPayloadSchema", () => {
       tipo_de_lead: "Cross Selling" as const,
       tipo_indicacao: null,
       nome_indicacao: null,
+      area_cross_selling: "Cível" as const,
     });
 
     expect(result.success).toBe(true);

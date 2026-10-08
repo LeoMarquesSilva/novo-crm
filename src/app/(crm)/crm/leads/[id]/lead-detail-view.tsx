@@ -40,6 +40,7 @@ import {
 import { isProposalDocumentAvailable } from "@/lib/crm/proposal-document-availability";
 import { uploadDuePpt } from "@/lib/crm/upload-due-ppt";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
+import { leadTypeLabel } from "@/lib/crm/lead-type-label";
 import {
   isCadastroLeadOnlyStage,
   isPosVendaPipelineStage,
@@ -104,7 +105,7 @@ export function LeadDetailView({
   const showBillingTab = ["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(lead.etapa);
   const isRdLead = Boolean(lead.rdDealId || lead.rdDealUrl || lead.filledFields.length > 0);
   const intakeLeadType = lead.intakeFields.find((field) => field.key === "tipo_lead")?.value?.trim();
-  const leadTypeDisplay = intakeLeadType || lead.tipo.replace(/_/g, " ");
+  const leadTypeDisplay = leadTypeLabel(intakeLeadType) || lead.tipo.replace(/_/g, " ");
   const isCrossSellingLead = normalizeLeadType(leadTypeDisplay).includes("crossselling");
   const heroContextBadge =
     lead.encerramento === "ganho"
@@ -498,7 +499,7 @@ function LeadDetailHero({
                 avatarUrl={solicitanteUser?.avatarUrl}
                 size="md"
                 variant="stacked"
-                prefix="Solicitante interno"
+                prefix="Captador"
                 sublabel={solicitanteInternoEmail ?? undefined}
               />
             ) : null}

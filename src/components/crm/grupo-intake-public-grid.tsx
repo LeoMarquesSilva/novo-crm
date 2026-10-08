@@ -21,6 +21,7 @@ import {
   GRUPO_INTAKE_INDICATION_TYPES,
   GRUPO_INTAKE_LEAD_TYPES,
 } from "@/lib/crm/grupo-intake-indication";
+import { LEAD_TYPE_SELECT_LABELS, leadTypeLabel } from "@/lib/crm/lead-type-label";
 import {
   listGrupoIntakeGridRows,
   type GrupoIntakeGridStatusFilter,
@@ -38,7 +39,7 @@ import {
 } from "@/lib/crm/indication-name-options";
 import { cn } from "@/lib/utils";
 
-const LEAD_TYPE_ITEMS = Object.fromEntries(GRUPO_INTAKE_LEAD_TYPES.map((item) => [item, item]));
+const LEAD_TYPE_ITEMS = LEAD_TYPE_SELECT_LABELS;
 const INDICATION_TYPE_ITEMS = Object.fromEntries(
   GRUPO_INTAKE_INDICATION_TYPES.map((item) => [item, item]),
 );
@@ -236,7 +237,7 @@ export function GrupoIntakePublicGrid({
             <TableRow>
               <TableHead>Grupo</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Tipo</TableHead>
+              <TableHead>Origem do Lead</TableHead>
               <TableHead>Subtipo/indicação</TableHead>
               <TableHead>Quem indicou</TableHead>
               <TableHead>Áreas</TableHead>
@@ -295,12 +296,12 @@ export function GrupoIntakePublicGrid({
                           }}
                       >
                         <SelectTrigger size="sm" className="h-9 w-full justify-between font-normal">
-                          <CrmSelectValue value={draft.tipoLead} labels={LEAD_TYPE_ITEMS} placeholder="Tipo" />
+                          <CrmSelectValue value={draft.tipoLead} labels={LEAD_TYPE_ITEMS} placeholder="Selecione" />
                         </SelectTrigger>
                         <CrmSelectContent>
                           {GRUPO_INTAKE_LEAD_TYPES.map((item) => (
                             <CrmSelectItem key={item} value={item}>
-                              {item}
+                              {leadTypeLabel(item)}
                             </CrmSelectItem>
                           ))}
                         </CrmSelectContent>

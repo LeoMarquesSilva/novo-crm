@@ -22,6 +22,7 @@ import {
   leadAreas,
   leadTypes,
 } from "@/modules/crm/application/services/new-lead-payload";
+import { LEAD_TYPE_SELECT_LABELS, leadTypeLabel } from "@/lib/crm/lead-type-label";
 
 export type LeadFieldEditorKind =
   | "text"
@@ -549,7 +550,9 @@ export function LeadDetailFieldEditor({
                 ? formatDateYmdBr(committedValue.slice(0, 10)) || committedValue
                 : kind === "time"
                   ? normalizeTimeToHm(committedValue) || committedValue
-                  : scope === "rd"
+                  : kind === "leadType"
+                    ? leadTypeLabel(committedValue)
+                    : scope === "rd"
                     ? formatMaybeDateLikeBr(committedValue)
                     : looksLikeJsonObject(committedValue)
                       ? "Dados estruturados salvos"
@@ -793,14 +796,23 @@ export function LeadDetailFieldEditor({
             />
           ) : null}
           {kind === "leadType" ? (
-            <Select value={draft} onValueChange={(v) => setDraft(v ?? "")} disabled={saving}>
+            <Select
+              value={draft}
+              onValueChange={(v) => setDraft(v ?? "")}
+              disabled={saving}
+              items={LEAD_TYPE_SELECT_LABELS}
+            >
               <SelectTrigger className="bg-white">
-                <SelectValue placeholder="Tipo" />
+                <CrmSelectValue
+                  value={draft}
+                  labels={LEAD_TYPE_SELECT_LABELS}
+                  placeholder="Selecione"
+                />
               </SelectTrigger>
               <CrmSelectContent>
                 {leadTypes.map((t) => (
                   <CrmSelectItem key={t} value={t}>
-                    {t}
+                    {leadTypeLabel(t)}
                   </CrmSelectItem>
                 ))}
               </CrmSelectContent>

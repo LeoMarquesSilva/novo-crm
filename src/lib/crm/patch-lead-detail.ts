@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { displayStringToValueJson, valueJsonToDisplayString } from "@/lib/crm/pipeline-field-values";
-import { indicationTypes, leadAreas, leadTypes } from "@/modules/crm/application/services/new-lead-payload";
+import { indicationTypes, leadAreas, leadDigitalPlatforms, leadTypes } from "@/modules/crm/application/services/new-lead-payload";
 import { isAllowedRdFieldOverrideKey } from "@/lib/crm/lead-rd-field-labels";
 import { appUserAreaToEscopoJsonKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { parseEscopoJson } from "@/lib/crm/proposta-escopo-json";
@@ -415,7 +415,7 @@ async function patchIntakeField(
     if (!selectedUser) {
       return {
         ok: false,
-        error: "Selecione um utilizador ativo do CRM para o solicitante interno.",
+        error: "Selecione um utilizador ativo do CRM para o captador.",
         status: 400,
       };
     }
@@ -440,7 +440,7 @@ async function patchIntakeField(
       key,
       selectedUser.fullName,
       viewer,
-      "Solicitante interno atualizado",
+      "Captador atualizado",
     );
     return { ok: true };
   }
@@ -684,9 +684,9 @@ async function patchIntakeField(
   }
 
   if (key === "tipo_lead") {
-    if (!trimmed) return { ok: false, error: "Tipo de lead é obrigatório.", status: 400 };
+    if (!trimmed) return { ok: false, error: "Origem do Lead é obrigatória.", status: 400 };
     if (!(leadTypes as readonly string[]).includes(trimmed)) {
-      return { ok: false, error: "Tipo de lead inválido.", status: 400 };
+      return { ok: false, error: "Origem do Lead inválida.", status: 400 };
     }
     const { error } = await supabase
       .from("lead_intakes")
@@ -704,6 +704,42 @@ async function patchIntakeField(
     const { error } = await supabase
       .from("lead_intakes")
       .update({ tipo_indicacao: trimmed || null })
+      .eq("oportunidade_id", oportunidadeId);
+    if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed || "—", viewer);
+    return { ok: true };
+  }
+
+  if (key === "plataforma") {
+    if (trimmed && !(leadDigitalPlatforms as readonly string[]).includes(trimmed)) {
+      return { ok: false, error: "Plataforma inválida.", status: 400 };
+    }
+    const { error } = await supabase
+      .from("lead_intakes")
+      .update({ plataforma: trimmed || null })
+      .eq("oportunidade_id", oportunidadeId);
+    if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed || "—", viewer);
+    return { ok: true };
+  }
+
+  if (key === "area_cross_selling") {
+    if (trimmed && !(leadAreas as readonly string[]).includes(trimmed)) {
+      return { ok: false, error: "Área inválida.", status: 400 };
+    }
+    const { error } = await supabase
+      .from("lead_intakes")
+      .update({ area_cross_selling: trimmed || null })
+      .eq("oportunidade_id", oportunidadeId);
+    if (error) return { ok: false, error: error.message };
+    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed || "—", viewer);
+    return { ok: true };
+  }
+
+  if (key === "decisor") {
+    const { error } = await supabase
+      .from("lead_intakes")
+      .update({ decisor: trimmed || null })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
     await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed || "—", viewer);
@@ -787,10 +823,10 @@ async function logIntakeFieldChange(
   const labels: Record<string, string> = {
     email_solicitante: "E-mail do solicitante",
     solicitante_nome: "Nome do lead",
-    solicitante_interno: "Solicitante interno",
+    solicitante_interno: "Captador",
     havera_due_diligence: "Due diligence",
     due_diligence_intake: "Due diligence",
-    tipo_lead: "Tipo de lead",
+    tipo_lead: "Origem do Lead",
     cadastrado_por: "Cadastro realizado por",
     contexto_comercial: "Contexto comercial",
     data_entrega_due: "Data de entrega DUE",
@@ -801,6 +837,9 @@ async function logIntakeFieldChange(
     horario_reuniao: "Horário da reunião",
     tipo_indicacao: "Tipo de indicação",
     nome_indicacao: "Nome da indicação",
+    plataforma: "Plataforma",
+    area_cross_selling: "Área",
+    decisor: "Decisor",
   };
   const empresaMatch = /^empresa_(\d+)_(razao|doc|tipo)$/.exec(key);
   const title =

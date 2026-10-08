@@ -59,6 +59,12 @@ export type CarteiraGrupoRow = {
   tipoLead: string | null;
   tipoIndicacao: string | null;
   nomeIndicacao: string | null;
+  plataforma: string | null;
+  areaCrossSelling: string | null;
+  decisor: string | null;
+  captadorOportunidadeId: string | null;
+  captadorNome: string | null;
+  captadorEmail: string | null;
   areasAtuacao: unknown;
   legalAreas?: string[];
   membros: CarteiraGrupoMembro[];
@@ -179,7 +185,8 @@ export function CarteiraGruposTable({
               />
             </TableHead>
             <TableHead>Categoria</TableHead>
-            <TableHead>Indicação</TableHead>
+            <TableHead>Origem do Lead</TableHead>
+            <TableHead>Captador</TableHead>
             <TableHead>Áreas</TableHead>
             <TableHead className="text-right">Pessoas</TableHead>
             <TableHead className="text-right">Abertos</TableHead>
@@ -241,6 +248,13 @@ export function CarteiraGruposTable({
                 </TableCell>
                 <TableCell className="max-w-[220px] whitespace-normal text-v2-body-sm">
                   {indication.ok ? formatGrupoIntakeIndication(indication.value) : "—"}
+                  {grupo.tipoLead === "Lead Digital" && grupo.plataforma ? ` · ${grupo.plataforma}` : ""}
+                  {grupo.tipoLead === "Cross Selling" && grupo.areaCrossSelling
+                    ? ` · ${grupo.areaCrossSelling}`
+                    : ""}
+                </TableCell>
+                <TableCell className="max-w-[180px] whitespace-normal text-v2-body-sm">
+                  {grupo.captadorNome?.trim() || "—"}
                 </TableCell>
                 <TableCell className="max-w-[280px] whitespace-normal">
                   {areas.length ? (

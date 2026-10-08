@@ -2229,8 +2229,11 @@ export type Database = {
       }
       grupos_economicos: {
         Row: {
+          area_cross_selling: string | null
           areas_atuacao: Json
           categoria: string | null
+          decisor: string | null
+          plataforma: string | null
           chave_estavel: string
           created_at: string
           gestor_atividade: string | null
@@ -2249,8 +2252,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          area_cross_selling?: string | null
           areas_atuacao?: Json
           categoria?: string | null
+          decisor?: string | null
+          plataforma?: string | null
           chave_estavel: string
           created_at?: string
           gestor_atividade?: string | null
@@ -2269,8 +2275,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          area_cross_selling?: string | null
           areas_atuacao?: Json
           categoria?: string | null
+          decisor?: string | null
+          plataforma?: string | null
           chave_estavel?: string
           created_at?: string
           gestor_atividade?: string | null
@@ -2515,8 +2524,11 @@ export type Database = {
           horario_reuniao: string | null
           id: string
           local_reuniao: string
+          area_cross_selling: string | null
+          decisor: string | null
           nome_indicacao: string | null
           oportunidade_id: string
+          plataforma: string | null
           sharepoint_agendamento_created_at: string | null
           sharepoint_agendamento_error: string | null
           sharepoint_agendamento_id: string | null
@@ -2538,8 +2550,11 @@ export type Database = {
           horario_reuniao?: string | null
           id?: string
           local_reuniao: string
+          area_cross_selling?: string | null
+          decisor?: string | null
           nome_indicacao?: string | null
           oportunidade_id: string
+          plataforma?: string | null
           sharepoint_agendamento_created_at?: string | null
           sharepoint_agendamento_error?: string | null
           sharepoint_agendamento_id?: string | null
@@ -2561,8 +2576,11 @@ export type Database = {
           horario_reuniao?: string | null
           id?: string
           local_reuniao?: string
+          area_cross_selling?: string | null
+          decisor?: string | null
           nome_indicacao?: string | null
           oportunidade_id?: string
+          plataforma?: string | null
           sharepoint_agendamento_created_at?: string | null
           sharepoint_agendamento_error?: string | null
           sharepoint_agendamento_id?: string | null
