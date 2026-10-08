@@ -10,6 +10,10 @@ import {
 import type { D4SignEnv } from "@/lib/d4sign/env";
 import { normalizeFirmSigner } from "@/lib/d4sign/firm-signers";
 import { D4SignConnector } from "@/modules/crm/infrastructure/integrations/d4sign-client";
+import {
+  loadPartnerSignerRefreshRequests,
+  orderPendingPriorityRefresh,
+} from "@/lib/d4sign/partner-sign-refresh-queue";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   getOportunidadeIdByDocumentUuid,
@@ -74,6 +78,7 @@ const PENDING_IN = '("2","3","sent","processing")';
 /**
  * Fila da busca de signatários (`GET /documents/{uuid}/list`, 10 req/h),
  * por prioridade e, em cada faixa, do mais recente ao mais antigo:
+ * 0. contrato que o sócio abriu em Assinar e ainda não foi relido depois;
  * 1. pendente sem signatários;
  * 2. pendente com signatários desatualizados (24h) e finalizado com
  *    signatário ainda marcado como não assinado;
@@ -100,6 +105,36 @@ export async function pickDocumentsToEnrich(options: {
     return row ? [row] : [];
   }
   if (limit <= 0) return [];
+
+  const picked: EnrichDocRow[] = [];
+  const seen = new Set<string>();
+
+  try {
+    const requests = await loadPartnerSignerRefreshRequests(options.now);
+    const uuids = [...new Set(requests.map((request) => request.uuid))];
+    if (uuids.length > 0) {
+      const { data, error } = await supabase
+        .from("d4sign_documents")
+        .select("uuid_doc, name_document, d4sign_status, details_fetched_at")
+        .in("uuid_doc", uuids);
+      if (error) throw error;
+      for (const doc of orderPendingPriorityRefresh(data ?? [], requests)) {
+        if (picked.length >= limit) break;
+        if (seen.has(doc.uuid_doc)) continue;
+        seen.add(doc.uuid_doc);
+        picked.push({
+          uuid_doc: doc.uuid_doc,
+          name_document: doc.name_document,
+          d4sign_status: doc.d4sign_status,
+        });
+      }
+    }
+  } catch (error) {
+    console.warn(
+      "[D4Sign] fila de assinatura do sócio indisponível",
+      error instanceof Error ? error.message : error,
+    );
+  }
 
   const now = options.now?.getTime() ?? Date.now();
   const notFetchedSince = (ms: number) =>
@@ -138,8 +173,6 @@ export async function pickDocumentsToEnrich(options: {
         .not("d4sign_status", "in", PENDING_IN),
   ];
 
-  const picked: EnrichDocRow[] = [];
-  const seen = new Set<string>();
   for (const tier of tiers) {
     const missing = limit - picked.length;
     if (missing <= 0) break;

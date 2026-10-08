@@ -3,7 +3,9 @@ import { PartnerSignaturesScreen } from "@/components/crm/partner-signatures/par
 import { requireAuth } from "@/lib/auth/server";
 import { resolveD4SignSenders } from "@/lib/d4sign/document-sender";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
+import { openPartnerSignAssumptions, type PartnerSignAssumption } from "@/lib/d4sign/partner-sign-assumption";
 import { isPartnerOnlyEmail } from "@/lib/d4sign/partner-only";
+import { loadPartnerSignerRefreshRequests } from "@/lib/d4sign/partner-sign-refresh-queue";
 import {
   canAccessPartnerSignatures,
   classifyPartnerDoc,
@@ -82,12 +84,22 @@ export default async function AssinarContratosPage() {
 
   const currentPartnerEmail = resolvePartnerEmail(user.email, partners);
   const isAdmin = profile.role === "admin";
+  let sharedAssumptions: PartnerSignAssumption[] = [];
+  try {
+    sharedAssumptions = openPartnerSignAssumptions(docs, await loadPartnerSignerRefreshRequests());
+  } catch (loadError) {
+    console.warn(
+      "[D4Sign] baixas provisórias",
+      loadError instanceof Error ? loadError.message : loadError,
+    );
+  }
 
   return (
     <PartnerSignaturesScreen
       docs={docs}
       partners={partners}
       currentPartnerEmail={currentPartnerEmail}
+      sharedAssumptions={sharedAssumptions}
       canCancel={isAdmin}
       error={error}
       withoutSignersPending={withoutSignersPending}

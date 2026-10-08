@@ -16,6 +16,7 @@ import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { authorizeD4SignDocumentAccess } from "@/lib/d4sign/document-access";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
+import { enqueuePartnerSignRefreshIfPending } from "@/lib/d4sign/partner-sign-refresh-queue";
 import { parseSigners, resolvePartnerEmail, signerIsPending, toPartnerSigners } from "@/lib/d4sign/partner-signatures";
 import { d4signDocumentPortalUrl } from "@/lib/d4sign/portal-url";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -38,17 +39,19 @@ export async function GET(
   if (!auth.ok) return auth.response;
   const partners = toPartnerSigners(getFirmSigners());
   const me = resolvePartnerEmail(auth.user.email, partners);
-  if (!me || !env.tokenApi) return portal;
+  if (!me) return portal;
 
   const { data: doc } = await createSupabaseAdminClient()
     .from("d4sign_documents")
     .select("signers")
     .eq("uuid_doc", uuid)
     .maybeSingle();
-  const mine = parseSigners(doc?.signers).find(
-    (s) => resolvePartnerEmail(s.email, partners) === me && signerIsPending(s) && s.key_signer,
+  const pendingMine = parseSigners(doc?.signers).filter(
+    (signer) => resolvePartnerEmail(signer.email, partners) === me && signerIsPending(signer),
   );
-  if (!mine?.key_signer) return portal;
+  if (pendingMine.length > 0) await enqueuePartnerSignRefreshIfPending(uuid, auth.user.email, doc?.signers);
+  const mine = pendingMine.find((signer) => signer.key_signer);
+  if (!mine?.key_signer || !env.tokenApi) return portal;
 
   const quota = await getD4SignQuotaStatus("documents/signaturelink");
   if (quota.remaining < 1) return portal;

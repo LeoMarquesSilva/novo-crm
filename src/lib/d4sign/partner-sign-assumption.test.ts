@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { classifyPartnerDoc, partnerDocTab, toPartnerSigners } from "./partner-signatures";
 import {
+  mergePartnerSignAssumptions,
+  openPartnerSignAssumptions,
   overlayPartnerSignAssumptions,
   reconcilePartnerSignAssumptions,
   type PartnerSignAssumption,
@@ -101,5 +103,44 @@ describe("overlayPartnerSignAssumptions", () => {
   it("não cobre um sócio que já assinou de verdade", () => {
     const { provisionalEmails } = overlayPartnerSignAssumptions(doc(null, true), [assumption()]);
     expect(provisionalEmails).toEqual([]);
+  });
+});
+
+describe("openPartnerSignAssumptions", () => {
+  it("aplica o clique do servidor no sócio certo e ignora marca sem e-mail", () => {
+    const open = openPartnerSignAssumptions(
+      [doc("2026-10-07T17:31:28.000Z")],
+      [
+        { uuid: "doc-1", partnerEmail: G, requestedAt: "2026-10-07T18:40:00.000Z" },
+        { uuid: "doc-1", partnerEmail: null, requestedAt: "2026-10-07T18:50:00.000Z" },
+      ],
+    );
+    expect(open).toEqual([
+      {
+        uuid: "doc-1",
+        partnerEmail: G,
+        clickedAt: "2026-10-07T18:40:00.000Z",
+        fetchedAtAtClick: null,
+      },
+    ]);
+    expect(partnerDocTab(overlayPartnerSignAssumptions(doc("2026-10-07T17:31:28.000Z"), open).doc, G)).toBe(
+      "aguardando_outros",
+    );
+  });
+
+  it("não devolve uma baixa cuja leitura já aconteceu", () => {
+    const open = openPartnerSignAssumptions([doc("2026-10-07T19:00:00.000Z")], [
+      { uuid: "doc-1", partnerEmail: G, requestedAt: "2026-10-07T18:40:00.000Z" },
+    ]);
+    expect(open).toEqual([]);
+  });
+});
+
+describe("mergePartnerSignAssumptions", () => {
+  it("mostra o clique do outro navegador e preserva o horário local no empate", () => {
+    const local = assumption();
+    const shared = assumption({ partnerEmail: R, clickedAt: "2026-10-07T18:45:00.000Z" });
+    const merged = mergePartnerSignAssumptions([local], [shared, { ...local, fetchedAtAtClick: null }]);
+    expect(merged).toEqual([shared, local]);
   });
 });

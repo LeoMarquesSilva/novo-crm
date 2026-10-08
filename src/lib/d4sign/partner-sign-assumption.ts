@@ -2,8 +2,8 @@ import type { ClassifiedPartnerDoc } from "@/lib/d4sign/partner-signatures";
 
 /**
  * Assinatura ainda não confirmada pela D4Sign.
- * Gravada no navegador de quem clicou em Assinar, até a próxima leitura
- * dos signatários daquele contrato.
+ * Vale no navegador de quem clicou e, quando o clique foi gravado no
+ * servidor, no painel de quem mais está vendo Assinar Contratos.
  */
 export type PartnerSignAssumption = {
   uuid: string;
@@ -11,9 +11,24 @@ export type PartnerSignAssumption = {
   partnerEmail: string;
   /** Quando a janela da D4Sign foi aberta. */
   clickedAt: string;
-  /** `signersFetchedAt` no momento do clique. */
+  /**
+   * `signersFetchedAt` no momento do clique.
+   * `null` numa cópia vinda do servidor: qualquer leitura estritamente
+   * posterior ao clique confirma ou devolve.
+   */
   fetchedAtAtClick: string | null;
 };
+
+export function isPartnerSignAssumption(value: unknown): value is PartnerSignAssumption {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.uuid === "string" &&
+    typeof row.partnerEmail === "string" &&
+    typeof row.clickedAt === "string" &&
+    (row.fetchedAtAtClick === null || typeof row.fetchedAtAtClick === "string")
+  );
+}
 
 export function partnerSignAssumptionKey(assumption: Pick<PartnerSignAssumption, "uuid" | "partnerEmail">): string {
   return `${assumption.uuid}:${assumption.partnerEmail}`;
@@ -63,6 +78,48 @@ export function reconcilePartnerSignAssumptions(
   }
 
   return { kept, confirmed, reverted };
+}
+
+function laterClick(a: string, b: string): boolean {
+  return new Date(a).getTime() >= new Date(b).getTime();
+}
+
+/**
+ * Cliques gravados no servidor que ainda esperam a leitura dos signatários.
+ * Sem e-mail do sócio (fila antiga) não entram na baixa provisória.
+ */
+export function openPartnerSignAssumptions(
+  docs: ClassifiedPartnerDoc[],
+  clicks: Array<{ uuid: string; partnerEmail: string | null; requestedAt: string }>,
+): PartnerSignAssumption[] {
+  const latest = new Map<string, PartnerSignAssumption>();
+  for (const click of clicks) {
+    if (!click.partnerEmail) continue;
+    const assumption: PartnerSignAssumption = {
+      uuid: click.uuid,
+      partnerEmail: click.partnerEmail,
+      clickedAt: click.requestedAt,
+      fetchedAtAtClick: null,
+    };
+    const key = partnerSignAssumptionKey(assumption);
+    const prev = latest.get(key);
+    if (!prev || laterClick(assumption.clickedAt, prev.clickedAt)) latest.set(key, assumption);
+  }
+  return reconcilePartnerSignAssumptions(docs, [...latest.values()]).kept;
+}
+
+/** Une a lista local com a do servidor. No empate de horário, fica a de `local`. */
+export function mergePartnerSignAssumptions(
+  local: PartnerSignAssumption[],
+  shared: PartnerSignAssumption[],
+): PartnerSignAssumption[] {
+  const byKey = new Map<string, PartnerSignAssumption>();
+  for (const assumption of [...shared, ...local]) {
+    const key = partnerSignAssumptionKey(assumption);
+    const prev = byKey.get(key);
+    if (!prev || laterClick(assumption.clickedAt, prev.clickedAt)) byKey.set(key, assumption);
+  }
+  return [...byKey.values()];
 }
 
 /**

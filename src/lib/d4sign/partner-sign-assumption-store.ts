@@ -1,4 +1,7 @@
-import type { PartnerSignAssumption } from "@/lib/d4sign/partner-sign-assumption";
+import {
+  isPartnerSignAssumption,
+  type PartnerSignAssumption,
+} from "@/lib/d4sign/partner-sign-assumption";
 
 const STORAGE_KEY = "crm.partner-sign-assumption.v1";
 const REVERTED_KEY = "crm.partner-sign-reverted.v1";
@@ -9,23 +12,12 @@ const EMPTY: PartnerSignAssumption[] = [];
 let snapshotRaw: string | null = null;
 let snapshot: PartnerSignAssumption[] = EMPTY;
 
-function isAssumption(value: unknown): value is PartnerSignAssumption {
-  if (!value || typeof value !== "object") return false;
-  const row = value as Record<string, unknown>;
-  return (
-    typeof row.uuid === "string" &&
-    typeof row.partnerEmail === "string" &&
-    typeof row.clickedAt === "string" &&
-    (row.fetchedAtAtClick === null || typeof row.fetchedAtAtClick === "string")
-  );
-}
-
 function parse(raw: string | null): PartnerSignAssumption[] {
   if (!raw) return EMPTY;
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return EMPTY;
-    const list = parsed.filter(isAssumption);
+    const list = parsed.filter(isPartnerSignAssumption);
     return list.length > 0 ? list : EMPTY;
   } catch {
     return EMPTY;

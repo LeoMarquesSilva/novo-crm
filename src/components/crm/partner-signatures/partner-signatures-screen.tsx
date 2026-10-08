@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { CheckCircle2, Clock, Hourglass, PenLine } from "lucide-react";
 import { CrmPageHeader, type HeaderStat } from "@/components/crm/crm-page-header";
 import { PartnerSignaturesBoard } from "@/components/crm/partner-signatures/partner-signatures-board";
 import {
+  isPartnerSignAssumption,
+  mergePartnerSignAssumptions,
   overlayPartnerSignAssumptions,
+  partnerSignAssumptionKey,
   reconcilePartnerSignAssumptions,
   type PartnerSignAssumption,
 } from "@/lib/d4sign/partner-sign-assumption";
@@ -26,10 +29,14 @@ import {
   type PartnerSigner,
 } from "@/lib/d4sign/partner-signatures";
 
+const SHARED_POLL_MS = 15_000;
+
 type Props = {
   docs: ClassifiedPartnerDoc[];
   partners: PartnerSigner[];
   currentPartnerEmail: string | null;
+  /** Cliques já gravados no servidor, visíveis para o admin e para o outro sócio. */
+  sharedAssumptions: PartnerSignAssumption[];
   canCancel?: boolean;
   error: string | null;
   withoutSignersPending: number;
@@ -45,6 +52,7 @@ export function PartnerSignaturesScreen({
   docs,
   partners,
   currentPartnerEmail,
+  sharedAssumptions,
   canCancel = false,
   error,
   withoutSignersPending,
@@ -55,16 +63,29 @@ export function PartnerSignaturesScreen({
     readPartnerSignAssumptions,
     emptyPartnerSignAssumptions,
   );
-  const reconciled = useMemo(() => reconcilePartnerSignAssumptions(docs, stored), [docs, stored]);
+  const [polled, setPolled] = useState<PartnerSignAssumption[] | null>(null);
+  const shared = polled ?? sharedAssumptions;
+  const assumptions = useMemo(
+    () => mergePartnerSignAssumptions(stored, shared),
+    [stored, shared],
+  );
+  const reconciled = useMemo(
+    () => reconcilePartnerSignAssumptions(docs, assumptions),
+    [docs, assumptions],
+  );
   const revertedNames = useSyncExternalStore(
     subscribePartnerSignAssumptions,
     readRevertedPartnerSignNames,
     emptyRevertedPartnerSignNames,
   );
 
+  const publishedClicks = useRef(new Set<string>());
+
   useEffect(() => {
-    if (JSON.stringify(reconciled.kept) !== JSON.stringify(stored)) {
-      writePartnerSignAssumptions(reconciled.kept);
+    const keptKeys = new Set(reconciled.kept.map((assumption) => partnerSignAssumptionKey(assumption)));
+    const mine = stored.filter((assumption) => keptKeys.has(partnerSignAssumptionKey(assumption)));
+    if (JSON.stringify(mine) !== JSON.stringify(stored)) {
+      writePartnerSignAssumptions(mine);
     }
     if (reconciled.reverted.length === 0) return;
     rememberRevertedPartnerSignNames(
@@ -73,6 +94,50 @@ export function PartnerSignaturesScreen({
       ),
     );
   }, [docs, reconciled, stored]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function pull() {
+      try {
+        const response = await fetch("/api/crm/d4sign/partner-sign-assumptions", { cache: "no-store" });
+        if (!response.ok) return;
+        const body = (await response.json()) as { assumptions?: unknown };
+        if (!cancelled && Array.isArray(body.assumptions)) {
+          setPolled(body.assumptions.filter(isPartnerSignAssumption));
+        }
+      } catch {
+        // a lista da página continua valendo
+      }
+    }
+
+    void pull();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void pull();
+    }, SHARED_POLL_MS);
+    window.addEventListener("focus", pull);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", pull);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentPartnerEmail) return;
+    for (const assumption of stored) {
+      if (assumption.partnerEmail !== currentPartnerEmail) continue;
+      const key = `${partnerSignAssumptionKey(assumption)}:${assumption.clickedAt}`;
+      if (publishedClicks.current.has(key)) continue;
+      publishedClicks.current.add(key);
+      void fetch(`/api/crm/d4sign/documents/${assumption.uuid}/sign-refresh`, {
+        method: "POST",
+        keepalive: true,
+      }).then((response) => {
+        if (!response.ok && response.status >= 500) publishedClicks.current.delete(key);
+      });
+    }
+  }, [currentPartnerEmail, stored]);
 
   const views = useMemo(
     () => docs.map((doc) => overlayPartnerSignAssumptions(doc, reconciled.kept)),
@@ -138,6 +203,10 @@ export function PartnerSignaturesScreen({
       fetchedAtAtClick: source.signersFetchedAt,
     };
     writePartnerSignAssumptions([...next, assumption]);
+    void fetch(`/api/crm/d4sign/documents/${source.uuid}/sign-refresh`, {
+      method: "POST",
+      keepalive: true,
+    });
   }
 
   return (
