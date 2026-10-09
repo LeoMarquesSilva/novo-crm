@@ -5,7 +5,8 @@ import {
 
 /** Só assinaturas concluídas no quadro. Cliques antigos (v1) não escondem o contrato. */
 const STORAGE_KEY = "crm.partner-sign-confirmed.v1";
-const REVERTED_KEY = "crm.partner-sign-reverted.v1";
+/** Aviso desta sessão. A chave antiga guardava devoluções de clique e não deve reaparecer. */
+const REVERTED_KEY = "crm.partner-sign-reverted.v2";
 const CHANGE_EVENT = "crm-partner-sign-assumption";
 
 const EMPTY: PartnerSignAssumption[] = [];
