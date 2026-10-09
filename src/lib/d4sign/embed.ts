@@ -1,16 +1,15 @@
 /**
  * EMBED da D4Sign (assinatura em iframe no CRM).
  *
- * A ativação é da conta, feita pelo suporte da D4Sign (suporte@d4sign.com.br);
- * sem ela qualquer documento responde "EMBED DESABILITADO". Por isso o CRM só
- * usa o EMBED com `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=1`; sem a variável, o
- * "Assinar" abre o link de assinatura (`/api/crm/d4sign/documents/[uuid]/sign`).
+ * A conta passou a aceitar o EMBED (confirmado em 2026-10-09 no contrato da
+ * Isabella). O "Assinar" abre o documento dentro do CRM. `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=0`
+ * volta ao link externo (`/api/crm/d4sign/documents/[uuid]/sign`).
  * @see https://docapi.d4sign.com.br/docs/primeiros-passos.md
  * @see https://docapi.d4sign.com.br/docs/instalação.md
  */
 
 export function isD4SignEmbedEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_D4SIGN_EMBED_ENABLED?.trim() === "1";
+  return process.env.NEXT_PUBLIC_D4SIGN_EMBED_ENABLED?.trim() !== "0";
 }
 
 export const D4SIGN_SAFARI_FIX_COOKIE = "fixed";

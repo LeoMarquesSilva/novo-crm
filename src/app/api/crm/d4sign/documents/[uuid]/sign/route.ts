@@ -3,8 +3,8 @@
  *
  * "Assinar": abre o link de assinatura da D4Sign do sócio logado
  * (`GET /documents/{uuid}/signaturelink/{key_signer}`) — o mesmo link do
- * e-mail da D4Sign. Substitui o EMBED, que não está habilitado na conta
- * ("Esse documento não pode ser exibido via EMBED").
+ * e-mail da D4Sign. É o caminho quando o EMBED está desligado
+ * (`NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=0`). No padrão, o botão abre o EMBED.
  *
  * Só gera o link para o próprio sócio, pendente no documento: o link assina
  * em nome dele. Qualquer outro caso (admin, sócio que já assinou, sem

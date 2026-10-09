@@ -8,9 +8,9 @@ import { d4signDocumentSignPath } from "@/lib/d4sign/portal-url";
 /**
  * "Assinar" de um documento D4Sign.
  *
- * Com `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=1` abre o EMBED no CRM; sem a
- * variável (EMBED não ativado na conta) abre o link de assinatura da D4Sign
- * em outra aba, pela rota que só gera o link para o próprio sócio.
+ * Abre o EMBED no CRM. Com `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=0`, abre o link
+ * de assinatura da D4Sign em outra aba, pela rota que só gera o link para o
+ * próprio sócio.
  */
 export function D4SignSignButton({
   documentUuid,

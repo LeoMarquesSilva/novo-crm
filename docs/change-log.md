@@ -2,6 +2,11 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-09 — D4Sign: assinatura dentro do CRM
+
+- A conta passou a aceitar o EMBED. O botão Assinar abre o documento no diálogo do CRM. `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=0` volta ao link externo.
+- Conferido no contrato da Isabella: a página do embed mostra o PDF e o botão Assinar, e o mesmo conteúdo carrega dentro de um iframe.
+
 ## 2026-10-01 — Sync D4Sign: limite de tempo da rodada
 
 - Rodada de 121s deu 504 na Vercel (`maxDuration` 120s): cada PDF baixado para ler o remetente leva ~30s. Download no sync tem prazo de 15s+25s e só começa se couber no orçamento da rodada. O orçamento de 95s deixava só 0–1 PDF por rodada (as etapas anteriores levam 50–70s); passou para 260s com `maxDuration` 300s na rota e no layout, e o workflow espera até 290s.

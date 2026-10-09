@@ -15,10 +15,9 @@ import { cn } from "@/lib/utils";
 /**
  * EMBED D4Sign — assinatura inline via iframe.
  *
- * REQUISITO: a conta D4Sign precisa ter o EMBED ATIVADO (pedido ao suporte,
- * `suporte@d4sign.com.br`); sem isso a D4Sign responde "EMBED DESABILITADO".
- * O documento precisa estar em "Aguardando assinaturas". O CRM só usa este
- * dialog com `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=1` (ver `D4SignSignButton`).
+ * A conta D4Sign aceita o EMBED. O documento precisa estar em "Aguardando
+ * assinaturas". `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=0` faz o botão Assinar
+ * abrir o link externo em vez deste dialog.
  *
  * Fonte: https://docapi.d4sign.com.br/docs/instala%C3%A7%C3%A3o (URL, parâmetros,
  * callback `signed`/`wrong-data` e correção de Safari seguem a página).

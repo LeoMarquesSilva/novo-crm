@@ -1,9 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { d4signSafariFixUrl } from "./embed";
+import { d4signSafariFixUrl, isD4SignEmbedEnabled } from "./embed";
 
 const SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
 const CHROME = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36";
+
+describe("isD4SignEmbedEnabled", () => {
+  it("fica ligado, salvo quando a variável é 0", () => {
+    const previous = process.env.NEXT_PUBLIC_D4SIGN_EMBED_ENABLED;
+    delete process.env.NEXT_PUBLIC_D4SIGN_EMBED_ENABLED;
+    expect(isD4SignEmbedEnabled()).toBe(true);
+    process.env.NEXT_PUBLIC_D4SIGN_EMBED_ENABLED = "0";
+    expect(isD4SignEmbedEnabled()).toBe(false);
+    process.env.NEXT_PUBLIC_D4SIGN_EMBED_ENABLED = "1";
+    expect(isD4SignEmbedEnabled()).toBe(true);
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_D4SIGN_EMBED_ENABLED;
+    else process.env.NEXT_PUBLIC_D4SIGN_EMBED_ENABLED = previous;
+  });
+});
 
 describe("d4signSafariFixUrl", () => {
   it("manda o Safari sem cookie para o safari_fix e volta para a página", () => {
