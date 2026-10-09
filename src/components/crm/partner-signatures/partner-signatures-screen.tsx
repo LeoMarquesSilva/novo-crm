@@ -1,9 +1,24 @@
 "use client";
 
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { CheckCircle2, Clock, Hourglass, PenLine } from "lucide-react";
 import { CrmPageHeader, type HeaderStat } from "@/components/crm/crm-page-header";
 import { PartnerSignaturesBoard } from "@/components/crm/partner-signatures/partner-signatures-board";
+import {
+  overlayPartnerSignAssumptions,
+  partnerSignAssumptionKey,
+  reconcilePartnerSignAssumptions,
+} from "@/lib/d4sign/partner-sign-assumption";
+import {
+  emptyPartnerSignAssumptions,
+  emptyRevertedPartnerSignNames,
+  readPartnerSignAssumptions,
+  readRevertedPartnerSignNames,
+  rememberRevertedPartnerSignNames,
+  subscribePartnerSignAssumptions,
+  writePartnerSignAssumptions,
+} from "@/lib/d4sign/partner-sign-assumption-store";
 import {
   countPartnerTabs,
   daysSince,
@@ -30,11 +45,52 @@ export function PartnerSignaturesScreen({
   withoutSignersPending,
   showTechnicalLink,
 }: Props) {
+  const stored = useSyncExternalStore(
+    subscribePartnerSignAssumptions,
+    readPartnerSignAssumptions,
+    emptyPartnerSignAssumptions,
+  );
+  const revertedNames = useSyncExternalStore(
+    subscribePartnerSignAssumptions,
+    readRevertedPartnerSignNames,
+    emptyRevertedPartnerSignNames,
+  );
+  const reconciled = useMemo(
+    () => reconcilePartnerSignAssumptions(docs, stored),
+    [docs, stored],
+  );
+
+  useEffect(() => {
+    if (reconciled.kept.length !== stored.length) {
+      writePartnerSignAssumptions(reconciled.kept);
+    }
+    if (reconciled.reverted.length > 0) {
+      const names = reconciled.reverted.map((assumption) => {
+        const doc = docs.find((item) => item.uuid === assumption.uuid);
+        return doc?.name?.trim() || "um contrato";
+      });
+      rememberRevertedPartnerSignNames(names);
+    }
+  }, [docs, reconciled.kept, reconciled.reverted, stored.length]);
+
+  const view = useMemo(() => {
+    const nextDocs: ClassifiedPartnerDoc[] = [];
+    const provisionalByUuid: Record<string, string[]> = {};
+    for (const doc of docs) {
+      const overlaid = overlayPartnerSignAssumptions(doc, reconciled.kept);
+      nextDocs.push(overlaid.doc);
+      if (overlaid.provisionalEmails.length > 0) {
+        provisionalByUuid[doc.uuid] = overlaid.provisionalEmails;
+      }
+    }
+    return { docs: nextDocs, provisionalByUuid };
+  }, [docs, reconciled.kept]);
+
   const pendingByPartner = partners.map((partner) => ({
     partner,
-    count: countPartnerTabs(docs, partner.email).pendente,
+    count: countPartnerTabs(view.docs, partner.email).pendente,
   }));
-  const waitingOthers = countPartnerTabs(docs, "all").aguardando_outros;
+  const waitingOthers = countPartnerTabs(view.docs, "all").aguardando_outros;
   const finalizedLast30 = docs.filter((doc) => {
     const at = doc.finalizedAt ?? doc.lastSignedAt;
     return doc.lifecycle === "finalizado" && at !== null && daysSince(at) <= 30;
@@ -69,6 +125,25 @@ export function PartnerSignaturesScreen({
     });
   }
 
+  function onPartnerSigned(doc: ClassifiedPartnerDoc) {
+    if (!currentPartnerEmail) return;
+    const source = docs.find((item) => item.uuid === doc.uuid) ?? doc;
+    const slot = source.partners[currentPartnerEmail];
+    if (!slot || slot.signed) return;
+    const next = {
+      uuid: source.uuid,
+      partnerEmail: currentPartnerEmail,
+      clickedAt: new Date().toISOString(),
+      fetchedAtAtClick: source.signersFetchedAt,
+      signedInEmbed: true,
+    };
+    const key = partnerSignAssumptionKey(next);
+    writePartnerSignAssumptions([
+      ...stored.filter((assumption) => partnerSignAssumptionKey(assumption) !== key),
+      next,
+    ]);
+  }
+
   return (
     <div className="space-y-6">
       <CrmPageHeader
@@ -78,6 +153,13 @@ export function PartnerSignaturesScreen({
         icon={PenLine}
         stats={stats}
       />
+
+      {revertedNames.length > 0 ? (
+        <p className="rounded-(--radius-v2-lg) border border-warning-border bg-warning-bg px-4 py-2.5 text-sm font-semibold text-warning-text">
+          A D4Sign ainda não confirmou a assinatura de {revertedNames.join(", ")}. O contrato voltou para
+          Pendentes.
+        </p>
+      ) : null}
 
       {error ? (
         <p className="rounded-(--radius-v2-lg) border border-danger-border bg-danger-bg px-4 py-2.5 text-sm font-semibold text-danger-text">
@@ -99,11 +181,13 @@ export function PartnerSignaturesScreen({
       ) : null}
 
       <PartnerSignaturesBoard
-        docs={docs}
+        docs={view.docs}
         partners={partners}
         currentPartnerEmail={currentPartnerEmail}
         canCancel={canCancel}
+        provisionalByUuid={view.provisionalByUuid}
         onSignOpen={onSignOpen}
+        onPartnerSigned={onPartnerSigned}
       />
     </div>
   );

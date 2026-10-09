@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ExternalLink, Loader2, X, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Loader2, X, AlertTriangle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +40,8 @@ type EmbedSignDialogProps = {
   signerKeySigner?: string;
   /** Base URL do EMBED (default: produção) */
   embedHost?: string;
+  /** Nome do contrato, na barra mínima. */
+  documentName?: string | null;
   /** Callback quando assinatura conclui com sucesso */
   onSigned?: () => void;
 };
@@ -67,6 +69,7 @@ function EmbedSignDialogContent({
   signerBirthday = "",
   signerKeySigner = "",
   embedHost = "https://secure.d4sign.com.br/embed/viewblob",
+  documentName,
   onSigned,
 }: EmbedSignDialogProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -121,37 +124,43 @@ function EmbedSignDialogContent({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] p-0 gap-0 overflow-hidden">
-        <DialogTitle className="sr-only">Assinar documento via D4Sign EMBED</DialogTitle>
-        <DialogDescription className="sr-only">
-          Assinatura digital inline do documento {documentUuid} pelo signatário {signerEmail}.
-        </DialogDescription>
-
-        {/* Header */}
-        <div className="flex shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-5 py-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-100">
-            <CheckCircle2 className="size-5 text-interactive-600" aria-hidden />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-bold text-foreground">Assinar documento</h2>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {signerEmail} · UUID: <span className="font-mono">{documentUuid.slice(0, 12)}…</span>
-            </p>
-          </div>
+      <DialogContent
+        hideCloseButton
+        style={{
+          left: 0,
+          top: 0,
+          transform: "none",
+          width: "100vw",
+          height: "100dvh",
+          maxWidth: "none",
+          borderRadius: 0,
+          padding: 0,
+          gap: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+        className="gap-0 border-0 p-0 shadow-none sm:max-w-none sm:rounded-none"
+      >
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b border-neutral-200 bg-white px-3">
+          <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold">
+            {documentName?.trim() || "Assinar documento"}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Assinatura do documento pelo signatário {signerEmail}.
+          </DialogDescription>
           <Button
             type="button"
-            size="sm"
+            size="icon"
             variant="ghost"
-            className="h-8 gap-1.5"
+            className="size-7 shrink-0"
             onClick={() => onOpenChange(false)}
+            aria-label="Fechar"
           >
             <X className="size-4" />
-            Fechar
           </Button>
         </div>
 
-        {/* Body */}
-        <div className="relative flex-1 overflow-hidden bg-neutral-100">
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-neutral-100">
           {/* Loading overlay */}
           {status === "loading" ? (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/80 backdrop-blur-sm">
@@ -252,26 +261,6 @@ function EmbedSignDialogContent({
             allow="camera; microphone; geolocation"
             title="Assinatura D4Sign"
           />
-        </div>
-
-        {/* Footer */}
-        <div className="flex shrink-0 items-center justify-between border-t border-neutral-200 bg-neutral-50 px-5 py-2 text-[11px] text-muted-foreground">
-          <span>
-            Assinatura processada pela{" "}
-            <a
-              href="https://d4sign.com.br"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-interactive-700 hover:underline inline-flex items-center gap-1"
-            >
-              D4Sign
-              <ExternalLink className="size-2.5" />
-            </a>
-            {" "}— validade jurídica MP 2.200-2/01
-          </span>
-          <span className="font-mono">
-            Status: {status === "loading" ? "carregando" : status === "ready" ? "pronto" : status}
-          </span>
         </div>
       </DialogContent>
     </Dialog>

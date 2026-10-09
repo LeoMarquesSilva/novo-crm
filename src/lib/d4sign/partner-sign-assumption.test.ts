@@ -87,6 +87,22 @@ describe("reconcilePartnerSignAssumptions", () => {
     expect(result.reverted).toHaveLength(1);
     expect(result.kept).toHaveLength(0);
   });
+
+  it("segura a assinatura do embed enquanto a leitura do clique ainda pode estar atrasada", () => {
+    const signedAt = "2026-10-07T18:40:00.000Z";
+    const withinGrace = reconcilePartnerSignAssumptions(
+      [doc("2026-10-07T18:41:00.000Z")],
+      [assumption({ clickedAt: signedAt, signedInEmbed: true })],
+    );
+    expect(withinGrace.kept).toHaveLength(1);
+    expect(withinGrace.reverted).toHaveLength(0);
+
+    const afterGrace = reconcilePartnerSignAssumptions(
+      [doc("2026-10-07T18:44:00.000Z")],
+      [assumption({ clickedAt: signedAt, signedInEmbed: true })],
+    );
+    expect(afterGrace.reverted).toHaveLength(1);
+  });
 });
 
 describe("overlayPartnerSignAssumptions", () => {

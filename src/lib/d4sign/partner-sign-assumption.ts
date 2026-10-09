@@ -9,15 +9,26 @@ export type PartnerSignAssumption = {
   uuid: string;
   /** E-mail canônico do sócio. */
   partnerEmail: string;
-  /** Quando a janela da D4Sign foi aberta. */
+  /**
+   * Momento do evento. No quadro, é quando o embed avisou `signed`.
+   * Em marcas antigas de clique, é quando a janela abriu.
+   */
   clickedAt: string;
   /**
-   * `signersFetchedAt` no momento do clique.
+   * `signersFetchedAt` no momento do evento.
    * `null` numa cópia vinda do servidor: qualquer leitura estritamente
    * posterior ao clique confirma ou devolve.
    */
   fetchedAtAtClick: string | null;
+  /**
+   * Assinatura concluída no embed. A leitura disparada ao abrir pode
+   * voltar ainda sem a assinatura; a devolução espera uma folga.
+   */
+  signedInEmbed?: boolean;
 };
+
+/** Folga para a D4Sign registrar a assinatura que o embed já confirmou. */
+export const SIGNED_EMBED_REVERT_GRACE_MS = 3 * 60 * 1000;
 
 export function isPartnerSignAssumption(value: unknown): value is PartnerSignAssumption {
   if (!value || typeof value !== "object") return false;
@@ -71,6 +82,18 @@ export function reconcilePartnerSignAssumptions(
       continue;
     }
     if (partnerSignRefreshLanded(doc, assumption)) {
+      if (assumption.signedInEmbed && doc.signersFetchedAt) {
+        const fetchedMs = new Date(doc.signersFetchedAt).getTime();
+        const signedMs = new Date(assumption.clickedAt).getTime();
+        if (
+          Number.isFinite(fetchedMs) &&
+          Number.isFinite(signedMs) &&
+          fetchedMs < signedMs + SIGNED_EMBED_REVERT_GRACE_MS
+        ) {
+          kept.push(assumption);
+          continue;
+        }
+      }
       reverted.push(assumption);
       continue;
     }

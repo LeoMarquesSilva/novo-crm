@@ -22,6 +22,8 @@ export function D4SignSignButton({
   children,
   onClosed,
   onOpen,
+  onSigned,
+  documentName,
 }: {
   documentUuid: string;
   signerEmail: string;
@@ -34,6 +36,9 @@ export function D4SignSignButton({
   onClosed?: () => void;
   /** Quando a janela de assinatura da D4Sign abre. */
   onOpen?: () => void;
+  /** Quando o embed avisa que a assinatura foi concluída. */
+  onSigned?: () => void;
+  documentName?: string | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -75,6 +80,8 @@ export function D4SignSignButton({
         signerEmail={signerEmail}
         signerDisplayName={signerName ?? undefined}
         signerKeySigner={keySigner ?? undefined}
+        documentName={documentName}
+        onSigned={onSigned}
       />
     </>
   );

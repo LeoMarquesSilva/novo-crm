@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { D4SignCancelButton } from "@/components/crm/d4sign-cancel-button";
+import { EmbedSignDialog } from "@/components/crm/d4sign-embed-dialog";
 import { D4SignSignButton } from "@/components/crm/d4sign-sign-button";
+import { isD4SignEmbedEnabled } from "@/lib/d4sign/embed";
 import { Input } from "@/components/ui/input";
 import { D4SignViewDialog } from "@/components/crm/d4sign-view-dialog";
 import { useD4SignDocumentsRealtime } from "@/lib/crm/use-d4sign-realtime";
@@ -65,6 +67,15 @@ type Props = {
   provisionalByUuid?: Record<string, string[]>;
   /** O sócio logado abriu a janela de assinatura deste contrato. */
   onSignOpen?: (doc: ClassifiedPartnerDoc) => void;
+  /** O embed avisou que a assinatura deste contrato foi concluída. */
+  onPartnerSigned?: (doc: ClassifiedPartnerDoc) => void;
+};
+
+type SigningSession = {
+  doc: ClassifiedPartnerDoc;
+  signerEmail: string;
+  signerName: string | null;
+  keySigner: string | null;
 };
 
 export function PartnerSignaturesBoard({
@@ -74,6 +85,7 @@ export function PartnerSignaturesBoard({
   canCancel = false,
   provisionalByUuid = {},
   onSignOpen,
+  onPartnerSigned,
 }: Props) {
   const router = useRouter();
   const [partnerFilter, setPartnerFilter] = useState<PartnerFilter>(currentPartnerEmail ?? "all");
@@ -84,6 +96,8 @@ export function PartnerSignaturesBoard({
     | { open: true; documentUuid: string; documentName: string | null }
     | { open: false }
   >({ open: false });
+  const [signing, setSigning] = useState<SigningSession | null>(null);
+  const embedEnabled = isD4SignEmbedEnabled();
 
   // Webhook D4Sign atualiza `d4sign_documents` → recarrega a lista.
   useD4SignDocumentsRealtime(() => router.refresh());
@@ -319,18 +333,38 @@ export function PartnerSignaturesBoard({
                 {/* Ações */}
                 <div className="flex shrink-0 flex-wrap gap-2">
                   {canSign && mySlot ? (
-                    <D4SignSignButton
-                      documentUuid={doc.uuid}
-                      signerEmail={mySlot.signerEmail}
-                      signerName={mySlot.signerName}
-                      keySigner={mySlot.keySigner}
-                      className={buttonVariants({ size: "sm" })}
-                      onOpen={() => onSignOpen?.(doc)}
-                      onClosed={() => router.refresh()}
-                    >
-                      <PenLine />
-                      Assinar
-                    </D4SignSignButton>
+                    embedEnabled ? (
+                      <button
+                        type="button"
+                        className={buttonVariants({ size: "sm" })}
+                        onClick={() => {
+                          onSignOpen?.(doc);
+                          setSigning({
+                            doc,
+                            signerEmail: mySlot.signerEmail,
+                            signerName: mySlot.signerName,
+                            keySigner: mySlot.keySigner,
+                          });
+                        }}
+                      >
+                        <PenLine />
+                        Assinar
+                      </button>
+                    ) : (
+                      <D4SignSignButton
+                        documentUuid={doc.uuid}
+                        signerEmail={mySlot.signerEmail}
+                        signerName={mySlot.signerName}
+                        keySigner={mySlot.keySigner}
+                        documentName={doc.name}
+                        className={buttonVariants({ size: "sm" })}
+                        onOpen={() => onSignOpen?.(doc)}
+                        onClosed={() => router.refresh()}
+                      >
+                        <PenLine />
+                        Assinar
+                      </D4SignSignButton>
+                    )
                   ) : null}
                   <Button
                     size="sm"
@@ -368,6 +402,24 @@ export function PartnerSignaturesBoard({
           documentUuid={view.documentUuid}
           documentName={view.documentName}
           portalUrl={portalUrl(view.documentUuid)}
+        />
+      ) : null}
+
+      {signing ? (
+        <EmbedSignDialog
+          open
+          documentUuid={signing.doc.uuid}
+          documentName={signing.doc.name}
+          signerEmail={signing.signerEmail}
+          signerDisplayName={signing.signerName ?? undefined}
+          signerKeySigner={signing.keySigner ?? undefined}
+          onSigned={() => onPartnerSigned?.(signing.doc)}
+          onOpenChange={(next) => {
+            if (!next) {
+              setSigning(null);
+              router.refresh();
+            }
+          }}
         />
       ) : null}
     </div>

@@ -2,6 +2,11 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-09 — D4Sign: assinatura concluída sai da lista e o quadro ocupa a tela
+
+- O aviso `signed` do embed tira o contrato de Pendentes na hora. Abrir Assinar continua sem dar baixa. O quadro fica montado fora da linha, então a lista pode atualizar com ele aberto.
+- O diálogo de assinatura ocupa a tela inteira, com uma barra fina e sem o rodapé jurídico, para o contrato usar o espaço.
+
 ## 2026-10-09 — D4Sign: pendente só sai quando a assinatura consta
 
 - Abrir Assinar não tira o contrato da lista. Ele só sai de Pendentes quando a leitura dos signatários mostra a assinatura. O clique continua na frente da fila de atualização, e o quadro de assinatura permanece aberto.
