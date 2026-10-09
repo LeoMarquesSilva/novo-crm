@@ -10,7 +10,12 @@ export const PARTNER_HOME = "/crm/assinar-contratos";
 
 const PARTNER_ALLOWED_PREFIXES = [PARTNER_HOME, "/crm/perfil"];
 
+/** Assina como o Gustavo no teste, mas continua com o CRM inteiro. */
+const PARTNER_ONLY_EXEMPT = new Set(["controladoria@bismarchipires.com.br"]);
+
 export function isPartnerOnlyEmail(email: string | null | undefined): boolean {
+  const key = email?.trim().toLowerCase();
+  if (key && PARTNER_ONLY_EXEMPT.has(key)) return false;
   return resolvePartnerEmail(email, toPartnerSigners(getFirmSigners())) !== null;
 }
 

@@ -20,6 +20,15 @@ describe("sócios padrão", () => {
     expect(isFirmSignerEmail("assinaturadigital@bpplaw.com.br")).toBe(true);
   });
 
+  it("trata a controladoria como Gustavo mesmo se o env não listar o e-mail", () => {
+    vi.stubEnv(
+      "D4SIGN_FIRM_SIGNERS",
+      JSON.stringify([{ email: "gustavo@bpplaw.com.br", name: "Gustavo Bismarchi Motta", aliases: [] }]),
+    );
+    const partners = toPartnerSigners(getFirmSigners());
+    expect(resolvePartnerEmail("controladoria@bismarchipires.com.br", partners)).toBe("gustavo@bpplaw.com.br");
+  });
+
   it("troca o dono do login pelo sócio e marca CONTRATADA", () => {
     vi.stubEnv("D4SIGN_FIRM_SIGNERS", "");
     expect(

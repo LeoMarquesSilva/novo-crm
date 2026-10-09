@@ -10,6 +10,7 @@ describe("modo sócio", () => {
     expect(isPartnerOnlyEmail("gustavo@bismarchipires.com.br")).toBe(true);
     expect(isPartnerOnlyEmail("Ricardo@bpplaw.com.br")).toBe(true);
     expect(isPartnerOnlyEmail("caio.silva@bismarchipires.com.br")).toBe(false);
+    expect(isPartnerOnlyEmail("controladoria@bismarchipires.com.br")).toBe(false);
     expect(isPartnerOnlyEmail(null)).toBe(false);
   });
 

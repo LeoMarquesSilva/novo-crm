@@ -2,6 +2,10 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-09 — D4Sign: controladoria testa a assinatura do Gustavo
+
+- `controladoria@bismarchipires.com.br` é reconhecido como o Gustavo no botão Assinar. O modo sócio não se aplica a essa conta, então o restante do CRM continua disponível.
+
 ## 2026-10-09 — D4Sign: assinatura dentro do CRM
 
 - A conta passou a aceitar o EMBED. O botão Assinar abre o documento no diálogo do CRM. `NEXT_PUBLIC_D4SIGN_EMBED_ENABLED=0` volta ao link externo.

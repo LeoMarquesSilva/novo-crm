@@ -23,6 +23,23 @@ export type FirmSigner = {
   aliases?: string[];
 };
 
+/**
+ * Conta da controladoria usada para testar a assinatura no lugar do Gustavo.
+ * Não entra no modo sócio: o restante do CRM continua disponível.
+ */
+const GUSTAVO_SIGN_TEST_ALIASES = ["controladoria@bismarchipires.com.br"];
+
+function withSignTestAliases(signers: FirmSigner[]): FirmSigner[] {
+  return signers.map((signer) => {
+    if (signer.email.toLowerCase() !== "gustavo@bpplaw.com.br") return signer;
+    const aliases = [...(signer.aliases ?? [])];
+    for (const extra of GUSTAVO_SIGN_TEST_ALIASES) {
+      if (!aliases.some((alias) => alias.toLowerCase() === extra)) aliases.push(extra);
+    }
+    return { ...signer, aliases };
+  });
+}
+
 const DEFAULT_FIRM_SIGNERS: FirmSigner[] = [
   {
     email: "gustavo@bpplaw.com.br",
@@ -35,6 +52,7 @@ const DEFAULT_FIRM_SIGNERS: FirmSigner[] = [
       "gustavo@bismarchipires.com.br",
       "assinaturadigital@bismarchipires.com.br",
       "assinaturadigital@bpplaw.com.br",
+      ...GUSTAVO_SIGN_TEST_ALIASES,
     ],
   },
   {
@@ -48,7 +66,7 @@ const DEFAULT_FIRM_SIGNERS: FirmSigner[] = [
 
 export function getFirmSigners(): FirmSigner[] {
   const raw = process.env.D4SIGN_FIRM_SIGNERS?.trim();
-  if (!raw) return DEFAULT_FIRM_SIGNERS;
+  if (!raw) return withSignTestAliases(DEFAULT_FIRM_SIGNERS);
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return DEFAULT_FIRM_SIGNERS;
@@ -70,9 +88,9 @@ export function getFirmSigners(): FirmSigner[] {
         ...(aliases.length > 0 ? { aliases } : {}),
       });
     }
-    return out.length > 0 ? out : DEFAULT_FIRM_SIGNERS;
+    return withSignTestAliases(out.length > 0 ? out : DEFAULT_FIRM_SIGNERS);
   } catch {
-    return DEFAULT_FIRM_SIGNERS;
+    return withSignTestAliases(DEFAULT_FIRM_SIGNERS);
   }
 }
 
