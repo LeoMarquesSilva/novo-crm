@@ -2,6 +2,10 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-09 — D4Sign: pendente só sai quando a assinatura consta
+
+- Abrir Assinar não tira o contrato da lista. Ele só sai de Pendentes quando a leitura dos signatários mostra a assinatura. O clique continua na frente da fila de atualização, e o quadro de assinatura permanece aberto.
+
 ## 2026-10-09 — D4Sign: controladoria testa a assinatura do Gustavo
 
 - `controladoria@bismarchipires.com.br` é reconhecido como o Gustavo no botão Assinar. O modo sócio não se aplica a essa conta, então o restante do CRM continua disponível.
