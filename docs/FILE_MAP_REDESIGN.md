@@ -112,6 +112,14 @@ Lib: `src/lib/d4sign/partner-signatures.ts` (regras puras + helpers de signatár
 
 Rota: `src/app/(crm)/crm/clientes/page.tsx` — carteira agrupada (OrquestrAI + títulos SIOE). Status = `gestor_atividade` (espelho local + overlay ao vivo). **Categoria** = Cliente | Lead (`grupo-categoria.ts`, `origemLinha`; hoje só Cliente). Modal `carteira-grupo-detail-dialog.tsx` (Dialog+Select: `modal={false}` + `dialogSelectOutsideHandlers`; chips de Área clicáveis no modo editar): Áreas = atuação (`responsible_area` ∪ `legal_areas` ∪ SIOE ∪ manual); Categoria = Cliente (não editável); **Origem do Lead**, **Plataforma** (Lead Digital), **Área** (Cross Selling), **Decisor** e **Captador** (solicitante do lead vinculado) no modal; **Quem indicou** = `indication-name-picker.tsx` (base `indicadores` + solicitar aprovação, igual ao Novo Lead). Tabela: `carteira-grupos-table.tsx` (um botão “Copiar link de preenchimento”). Grade pública: `src/app/preencher/carteira/[token]/page.tsx` + `src/components/crm/grupo-intake-public-grid.tsx`. APIs: `POST /api/crm/carteira/intake-links`, `GET|POST /api/public/carteira-intake/[token]`. Helpers: `save-grupo-carteira.ts`, `grupo-areas-atuacao.ts`, `grupo-categoria.ts`, `carteira-grupo-enrichment.ts`, `carteira-grupo-membros.ts`, `grupo-intake-indication.ts`, `grupo-intake-campaign.ts`, `grupo-intake-grid.ts`, `indication-name-options.ts`, `ensure-pending-indicator.ts`, `fetch-grupos-economicos.ts`. Sync persiste `gestor_atividade` / `responsible_area` / `legal_areas` em `src/lib/sioe/sync-carteira.ts`.
 
+## ICP — perfil de cliente ideal
+
+Rota: `src/app/(crm)/crm/icp/page.tsx` (`CrmPageHeader` + `IcpDashboard`; acesso admin ou módulo `icp` liberado em Usuários)
+
+Componentes (`src/components/crm/icp/`): `icp-dashboard.tsx` (abas, Recalcular, estados vazio/erro), `icp-resumo-tab.tsx`, `icp-scope-panels.tsx` (Segmento/Região/Porte/Decisor), `icp-carteira-tab.tsx`, `icp-size-panels.tsx` (maiores/médios/menores e comparativo), `icp-clientes-tab.tsx`, `icp-marketing-tab.tsx`, `icp-comercial-tab.tsx`, `icp-primitives.tsx` (Panel, barras, KPIs, selos de fonte, `IcpInfoTooltip`, logo, ícone LinkedIn), `icp-content.ts` (textos de ajuda `INFO`, fontes, escalas), `icp-format.ts`, `icp-area-icon.tsx`, `icp-clients-csv.ts`, `icp-plano-contas.tsx` (cores dos planos de contas), `icp-plano-contas-panel.tsx` (tipo de contrato: painel e barra por faixa na aba Carteira)
+
+Regra de negócio: `src/modules/icp/{domain,infrastructure}/` (ver zona abaixo). Switch de liberação: `ModuleAccessSwitch` em `user-management-panel.tsx`.
+
 ## Documentos (due diligence)
 
 Rota: `src/app/(crm)/crm/documentos/page.tsx` + `due-diligence-panel.tsx`, `due-timeline-ui.tsx`
@@ -130,6 +138,7 @@ Componentes (`src/components/crm/`): `field-config-panel.tsx`, `clause-templates
 
 - `src/modules/crm/{application,domain,infrastructure}/`
 - `src/modules/contracts/{application,domain,infrastructure}/`
+- `src/modules/icp/{domain,infrastructure}/`
 - `src/lib/`, `src/data/`
 
 Se uma tarefa "só visual" parecer exigir mudança nessas pastas, é sinal de alerta — parar e perguntar ao Lead antes de prosseguir.

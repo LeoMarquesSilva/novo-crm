@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/carteira-grupos-sync",
       "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/cron/icp-cnpj-sync",
+      "schedule": "0 5 * * 1"
     }
   ]
 }

@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
+  Crosshair,
   FileText,
   LayoutDashboard,
   Layers,
@@ -90,6 +91,12 @@ const mainItems: SidebarItem[] = [
     label: "Contratos",
     description: "Monitoramento jurídico",
     icon: FileText,
+  },
+  {
+    href: "/crm/icp",
+    label: "ICP",
+    description: "Perfil de cliente ideal",
+    icon: Crosshair,
   },
 ];
 
@@ -387,6 +394,7 @@ export function AppShell({
   const showPartnerNav = sessionUser.canAccessPartnerSignatures || partnerOnly;
   const canViewDueDiligence =
     sessionUser.role === "admin" || sessionUser.role === "comercial";
+  const canAccessIcp = sessionUser.canAccessIcp;
   const workspaceLabel = sessionUser.area?.trim() || "Workspace corporativo";
   const isPinnedExpanded = !collapsed;
   const isHoverOverlay = collapsed && hoverExpanded;
@@ -402,15 +410,17 @@ export function AppShell({
             {
               id: "commercial",
               title: "Comercial",
-              items: canViewDueDiligence
-                ? mainItems
-                : mainItems.filter((item) => item.href !== "/crm/due-diligence"),
+              items: mainItems.filter(
+                (item) =>
+                  (canViewDueDiligence || item.href !== "/crm/due-diligence") &&
+                  (canAccessIcp || item.href !== "/crm/icp"),
+              ),
             },
           ]),
       ...(showPartnerNav ? [{ id: "partners", title: "Sócios", items: partnerItems }] : []),
       ...(showAdminNav ? [{ id: "admin", title: "Configurações", items: adminItems }] : []),
     ],
-    [partnerOnly, canViewDueDiligence, showPartnerNav, showAdminNav],
+    [partnerOnly, canViewDueDiligence, canAccessIcp, showPartnerNav, showAdminNav],
   );
 
   const allItems = useMemo(() => groups.flatMap((group) => group.items), [groups]);

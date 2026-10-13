@@ -49,7 +49,8 @@ export function isOrqestraiConfigured(): boolean {
   return Boolean(orqestraiUrl() && orqestraiKey());
 }
 
-function orqestraiClient(): SupabaseClient | null {
+/** Client service role do ORQESTRAI (só servidor); `null` sem URL/chave configuradas. */
+export function orqestraiClient(): SupabaseClient | null {
   const url = orqestraiUrl();
   const key = orqestraiKey();
   if (!url || !key) return null;

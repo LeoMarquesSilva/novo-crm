@@ -92,3 +92,28 @@ export function canViewD4SignDocumentRecord(
 
   return input.oportunidadeId !== null || input.role === "admin" || input.isFirmPartner === true;
 }
+
+/**
+ * Módulos liberados por usuário em Configurações → Usuários (tabela
+ * app_user_module_access). Novo módulo: incluir aqui e no check da tabela.
+ */
+export const CRM_MODULES = ["icp"] as const;
+
+export type CrmModule = (typeof CRM_MODULES)[number];
+
+export const CRM_MODULE_LABELS: Record<CrmModule, string> = {
+  icp: "ICP (perfil de cliente ideal)",
+};
+
+export function isCrmModule(value: string): value is CrmModule {
+  return (CRM_MODULES as readonly string[]).includes(value);
+}
+
+/** Admin vê todos os módulos; os demais papéis só os liberados no cadastro. */
+export function canAccessModule(input: {
+  role: Database["public"]["Enums"]["user_role"];
+  modules: readonly string[];
+  module: CrmModule;
+}): boolean {
+  return input.role === "admin" || input.modules.includes(input.module);
+}

@@ -10,6 +10,8 @@ export type CrmSessionUser = {
   canAccessPartnerSignatures: boolean;
   /** Sócio: o CRM mostra só "Assinar Contratos" (e o perfil). */
   partnerOnly: boolean;
+  /** Admin ou usuário com o ICP liberado em Configurações → Usuários. */
+  canAccessIcp: boolean;
 };
 
 export function initialsFromUser(fullName: string | null, email: string | null): string {

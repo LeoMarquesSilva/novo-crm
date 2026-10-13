@@ -47,6 +47,8 @@ import { Label } from "@/components/ui/label";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Select, SelectTrigger } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { CRM_MODULE_LABELS, type CrmModule } from "@/lib/auth/crm-access-policy";
 import {
   APP_USER_AREAS,
   APP_USER_AREA_FORM_ITEMS,
@@ -76,6 +78,8 @@ export interface MergedPerson {
   created_at: string;
   email?: string;
   hasAccess: boolean;
+  /** Módulos liberados no cadastro (app_user_module_access), ex.: "icp". */
+  modules?: string[];
   department?: string | null;
   position?: string | null;
   /** `null` = sem vínculo encontrado no RH (ex.: conta de sistema/teste). */
@@ -455,6 +459,63 @@ function UserFormDialog({
   );
 }
 
+// ─── Module access toggle ──────────────────────────────────────────────────────
+
+/**
+ * Liberação de um módulo (ex.: ICP) com efeito imediato (DS §19.3). Admin vê todos
+ * os módulos, então o switch fica ligado e travado.
+ */
+function ModuleAccessSwitch({
+  user,
+  module,
+  onModulesChange,
+}: {
+  user: AppUser;
+  module: CrmModule;
+  onModulesChange: (id: string, modules: string[]) => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const label = CRM_MODULE_LABELS[module];
+  const isAdmin = user.role === "admin";
+  const enabled = isAdmin || (user.modules ?? []).includes(module);
+
+  function handleChange(next: boolean) {
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch(`/api/admin/users/${user.id}/modules`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ module, enabled: next }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? "Não foi possível salvar.");
+        return;
+      }
+      const current = (user.modules ?? []).filter((m) => m !== module);
+      onModulesChange(user.id, next ? [...current, module] : current);
+    });
+  }
+
+  return (
+    <label
+      className="flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground"
+      title={isAdmin ? "Admin vê todos os módulos" : error ?? `Liberar ${label}`}
+    >
+      <Switch
+        checked={enabled}
+        disabled={isAdmin || isPending}
+        onCheckedChange={handleChange}
+        aria-label={`${label} para ${user.full_name}`}
+      />
+      <span className={cn("truncate", error && "text-danger-text")}>
+        {error ? "Erro ao salvar" : module.toUpperCase()}
+      </span>
+    </label>
+  );
+}
+
 // ─── Compact user row ──────────────────────────────────────────────────────────
 
 interface UserRowProps {
@@ -462,10 +523,11 @@ interface UserRowProps {
   onEdit: (user: AppUser) => void;
   onDelete: (id: string) => void;
   onRoleChange: (id: string, role: string) => void;
+  onModulesChange: (id: string, modules: string[]) => void;
   onGrantAccess: (user: AppUser) => void;
 }
 
-function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRowProps) {
+function UserRow({ user, onEdit, onDelete, onRoleChange, onModulesChange, onGrantAccess }: UserRowProps) {
   const [isPending, startTransition] = useTransition();
   const [savedRole, setSavedRole] = useState<string | null>(null);
   const areaLabel = user.area ? normalizePracticeAreaKey(user.area) : null;
@@ -521,29 +583,36 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onGrantAccess }: UserRo
           Acesso
         </span>
         {user.hasAccess ? (
-          <div className="flex min-w-0 items-center gap-1.5">
-            <Select
-              items={APP_USER_ROLE_SELECT_ITEMS}
-              value={user.role}
-              onValueChange={handleRoleChange}
-              disabled={isPending}
-            >
-              <SelectTrigger
-                aria-label={`Perfil de acesso de ${user.full_name}`}
-                className="h-8 w-[148px] min-w-0 text-xs xl:w-full"
+          <div className="flex min-w-0 flex-col items-end gap-1.5 xl:items-stretch">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Select
+                items={APP_USER_ROLE_SELECT_ITEMS}
+                value={user.role}
+                onValueChange={handleRoleChange}
+                disabled={isPending}
               >
-                <CrmSelectValue value={user.role} labels={APP_USER_ROLE_SELECT_ITEMS} />
-              </SelectTrigger>
-              <CrmSelectContent>
-                <CrmSelectItem value="admin">Admin</CrmSelectItem>
-                <CrmSelectItem value="comercial">Comercial</CrmSelectItem>
-                <CrmSelectItem value="controladoria">Controladoria</CrmSelectItem>
-                <CrmSelectItem value="financeiro">Financeiro</CrmSelectItem>
-              </CrmSelectContent>
-            </Select>
-            {savedRole ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-success-text" aria-label="Salvo" />
-            ) : null}
+                <SelectTrigger
+                  aria-label={`Perfil de acesso de ${user.full_name}`}
+                  className="h-8 w-[148px] min-w-0 text-xs xl:w-full"
+                >
+                  <CrmSelectValue value={user.role} labels={APP_USER_ROLE_SELECT_ITEMS} />
+                </SelectTrigger>
+                <CrmSelectContent>
+                  <CrmSelectItem value="admin">Admin</CrmSelectItem>
+                  <CrmSelectItem value="comercial">Comercial</CrmSelectItem>
+                  <CrmSelectItem value="controladoria">Controladoria</CrmSelectItem>
+                  <CrmSelectItem value="financeiro">Financeiro</CrmSelectItem>
+                </CrmSelectContent>
+              </Select>
+              {savedRole ? (
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-success-text" aria-label="Salvo" />
+              ) : null}
+            </div>
+            <ModuleAccessSwitch
+              user={user}
+              module="icp"
+              onModulesChange={onModulesChange}
+            />
           </div>
         ) : (
           <Badge
@@ -734,6 +803,10 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
 
   function handleRoleChange(id: string, role: string) {
     setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role } : u)));
+  }
+
+  function handleModulesChange(id: string, modules: string[]) {
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, modules } : u)));
   }
 
   async function handleDelete(id: string) {
@@ -992,6 +1065,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
               onEdit={setEditUser}
               onDelete={handleDelete}
               onRoleChange={handleRoleChange}
+              onModulesChange={handleModulesChange}
               onGrantAccess={setGrantAccessFor}
             />
           ))}

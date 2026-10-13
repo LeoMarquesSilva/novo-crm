@@ -112,6 +112,42 @@ export type Database = {
         }
         Relationships: []
       }
+      app_user_module_access: {
+        Row: {
+          app_user_id: string
+          granted_at: string
+          granted_by: string | null
+          module: string
+        }
+        Insert: {
+          app_user_id: string
+          granted_at?: string
+          granted_by?: string | null
+          module: string
+        }
+        Update: {
+          app_user_id?: string
+          granted_at?: string
+          granted_by?: string | null
+          module?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_user_module_access_app_user_id_fkey"
+            columns: ["app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_user_module_access_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clientes: {
         Row: {
           bairro: string | null
@@ -2296,6 +2332,138 @@ export type Database = {
           tipo_indicacao?: string | null
           tipo_lead?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      icp_cnpj_cadastro: {
+        Row: {
+          cep: string | null
+          cnae_descricao: string | null
+          cnae_principal: string | null
+          cnaes_secundarios: Json
+          cnpj: string
+          capital_social: number | null
+          data_inicio_atividade: string | null
+          error: string | null
+          fetched_at: string
+          matriz: boolean | null
+          municipio: string | null
+          natureza_juridica: string | null
+          nome_fantasia: string | null
+          opcao_simples: boolean | null
+          porte: string | null
+          razao_social: string | null
+          situacao_cadastral: string | null
+          socios: Json
+          source: string
+          status: string
+          uf: string | null
+        }
+        Insert: {
+          cep?: string | null
+          cnae_descricao?: string | null
+          cnae_principal?: string | null
+          cnaes_secundarios?: Json
+          cnpj: string
+          capital_social?: number | null
+          data_inicio_atividade?: string | null
+          error?: string | null
+          fetched_at?: string
+          matriz?: boolean | null
+          municipio?: string | null
+          natureza_juridica?: string | null
+          nome_fantasia?: string | null
+          opcao_simples?: boolean | null
+          porte?: string | null
+          razao_social?: string | null
+          situacao_cadastral?: string | null
+          socios?: Json
+          source?: string
+          status: string
+          uf?: string | null
+        }
+        Update: {
+          cep?: string | null
+          cnae_descricao?: string | null
+          cnae_principal?: string | null
+          cnaes_secundarios?: Json
+          cnpj?: string
+          capital_social?: number | null
+          data_inicio_atividade?: string | null
+          error?: string | null
+          fetched_at?: string
+          matriz?: boolean | null
+          municipio?: string | null
+          natureza_juridica?: string | null
+          nome_fantasia?: string | null
+          opcao_simples?: boolean | null
+          porte?: string | null
+          razao_social?: string | null
+          situacao_cadastral?: string | null
+          socios?: Json
+          source?: string
+          status?: string
+          uf?: string | null
+        }
+        Relationships: []
+      }
+      icp_group_profiles: {
+        Row: {
+          employee_max: number | null
+          employee_min: number | null
+          employee_range: string | null
+          fetched_at: string | null
+          grupo: string
+          headquarters: string | null
+          industry: string | null
+          linkedin_members: number | null
+          linkedin_name: string | null
+          linkedin_url: string | null
+          logo_path: string | null
+          logo_source: string | null
+          match_confidence: string | null
+          note: string | null
+          status: string
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          employee_max?: number | null
+          employee_min?: number | null
+          employee_range?: string | null
+          fetched_at?: string | null
+          grupo: string
+          headquarters?: string | null
+          industry?: string | null
+          linkedin_members?: number | null
+          linkedin_name?: string | null
+          linkedin_url?: string | null
+          logo_path?: string | null
+          logo_source?: string | null
+          match_confidence?: string | null
+          note?: string | null
+          status: string
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          employee_max?: number | null
+          employee_min?: number | null
+          employee_range?: string | null
+          fetched_at?: string | null
+          grupo?: string
+          headquarters?: string | null
+          industry?: string | null
+          linkedin_members?: number | null
+          linkedin_name?: string | null
+          linkedin_url?: string | null
+          logo_path?: string | null
+          logo_source?: string | null
+          match_confidence?: string | null
+          note?: string | null
+          status?: string
+          updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }

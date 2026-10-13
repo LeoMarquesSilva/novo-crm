@@ -44,10 +44,20 @@ async function getUsers() {
     );
     const officialUrlById = new Map(withOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
 
+    // Módulos liberados (ex.: ICP). Sem a tabela ainda no banco, todos ficam sem módulo.
+    const { data: moduleRows } = await supabase
+      .from("app_user_module_access")
+      .select("app_user_id, module");
+    const modulesByUser = new Map<string, string[]>();
+    for (const row of moduleRows ?? []) {
+      modulesByUser.set(row.app_user_id, [...(modulesByUser.get(row.app_user_id) ?? []), row.module]);
+    }
+
     const users = (data ?? []).map(({ auth_user_id, ...user }) => ({
       ...user,
       avatar_url: officialUrlById.get(user.id) ?? user.avatar_url,
       email: emailByAuthId.get(auth_user_id),
+      modules: modulesByUser.get(user.id) ?? [],
     }));
 
     return { users, error: null };
@@ -97,6 +107,7 @@ function mergePeople(
       created_at: user.created_at,
       email: user.email,
       hasAccess: true,
+      modules: user.modules,
       department: match?.department ?? null,
       position: match?.position ?? null,
       orqestraiActive: match?.isActive ?? null,

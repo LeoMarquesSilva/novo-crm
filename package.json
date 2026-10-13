@@ -15,7 +15,9 @@
     "verify:sheet": "vitest run src/scripts/verify-leads-vs-sheet.test.ts",
     "test:lead-email": "tsx scripts/send-test-lead-email.ts",
     "import:tipos-propostas": "node scripts/import-tipos-propostas.mjs",
-    "generate:modelo-proposta": "node scripts/generate-modelo-proposta-docx.mjs"
+    "generate:modelo-proposta": "node scripts/generate-modelo-proposta-docx.mjs",
+    "icp:linkedin-sync": "node scripts/icp-linkedin-sync.mjs",
+    "icp:copy-from-orqestrai": "node scripts/icp-copy-from-orqestrai.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",

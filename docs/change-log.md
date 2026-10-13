@@ -2,6 +2,20 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-13 — ICP: tipo de contrato (plano de contas do SIOE) na Carteira
+
+- Tipo de contrato = plano de contas dos honorários pagos no SIOE em 12 meses, com o nome igual ao do SIOE e um plano por linha (sem reagrupar em recorrente/spot). Cada grupo ganha `revenueByPlan`; `planSummary` resume por plano; `src/modules/icp/domain/plano-contas.ts` só conserta acentuação.
+- Aba Carteira: a coluna "Mensal" da tabela de faixas virou **Tipo de contrato** (receita da faixa por plano) e entrou o painel **Tipo de contrato** (grupos, receita, % e ticket por plano; recorte por faixa). Detalhe do grupo e CSV listam os planos. "Mensal" continua sendo só HONORÁRIOS MENSAIS. Cache do cálculo renomeado (`crm-icp-data-v3`).
+- Maiores, médios e menores: cada cartão mostra a receita do bloco por plano de contas e o comparativo ganhou "Tipo de contrato principal". A lista "Quem está em cada bloco" ganhou a coluna de planos do grupo, a opção **Todos** (ranking completo, `rankedGroups`, com os 25 primeiros e botão para mostrar todos) e linhas expansíveis com o valor de cada plano e a receita por área. A posição mostrada é a do ranking geral. Grupo com mais de um plano: passar o mouse (ou focar) na lista abre um tooltip com o valor, a parte e o total de cada plano. Com filtro de área, planos, tooltip e cartões usam só os honorários da área (`revenueByPlanByArea`, `groupPlans`), então o total bate com a coluna "Receita 12 meses".
+- Sem DDL: tudo é calculado no ICP a partir do SIOE.
+
+## 2026-10-13 — ICP: módulo trazido do ORQESTRAI
+
+- `/crm/icp` (grupo "Comercial" do menu) com as abas Resumo, Carteira, Clientes, Marketing e Pauta comercial, portadas de `marketing-system` (`/icp`) para o Design System V2. Cálculo copiado sem mudança de regra para `src/modules/icp/domain` (com os testes); leitura do SIOE e do ORQESTRAI em `src/modules/icp/infrastructure/icp-data-loader.ts`, com cache de 6 h e **Recalcular** (`POST /api/crm/icp/refresh`).
+- Acesso: admin ou usuário com o switch **ICP** ligado em Usuários (`PATCH /api/admin/users/[id]/modules` → `app_user_module_access`). A liberação fica numa tabela própria para o usuário não conseguir se liberar pelo `/crm/perfil`.
+- Tabelas `icp_cnpj_cadastro` e `icp_group_profiles` e bucket público `icp-logos` passam a morar no CRM (migrations `20261013120000` e `20261013120100`, aplicadas no remoto em 13/10/2026; cópia do ORQESTRAI: 1.483 CNPJs, 149 perfis, 100 logos). Cron semanal `icp-cnpj-sync` (Receita via OpenCNPJ/BrasilAPI). Scripts `icp:linkedin-sync` e `icp:copy-from-orqestrai` (cópia única dos dados e logos).
+- NPS, público do LinkedIn, GA4 e WhatsApp continuam sendo lidos ao vivo do ORQESTRAI; sem `ORQESTRAI_SUPABASE_*` esses painéis ficam vazios e o resto do ICP é calculado.
+
 ## 2026-10-09 — D4Sign: assinatura concluída sai da lista e o quadro ocupa a tela
 
 - O aviso `signed` do embed tira o contrato de Pendentes na hora. Abrir Assinar continua sem dar baixa. O quadro fica montado fora da linha, então a lista pode atualizar com ele aberto.

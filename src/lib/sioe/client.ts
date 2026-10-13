@@ -29,7 +29,8 @@ export function isSioeConfigured(): boolean {
   return Boolean(sioeKey());
 }
 
-function sioeClient(): SupabaseClient | null {
+/** Client service role do SIOE (só servidor); `null` sem a chave configurada. */
+export function sioeClient(): SupabaseClient | null {
   const key = sioeKey();
   if (!key) return null;
   return createClient(sioeUrl(), key, {

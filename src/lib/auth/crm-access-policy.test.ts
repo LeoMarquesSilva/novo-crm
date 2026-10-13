@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canAccessContractCapability,
+  canAccessModule,
   canPatchLeadDetail,
   canViewD4SignDocument,
   canViewD4SignDocumentRecord,
@@ -193,4 +194,18 @@ describe("canViewD4SignDocumentRecord", () => {
       }),
     ).toBe(true);
   });
+});
+
+describe("canAccessModule", () => {
+  it("libera qualquer módulo para admin, mesmo sem liberação", () => {
+    expect(canAccessModule({ role: "admin", modules: [], module: "icp" })).toBe(true);
+  });
+
+  it.each(["comercial", "controladoria", "financeiro"] as const)(
+    "exige liberação do ICP para %s",
+    (role) => {
+      expect(canAccessModule({ role, modules: [], module: "icp" })).toBe(false);
+      expect(canAccessModule({ role, modules: ["icp"], module: "icp" })).toBe(true);
+    },
+  );
 });
