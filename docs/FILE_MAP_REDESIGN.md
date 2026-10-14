@@ -120,6 +120,10 @@ Componentes (`src/components/crm/icp/`): `icp-dashboard.tsx` (abas, Recalcular, 
 
 Regra de negócio: `src/modules/icp/{domain,infrastructure}/` (ver zona abaixo). Switch de liberação: `ModuleAccessSwitch` em `user-management-panel.tsx`.
 
+## Envio para assinatura e pós-venda (cadastro, Operações Legais, faturamento)
+
+Envio: `src/components/crm/contracts/send-contract-signature-dialog.tsx` (aberto pelo `pipeline-board.tsx`, `lead-detail-stage-advance.tsx` e `D4SignSendSection` em `contrato-document-builder.tsx`). Cadastro: `src/app/(crm)/crm/leads/[id]/client-onboarding/` (`client-onboarding-tab.tsx`, `client-onboarding-form.tsx`, `ops-legais-review-panel.tsx`). Faturamento: `src/app/(crm)/crm/leads/[id]/contract-billing-onboarding-panel.tsx`. Regras: `src/modules/crm/domain/client-onboarding.ts`, `src/modules/crm/domain/stage-transition-rules.ts`, `src/lib/crm/client-onboarding/*`, `src/lib/crm/contract-inclusion/*`, `src/lib/crm/post-signature/*` (não são trabalho visual).
+
 ## Documentos (due diligence)
 
 Rota: `src/app/(crm)/crm/documentos/page.tsx` + `due-diligence-panel.tsx`, `due-timeline-ui.tsx`

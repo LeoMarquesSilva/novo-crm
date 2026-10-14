@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
+import { useCrmActor } from "@/components/crm/crm-session-context";
 import { STAGE_ACTION_LABELS } from "@/lib/crm/stage-actions";
 import type { StageActionKind } from "@/modules/crm/domain/stage-transition-rules";
 import { createPortal } from "react-dom";
@@ -270,8 +271,12 @@ function LeadCard({
   pendingConfirm?: boolean;
 }) {
   const rdViewOnly = isRdKanbanViewOnlyLead(item);
+  const actor = useCrmActor();
+  // Mover pelo kanban é de admin e comercial; os demais avançam pelas ações da ficha
+  // (cadastro, Operações Legais, inclusão no faturamento).
+  const canDrag = !actor || actor.role === "admin" || actor.role === "comercial";
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: item.id, disabled: rdViewOnly || Boolean(dragLocked) });
+    useSortable({ id: item.id, disabled: rdViewOnly || !canDrag || Boolean(dragLocked) });
   const situacao = getLeadPipelineSituation(item);
 
   const style = {

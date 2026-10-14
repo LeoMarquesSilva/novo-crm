@@ -37,6 +37,8 @@ import {
 import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { onEnteredInclusaoFaturamento } from "@/lib/crm/post-sale/on-enter-inclusao-faturamento";
+import { completeSignedContract } from "@/lib/crm/post-signature/complete-signed-contract";
+import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
 import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
 import { transitionOpportunity } from "@/modules/crm/application/services/transition-opportunity";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
@@ -208,6 +210,21 @@ export async function POST(request: Request) {
         },
         { status: 422 },
       );
+    }
+
+    // Override do admin quando a assinatura já consta na D4Sign mas o lead não avançou
+    // (webhook perdido): mesmo caminho da assinatura automática (venda fechada, pós-venda, avisos).
+    if (currentStage === "contrato_enviado" && nextStage === "contrato_assinado") {
+      const completion = await completeSignedContract({
+        supabase,
+        opportunityId,
+        documentUuid: (row.d4sign_document_uuid as string | null) ?? null,
+        signers: row.d4sign_signers ?? null,
+        source: "manual",
+        actorAppUserId: auth.profile.id,
+        leadName: (row.solicitante_nome as string | null) ?? null,
+      });
+      return NextResponse.json({ ok: true, stage: completion.stage, outcome: completion.outcome });
     }
 
     const rowProposta = trimOrEmpty(row.link_proposta as string | null | undefined);
@@ -458,16 +475,21 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: defRows, error: defErr } = await supabase
-      .from("field_definitions")
-      .select("*")
-      .eq("pipeline_code", pipeline)
-      .eq("stage_code", nextStage)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true });
+    // Pós-venda usa o cadastro do cliente e a inclusão no faturamento, não campos do modal.
+    const { data: defRows, error: defErr } =
+      pipeline === "pos_venda"
+        ? { data: [] as Database["public"]["Tables"]["field_definitions"]["Row"][], error: null }
+        : await supabase
+            .from("field_definitions")
+            .select("*")
+            .eq("pipeline_code", pipeline)
+            .eq("stage_code", nextStage)
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true });
 
     if (defErr) {
-      return NextResponse.json({ ok: false, error: defErr.message }, { status: 500 });
+      console.error("Falha ao ler campos da etapa", defErr);
+      return NextResponse.json({ ok: false, error: "Não foi possível ler os campos da etapa." }, { status: 500 });
     }
 
     const defs = filterConfeccaoContratoTransitionDefinitions(
@@ -736,6 +758,11 @@ export async function POST(request: Request) {
 
     const originadoPor = actorFromAppUserRow(auth.profile);
 
+    if (nextStage === "aguardando_cadastro" && currentStage === "contrato_assinado") {
+      // Lead assinado antes do fluxo automático, movido pelo admin: abre o cadastro e fecha a venda.
+      await startPostSaleForLegacyLead(supabase, opportunityId, (row.solicitante_nome as string | null) ?? null);
+    }
+
     if (nextStage === "inclusao_faturamento") {
       await onEnteredInclusaoFaturamento(supabase, {
         opportunityId,
@@ -789,5 +816,40 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error ? error.message : "Falha inesperada na transição.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+async function startPostSaleForLegacyLead(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  opportunityId: string,
+  leadName: string | null,
+): Promise<void> {
+  try {
+    await supabase
+      .from("oportunidades")
+      .update({ encerramento: "ganho" })
+      .eq("id", opportunityId)
+      .is("encerramento", null);
+    await supabase
+      .from("lead_client_onboarding")
+      .upsert({ oportunidade_id: opportunityId, status: "rascunho" } as never, {
+        onConflict: "oportunidade_id",
+        ignoreDuplicates: true,
+      });
+    await notifyAudience(
+      supabase,
+      { leadTeamOf: opportunityId },
+      {
+        tipo: "cadastro_cliente_solicitado",
+        title: `Preencha o cadastro do cliente — ${leadName ?? "Lead"}`,
+        preview: "Confira os dados de cadastro e de faturamento e envie para Operações Legais.",
+        path: `/crm/leads/${encodeURIComponent(opportunityId)}?tab=onboarding`,
+        idempotencyKey: `cadastro-solicitado:${opportunityId}`,
+        extra: { oportunidade_id: opportunityId },
+      },
+      { email: false },
+    );
+  } catch (error) {
+    console.warn("[transition] início do pós-venda não completou", error);
   }
 }

@@ -2,6 +2,23 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-15 — Segurança estrutural e fluxo contrato → pós-venda
+
+Segurança:
+- Papel e área só pelo admin: `/crm/perfil` grava nome e foto por `PATCH /api/crm/profile`; migration `20261015120000` (não aplicada) tira a escrita de `app_users` do navegador e barra troca de `role`/`area` pela sessão.
+- Política única (`crm-access-policy.ts` + `stage-transition-rules.ts`): criar lead (admin/comercial), excluir (só admin), concluir revisão do contrato (admin, comercial, Societário, designado — avança pela RPC atômica com histórico), envio/operação D4Sign, matriz de etapas. Testes de negação por papel e de rota.
+- Rotas 410: VIOS stub, `crm/d4sign/vault|sync|import`. Crons e SharePoint com segredo timing-safe. Erros genéricos com referência de log. Timeouts em SIOE, OrquestrAI e OpenAI. Aviso de indicador pendente ia para o id errado.
+- Migration `20261015121000` (não aplicada): sem escrita do navegador nas tabelas de workflow.
+
+Produto:
+- Diálogo de envio para assinatura (sócios preenchidos, e-mails do cliente sugeridos), reenvio cancelando o pendente, etapa pela RPC `register_contract_sent_atomic`.
+- Assinatura concluída (webhook ou sync, um só caminho): Contrato Assinado, venda ganha, pós-venda em Aguardando Cadastro, avisos no sino e por e-mail (equipe do lead, sócios, comercial, admin, Ops Legais, Financeiro), PDF assinado guardado.
+- Cadastro do cliente (responsável) → Operações Legais (checklist VIOS/legados, grupo, devolver/concluir) → cliente, grupo e contatos criados/vinculados → Inclusão no Faturamento.
+- Financeiro inclui o contrato no gerenciamento de contratos com pré-preenchimento do cadastro, proposta e leitura por IA do PDF assinado; configura e ativa (→ Boas-vindas).
+- Migrations `20261015122000`–`20261015126000` versionadas, não aplicadas.
+
+Validações: `npx vitest run` (todas as suítes), `npm run lint` (0 erros), `npx tsc --noEmit`, `npm run build`.
+
 ## 2026-10-14 — ICP: custo por hora fora da tela e margem explicada
 
 - Carteira: saiu o bloco "Custo por hora de cada área e horas consideradas" (critério do custo da hora ainda em definição).
