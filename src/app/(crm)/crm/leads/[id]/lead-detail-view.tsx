@@ -47,7 +47,7 @@ import {
 } from "@/lib/crm/pipeline-board-config";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
-import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-tasks";
+import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-task-status";
 import { resolveRdFieldEditor } from "@/lib/crm/lead-rd-field-editor-map";
 import { resolvePropostaEmpresaPrincipalNome } from "@/lib/crm/proposta-empresa-principal";
 import { cn } from "@/lib/utils";
@@ -172,6 +172,7 @@ export function LeadDetailView({
         heroContextBadge={heroContextBadge}
         propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
         viewer={viewer}
+        isRdLead={isRdLead}
       />
 
       <main className="min-w-0">
@@ -446,6 +447,7 @@ function LeadDetailHero({
   heroContextBadge,
   propostaEmpresaPrincipalNome,
   viewer,
+  isRdLead,
 }: {
   lead: LeadDetailData;
   etapaLabel: string;
@@ -454,6 +456,7 @@ function LeadDetailHero({
   heroContextBadge: { label: string; className: string } | null;
   propostaEmpresaPrincipalNome: string | null;
   viewer: LeadDetailViewer | null;
+  isRdLead: boolean;
 }) {
   const isPosVenda = isPosVendaPipelineStage(lead.etapa);
   const pipelineLabel = isPosVenda ? "Pós-venda" : isCadastroLeadOnlyStage(lead.etapa) ? "Pré-funil" : "Funil comercial";
@@ -584,6 +587,8 @@ function LeadDetailHero({
         hasDueDiligence={lead.haveraDueDiligence}
         timeline={lead.lifecycleTimeline}
         canAdvance={
+          // Lead do RD é só leitura no CRM: a rota de transição responde 403.
+          !isRdLead &&
           lead.encerramento !== "perdido" &&
           Boolean(viewer && ["admin", "comercial"].includes(viewer.role))
         }

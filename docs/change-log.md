@@ -19,6 +19,12 @@ Produto:
 
 Validações: `npx vitest run` (todas as suítes), `npm run lint` (0 erros), `npx tsc --noEmit`, `npm run build`.
 
+Correções do teste de telas (local, banco de produção, sem envio à D4Sign nem e-mail):
+- Kanban (`GET /api/crm/leads`) dava 500 com ~430 leads: o filtro `.in()` com todos os ids ia na URL e a resposta do PostgREST passava de 16 KB de cabeçalho (`UND_ERR_HEADERS_OVERFLOW`). As consultas por lista de ids passam por `selectInChunks` (`src/lib/supabase/select-in-chunks.ts`, lotes de 150). Erro já existia em `main`.
+- Ficha do lead não compilava no navegador: `api-errors.ts` importava `node:crypto` e chegava ao bundle do cliente via `due-area-tasks.ts`. Agora usa `globalThis.crypto` e `isDueAreaTaskDelivered` mora em `due-area-task-status.ts`.
+- Reenvio para assinatura: sem o documento no cache `d4sign_documents`, o envio anterior não era tratado como pendente e não era cancelado. Usa o status gravado no lead e, sem status, trata Contrato Enviado como pendente.
+- Lead do RD não mostra mais "Avançar para esta etapa" (a rota responde 403). Ficha do contrato aberta pelo lead volta para o lead. Texto da área no Perfil sem o espaço sobrando.
+
 ## 2026-10-14 — ICP: custo por hora fora da tela e margem explicada
 
 - Carteira: saiu o bloco "Custo por hora de cada área e horas consideradas" (critério do custo da hora ainda em definição).

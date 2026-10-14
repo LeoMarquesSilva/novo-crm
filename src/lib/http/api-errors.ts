@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 /** Erro cuja mensagem pode ir para o usuário como está. */
@@ -44,7 +43,7 @@ export function logServerError(
   error: unknown,
   extra?: Record<string, unknown>,
 ): string {
-  const ref = randomUUID().slice(0, 8);
+  const ref = globalThis.crypto.randomUUID().slice(0, 8);
   const detail =
     error instanceof IntegrationError
       ? { integration: error.integration, status: error.httpStatus, detail: error.detail }

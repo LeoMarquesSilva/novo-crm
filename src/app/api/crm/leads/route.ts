@@ -9,7 +9,9 @@ import {
 } from "@/lib/crm/due-area-tasks";
 import { resolveSolicitanteInternoDisplay } from "@/lib/crm/resolve-app-user-display";
 import type { SignerAppUserLookup } from "@/lib/crm/signer-avatar-catalog";
+import { internalErrorResponse } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { selectInChunks } from "@/lib/supabase/select-in-chunks";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 import type { Oportunidade } from "@/modules/crm/domain/entities";
 
@@ -317,12 +319,12 @@ export async function GET() {
     }
 
     const opportunityIds = (opportunitiesRows ?? []).map((row) => row.id);
-    const { data: leadIntakeRows, error: leadIntakeError } = await supabase
-      .from("lead_intakes")
-      .select(
-        "oportunidade_id, solicitante_nome, local_reuniao, data_reuniao, horario_reuniao",
-      )
-      .in("oportunidade_id", opportunityIds);
+    const { data: leadIntakeRows, error: leadIntakeError } = await selectInChunks(opportunityIds, (ids) =>
+      supabase
+        .from("lead_intakes")
+        .select("oportunidade_id, solicitante_nome, local_reuniao, data_reuniao, horario_reuniao")
+        .in("oportunidade_id", ids),
+    );
     if (leadIntakeError) throw leadIntakeError;
 
     const leadIntakeByOpportunity = new Map<
@@ -426,14 +428,16 @@ export async function GET() {
     ] = await Promise.all([
       getDueAreaTasksSummaryWithBreakdown(supabase, dueOpportunityIds),
       getDueAreaReviewSummaryWithBreakdown(supabase, cycleByOpportunityId),
-      supabase
-        .from("due_area_review_tasks")
-        .select(
-          "oportunidade_id, revision_cycle, area_key, observacao_ajustes, responded_at, adjustment_completed_at, status",
-        )
-        .in("oportunidade_id", dueOpportunityIds)
-        .eq("status", "ajustes_solicitados")
-        .order("responded_at", { ascending: false }),
+      selectInChunks(dueOpportunityIds, (ids) =>
+        supabase
+          .from("due_area_review_tasks")
+          .select(
+            "oportunidade_id, revision_cycle, area_key, observacao_ajustes, responded_at, adjustment_completed_at, status",
+          )
+          .in("oportunidade_id", ids)
+          .eq("status", "ajustes_solicitados")
+          .order("responded_at", { ascending: false }),
+      ),
     ]);
 
     const dueReviewAdjustmentsByOpportunity = new Map<string, DueReviewAdjustment[]>();
@@ -452,10 +456,12 @@ export async function GET() {
       dueReviewAdjustmentsByOpportunity.set(oid, list);
     }
 
-    const { data: propostaEscopoRows } = await supabase
-      .from("proposta_escopo_solicitacao")
-      .select("oportunidade_id, area_key, concluido_em")
-      .in("oportunidade_id", opportunityIds);
+    const { data: propostaEscopoRows } = await selectInChunks(opportunityIds, (ids) =>
+      supabase
+        .from("proposta_escopo_solicitacao")
+        .select("oportunidade_id, area_key, concluido_em")
+        .in("oportunidade_id", ids),
+    );
     const propostaEscopoSummaryByOpportunity = new Map<
       string,
       { total: number; concluido: number; pendente: number }
@@ -500,10 +506,12 @@ export async function GET() {
       NonNullable<Oportunidade["contractReviewSummary"]>
     >();
     if (contractStageIds.length > 0) {
-      const { data: contractReviewRows } = await supabase
-        .from("contract_review_tasks")
-        .select("oportunidade_id, status, prazo_revisao, concluido_em")
-        .in("oportunidade_id", contractStageIds);
+      const { data: contractReviewRows } = await selectInChunks(contractStageIds, (ids) =>
+        supabase
+          .from("contract_review_tasks")
+          .select("oportunidade_id, status, prazo_revisao, concluido_em")
+          .in("oportunidade_id", ids),
+      );
       for (const row of contractReviewRows ?? []) {
         const status = String(row.status);
         if (status !== "pendente" && status !== "em_revisao" && status !== "concluido") continue;
@@ -547,8 +555,6 @@ export async function GET() {
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Falha inesperada ao carregar leads.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("crm/leads", error, "Falha inesperada ao carregar leads.");
   }
 }

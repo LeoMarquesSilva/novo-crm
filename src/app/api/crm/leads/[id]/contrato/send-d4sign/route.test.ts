@@ -22,7 +22,14 @@ const ctx = () => ({ params: Promise.resolve({ id: leadId }) });
 const send = (body: unknown) =>
   POST(new NextRequest("http://localhost", { method: "POST", body: JSON.stringify(body) }), ctx());
 
-function setup(input: { etapa: string; documentUuid?: string | null; documentStatus?: string | null }) {
+function setup(input: {
+  etapa: string;
+  documentUuid?: string | null;
+  documentStatus?: string | null;
+  leadStatus?: string | null;
+  documentCached?: boolean;
+}) {
+  const cached = input.documentCached ?? true;
   const fake = createSupabaseFake({
     tables: {
       oportunidades: {
@@ -32,6 +39,7 @@ function setup(input: { etapa: string; documentUuid?: string | null; documentSta
             solicitante_nome: "ACME",
             etapa: input.etapa,
             d4sign_document_uuid: input.documentUuid ?? null,
+            d4sign_status: input.leadStatus ?? null,
             d4sign_signers: [],
             cliente_id: null,
           },
@@ -43,7 +51,10 @@ function setup(input: { etapa: string; documentUuid?: string | null; documentSta
       },
       d4sign_documents: {
         maybeSingle: {
-          data: input.documentUuid ? { uuid_doc: input.documentUuid, d4sign_status: input.documentStatus, signers: [] } : null,
+          data:
+            input.documentUuid && cached
+              ? { uuid_doc: input.documentUuid, d4sign_status: input.documentStatus, signers: [] }
+              : null,
           error: null,
         },
       },
@@ -88,6 +99,13 @@ describe("POST send-d4sign — regras de envio", () => {
 
   it("reenvio com documento pendente exige confirmação", async () => {
     setup({ etapa: "contrato_enviado", documentUuid: "doc-1", documentStatus: "3" });
+    const res = await send({ signers: [client] });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("RESEND_CONFIRMATION_REQUIRED");
+  });
+
+  it("reenvio exige confirmação mesmo sem o documento no cache da D4Sign", async () => {
+    setup({ etapa: "contrato_enviado", documentUuid: "doc-1", documentCached: false, leadStatus: null });
     const res = await send({ signers: [client] });
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("RESEND_CONFIRMATION_REQUIRED");

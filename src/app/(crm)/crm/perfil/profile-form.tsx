@@ -142,8 +142,10 @@ export function ProfileForm({ initial, hasProfileRow, role }: ProfileFormProps) 
             <Input id="profile-area" value={area || "Sem área definida"} readOnly disabled />
             <p className="flex items-center gap-1.5 text-v2-caption text-muted-foreground">
               <Lock className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-              Definida pelo administrador em{" "}
-              <span className="font-medium text-foreground">Configurações → Usuários</span>.
+              <span>
+                Definida pelo administrador em{" "}
+                <span className="font-medium text-foreground">Configurações → Usuários</span>.
+              </span>
             </p>
           </div>
 

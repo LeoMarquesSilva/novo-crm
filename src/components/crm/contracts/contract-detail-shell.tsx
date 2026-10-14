@@ -32,9 +32,9 @@ export function ContractDetailShell({
   const requestedTab =
     searchParams.get("setup") === "1" ? "setup" : searchParams.get("tab") === "closings" ? "closings" : "overview";
   const tab = selectedTab ?? requestedTab;
+  const explicitReturn = sanitizeReturnTo(searchParams.get("returnTo"));
   const returnTarget =
-    sanitizeReturnTo(searchParams.get("returnTo")) ??
-    (contract.opportunityId ? `/crm/leads/${contract.opportunityId}?tab=billing` : "/crm/contratos");
+    explicitReturn ?? (contract.opportunityId ? `/crm/leads/${contract.opportunityId}?tab=billing` : "/crm/contratos");
   const configuration = contract.configuration;
 
   const areaById = useMemo(
@@ -45,11 +45,11 @@ export function ContractDetailShell({
   return (
     <div className="space-y-5">
       <Link
-        href="/crm/contratos"
+        href={explicitReturn ?? "/crm/contratos"}
         className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-teal-700"
       >
         <ArrowLeft className="size-4" />
-        Voltar para contratos
+        {explicitReturn?.startsWith("/crm/leads/") ? "Voltar para o lead" : "Voltar para contratos"}
       </Link>
 
       <header className="rounded-2xl bg-zinc-950 p-6 text-white">

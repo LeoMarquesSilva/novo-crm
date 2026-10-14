@@ -111,6 +111,7 @@ type OpportunityRow = {
   solicitante_nome: string | null;
   etapa: OpportunityStage;
   d4sign_document_uuid: string | null;
+  d4sign_status: string | null;
   d4sign_signers: Json;
   cliente_id: string | null;
 };
@@ -118,7 +119,7 @@ type OpportunityRow = {
 async function loadSendContext(supabase: SupabaseAdmin, oportunidadeId: string, templateId?: string) {
   const { data: op, error: opErr } = await supabase
     .from("oportunidades")
-    .select("id, solicitante_nome, etapa, d4sign_document_uuid, d4sign_signers, cliente_id")
+    .select("id, solicitante_nome, etapa, d4sign_document_uuid, d4sign_status, d4sign_signers, cliente_id")
     .eq("id", oportunidadeId)
     .maybeSingle();
   if (opErr) throw opErr;
@@ -154,12 +155,14 @@ function describeDocument(
   doc: { uuid_doc: string; d4sign_status: string | null; signers: Json } | null,
 ) {
   if (!op.d4sign_document_uuid) return null;
-  const status = doc?.d4sign_status ?? null;
+  // O cache `d4sign_documents` pode não ter o documento; o status gravado no lead completa.
+  const status = doc?.d4sign_status ?? op.d4sign_status ?? null;
   const signers = parseSigners(doc?.signers ?? op.d4sign_signers, status);
   return {
     uuid: op.d4sign_document_uuid,
     status,
-    pending: status ? PENDING_D4SIGN_STATUSES.has(status) : false,
+    // Sem status conhecido, um lead em Contrato Enviado tem o documento em andamento.
+    pending: status ? PENDING_D4SIGN_STATUSES.has(status) : op.etapa === "contrato_enviado",
     finalized: status === "1",
     signed: signers.filter((s) => !signerIsPending(s)).length,
     total: signers.length,

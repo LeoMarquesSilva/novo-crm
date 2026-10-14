@@ -1,9 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appUserAreaCandidatesForScopeKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { actorFromAppUserRow, type InAppNotificationActor } from "@/lib/crm/in-app-notification-meta";
-import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
+import {
+  getDueAreaTaskStatus,
+  isDueAreaTaskDelivered,
+  type DueAreaTaskStatus,
+} from "@/lib/crm/due-area-task-status";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+import { selectInChunks } from "@/lib/supabase/select-in-chunks";
 export { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
 
 export type DueAreaTaskSummary = {
@@ -46,12 +51,12 @@ export async function getDueAreaTasksSummaryWithBreakdown(
   const ids = [...new Set(oportunidadeIds.filter(Boolean))];
   if (ids.length === 0) return { summary, breakdown };
 
-  const { data } = await supabase
-    .from("due_area_tasks")
-    .select(
-      "oportunidade_id, area_key, status, prazo_ate, pasta_due_confirmada, sem_processos_ativos",
-    )
-    .in("oportunidade_id", ids);
+  const { data } = await selectInChunks(ids, (chunk) =>
+    supabase
+      .from("due_area_tasks")
+      .select("oportunidade_id, area_key, status, prazo_ate, pasta_due_confirmada, sem_processos_ativos")
+      .in("oportunidade_id", chunk),
+  );
 
   for (const row of data ?? []) {
     const id = row.oportunidade_id as string;
@@ -102,10 +107,12 @@ export async function getDueAreaReviewSummaryWithBreakdown(
   const ids = [...cycleByOpportunityId.keys()].filter(Boolean);
   if (ids.length === 0) return { summary, breakdown };
 
-  const { data } = await supabase
-    .from("due_area_review_tasks")
-    .select("oportunidade_id, revision_cycle, area_key, status")
-    .in("oportunidade_id", ids);
+  const { data } = await selectInChunks(ids, (chunk) =>
+    supabase
+      .from("due_area_review_tasks")
+      .select("oportunidade_id, revision_cycle, area_key, status")
+      .in("oportunidade_id", chunk),
+  );
 
   for (const row of data ?? []) {
     const id = String(row.oportunidade_id);
@@ -163,15 +170,7 @@ export async function resolveLeonardoAuthUserId(supabase: SupabaseClient): Promi
 }
 
 /** Entrega válida: disponibilizado na pasta OU marcado sem processos ativos (com observação opcional). */
-export function isDueAreaTaskDelivered(row: {
-  status: string;
-  pasta_due_confirmada: boolean | null;
-  sem_processos_ativos?: boolean | null;
-}): boolean {
-  if (row.status !== "disponibilizado") return false;
-  if (row.sem_processos_ativos) return true;
-  return Boolean(row.pasta_due_confirmada);
-}
+export { isDueAreaTaskDelivered };
 
 function getPublicAppUrl(): string {
   const base =
