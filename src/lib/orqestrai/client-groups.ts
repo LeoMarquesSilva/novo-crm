@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createExternalServiceClient } from "@/lib/supabase/external-service-client";
 
 const PAGE_SIZE = 1000;
 
@@ -54,9 +55,7 @@ export function orqestraiClient(): SupabaseClient | null {
   const url = orqestraiUrl();
   const key = orqestraiKey();
   if (!url || !key) return null;
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return createExternalServiceClient(url, key);
 }
 
 async function fetchAllRows<T extends Record<string, unknown>>(

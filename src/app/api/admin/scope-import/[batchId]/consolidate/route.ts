@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { internalErrorResponse } from "@/lib/http/api-errors";
 import { requireAdminApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { loadProposalCatalogAdmin } from "@/lib/crm/proposal-catalog-db";
@@ -175,7 +176,6 @@ export async function POST(
     const state = await loadScopeImportBatchState(supabase, batchId);
     return NextResponse.json({ ok: true, data: state });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro ao consolidar lote.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("scope-import/consolidate", error, "Erro ao consolidar lote.");
   }
 }

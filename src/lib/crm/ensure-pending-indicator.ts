@@ -34,15 +34,20 @@ export async function ensurePendingIndicator(input: {
 
   if (!createdIndicator) return { created: false, nome: normalizedName };
 
-  const { data: adminUsers } = await input.supabase.from("app_users").select("id").eq("role", "admin");
+  // crm_in_app_notifications.user_id é o id de login (auth), não app_users.id.
+  const { data: adminUsers } = await input.supabase
+    .from("app_users")
+    .select("id, auth_user_id")
+    .eq("role", "admin")
+    .not("auth_user_id", "is", null);
   if (adminUsers && adminUsers.length > 0) {
     const originado_por = actorFromAppUserRow(input.actor ?? null);
     const preview = input.previewSuffix
       ? `${createdIndicator.nome} · ${input.previewSuffix}`
       : createdIndicator.nome;
-    await input.supabase.from("crm_in_app_notifications").insert(
+    const { error: notifyError } = await input.supabase.from("crm_in_app_notifications").insert(
       adminUsers.map((admin) => ({
-        user_id: admin.id,
+        user_id: admin.auth_user_id as string,
         tipo: "indicator_pending_approval",
         payload: {
           title: "Novo indicador pendente de aprovação",
@@ -52,6 +57,7 @@ export async function ensurePendingIndicator(input: {
         },
       })),
     );
+    if (notifyError) console.warn("[indicadores] aviso de aprovação não gravado:", notifyError.message);
   }
 
   return { created: true, nome: createdIndicator.nome };

@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createExternalServiceClient } from "@/lib/supabase/external-service-client";
 import { isOwnLawFirmRoot } from "@/lib/contract-import/constants";
 import {
   buildSioeRateioSnapshot,
@@ -22,9 +23,7 @@ function sioeKey(): string | null {
 function sioeClient(): SupabaseClient | null {
   const key = sioeKey();
   if (!key) return null;
-  return createClient(sioeUrl(), key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return createExternalServiceClient(sioeUrl(), key);
 }
 
 function formatCnpj(digits: string): string {

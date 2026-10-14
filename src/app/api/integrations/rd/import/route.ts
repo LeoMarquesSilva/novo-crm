@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { internalErrorResponse } from "@/lib/http/api-errors";
 import { z } from "zod";
 import { requireAdminApi } from "@/lib/auth/server";
 import { runRdFullImport } from "@/lib/crm/rd-import-run";
@@ -41,9 +42,6 @@ export async function POST(request: Request) {
       records: result.records,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Falha inesperada no import RD.";
-
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("rd/import", error, "Falha inesperada no import RD.");
   }
 }

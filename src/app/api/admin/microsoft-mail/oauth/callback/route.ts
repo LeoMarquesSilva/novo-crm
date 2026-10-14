@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { logServerError } from "@/lib/http/api-errors";
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -14,6 +15,16 @@ import {
 const STATE_COOKIE = "ms_mail_oauth_state";
 const OAUTH_ROW_ID = "default";
 
+/** Motivo curto na URL; o detalhe do Azure/Graph/banco fica só no log do servidor. */
+function errorRedirect(reason: "denied" | "state" | "exchange" | "persist"): NextResponse {
+  return NextResponse.redirect(
+    new URL(
+      `/crm/admin/integracoes?tab=email&email_oauth=error&reason=${reason}`,
+      getPublicAppBaseUrl(),
+    ),
+  );
+}
+
 export async function GET(request: Request) {
   const auth = await requireAdminApi();
   if (!auth.ok) return auth.response;
@@ -22,13 +33,8 @@ export async function GET(request: Request) {
   const err = url.searchParams.get("error");
   const desc = url.searchParams.get("error_description");
   if (err) {
-    const msg = desc ? `${err}: ${decodeURIComponent(desc)}` : err;
-    return NextResponse.redirect(
-      new URL(
-        `/crm/admin/integracoes?tab=email&email_oauth=error&message=${encodeURIComponent(msg)}`,
-        getPublicAppBaseUrl(),
-      ),
-    );
+    logServerError("microsoft-mail/oauth", new Error(desc ? `${err}: ${desc}` : err));
+    return errorRedirect("denied");
   }
 
   const code = url.searchParams.get("code");
@@ -38,12 +44,7 @@ export async function GET(request: Request) {
   jar.delete(STATE_COOKIE);
 
   if (!code || !state || !expected || state !== expected) {
-    return NextResponse.redirect(
-      new URL(
-        `/crm/admin/integracoes?tab=email&email_oauth=error&message=${encodeURIComponent("Estado OAuth inválido ou expirado. Tente novamente.")}`,
-        getPublicAppBaseUrl(),
-      ),
-    );
+    return errorRedirect("state");
   }
 
   const redirectUri = getMicrosoftMailOAuthCallbackUrl();
@@ -64,21 +65,12 @@ export async function GET(request: Request) {
     );
 
     if (error) {
-      return NextResponse.redirect(
-        new URL(
-          `/crm/admin/integracoes?tab=email&email_oauth=error&message=${encodeURIComponent(error.message)}`,
-          getPublicAppBaseUrl(),
-        ),
-      );
+      logServerError("microsoft-mail/oauth/persist", error);
+      return errorRedirect("persist");
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Falha ao conectar Outlook.";
-    return NextResponse.redirect(
-      new URL(
-        `/crm/admin/integracoes?tab=email&email_oauth=error&message=${encodeURIComponent(msg)}`,
-        getPublicAppBaseUrl(),
-      ),
-    );
+    logServerError("microsoft-mail/oauth/exchange", e);
+    return errorRedirect("exchange");
   }
 
   return NextResponse.redirect(

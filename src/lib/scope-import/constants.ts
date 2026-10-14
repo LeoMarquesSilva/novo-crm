@@ -18,3 +18,9 @@ export const SCOPE_IMPORT_EXTRACTION_MAX_TOKENS = 4096;
 export const SCOPE_IMPORT_CONSOLIDATION_MAX_TOKENS = 8192;
 
 export const SCOPE_IMPORT_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Prazo de cada chamada à OpenAI (extração); o SDK tenta de novo 1x em 408/429/5xx. */
+export const OPENAI_TIMEOUT_MS = 50_000;
+/** Consolidação gera mais texto: prazo maior, ainda abaixo do maxDuration (300 s) da rota. */
+export const OPENAI_CONSOLIDATION_TIMEOUT_MS = 120_000;
+export const OPENAI_MAX_RETRIES = 1;

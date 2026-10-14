@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { documentErrorMessage, internalErrorResponse, logServerError } from "@/lib/http/api-errors";
 import { requireAdminApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { loadProposalCatalogAdmin } from "@/lib/crm/proposal-catalog-db";
@@ -123,7 +124,8 @@ export async function POST(
         })
         .eq("id", doc.id);
     } catch (docError) {
-      const message = docError instanceof Error ? docError.message : "Erro ao processar documento.";
+      logServerError("scope-import/process", docError, { documentId: doc.id });
+      const message = documentErrorMessage(docError, "Erro ao processar documento.");
       await supabase
         .from("scope_import_documents")
         .update({
@@ -153,7 +155,6 @@ export async function POST(
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro ao processar lote.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("scope-import/process", error, "Erro ao processar lote.");
   }
 }
