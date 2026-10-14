@@ -32,7 +32,7 @@ export default async function PerfilPage() {
       <CrmPageHeader
         eyebrow="Conta"
         title="Meu perfil"
-        description="Atualize o nome, a área e a foto usados no CRM. O papel de acesso só pode ser alterado por um administrador."
+        description="Atualize o nome e a foto usados no CRM. Papel e área são definidos pelo administrador."
         icon={UserRound}
       />
 

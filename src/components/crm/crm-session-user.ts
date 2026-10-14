@@ -1,6 +1,9 @@
+import type { CrmModule } from "@/lib/auth/crm-access-policy";
 import type { Database } from "@/lib/supabase/database.types";
 
 export type CrmSessionUser = {
+  /** `app_users.id` do usuário logado. */
+  appUserId: string;
   email: string | null;
   fullName: string | null;
   avatarUrl: string | null;
@@ -12,6 +15,8 @@ export type CrmSessionUser = {
   partnerOnly: boolean;
   /** Admin ou usuário com o ICP liberado em Configurações → Usuários. */
   canAccessIcp: boolean;
+  /** Módulos/times liberados em Configurações → Usuários (admin: vazio, vê tudo). */
+  modules: CrmModule[];
 };
 
 export function initialsFromUser(fullName: string | null, email: string | null): string {

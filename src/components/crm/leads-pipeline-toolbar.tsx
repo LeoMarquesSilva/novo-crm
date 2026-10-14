@@ -124,7 +124,8 @@ interface LeadsPipelineToolbarProps {
   owners: Array<{ id: string; name: string; email: string; avatarUrl: string | null }>;
   situation: SituationFilter;
   onSituationChange: (value: SituationFilter) => void;
-  onNovoCadastro: () => void;
+  /** Ausente quando o perfil não pode criar leads (botão some). */
+  onNovoCadastro?: () => void;
   /** Lead escolhido na busca — mantém destaque verde no painel. */
   pinnedLeadId?: string | null;
 }
@@ -234,15 +235,17 @@ export function LeadsPipelineToolbar({
             </CrmSurfaceHeaderIcon>
             <CardTitle className={crmSurfaceHeaderTitleClass}>Filtros</CardTitle>
           </div>
-          <Button
-            variant="default"
-            size="control"
-            onClick={onNovoCadastro}
-            className="shrink-0 gap-1.5 sm:min-w-[140px]"
-          >
-            <UserPlus className="h-4 w-4" aria-hidden />
-            Novo cadastro
-          </Button>
+          {onNovoCadastro ? (
+            <Button
+              variant="default"
+              size="control"
+              onClick={onNovoCadastro}
+              className="shrink-0 gap-1.5 sm:min-w-[140px]"
+            >
+              <UserPlus className="h-4 w-4" aria-hidden />
+              Novo cadastro
+            </Button>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="px-4 py-3">

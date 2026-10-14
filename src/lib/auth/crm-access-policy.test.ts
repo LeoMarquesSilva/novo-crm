@@ -209,3 +209,144 @@ describe("canAccessModule", () => {
     },
   );
 });
+describe("evaluateLeadAction", () => {
+  const roles = ["admin", "comercial", "controladoria", "financeiro"] as const;
+  const actor = (
+    role: (typeof roles)[number],
+    extra: Partial<crmAccessPolicy.CrmActor> = {},
+  ): crmAccessPolicy.CrmActor => ({
+    appUserId: "u-1",
+    role,
+    area: null,
+    email: "pessoa@bp.com.br",
+    modules: [],
+    ...extra,
+  });
+
+  it.each([
+    "lead.create",
+    "lead.close",
+    "proposal.manage",
+    "contract.edit",
+    "contract.send",
+    "contract.review.request",
+    "d4sign.ops",
+  ] as const)("%s só para admin e comercial", (action) => {
+    for (const role of roles) {
+      const allowed = crmAccessPolicy.canPerformLeadAction(actor(role), { action } as crmAccessPolicy.LeadActionInput);
+      expect(allowed, role).toBe(role === "admin" || role === "comercial");
+    }
+  });
+
+  it.each(["lead.delete", "d4sign.cancel"] as const)("%s só para admin", (action) => {
+    for (const role of roles) {
+      expect(crmAccessPolicy.canPerformLeadAction(actor(role), { action }), role).toBe(role === "admin");
+    }
+  });
+
+  it("conclui revisão: admin, comercial, área Societário (com ou sem acento) e designado", () => {
+    const input = { action: "contract.review.update", assignedToAppUserId: null } as const;
+    expect(crmAccessPolicy.canPerformLeadAction(actor("admin"), input)).toBe(true);
+    expect(crmAccessPolicy.canPerformLeadAction(actor("comercial"), input)).toBe(true);
+    expect(crmAccessPolicy.canPerformLeadAction(actor("financeiro"), input)).toBe(false);
+    expect(crmAccessPolicy.canPerformLeadAction(actor("controladoria"), input)).toBe(false);
+    expect(
+      crmAccessPolicy.canPerformLeadAction(actor("controladoria", { area: "Societário e Contratos" }), input),
+    ).toBe(true);
+    expect(
+      crmAccessPolicy.canPerformLeadAction(actor("financeiro", { area: "Societario e Contratos" }), input),
+    ).toBe(true);
+    expect(
+      crmAccessPolicy.canPerformLeadAction(actor("financeiro"), {
+        action: "contract.review.update",
+        assignedToAppUserId: "u-1",
+      }),
+    ).toBe(true);
+  });
+
+  it("lead.edit segue canPatchLeadDetail", () => {
+    const input = {
+      action: "lead.edit",
+      mutationKind: "pipeline",
+      pipelineFieldCode: "cp_escopo_detalhe_json",
+    } as const;
+    expect(crmAccessPolicy.canPerformLeadAction(actor("financeiro"), input)).toBe(false);
+    expect(crmAccessPolicy.canPerformLeadAction(actor("financeiro", { area: "Cível" }), input)).toBe(true);
+  });
+
+  describe("stage.advance", () => {
+    const lead = { createdByAppUserId: "dono", requesterEmail: "captador@bp.com.br" };
+    const advance = (from: string, to: string, channel?: string) =>
+      ({ action: "stage.advance", from, to, lead, channel }) as crmAccessPolicy.LeadActionInput;
+
+    it("etapas de venda: admin e comercial pelo caminho manual", () => {
+      expect(crmAccessPolicy.canPerformLeadAction(actor("comercial"), advance("reuniao", "confeccao_proposta"))).toBe(true);
+      expect(crmAccessPolicy.canPerformLeadAction(actor("financeiro"), advance("reuniao", "confeccao_proposta"))).toBe(false);
+    });
+
+    it("contrato elaborado → enviado só pelo diálogo de envio", () => {
+      const manual = crmAccessPolicy.evaluateLeadAction(actor("comercial"), advance("contrato_elaborado", "contrato_enviado"));
+      expect(manual).toMatchObject({ allowed: false, code: "use_dedicated_action", actionKind: "open_send_dialog" });
+      expect(
+        crmAccessPolicy.canPerformLeadAction(
+          actor("comercial"),
+          advance("contrato_elaborado", "contrato_enviado", "send_dialog"),
+        ),
+      ).toBe(true);
+    });
+
+    it("assinatura: só o sistema, com override manual de admin", () => {
+      expect(crmAccessPolicy.canPerformLeadAction(actor("admin"), advance("contrato_enviado", "contrato_assinado"))).toBe(true);
+      expect(
+        crmAccessPolicy.evaluateLeadAction(actor("comercial"), advance("contrato_enviado", "contrato_assinado")),
+      ).toMatchObject({ allowed: false, code: "forbidden" });
+    });
+
+    it("enviar cadastro: dono do lead (criador ou captador), comercial e admin", () => {
+      const submit = advance("aguardando_cadastro", "cadastro_novo_cliente", "onboarding_submit");
+      expect(crmAccessPolicy.canPerformLeadAction(actor("controladoria", { appUserId: "dono" }), submit)).toBe(true);
+      expect(
+        crmAccessPolicy.canPerformLeadAction(actor("financeiro", { email: "CAPTADOR@bp.com.br".toLowerCase() }), submit),
+      ).toBe(true);
+      expect(crmAccessPolicy.canPerformLeadAction(actor("financeiro"), submit)).toBe(false);
+      expect(crmAccessPolicy.canPerformLeadAction(actor("comercial"), submit)).toBe(true);
+    });
+
+    it("concluir cadastro: time Operações Legais e admin", () => {
+      const conclude = advance("cadastro_novo_cliente", "inclusao_faturamento", "onboarding_conclude");
+      expect(crmAccessPolicy.canPerformLeadAction(actor("comercial"), conclude)).toBe(false);
+      expect(
+        crmAccessPolicy.canPerformLeadAction(actor("controladoria", { modules: ["operacoes_legais"] }), conclude),
+      ).toBe(true);
+      expect(crmAccessPolicy.canPerformLeadAction(actor("admin"), conclude)).toBe(true);
+      expect(
+        crmAccessPolicy.evaluateLeadAction(
+          actor("controladoria", { modules: ["operacoes_legais"] }),
+          advance("cadastro_novo_cliente", "inclusao_faturamento"),
+        ),
+      ).toMatchObject({ allowed: false, code: "use_dedicated_action", actionKind: "open_ops_panel" });
+    });
+
+    it("boas-vindas só pela ativação do contrato (financeiro, controladoria, admin)", () => {
+      const activation = advance("inclusao_faturamento", "boas_vindas", "contract_activation");
+      for (const role of roles) {
+        expect(crmAccessPolicy.canPerformLeadAction(actor(role), activation), role).toBe(role !== "comercial");
+      }
+      expect(
+        crmAccessPolicy.evaluateLeadAction(actor("admin"), advance("inclusao_faturamento", "boas_vindas")),
+      ).toMatchObject({ allowed: false, code: "use_dedicated_action", actionKind: "open_contract_setup" });
+    });
+
+    it("pós-venda sem regra própria: só admin", () => {
+      expect(crmAccessPolicy.canPerformLeadAction(actor("comercial"), advance("inclusao_faturamento", "cadastro_novo_cliente"))).toBe(false);
+      expect(crmAccessPolicy.canPerformLeadAction(actor("admin"), advance("inclusao_faturamento", "cadastro_novo_cliente"))).toBe(true);
+    });
+  });
+
+  it("toCrmActor descarta papel e módulos desconhecidos", () => {
+    expect(crmAccessPolicy.toCrmActor({ appUserId: "x", role: "socio", area: null })).toBeNull();
+    expect(
+      crmAccessPolicy.toCrmActor({ appUserId: "x", role: "comercial", area: null, modules: ["icp", "outro"] })?.modules,
+    ).toEqual(["icp"]);
+  });
+});

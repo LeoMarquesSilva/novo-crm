@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAuthApi } from "@/lib/auth/server";
+import { evaluateLeadAction } from "@/lib/auth/crm-access-policy";
+import { requireCrmActorApi } from "@/lib/auth/crm-actor";
 import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import { resolvePipelineEtapaFromDbAndRd } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
 import {
@@ -43,7 +44,10 @@ import {
   CONTRACT_BILLING_BLOCKER_MESSAGE,
   type ContractTransitionBlocker,
 } from "@/modules/crm/domain/workflow-rules";
-import { loadWorkflowEvidenceBlocker } from "@/lib/crm/workflow-transition-evidence";
+import {
+  buildDedicatedActionBlocker,
+  loadWorkflowEvidenceBlocker,
+} from "@/lib/crm/workflow-transition-evidence";
 
 type OportunidadeUpdate = Database["public"]["Tables"]["oportunidades"]["Update"];
 
@@ -93,14 +97,8 @@ function normalizeToken(value: string): string {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuthApi();
+  const auth = await requireCrmActorApi();
   if (!auth.ok) return auth.response;
-  if (!auth.profile || !["admin", "comercial"].includes(auth.profile.role)) {
-    return NextResponse.json(
-      { ok: false, error: "Apenas comercial ou admin pode mover oportunidades." },
-      { status: 403 },
-    );
-  }
 
   let json: unknown;
   try {
@@ -145,8 +143,9 @@ export async function POST(request: Request) {
     ]);
 
     if (fetchError) {
+      console.error("Falha ao ler a oportunidade na transição", fetchError);
       return NextResponse.json(
-        { ok: false, error: fetchError.message },
+        { ok: false, error: "Não foi possível ler a oportunidade." },
         { status: 500 },
       );
     }
@@ -167,6 +166,32 @@ export async function POST(request: Request) {
       Boolean(reconRow?.detalhes),
       reconRow?.detalhes,
     );
+
+    const stageDecision = evaluateLeadAction(auth.actor, {
+      action: "stage.advance",
+      from: currentStage,
+      to: nextStage as OpportunityStage,
+      lead: {
+        createdByAppUserId: (row.criado_por as string | null) ?? null,
+        requesterEmail: (row.solicitante_email as string | null) ?? null,
+      },
+      channel: "manual",
+    });
+    if (!stageDecision.allowed) {
+      if (stageDecision.code === "use_dedicated_action") {
+        const blocker = buildDedicatedActionBlocker({
+          opportunityId,
+          message: stageDecision.reason,
+          actionKind: stageDecision.actionKind,
+        });
+        return NextResponse.json(
+          { ok: false, errors: [blocker.message], transitionBlocker: blocker },
+          { status: 422 },
+        );
+      }
+      return NextResponse.json({ ok: false, error: stageDecision.reason }, { status: 403 });
+    }
+
     const workflowEvidenceBlocker = await loadWorkflowEvidenceBlocker({
       supabase,
       oportunidadeId: opportunityId,

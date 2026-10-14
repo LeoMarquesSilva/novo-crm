@@ -5,7 +5,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAuthApi } from "@/lib/auth/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { enrichDocuments, pickDocumentsToEnrich } from "@/lib/d4sign/enrich-documents";
 import {
   getD4SignQuotaStatus,
@@ -20,7 +20,7 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "d4sign.ops" });
     if (!auth.ok) return auth.response;
 
     const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));

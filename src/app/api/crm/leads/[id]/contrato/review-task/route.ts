@@ -6,11 +6,19 @@
  * usuários com `area = 'Societário e Contratos'`.
  *
  * PATCH /api/crm/leads/[id]/contrato/review-task
- * Atualiza status (em_revisao | concluido) + observação.
+ * Atualiza status (em_revisao | concluido) + observação. Concluem: admin, comercial,
+ * a área Societário e Contratos e quem foi designado (`contract.review.update`).
+ * Ao concluir em `confeccao_contrato`, o lead vai para `contrato_elaborado` pelo
+ * RPC `transition_opportunity_atomic`.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { CONTRACT_REVIEW_AREA_ALIASES, evaluateLeadAction } from "@/lib/auth/crm-access-policy";
+import { forbiddenResponse, requireCrmActorApi, requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { requireAuthApi } from "@/lib/auth/server";
+import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
+import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { internalErrorResponse, logServerError } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
 import { loadDefaultContratoTemplate } from "@/lib/crm/proposta-document-data";
@@ -33,14 +41,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "contract.review.request" });
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
-      return NextResponse.json(
-        { ok: false, error: "Apenas comercial ou admin pode definir prazo de revisão." },
-        { status: 403 },
-      );
-    }
 
     const parsed = upsertSchema.safeParse(await request.json().catch(() => ({})));
     if (!parsed.success) {
@@ -123,7 +125,8 @@ export async function POST(
     const { data: recipients } = await supabase
       .from("app_users")
       .select("id, auth_user_id, full_name")
-      .eq("area", "Societário e Contratos");
+      .in("area", [...CONTRACT_REVIEW_AREA_ALIASES])
+      .not("auth_user_id", "is", null);
 
     const now = new Date().toISOString();
     if (recipients && recipients.length > 0 && prazoIso) {
@@ -136,7 +139,7 @@ export async function POST(
       const requestedBy = auth.profile?.full_name ?? "Sistema";
 
       const notifications = recipients.map((u) => ({
-        user_id: u.auth_user_id,
+        user_id: u.auth_user_id as string,
         tipo: "contract_review_requested",
         payload: {
           // Campos renderizados diretamente pelo sino de notificações
@@ -163,8 +166,7 @@ export async function POST(
 
     return NextResponse.json({ ok: true, data: task });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha ao criar tarefa de revisão.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("review-task/post", error, "Falha ao criar tarefa de revisão.");
   }
 }
 
@@ -175,7 +177,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireCrmActorApi();
     if (!auth.ok) return auth.response;
 
     const parsed = patchSchema.safeParse(await request.json().catch(() => ({})));
@@ -189,6 +191,25 @@ export async function PATCH(
     const { id: rawId } = await params;
     const oportunidadeId = decodeURIComponent(rawId);
     const supabase = createSupabaseAdminClient();
+
+    const { data: currentTask, error: currentTaskError } = await supabase
+      .from("contract_review_tasks")
+      .select("id, status, assigned_to")
+      .eq("oportunidade_id", oportunidadeId)
+      .maybeSingle();
+    if (currentTaskError) throw currentTaskError;
+    if (!currentTask) {
+      return NextResponse.json(
+        { ok: false, error: "Nenhuma revisão de contrato foi solicitada para este lead." },
+        { status: 404 },
+      );
+    }
+
+    const decision = evaluateLeadAction(auth.actor, {
+      action: "contract.review.update",
+      assignedToAppUserId: currentTask.assigned_to ?? null,
+    });
+    if (!decision.allowed) return forbiddenResponse(decision);
 
     if (parsed.data.status === "concluido") {
       const hasStoredContract = await hasStoredGeneratedDocument(
@@ -233,6 +254,7 @@ export async function PATCH(
     if (error) throw error;
 
     // Ao concluir revisão → avança para Contrato Elaborado (pronto para envio D4Sign)
+    let warning: string | undefined;
     if (parsed.data.status === "concluido") {
       const { data: op } = await supabase
         .from("oportunidades")
@@ -242,26 +264,50 @@ export async function PATCH(
 
       if (op?.etapa === "confeccao_contrato") {
         const nowIso = new Date().toISOString();
-        await supabase
-          .from("oportunidades")
-          .update({ etapa: "contrato_elaborado", updated_at: nowIso })
-          .eq("id", oportunidadeId);
+        const { data: atomicRow, error: atomicError } = await supabase
+          .rpc(
+            "transition_opportunity_atomic",
+            buildAtomicTransitionRpcArgs({
+              opportunityId: oportunidadeId,
+              expectedStage: "confeccao_contrato",
+              nextStage: "contrato_elaborado",
+              changedBy: auth.profile.id,
+              update: { updated_at: nowIso },
+              leadIntake: null,
+              fieldValues: [],
+            }),
+          )
+          .single();
 
-        await supabase.from("transicoes_etapa").insert({
-          oportunidade_id: oportunidadeId,
-          etapa_origem: "confeccao_contrato",
-          etapa_destino: "contrato_elaborado",
-          alterado_por: auth.profile?.id ?? null,
-          observacao:
-            "Automático: revisão Societário e Contratos concluída — contrato liberado para envio.",
-        });
+        if (atomicError) {
+          // A revisão fica concluída mesmo se a etapa mudou no meio do caminho.
+          logServerError("review-task/advance", atomicError, { oportunidadeId });
+          warning =
+            atomicError.code === "40001"
+              ? "Revisão concluída, mas a etapa do lead mudou antes. Atualize a tela."
+              : "Revisão concluída, mas não foi possível avançar a etapa. Avance pelo kanban.";
+        } else if (atomicRow?.transition_id) {
+          await recordLeadActivityEvent(supabase, {
+            oportunidadeId,
+            kind: "etapa_alterada",
+            title: "Etapa alterada",
+            detail: "Revisão Societário e Contratos concluída — contrato liberado para envio.",
+            etapa: "contrato_elaborado",
+            actorAppUserId: auth.profile.id,
+            sourceId: `trans:${atomicRow.transition_id}`,
+            metadata: {
+              from: "confeccao_contrato",
+              to: "contrato_elaborado",
+              trigger: "contract_review_concluded",
+            },
+          });
+        }
       }
     }
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data, ...(warning ? { warning } : {}) });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha ao atualizar tarefa de revisão.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("review-task/patch", error, "Falha ao atualizar tarefa de revisão.");
   }
 }
 
@@ -288,7 +334,6 @@ export async function GET(
 
     return NextResponse.json({ ok: true, data: data ?? null });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha ao buscar tarefa de revisão.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("review-task/get", error, "Falha ao buscar tarefa de revisão.");
   }
 }

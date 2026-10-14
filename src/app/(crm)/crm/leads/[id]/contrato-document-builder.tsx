@@ -4,6 +4,8 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { useCrmActor } from "@/components/crm/crm-session-context";
+import { canPerformLeadAction } from "@/lib/auth/crm-access-policy";
 import {
   AlertCircle,
   Bell,
@@ -225,6 +227,7 @@ type ContratoState = {
     notificado_em: string | null;
     concluido_em: string | null;
     created_at: string;
+    assigned_to?: string | null;
   } | null;
   engine: CanonicalContractBuildResult | null;
   proposalSnapshot: ProposalContractSnapshot | null;
@@ -2258,10 +2261,18 @@ function ReviewTaskCard({
   onRefresh: () => Promise<void>;
 }) {
   const router = useRouter();
+  const crmActor = useCrmActor();
   const [updating, setUpdating] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
 
   if (!reviewTask) return null;
 
+  const canUpdateReview = crmActor
+    ? canPerformLeadAction(crmActor, {
+        action: "contract.review.update",
+        assignedToAppUserId: reviewTask.assigned_to ?? null,
+      })
+    : false;
   const cfg = REVIEW_STATUS_CFG[reviewTask.status];
   const prazoDate = reviewTask.prazo_revisao
     ? new Date(reviewTask.prazo_revisao)
@@ -2277,12 +2288,19 @@ function ReviewTaskCard({
 
   async function updateStatus(status: ReviewTask["status"]) {
     setUpdating(true);
+    setUpdateMessage(null);
     try {
-      await fetch(`/api/crm/leads/${encodeURIComponent(leadId)}/contrato/review-task`, {
+      const res = await fetch(`/api/crm/leads/${encodeURIComponent(leadId)}/contrato/review-task`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
+      const json = (await res.json().catch(() => null)) as { error?: string; warning?: string } | null;
+      if (!res.ok) {
+        setUpdateMessage(json?.error ?? "Não foi possível atualizar a revisão.");
+        return;
+      }
+      if (json?.warning) setUpdateMessage(json.warning);
       await onRefresh();
       router.refresh();
     } finally {
@@ -2344,8 +2362,17 @@ function ReviewTaskCard({
           </p>
         )}
 
+        {updateMessage ? (
+          <p className="rounded-(--radius-v2-md) border border-warning-border bg-warning-bg px-3 py-2 text-xs text-warning-text">
+            {updateMessage}
+          </p>
+        ) : null}
+
         {/* Ações de revisão */}
-        {reviewTask.status !== "concluido" && (
+        {reviewTask.status !== "concluido" && !canUpdateReview ? (
+          <p className="text-xs text-muted-foreground">Aguardando a área Societário e Contratos.</p>
+        ) : null}
+        {reviewTask.status !== "concluido" && canUpdateReview && (
           <div className="flex flex-wrap gap-2">
             {reviewTask.status === "pendente" && (
               <Button

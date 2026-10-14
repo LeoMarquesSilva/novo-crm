@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { buildPropostaPdf } from "@/lib/crm/proposta-pdf-builder";
 import { proposalDocxStream } from "@/lib/crm/proposta-docx-stream";
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuthApi } from "@/lib/auth/server";
 import { buildPropostaDocumentSnapshot, loadDefaultDocumentTemplate, loadDocumentTemplateById } from "@/lib/crm/proposta-document-data";
 import { proposalDraftRequestSchema, PROPOSAL_DOCX_MIME } from "@/lib/crm/proposta-render-request";
 import { readModeloPropostaTemplateBuffer, renderCanonicalProposalDocx } from "@/lib/crm/render-proposta-docx";
@@ -14,10 +14,8 @@ export const maxDuration = 60;
 /** Read-only draft: the same DOCX renderer as the official export. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "proposal.manage" });
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(auth.profile.role))
-      return NextResponse.json({ ok: false, error: "Apenas comercial ou admin pode gerar a proposta." }, { status: 403 });
     const parsed = proposalDraftRequestSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ ok: false, error: "Payload inválido." }, { status: 400 });
     const { id } = await params;

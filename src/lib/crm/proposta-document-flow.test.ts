@@ -17,6 +17,7 @@ import { PROPOSAL_DOCX_MIME } from "./proposta-render-request";
 
 vi.mock("@/lib/crm/proposta-pdf-builder", () => ({ buildPropostaPdf: vi.fn() }));
 vi.mock("@/lib/auth/server", () => ({ requireAuthApi: vi.fn() }));
+vi.mock("@/lib/auth/module-access", () => ({ listUserModules: vi.fn(async () => []) }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
 vi.mock("@/lib/crm/proposta-document-data", () => ({
   buildPropostaDocumentSnapshot: vi.fn(),
@@ -112,6 +113,7 @@ beforeEach(() => {
   vi.mocked(buildPropostaPdf).mockResolvedValue(new Uint8Array(Buffer.from("%PDF-1.7 fixture")));
   vi.mocked(requireAuthApi).mockResolvedValue({
     ok: true,
+    user: { id: "auth-1", email: "maria@bp.com.br" },
     profile: { id: "user-1", auth_user_id: "auth-1", role: "comercial", full_name: "Maria Silva", avatar_url: null, area: null },
   } as Awaited<ReturnType<typeof requireAuthApi>>);
   vi.mocked(createSupabaseAdminClient).mockReturnValue(supabase);

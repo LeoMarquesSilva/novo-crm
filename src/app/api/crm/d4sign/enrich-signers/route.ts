@@ -6,7 +6,7 @@
  * Sem body: até 9 docs pendentes sem signatários.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuthApi } from "@/lib/auth/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import {
   getD4SignQuotaStatus,
@@ -26,14 +26,8 @@ const BATCH_SIZE = 9;
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "d4sign.ops" });
     if (!auth.ok) return auth.response;
-    if (
-      !auth.profile ||
-      !["admin", "comercial"].includes(String(auth.profile.role))
-    ) {
-      return NextResponse.json({ ok: false, error: "Apenas admin/comercial." }, { status: 403 });
-    }
 
     const quotaBefore = await getD4SignQuotaStatus("documents/list");
     if (isD4SignQuotaExhausted(quotaBefore)) {

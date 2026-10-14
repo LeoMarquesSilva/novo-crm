@@ -7,8 +7,8 @@
  * ainda chega e notifica admin/comercial.
  */
 import { NextResponse } from "next/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { z } from "zod";
-import { requireAuthApi } from "@/lib/auth/server";
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { authorizeD4SignDocumentAccess } from "@/lib/d4sign/document-access";
 import { PENDING_D4SIGN_STATUSES } from "@/lib/d4sign/enrich-documents";
@@ -29,11 +29,8 @@ export async function POST(
   const access = await authorizeD4SignDocumentAccess(uuid);
   if (!access.ok) return access.response;
 
-  const auth = await requireAuthApi();
+  const auth = await requireLeadActionApi({ action: "d4sign.cancel" });
   if (!auth.ok) return auth.response;
-  if (auth.profile.role !== "admin") {
-    return NextResponse.json({ error: "Só administradores podem cancelar contratos." }, { status: 403 });
-  }
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuthApi } from "@/lib/auth/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { buildDueSharePointAgendamentoFields } from "@/modules/crm/application/services/build-due-sharepoint-agendamento-fields";
@@ -34,10 +34,10 @@ async function updateSharePointAudit(
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuthApi();
+  const auth = await requireLeadActionApi({ action: "lead.create" });
   if (!auth.ok) return auth.response;
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const parsed = newLeadPayloadSchema.safeParse(body);
 
   if (!parsed.success) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { enrichGeneratedDocumentVersions } from "@/lib/crm/generated-document-storage";
@@ -116,14 +117,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "proposal.manage" });
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
-      return NextResponse.json(
-        { ok: false, error: "Apenas comercial ou admin pode salvar documentos." },
-        { status: 403 },
-      );
-    }
 
     const json = await request.json();
     const parsed = patchSchema.parse(json);

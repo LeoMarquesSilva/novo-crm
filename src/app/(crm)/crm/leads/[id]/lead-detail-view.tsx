@@ -544,7 +544,7 @@ function LeadDetailHero({
                 <ExternalLink className="h-3.5 w-3.5" />
               </Link>
             ) : null}
-            {canManageLead && lead.isSystemCreated ? (
+            {viewer?.role === "admin" && lead.isSystemCreated ? (
               <>
                 <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
                 <LeadDeleteButton leadId={lead.id} variant="icon" />
