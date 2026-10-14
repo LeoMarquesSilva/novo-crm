@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
+import { STAGE_ACTION_LABELS } from "@/lib/crm/stage-actions";
+import type { StageActionKind } from "@/modules/crm/domain/stage-transition-rules";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
@@ -222,7 +225,7 @@ function emptyTransitionModal(
   };
 }
 
-type BoardError = { message: string; actionHref?: string };
+type BoardError = { message: string; actionHref?: string; actionLabel?: string };
 
 type PendingBoardMove = {
   itemId: string;
@@ -484,6 +487,8 @@ export function PipelineBoard({
   const [boardItems, setBoardItems] = useState<Oportunidade[]>(opportunities);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [boardError, setBoardError] = useState<BoardError | null>(null);
+  /** Lead em Contrato Elaborado cujo envio para assinatura está aberto. */
+  const [sendDialogLead, setSendDialogLead] = useState<Oportunidade | null>(null);
   const [transitionModal, setTransitionModal] = useState<TransitionModalState | null>(
     null,
   );
@@ -719,6 +724,12 @@ export function PipelineBoard({
       return;
     }
 
+    // Contrato Elaborado → Enviado: só pelo envio para assinatura (a etapa muda após o envio).
+    if (sourceStage === "contrato_elaborado" && targetStage === "contrato_enviado") {
+      setSendDialogLead(item);
+      return;
+    }
+
     applyOptimisticMove(item.id, sourceStage, targetStage);
     if (stageLikelyNeedsRequiredModal(targetStage)) {
       setModalError(null);
@@ -756,6 +767,7 @@ export function PipelineBoard({
             message: string;
             contractId?: string | null;
             actionHref: string;
+            actionKind?: StageActionKind;
           } | null;
         };
 
@@ -769,9 +781,16 @@ export function PipelineBoard({
         if (data.transitionBlocker) {
           revertPendingMove();
           setTransitionModal(null);
+          if (data.transitionBlocker.actionKind === "open_send_dialog") {
+            setSendDialogLead(item);
+            return;
+          }
           setBoardError({
             message: data.transitionBlocker.message,
             actionHref: data.transitionBlocker.actionHref,
+            ...(data.transitionBlocker.actionKind
+              ? { actionLabel: STAGE_ACTION_LABELS[data.transitionBlocker.actionKind] }
+              : {}),
           });
           return;
         }
@@ -1572,7 +1591,7 @@ export function PipelineBoard({
                 href={boardError.actionHref}
                 className={buttonVariants({ variant: "cta" })}
               >
-                Configurar contrato
+                {boardError.actionLabel ?? "Configurar contrato"}
               </Link>
             ) : null}
             <Button type="button" variant="cta" onClick={() => setBoardError(null)}>
@@ -1581,6 +1600,22 @@ export function PipelineBoard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {sendDialogLead ? (
+        <SendContractSignatureDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setSendDialogLead(null);
+          }}
+          leadId={sendDialogLead.id}
+          leadName={sendDialogLead.solicitante}
+          onSent={() => {
+            setSendDialogLead(null);
+            onDataChange?.();
+            router.refresh();
+          }}
+        />
+      ) : null}
 
       <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
         <AlertDialogContent>

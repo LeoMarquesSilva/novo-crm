@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { ensureSafeWebhookV2 } from "@/lib/d4sign/webhook-registration";
 import { assertD4SignSendEnv } from "@/lib/d4sign/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdminApi } from "@/lib/auth/server";
+import { internalErrorResponse } from "@/lib/http/api-errors";
 import { buildInitialD4SignSigners } from "@/lib/crm/sync-oportunidade-d4sign-signers";
 import { D4SignConnector } from "@/modules/crm/infrastructure/integrations/d4sign-client";
 
@@ -23,27 +24,13 @@ function isAllowedMime(mime: string): boolean {
 
 export async function POST(request: Request) {
   try {
-    const supabaseAuth = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabaseAuth.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Não autenticado." }, { status: 401 });
-    }
+    // Envio avulso (arquivo enviado à mão, um signatário): só admin. O contrato gerado no
+    // CRM vai pelo diálogo de envio (`/api/crm/leads/[id]/contrato/send-d4sign`).
+    const auth = await requireAdminApi();
+    if (!auth.ok) return auth.response;
+    const user = auth.user;
 
     const admin = createSupabaseAdminClient();
-    const { data: profile, error: profileError } = await admin
-      .from("app_users")
-      .select("role")
-      .eq("auth_user_id", user.id)
-      .maybeSingle();
-
-    if (profileError || !profile || (profile.role !== "admin" && profile.role !== "comercial")) {
-      return NextResponse.json(
-        { ok: false, error: "Apenas comercial ou admin pode enviar documentos à D4Sign." },
-        { status: 403 },
-      );
-    }
 
     const form = await request.formData();
     const opportunityId = String(form.get("opportunityId") ?? "").trim();
@@ -99,9 +86,23 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (fetchError || !row) {
+      return NextResponse.json({ ok: false, error: "Oportunidade não encontrada." }, { status: 404 });
+    }
+
+    const { data: builderContract } = await admin
+      .from("document_instances")
+      .select("id, document_templates!inner(document_type)")
+      .eq("oportunidade_id", opportunityId)
+      .eq("document_templates.document_type", "contrato")
+      .limit(1)
+      .maybeSingle();
+    if (builderContract) {
       return NextResponse.json(
-        { ok: false, error: fetchError?.message ?? "Oportunidade não encontrada." },
-        { status: 404 },
+        {
+          ok: false,
+          error: "Este lead tem contrato montado no CRM: envie pelo botão Enviar para assinatura do contrato.",
+        },
+        { status: 409 },
       );
     }
 
@@ -192,8 +193,6 @@ export async function POST(request: Request) {
       signatureLinks: result.signatureLinks,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Falha inesperada ao enviar para a D4Sign.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("integrations/d4sign/send", error, "Falha inesperada ao enviar para a D4Sign.");
   }
 }

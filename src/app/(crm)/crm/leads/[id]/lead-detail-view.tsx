@@ -566,6 +566,7 @@ function LeadDetailHero({
         }
         linkProposta={lead.linkProposta ?? null}
         linkContrato={lead.linkContrato ?? null}
+        leadName={lead.solicitante}
       />
 
       <div className="grid gap-px overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-neutral-200 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.15fr_1fr_1.25fr]">

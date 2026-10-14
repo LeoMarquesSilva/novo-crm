@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCrmSessionUser } from "@/components/crm/crm-session-context";
 
 export function LeadD4SignPanel({
   opportunityId,
@@ -16,6 +17,7 @@ export function LeadD4SignPanel({
   d4signStatus: string | null;
 }) {
   const router = useRouter();
+  const sessionUser = useCrmSessionUser();
   const [signerEmail, setSignerEmail] = useState("");
   const [signerForeign, setSignerForeign] = useState("1");
   const [message, setMessage] = useState("");
@@ -66,6 +68,21 @@ export function LeadD4SignPanel({
     } finally {
       setLoading(false);
     }
+  }
+
+  // Envio avulso (arquivo à mão) é só para admin; o contrato do CRM vai pelo
+  // botão "Enviar para assinatura" da aba Contrato.
+  if (sessionUser?.role !== "admin") {
+    return (
+      <div className="space-y-2 text-sm text-muted-foreground">
+        {d4signDocumentUuid ? (
+          <p>
+            Último documento D4Sign: <span className="font-mono text-xs">{d4signDocumentUuid}</span>
+          </p>
+        ) : null}
+        <p>O contrato é enviado para assinatura pela aba Contrato, no botão Enviar para assinatura.</p>
+      </div>
+    );
   }
 
   return (

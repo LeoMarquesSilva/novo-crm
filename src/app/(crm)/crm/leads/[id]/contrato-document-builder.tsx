@@ -2,9 +2,10 @@
 
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCrmActor } from "@/components/crm/crm-session-context";
+import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
 import { canPerformLeadAction } from "@/lib/auth/crm-access-policy";
 import {
   AlertCircle,
@@ -1520,22 +1521,6 @@ const D4SIGN_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   "4":        { label: "Cancelado",               color: "text-rose-700 bg-rose-50 border-rose-200" },
 };
 
-type FirmSignerRow = {
-  email: string;
-  name: string;
-  oab: string;
-  foreign: "0" | "1";
-};
-
-type ContratanteSignerRow = {
-  /** id local apenas para a chave do React */
-  id: string;
-  name: string;
-  email: string;
-  /** "0" = CPF brasileiro, "1" = estrangeiro / sem CPF */
-  foreign: "0" | "1";
-};
-
 function D4SignSendSection({
   lead,
   pending,
@@ -1561,126 +1546,13 @@ function D4SignSendSection({
     reviewTask,
     pendingFieldCount: pending.length,
   });
-  const formLocked = !isSigned && !reviewApproved;
 
-  // ── Firm signers (CONTRATADA) — vindos do servidor ─────────────────────
-  const [firmSigners, setFirmSigners] = useState<FirmSignerRow[]>([]);
-  const [includeFirmSigners, setIncludeFirmSigners] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const res = await fetch("/api/crm/d4sign/firm-signers", { cache: "no-store" });
-        const json = (await res.json()) as { ok?: boolean; data?: FirmSignerRow[] };
-        if (active && res.ok && json.ok && Array.isArray(json.data)) {
-          setFirmSigners(json.data);
-        }
-      } catch {
-        /* mantém vazio */
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // ── CONTRATANTE signers (cliente) — pré-preenchido com ponto focal do lead ─
-  const [contratantes, setContratantes] = useState<ContratanteSignerRow[]>(() => {
-    const focalNome = lead.pipelineFields.find((f) => f.fieldCode === "cp_nome_focal")?.value ?? "";
-    const focalEmail = lead.pipelineFields.find((f) => f.fieldCode === "cp_email_focal")?.value ?? "";
-    return [
-      {
-        id: `c-${Math.random().toString(36).slice(2, 8)}`,
-        name: focalNome,
-        email: focalEmail,
-        foreign: "0",
-      },
-    ];
-  });
-
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  // `?tab=contract&send=1` (link "Enviar para assinatura" do kanban/ficha) já abre o envio.
+  const [sendDialogOpen, setSendDialogOpen] = useState(() => searchParams.get("send") === "1");
   const [sendResult, setSendResult] = useState<{ linkContrato: string | null; documentUuid: string } | null>(null);
 
   const statusInfo = lead.d4signStatus ? (D4SIGN_STATUS_LABELS[lead.d4signStatus] ?? null) : null;
-
-  function addContratante() {
-    setContratantes((prev) => [
-      ...prev,
-      { id: `c-${Math.random().toString(36).slice(2, 8)}`, name: "", email: "", foreign: "0" },
-    ]);
-  }
-  function removeContratante(id: string) {
-    setContratantes((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.id !== id)));
-  }
-  function updateContratante(id: string, patch: Partial<ContratanteSignerRow>) {
-    setContratantes((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  }
-
-  async function handleSend() {
-    if (!canSend) {
-      setSendError(reviewBlockReason ?? "Revisão do contrato pendente.");
-      return;
-    }
-    // Valida CONTRATANTE
-    const cleaned = contratantes
-      .map((r) => ({ ...r, email: r.email.trim() }))
-      .filter((r) => r.email.length > 0);
-    if (cleaned.length === 0) {
-      setSendError("Informe pelo menos um signatário CONTRATANTE.");
-      return;
-    }
-    const invalid = cleaned.find((r) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email));
-    if (invalid) {
-      setSendError(`E-mail inválido: ${invalid.email}`);
-      return;
-    }
-    // Valida que pelo menos um signatário existe (firma OU cliente)
-    if (!includeFirmSigners && cleaned.length === 0) {
-      setSendError("Inclua pelo menos um signatário (firma ou cliente).");
-      return;
-    }
-
-    setSending(true);
-    setSendError(null);
-    try {
-      const res = await fetch(
-        `/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/send-d4sign`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            includeFirmSigners,
-            signers: cleaned.map((r) => ({
-              email: r.email,
-              foreign: r.foreign,
-              role: "CONTRATANTE",
-              ...(r.name.trim() ? { name: r.name.trim() } : {}),
-            })),
-            message: message.trim() || undefined,
-          }),
-        },
-      );
-      const json = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        documentUuid?: string;
-        linkContrato?: string | null;
-      };
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error ?? `Erro ${res.status}`);
-      }
-      setSendResult({ linkContrato: json.linkContrato ?? null, documentUuid: json.documentUuid ?? "" });
-      await onRefresh();
-      router.refresh();
-    } catch (e) {
-      setSendError(e instanceof Error ? e.message : "Erro ao enviar para D4Sign.");
-    } finally {
-      setSending(false);
-    }
-  }
 
   return (
     <div className="overflow-hidden rounded-(--radius-v2-xl) border border-border bg-white">
@@ -1820,203 +1692,39 @@ function D4SignSendSection({
           </div>
         )}
 
-        {/* Formulário de envio */}
+        {/* Envio: diálogo com sócios já preenchidos e e-mails do cliente */}
         {!isSigned && (
-          <div className="space-y-4">
-            {/* ── CONTRATADA (sócios da firma) ─────────────────────────── */}
-            <div
-              className={cn(
-                "rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-3.5",
-                formLocked && "opacity-60",
-              )}
-            >
-              <div className="mb-2.5 flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
-                    CONTRATADA · sócios administradores
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    Assinam todo contrato em nome de Bismarchi | Pires.
-                  </p>
-                </div>
-                <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-[10px] font-medium text-foreground">
-                  <input
-                    type="checkbox"
-                    checked={includeFirmSigners}
-                    onChange={(e) => setIncludeFirmSigners(e.target.checked)}
-                    disabled={sending || formLocked}
-                    className="size-3.5 rounded-(--radius-v2-sm) border-border text-interactive-600"
-                  />
-                  Incluir
-                </label>
-              </div>
-              {firmSigners.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Carregando signatários da firma…</p>
-              ) : (
-                <ul className={cn("space-y-1.5", !includeFirmSigners && "opacity-50")}>
-                  {firmSigners.map((s) => (
-                    <li
-                      key={s.email}
-                      className="flex items-center gap-2.5 rounded-(--radius-v2-md) border border-border bg-white px-3 py-2"
-                    >
-                      <span className="flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-full) bg-interactive-50 text-[10px] font-semibold text-interactive-700">
-                        {s.name
-                          .split(/\s+/)
-                          .map((p) => p[0])
-                          .filter(Boolean)
-                          .slice(0, 2)
-                          .join("")
-                          .toUpperCase()}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold text-foreground">{s.name}</p>
-                        <p className="truncate text-[10px] text-muted-foreground">
-                          {s.email}
-                          {s.oab ? <span className="ml-2 text-interactive-700">· {s.oab}</span> : null}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* ── CONTRATANTE (cliente) ────────────────────────────────── */}
-            <div
-              className={cn(
-                "rounded-xl border border-amber-200 bg-amber-50/40 p-3.5",
-                formLocked && "opacity-60",
-              )}
-            >
-              <div className="mb-2.5 flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-800">
-                    CONTRATANTE · cliente
-                  </p>
-                  <p className="text-[10px] text-amber-900/60">
-                    {lead.pipelineFields.some((f) => f.fieldCode === "cp_email_focal" && f.value)
-                      ? "Pré-preenchido com o ponto focal do lead — edite se necessário."
-                      : "Informe o e-mail de quem assina pelo cliente. Adicione mais de um se necessário."}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-7 gap-1 px-2 text-[11px] font-semibold"
-                  onClick={addContratante}
-                  disabled={sending || formLocked}
-                >
-                  <Plus className="size-3" aria-hidden />
-                  Adicionar
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {contratantes.map((row, idx) => (
-                  <div
-                    key={row.id}
-                    className="rounded-lg border border-amber-200 bg-white px-2.5 py-2 space-y-1.5"
-                  >
-                    {/* Linha: número + nome + botão remover */}
-                    <div className="flex items-center gap-2">
-                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-black text-amber-700">
-                        {idx + 1}
-                      </span>
-                      <Input
-                        type="text"
-                        value={row.name}
-                        onChange={(e) => updateContratante(row.id, { name: e.target.value })}
-                        disabled={sending || formLocked}
-                        placeholder="Nome completo do signatário"
-                        className="h-8 flex-1 border-slate-200 bg-white text-xs"
-                      />
-                      {contratantes.length > 1 ? (
-                        <button
-                          type="button"
-                          onClick={() => removeContratante(row.id)}
-                          disabled={sending || formLocked}
-                          className="flex size-7 shrink-0 items-center justify-center rounded border border-rose-200 text-rose-500 hover:border-rose-300 hover:bg-rose-50 disabled:opacity-30"
-                          aria-label="Remover"
-                        >
-                          <X className="size-3.5" aria-hidden />
-                        </button>
-                      ) : null}
-                    </div>
-                    {/* Linha: email + tipo documento */}
-                    <div className="flex items-center gap-2 pl-8">
-                      <Input
-                        type="email"
-                        value={row.email}
-                        onChange={(e) => updateContratante(row.id, { email: e.target.value })}
-                        disabled={sending || formLocked}
-                        placeholder="email@empresa.com"
-                        className="h-8 flex-1 border-slate-200 bg-white text-xs"
-                      />
-                      <Select
-                        value={row.foreign}
-                        onValueChange={(v) => {
-                          if (v === "0" || v === "1") updateContratante(row.id, { foreign: v });
-                        }}
-                        disabled={sending || formLocked}
-                      >
-                        <SelectTrigger className="h-8 w-[88px] border-slate-200 bg-white text-[11px]">
-                          <span>{row.foreign === "0" ? "CPF BR" : "Sem CPF"}</span>
-                        </SelectTrigger>
-                        <CrmSelectContent className="max-h-[min(280px,50dvh)]">
-                          <CrmSelectItem value="0">CPF brasileiro</CrmSelectItem>
-                          <CrmSelectItem value="1">Sem CPF / estrangeiro</CrmSelectItem>
-                        </CrmSelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Mensagem opcional ────────────────────────────────────── */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">
-                Mensagem (opcional)
-              </Label>
-              <Input
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                disabled={sending || formLocked}
-                placeholder="Mensagem que vai no e-mail da D4Sign…"
-                className="h-10 border-slate-200 bg-white text-sm"
-              />
-            </div>
-
-            {sendError && (
-              <p className="text-xs font-semibold text-rose-600">{sendError}</p>
-            )}
-
+          <div className="space-y-2">
             <Button
               type="button"
               variant="primary"
               size="sm"
               className="h-10 w-full gap-2 text-sm font-bold"
-              disabled={sending || !canSend}
-              onClick={() => void handleSend()}
+              disabled={!canSend}
+              onClick={() => setSendDialogOpen(true)}
             >
-              {sending ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : (
-                <Send className="size-4" aria-hidden />
-              )}
-              {sending
-                ? "Gerando e enviando…"
-                : alreadySent
-                  ? "Reenviar para assinatura"
-                  : "Enviar para assinatura D4Sign"}
+              <Send className="size-4" aria-hidden />
+              {alreadySent ? "Reenviar para assinatura" : "Enviar para assinatura"}
             </Button>
-            <p className="text-[10px] text-muted-foreground text-center">
-              O contrato será gerado automaticamente e enviado para todos os signatários listados.
-              {alreadySent ? " Um novo envio substituirá o documento anterior." : ""}
+            <p className="text-center text-[10px] text-muted-foreground">
+              Você confere os e-mails dos signatários antes de enviar. O lead vai para Contrato Enviado e, quando
+              todos assinarem, segue sozinho para Contrato Assinado.
             </p>
           </div>
         )}
       </div>
+
+      <SendContractSignatureDialog
+        open={sendDialogOpen}
+        onOpenChange={setSendDialogOpen}
+        leadId={lead.id}
+        leadName={lead.solicitante}
+        onSent={(result) => {
+          setSendResult(result);
+          void onRefresh();
+          router.refresh();
+        }}
+      />
 
       {/* View dialog — visualizar PDF do contrato */}
       {lead.d4signDocumentUuid ? (
