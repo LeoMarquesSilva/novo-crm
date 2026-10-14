@@ -19,7 +19,8 @@ type AtomicTransitionInput = {
   opportunityId: string;
   expectedStage: OpportunityStage;
   nextStage: OpportunityStage;
-  changedBy: string;
+  /** app_users.id de quem moveu; null quando é automático (assinatura, sistema). */
+  changedBy: string | null;
   update: AtomicTransitionUpdate;
   leadIntake: {
     local_reuniao: string;

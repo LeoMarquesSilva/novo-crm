@@ -561,7 +561,7 @@ function LeadDetailHero({
         hasDueDiligence={lead.haveraDueDiligence}
         timeline={lead.lifecycleTimeline}
         canAdvance={
-          lead.encerramento == null &&
+          lead.encerramento !== "perdido" &&
           Boolean(viewer && ["admin", "comercial"].includes(viewer.role))
         }
         linkProposta={lead.linkProposta ?? null}

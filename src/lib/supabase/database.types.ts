@@ -3998,7 +3998,7 @@ export type Database = {
       }
       transition_opportunity_atomic: {
         Args: {
-          p_changed_by: string
+          p_changed_by: string | null
           p_due_compilacao_entrada_em: string | null
           p_due_revisao_entrada_em: string | null
           p_due_revision_cycle: number | null

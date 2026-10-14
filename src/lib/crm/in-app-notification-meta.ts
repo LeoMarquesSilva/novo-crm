@@ -56,6 +56,7 @@ export const CRM_IN_APP_NOTIFICATION_TIPO_LABELS: Record<string, string> = {
   contrato_renovacao_pendente:    "Contrato — renovação pendente",
   contrato_excedente_sem_preco:   "Contrato — excedente sem preço",
   venda_fechada:                  "Venda fechada",
+  cadastro_cliente_solicitado:    "Preencher cadastro do cliente",
   cadastro_cliente_pendente:      "Cadastro de cliente pendente",
   cadastro_cliente_devolvido:     "Cadastro devolvido para ajuste",
   cadastro_cliente_concluido:     "Cadastro de cliente concluído",
@@ -66,6 +67,7 @@ export const CRM_IN_APP_NOTIFICATION_TIPO_LABELS: Record<string, string> = {
 /** Tipos do fluxo de pós-venda (aba "Pós-venda" do sino). */
 export const POST_SALE_NOTIFICATION_TIPOS = new Set<string>([
   "venda_fechada",
+  "cadastro_cliente_solicitado",
   "cadastro_cliente_pendente",
   "cadastro_cliente_devolvido",
   "cadastro_cliente_concluido",

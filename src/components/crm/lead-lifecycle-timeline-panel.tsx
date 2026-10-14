@@ -51,6 +51,12 @@ const ACTIVITY_KIND_META: Record<
   contrato_enviado: { icon: Send, tone: "bg-info-bg text-info-text", label: "Contrato" },
   contrato_assinado: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Contrato" },
   proposta_escopo_solicitado: { icon: Send, tone: "bg-warning-bg text-warning-text", label: "Proposta" },
+  venda_fechada: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Venda" },
+  cadastro_cliente_enviado: { icon: Send, tone: "bg-info-bg text-info-text", label: "Cadastro" },
+  cadastro_cliente_devolvido: { icon: RotateCcw, tone: "bg-warning-bg text-warning-text", label: "Cadastro" },
+  cadastro_cliente_concluido: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Cadastro" },
+  contrato_incluido_gestao: { icon: ListChecks, tone: "bg-info-bg text-info-text", label: "Faturamento" },
+  contrato_ativado: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Faturamento" },
 };
 
 export function LeadLifecycleTimelinePanel({ timeline }: LeadLifecycleTimelinePanelProps) {

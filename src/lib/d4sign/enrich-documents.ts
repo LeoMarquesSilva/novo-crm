@@ -1,6 +1,7 @@
 /**
  * Enriquecimento de signatários D4Sign — compartilhado entre API manual e cron.
  */
+import { completeSignedContract } from "@/lib/crm/post-signature/complete-signed-contract";
 import {
   getD4SignQuotaStatus,
   isD4SignQuotaExhausted,
@@ -274,16 +275,31 @@ export async function enrichDocuments(
 
       const oportunidadeId = await getOportunidadeIdByDocumentUuid(row.uuid_doc);
       if (oportunidadeId) {
-        await syncOportunidadeFromD4SignSigners(
+        const synced = await syncOportunidadeFromD4SignSigners(
           supabase,
           oportunidadeId,
           signers as PersistedD4SignSigner[],
-          {
-            d4signStatus: newStatus,
-            nowIso,
-            advanceStageIfAllSigned: true,
-          },
+          { d4signStatus: newStatus, nowIso, documentUuid: row.uuid_doc },
         );
+        if (synced.applied && (newStatus === "1" || synced.allSigned)) {
+          // Mesmo caminho do webhook: lead assinado, venda encerrada, pós-venda e avisos.
+          try {
+            await completeSignedContract({
+              supabase,
+              opportunityId: oportunidadeId,
+              documentUuid: row.uuid_doc,
+              signers: synced.merged,
+              signedAt: finalizedAt ?? nowIso,
+              source: "sync",
+              documentName: row.name_document ?? detail.name_document ?? null,
+            });
+          } catch (completionError) {
+            console.warn(
+              `[D4Sign enrich] conclusão da assinatura de ${row.uuid_doc} falhou:`,
+              completionError instanceof Error ? completionError.message : completionError,
+            );
+          }
+        }
       }
 
       enriched += 1;
