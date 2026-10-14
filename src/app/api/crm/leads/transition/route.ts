@@ -34,8 +34,9 @@ import {
   syncDueAreaReviewTasksForOpportunity,
   syncDueAreaTasksForOpportunity,
 } from "@/lib/crm/due-area-tasks";
-import { actorFromAppUserRow, buildContractInAppNotification } from "@/lib/crm/in-app-notification-meta";
+import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { onEnteredInclusaoFaturamento } from "@/lib/crm/post-sale/on-enter-inclusao-faturamento";
 import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
 import { transitionOpportunity } from "@/modules/crm/application/services/transition-opportunity";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
@@ -736,52 +737,10 @@ export async function POST(request: Request) {
     const originadoPor = actorFromAppUserRow(auth.profile);
 
     if (nextStage === "inclusao_faturamento") {
-      const { data: contract } = await supabase
-        .from("contratos")
-        .select("id, titulo")
-        .eq("oportunidade_id", opportunityId)
-        .maybeSingle();
-      if (contract) {
-        const idempotencyKey = `contract-setup:${contract.id}`;
-        const { data: operational } = await supabase
-          .from("contrato_responsaveis")
-          .select("app_user_id")
-          .eq("contrato_id", contract.id)
-          .or("papel.ilike.%operacional%,papel.ilike.%faturamento%")
-          .not("app_user_id", "is", null)
-          .limit(1)
-          .maybeSingle();
-        let { data: notificationUsers } = operational?.app_user_id
-          ? await supabase.from("app_users").select("id, auth_user_id").eq("id", operational.app_user_id).not("auth_user_id", "is", null)
-          : { data: null };
-        if (!notificationUsers?.length) {
-          const fallback = await supabase.from("app_users").select("id, auth_user_id").in("role", ["controladoria", "admin"]).not("auth_user_id", "is", null);
-          notificationUsers = fallback.data;
-        }
-        const assigneeId = notificationUsers?.[0]?.id ?? null;
-        await supabase.from("contrato_alertas").upsert({
-          contrato_id: contract.id,
-          tipo: "contrato_implantacao_pendente",
-          data_base: new Date().toISOString().slice(0, 10),
-          data_vencimento: new Date().toISOString().slice(0, 10),
-          responsavel_app_user_id: assigneeId,
-          idempotency_key: idempotencyKey,
-        }, { onConflict: "idempotency_key", ignoreDuplicates: true });
-        if (notificationUsers?.length) {
-          await supabase.from("crm_in_app_notifications").upsert(
-            notificationUsers.flatMap((user) => user.auth_user_id ? [buildContractInAppNotification({
-              userId: user.auth_user_id,
-              tipo: "contrato_implantacao_pendente",
-              idempotencyKey,
-              contractId: contract.id,
-              title: contract.titulo,
-              preview: "Implantação financeira pendente.",
-              originadoPor,
-            })] : []),
-            { onConflict: "user_id,idempotency_key", ignoreDuplicates: true },
-          );
-        }
-      }
+      await onEnteredInclusaoFaturamento(supabase, {
+        opportunityId,
+        leadName: (row.solicitante_nome as string | null) ?? null,
+      });
     }
 
     if (nextStage === "confeccao_proposta" && pipeline === "vendas") {

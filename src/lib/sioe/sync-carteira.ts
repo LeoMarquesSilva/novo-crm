@@ -353,7 +353,7 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
         (sioeId && bySioe.get(sioeId)) ||
         (doc && byDoc.get(doc));
       if (existingId) {
-        updates.push({ id: existingId, patch: row });
+        updates.push({ id: existingId, patch: buildClienteSyncPatch(row) });
       } else {
         inserts.push({ ...row, created_at: now });
       }
@@ -406,4 +406,24 @@ export async function syncCarteiraGrupos(supabase: SupabaseClient<Database>): Pr
     titlesLinked: titleRows.length,
     syncedAt: now,
   };
+}
+
+/** Campos que o sync só sobrescreve quando o OrquestrAI manda valor. */
+const KEEP_WHEN_EMPTY = ["grupo_id", "email_principal", "telefone_principal", "cidade", "uf"] as const;
+
+/**
+ * Patch de cliente já existente: valor vazio vindo do OrquestrAI não apaga o que o CRM
+ * gravou (ex.: vínculo de grupo e contato definidos no cadastro de novo cliente).
+ */
+export function buildClienteSyncPatch(
+  row: Database["public"]["Tables"]["clientes"]["Update"],
+): Database["public"]["Tables"]["clientes"]["Update"] {
+  const patch: Record<string, unknown> = { ...row };
+  for (const key of KEEP_WHEN_EMPTY) {
+    const value = patch[key];
+    if (value === null || value === undefined || (typeof value === "string" && !value.trim())) {
+      delete patch[key];
+    }
+  }
+  return patch as Database["public"]["Tables"]["clientes"]["Update"];
 }

@@ -3856,6 +3856,27 @@ export type Database = {
         Args: { p_opportunity_id: string }
         Returns: boolean
       }
+      conclude_client_onboarding_atomic: {
+        Args: {
+          p_actor: string | null
+          p_checklist: Json
+          p_cliente: Json
+          p_cliente_id: string | null
+          p_contatos: Json
+          p_grupo_chave: string | null
+          p_grupo_id: string | null
+          p_grupo_nome: string | null
+          p_now: string
+          p_opportunity_id: string
+          p_vios_referencia: string | null
+        }
+        Returns: {
+          cliente_id: string
+          contract_id: string
+          grupo_id: string
+          transition_id: string
+        }[]
+      }
       complete_contract_signature_atomic: {
         Args: {
           p_actor: string | null
@@ -3994,6 +4015,28 @@ export type Database = {
         Returns: {
           stage: Database["public"]["Enums"]["opportunity_stage"]
           transition_id: string | null
+        }[]
+      }
+      return_client_onboarding_atomic: {
+        Args: {
+          p_actor: string | null
+          p_comment: string
+          p_now: string
+          p_opportunity_id: string
+        }
+        Returns: string
+      }
+      submit_client_onboarding_atomic: {
+        Args: {
+          p_actor: string | null
+          p_now: string
+          p_opportunity_id: string
+          p_payload: Json
+          p_schema_version: number
+        }
+        Returns: {
+          submission_count: number
+          transition_id: string
         }[]
       }
       transition_opportunity_atomic: {

@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { useLeadDetailRealtime } from "@/lib/crm/use-lead-detail-realtime";
 import type { LeadDetailData, LeadDetailViewer } from "./page";
 import { LeadD4SignPanel } from "./lead-d4sign-panel";
+import { ClientOnboardingTab } from "./client-onboarding/client-onboarding-tab";
 import { LeadClosingStatusButton } from "./lead-closing-status-button";
 import { LeadDeleteButton } from "./lead-delete-button";
 import {
@@ -104,6 +105,12 @@ export function LeadDetailView({
   ].includes(lead.etapa);
   const showBillingTab = ["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(lead.etapa);
   const isRdLead = Boolean(lead.rdDealId || lead.rdDealUrl || lead.filledFields.length > 0);
+  const isOnboardingStage = ["aguardando_cadastro", "cadastro_novo_cliente"].includes(lead.etapa);
+  const showOnboardingTab =
+    !isRdLead &&
+    ["aguardando_cadastro", "cadastro_novo_cliente", "inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(
+      lead.etapa,
+    );
   const intakeLeadType = lead.intakeFields.find((field) => field.key === "tipo_lead")?.value?.trim();
   const leadTypeDisplay = leadTypeLabel(intakeLeadType) || lead.tipo.replace(/_/g, " ");
   const isCrossSellingLead = normalizeLeadType(leadTypeDisplay).includes("crossselling");
@@ -144,6 +151,9 @@ export function LeadDetailView({
     isContractStage,
     showBilling: showBillingTab,
     isRdLead,
+    showOnboarding: showOnboardingTab,
+    isOnboardingStage,
+    isBillingStage: lead.etapa === "inclusao_faturamento",
   });
 
   const handleTabChange = (tab: LeadDetailTab) => {
@@ -186,6 +196,11 @@ export function LeadDetailView({
                 {isContractStage ? (
                   <TabsTrigger value="contract" className="h-10 px-3 text-sm font-medium">
                     Contrato
+                  </TabsTrigger>
+                ) : null}
+                {showOnboardingTab ? (
+                  <TabsTrigger value="onboarding" className="h-10 px-3 text-sm font-medium">
+                    Cadastro
                   </TabsTrigger>
                 ) : null}
                 {showBillingTab ? (
@@ -285,6 +300,12 @@ export function LeadDetailView({
                     appUsersByEmail={appUsersByEmail}
                   />
                 </section>
+              </TabsContent>
+            ) : null}
+
+            {showOnboardingTab ? (
+              <TabsContent value="onboarding" className="mt-4 space-y-5">
+                <ClientOnboardingTab leadId={lead.id} />
               </TabsContent>
             ) : null}
 
