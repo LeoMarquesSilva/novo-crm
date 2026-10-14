@@ -69,7 +69,7 @@ export const INFO = {
     "Honorários pagos pelo grupo nos últimos 12 meses, pelo financeiro do VIOS (plano de contas de honorários). Só conta quem está cadastrado como cliente; reembolsos e outras receitas ficam de fora.",
   icp: "Grupos que pagaram R$ 60 mil ou mais em 12 meses (faixas A e B). São o modelo de cliente ideal.",
   margemEscritorio:
-    "Receita menos custo de entrega, dividido pela receita, somando todos os grupos que tiveram horas apontadas. Não desconta sócios, estrutura e despesas gerais.",
+    "Conta: (receita − custo de entrega) ÷ receita, somando os clientes que tiveram horas lançadas. Receita: honorários pagos em 12 meses (financeiro do VIOS). Custo de entrega: horas lançadas para o cliente (timesheet do VIOS) × custo da hora da área. Custo da hora: custo de pessoal da área no financeiro do VIOS (remuneração, encargos e benefícios) ÷ horas que a área lançou. Não entram sócios, estrutura e despesas gerais. O custo da hora ainda está em definição.",
   atraso:
     "Parcelas de honorários vencidas e não pagas até hoje, de qualquer data de vencimento, dos grupos que pagaram algo em 12 meses.",
   faixa: "Grupos classificados pelo honorário pago em 12 meses: A a partir de R$ 200 mil, B de R$ 60 a 200 mil, C de R$ 20 a 60 mil e D abaixo de R$ 20 mil.",
@@ -85,9 +85,9 @@ export const INFO = {
   horas: "Horas lançadas no timesheet do VIOS para o grupo nos últimos 12 meses.",
   receitaHora: "Receita de 12 meses dividida pelas horas apontadas. Mostra quanto rendeu cada hora de trabalho.",
   custo:
-    "Horas apontadas × custo por hora da área. O custo por hora é a folha da área (remuneração, encargos e benefícios) dividida por todas as horas que a área apontou.",
+    "Conta: horas lançadas para o cliente (timesheet do VIOS) × custo da hora da área. Custo da hora: custo de pessoal da área nos últimos 12 meses no financeiro do VIOS (remuneração, encargos e benefícios) ÷ todas as horas que a área lançou no período. Área sem custo de pessoal próprio usa a média do escritório. O critério ainda está em definição.",
   margem:
-    "(Receita − custo de entrega) ÷ receita. É margem de contribuição: não desconta sócios, estrutura e despesas gerais. Abaixo de 30% fica em âmbar.",
+    "Conta: (receita − custo de entrega) ÷ receita. Receita: honorários pagos em 12 meses (financeiro do VIOS). Custo de entrega: horas lançadas para o cliente (timesheet do VIOS) × custo da hora da área. Não desconta sócios, estrutura e despesas gerais. Cliente sem horas lançadas fica sem margem. Abaixo de 30% fica em âmbar.",
   segmento: "Macrossetor do CNAE principal da empresa de referência do grupo, no cadastro da Receita Federal.",
   receitaArea: "Honorários pagos em 12 meses, separados pelo departamento que emitiu a cobrança.",
   amplitude: "Receita mediana de 12 meses dos grupos, separados pelo número de áreas que faturaram para eles.",

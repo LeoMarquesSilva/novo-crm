@@ -2,6 +2,12 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-14 — ICP: custo por hora fora da tela e margem explicada
+
+- Carteira: saiu o bloco "Custo por hora de cada área e horas consideradas" (critério do custo da hora ainda em definição).
+- Marketing: sem `ORQESTRAI_SUPABASE_URL`/`_SERVICE_ROLE_KEY` no ambiente, o ICP calculava o resto e deixava NPS, LinkedIn, GA4 e WhatsApp vazios sem explicar. Agora o loader marca `marketingAvailable` e a aba Marketing (e o card de NPS do Resumo) avisam que falta a conexão. Em produção as duas variáveis não estão configuradas na Vercel: os syncs diários da carteira e dos colaboradores, que também usam o ORQESTRAI, não rodam desde setembro. Cache do cálculo renomeado (`crm-icp-data-v5`).
+- No lugar, nota "Como calculamos a margem" no painel de maiores, médios e menores, e os tooltips de margem, margem do escritório e custo de entrega passam a dizer a conta e a origem: receita = honorários pagos em 12 meses (financeiro do VIOS); custo de entrega = horas do timesheet × custo da hora da área; custo da hora = custo de pessoal da área (remuneração, encargos e benefícios) ÷ horas lançadas pela área.
+
 ## 2026-10-13 — ICP: tipo de contrato (plano de contas do SIOE) na Carteira
 
 - Tipo de contrato = plano de contas dos honorários pagos no SIOE em 12 meses, com o nome igual ao do SIOE e um plano por linha (sem reagrupar em recorrente/spot). Cada grupo ganha `revenueByPlan`; `planSummary` resume por plano; `src/modules/icp/domain/plano-contas.ts` só conserta acentuação.

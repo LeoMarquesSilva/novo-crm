@@ -52,7 +52,11 @@ export function ResumoTab({ data }: { data: IcpData }) {
           icon={MessageSquareHeart}
           label="NPS"
           value={data.decisor.nps != null ? String(data.decisor.nps) : "—"}
-          hint={`${data.decisor.responses} respostas; ${data.decisor.ownerResponses} de sócios ou donos`}
+          hint={
+            data.marketingAvailable === false
+              ? "sem conexão com o ORQESTRAI neste ambiente"
+              : `${data.decisor.responses} respostas; ${data.decisor.ownerResponses} de sócios ou donos`
+          }
           source={SRC.npsNota}
         />
       </KpiGroup>

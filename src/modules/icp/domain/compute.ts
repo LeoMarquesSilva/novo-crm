@@ -216,6 +216,11 @@ export interface IcpData {
   generatedAt: string;
   windowStart: string;
   windowEnd: string;
+  /**
+   * false quando o servidor não está conectado ao ORQESTRAI: NPS, LinkedIn, GA4 e WhatsApp
+   * ficam vazios e a tela avisa. Preenchido pelo loader (o cálculo não sabe de conexões).
+   */
+  marketingAvailable?: boolean;
   totals: {
     revenue12m: number;
     payingGroups: number;

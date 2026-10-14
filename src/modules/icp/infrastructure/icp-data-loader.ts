@@ -214,6 +214,8 @@ async function loadIcpData(): Promise<IcpData> {
   const today = now.toISOString().slice(0, 10);
   const sioe = requireSioeClient();
   const crm = createSupabaseAdminClient();
+  // Sem ORQESTRAI_SUPABASE_URL/_SERVICE_ROLE_KEY no ambiente, os painéis de marketing ficam vazios.
+  const orq = orqestraiClient();
 
   const [
     groupMap,
@@ -307,7 +309,7 @@ async function loadIcpData(): Promise<IcpData> {
         .order("id")
         .range(from, to)
     ),
-    loadMarketingRows(orqestraiClient(), since),
+    loadMarketingRows(orq, since),
     loadCnpjRecords(crm),
     fetchAll<ProfileRow>((from, to) =>
       crm
@@ -388,7 +390,7 @@ async function loadIcpData(): Promise<IcpData> {
     ga4ByCity.set(r.city, (ga4ByCity.get(r.city) ?? 0) + toNumber(r.sessions));
   }
 
-  return computeIcp({
+  const data = computeIcp({
     now,
     revenue,
     excludedPayers: {
@@ -428,10 +430,11 @@ async function loadIcpData(): Promise<IcpData> {
       .map((w) => ({ leadSource: w.lead_source, pipelineStage: w.pipeline_stage })),
     profiles: profileRows.map(toProfile),
   });
+  return { ...data, marketingAvailable: orq != null };
 }
 
 /** Resultado em cache por 6 horas; o botão "Recalcular" invalida a tag. */
-export const getIcpData = unstable_cache(loadIcpData, ["crm-icp-data-v4"], {
+export const getIcpData = unstable_cache(loadIcpData, ["crm-icp-data-v5"], {
   revalidate: 60 * 60 * 6,
   tags: [ICP_CACHE_TAG],
 });

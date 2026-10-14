@@ -1,7 +1,7 @@
 "use client";
 
 /** Aba Marketing: público do LinkedIn, visitas ao site, leads de WhatsApp, temas do NPS e próximos passos. */
-import { Crosshair, Globe, Lightbulb, MessageCircle, MessageSquareHeart } from "lucide-react";
+import { Crosshair, Globe, Lightbulb, MessageCircle, MessageSquareHeart, TriangleAlert } from "lucide-react";
 import type { IcpData } from "@/modules/icp/domain/compute";
 import { SRC } from "./icp-content";
 import { decimal, pct } from "./icp-format";
@@ -35,10 +35,27 @@ export function MarketingTab({ data }: { data: IcpData }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Callout icon={Lightbulb} className="rounded-(--radius-v2-xl)">
-        A região de atuação já coincide com o ICP. O público das redes e os leads que chegam, não: a audiência é de
-        advogados e o inbound traz principalmente pessoas físicas.
-      </Callout>
+      {data.marketingAvailable === false ? (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 rounded-(--radius-v2-xl) border border-warning-border bg-warning-bg px-4 py-3 text-sm leading-relaxed text-foreground"
+        >
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-text" aria-hidden />
+          <div className="min-w-0">
+            <p className="font-semibold">Dados de marketing indisponíveis neste ambiente</p>
+            <p className="mt-0.5 text-muted-foreground">
+              NPS, público do LinkedIn, visitas ao site e leads de WhatsApp vêm do ORQESTRAI, e o CRM não está conectado
+              a ele aqui. É preciso configurar a conexão (ORQESTRAI_SUPABASE_URL e ORQESTRAI_SUPABASE_SERVICE_ROLE_KEY) e
+              depois usar Recalcular.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <Callout icon={Lightbulb} className="rounded-(--radius-v2-xl)">
+          A região de atuação já coincide com o ICP. O público das redes e os leads que chegam, não: a audiência é de
+          advogados e o inbound traz principalmente pessoas físicas.
+        </Callout>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel

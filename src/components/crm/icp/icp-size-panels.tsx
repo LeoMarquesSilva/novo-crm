@@ -8,10 +8,10 @@ import { Fragment, createElement, useState } from "react";
 import {
   ArrowRight,
   Building2,
+  Calculator,
   ChartColumn,
   ChevronDown,
   Crown,
-  Lightbulb,
   ListOrdered,
   Search,
   UserRound,
@@ -321,38 +321,24 @@ export function SizeCardsPanel({
 
       {showComparison && <ComparisonTable buckets={buckets} />}
 
-      <details className="group mt-4 rounded-(--radius-v2-md) bg-surface-subtle px-4 py-3">
-        <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground">
-          <Lightbulb className="size-3.5 text-neutral-500" aria-hidden />
-          Custo por hora de cada área e horas consideradas
-          <span className="ml-auto text-xs group-open:hidden">mostrar</span>
-          <span className="ml-auto hidden text-xs group-open:inline">ocultar</span>
-        </summary>
-        <div className="mt-3 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="space-y-2 text-xs leading-relaxed text-muted-foreground">
-            <p>{INFO.custo} Áreas sem folha própria usam a média do escritório.</p>
-            <p>
-              {pct(ratio(data.delivery.clientHours, data.delivery.hours))} das {hoursLabel(data.delivery.hours)} apontadas
-              no período foram para clientes que pagaram honorários; o restante é trabalho interno, prospecção ou clientes
-              sem pagamento em 12 meses. Cliente sem hora apontada fica sem margem: honorário de êxito ou hora não lançada.
-            </p>
-          </div>
-          <ul className="space-y-1.5">
-            {data.delivery.rates.map((r) => (
-              <li key={r.area} className="flex items-center justify-between gap-3 text-xs">
-                <span className="flex min-w-0 items-center gap-2 text-foreground">
-                  {r.area !== "Outros" ? <IcpAreaBadge area={r.area} size="sm" /> : <IcpAreaBadgeSpacer />}
-                  <span className="truncate">{r.area}</span>
-                </span>
-                <span className="shrink-0 text-right tabular-nums">
-                  <span className="font-semibold text-foreground">{money(r.rate)}/h</span>
-                  <span className="ml-1.5 text-muted-foreground">{r.fallback ? "média" : hoursLabel(r.hours)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+      <div className="mt-4 flex items-start gap-2.5 rounded-(--radius-v2-md) bg-surface-subtle px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+        <Calculator className="mt-0.5 size-4 shrink-0 text-neutral-500" aria-hidden />
+        <div className="space-y-1">
+          <p>
+            <span className={strong}>Como calculamos a margem:</span> (receita − custo de entrega) ÷ receita.
+          </p>
+          <p>
+            <span className={strong}>Receita:</span> honorários pagos nos últimos 12 meses, no financeiro do VIOS.{" "}
+            <span className={strong}>Custo de entrega:</span> horas lançadas para o cliente no timesheet do VIOS × custo da
+            hora da área. <span className={strong}>Custo da hora:</span> custo de pessoal da área no financeiro do VIOS
+            (remuneração, encargos e benefícios) ÷ todas as horas que a área lançou no período.
+          </p>
+          <p>
+            Não entram sócios, estrutura e despesas gerais. Cliente sem horas lançadas fica sem margem. O critério do custo
+            da hora ainda está em definição.
+          </p>
         </div>
-      </details>
+      </div>
     </Panel>
   );
 }

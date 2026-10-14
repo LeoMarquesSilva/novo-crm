@@ -117,6 +117,15 @@ test("as demais abas renderizam sem erro", async () => {
   expect(screen.getAllByText("também em Produtos").length).toBeGreaterThan(0);
 });
 
+test("sem conexão com o ORQESTRAI, a aba Marketing avisa em vez de mostrar painéis vazios", async () => {
+  const user = userEvent.setup();
+  render(<IcpDashboard data={{ ...icpFixtureData(), marketingAvailable: false }} error={null} />);
+
+  expect(screen.getByText("sem conexão com o ORQESTRAI neste ambiente")).toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: "Marketing" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Dados de marketing indisponíveis neste ambiente");
+});
+
 test("Recalcular faz POST em /api/crm/icp/refresh e atualiza a página", async () => {
   const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
   vi.stubGlobal("fetch", fetchMock);
