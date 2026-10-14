@@ -312,6 +312,8 @@ export function LeadDetailView({
             {showBillingTab ? (
               <TabsContent value="billing" className="mt-4 space-y-5">
                 <ContractBillingOnboardingPanel
+                  leadId={lead.id}
+                  stage={lead.etapa}
                   contractBilling={lead.contractBilling}
                   showSetupAction={lead.etapa === "inclusao_faturamento"}
                 />

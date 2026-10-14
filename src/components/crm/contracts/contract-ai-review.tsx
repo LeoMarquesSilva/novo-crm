@@ -46,7 +46,8 @@ export function AiFieldHint({
   altered?: boolean;
 }) {
   if (!item?.quote) return null;
-  const sourceLabel = item.source === "sioe" ? "SIOE" : "IA a partir do PDF";
+  const sourceLabel =
+    item.source === "sioe" ? "SIOE" : item.source === "cadastro" ? "Cadastro do lead" : "IA a partir do PDF";
   return (
     <p className="mt-1 rounded-(--radius-v2-md) border border-info-border bg-info-bg px-2.5 py-1.5 text-xs font-normal leading-snug text-info-text">
       <span className="font-medium">
@@ -92,7 +93,7 @@ export function ConferirEtapaPanel({
               <span>
                 <span className="font-medium">{PROVENANCE_FIELD_LABELS[item.field] ?? item.field}</span>
                 <span className="text-neutral-500">
-                  {item.source === "sioe" ? " · SIOE" : " · IA"}
+                  {item.source === "sioe" ? " · SIOE" : item.source === "cadastro" ? " · Cadastro" : " · IA"}
                   {reviewed.has(item.field) ? " · conferido" : ""}
                 </span>
                 <span className="mt-0.5 block italic text-neutral-600">“{item.quote}”</span>

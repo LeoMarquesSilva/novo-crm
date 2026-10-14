@@ -52,6 +52,31 @@ export function canAccessContractCapability(input: {
   }
 }
 
+/**
+ * Configurar/ativar um contrato. Admin e controladoria sempre; o Financeiro configura e
+ * ativa o contrato do lead na Inclusão no Faturamento (versão 1 em rascunho), que é
+ * quando ele inclui o contrato no gerenciamento de contratos.
+ */
+export function canConfigureContract(input: {
+  role: CrmRole;
+  contract: {
+    opportunityId: string | null;
+    opportunityStage: string | null;
+    versionNumber: number | null;
+    versionStatus: string | null;
+  } | null;
+}): boolean {
+  if (canAccessContractCapability({ role: input.role, capability: "configure" })) return true;
+  if (input.role !== "financeiro" || !input.contract) return false;
+  const c = input.contract;
+  return (
+    c.opportunityId !== null &&
+    c.opportunityStage === "inclusao_faturamento" &&
+    (c.versionNumber === null || c.versionNumber === 1) &&
+    (c.versionStatus === null || c.versionStatus === "rascunho")
+  );
+}
+
 type CanPatchLeadDetailInput = {
   role: Database["public"]["Enums"]["user_role"];
   appArea: string | null;

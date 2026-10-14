@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { sanitizeReturnTo } from "@/lib/crm/sanitize-return-to";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
@@ -27,8 +28,13 @@ export function ContractDetailShell({
 }) {
   const searchParams = useSearchParams();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
-  const tab = selectedTab ?? (searchParams.get("tab") === "closings" ? "closings" : "overview");
-  const returnTarget = contract.opportunityId ? `/crm/leads/${contract.opportunityId}` : "/crm/contratos";
+  // `?setup=1` (vindo do lead / Inclusão no Faturamento) abre direto a Configuração.
+  const requestedTab =
+    searchParams.get("setup") === "1" ? "setup" : searchParams.get("tab") === "closings" ? "closings" : "overview";
+  const tab = selectedTab ?? requestedTab;
+  const returnTarget =
+    sanitizeReturnTo(searchParams.get("returnTo")) ??
+    (contract.opportunityId ? `/crm/leads/${contract.opportunityId}?tab=billing` : "/crm/contratos");
   const configuration = contract.configuration;
 
   const areaById = useMemo(

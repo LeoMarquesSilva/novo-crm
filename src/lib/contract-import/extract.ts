@@ -15,6 +15,7 @@ export function getContractImportModel(): string {
 export async function extractContractFromText(
   filename: string,
   text: string,
+  options?: { timeoutMs?: number },
 ): Promise<{ data: ContractImportExtraction; model: string; clippedChars: number; originalChars: number }> {
   const clipped = clipContractTextForExtraction({ filename, text });
   const result = await callStructured(
@@ -26,6 +27,7 @@ export async function extractContractFromText(
     CONTRACT_IMPORT_MAX_TOKENS,
     parseContractImportExtraction,
     CONTRACT_IMPORT_INPUT_CHAR_CAP,
+    options?.timeoutMs ? { timeoutMs: options.timeoutMs } : undefined,
   );
   return {
     data: result.data,

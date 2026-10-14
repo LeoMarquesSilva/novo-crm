@@ -350,3 +350,29 @@ describe("evaluateLeadAction", () => {
     ).toEqual(["icp"]);
   });
 });
+
+describe("canConfigureContract", () => {
+  const leadContract = {
+    opportunityId: "lead-1",
+    opportunityStage: "inclusao_faturamento",
+    versionNumber: 1,
+    versionStatus: "rascunho",
+  };
+  it("admin e controladoria sempre; comercial nunca", () => {
+    expect(crmAccessPolicy.canConfigureContract({ role: "admin", contract: null })).toBe(true);
+    expect(crmAccessPolicy.canConfigureContract({ role: "controladoria", contract: null })).toBe(true);
+    expect(crmAccessPolicy.canConfigureContract({ role: "comercial", contract: leadContract })).toBe(false);
+  });
+  it("financeiro só no contrato do lead em Inclusão no Faturamento (v1 rascunho)", () => {
+    expect(crmAccessPolicy.canConfigureContract({ role: "financeiro", contract: leadContract })).toBe(true);
+    expect(
+      crmAccessPolicy.canConfigureContract({ role: "financeiro", contract: { ...leadContract, opportunityStage: "boas_vindas" } }),
+    ).toBe(false);
+    expect(
+      crmAccessPolicy.canConfigureContract({ role: "financeiro", contract: { ...leadContract, versionStatus: "ativa" } }),
+    ).toBe(false);
+    expect(
+      crmAccessPolicy.canConfigureContract({ role: "financeiro", contract: { ...leadContract, opportunityId: null } }),
+    ).toBe(false);
+  });
+});

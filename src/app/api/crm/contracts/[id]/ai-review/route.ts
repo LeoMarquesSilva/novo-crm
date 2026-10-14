@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
+import { canAccessContractCapability, canConfigureContract } from "@/lib/auth/crm-access-policy";
+import { loadContractConfigureContext } from "@/modules/contracts/infrastructure/contract-configure-context";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
@@ -24,7 +25,7 @@ export async function PATCH(
     const code = auth.response.status === 401 ? "UNAUTHENTICATED" : "PROFILE_REQUIRED";
     return json({ ok: false, code, error: "Autenticação necessária." }, auth.response.status);
   }
-  if (!canAccessContractCapability({ role: auth.profile.role, capability: "configure" })) {
+  if (!canAccessContractCapability({ role: auth.profile.role, capability: "configure" }) && auth.profile.role !== "financeiro") {
     return json({ ok: false, code: "CONTRACT_FORBIDDEN", error: "Sem permissão para revisar o contrato." }, 403);
   }
 
@@ -32,6 +33,14 @@ export async function PATCH(
   const body = bodySchema.safeParse(await request.json().catch(() => null));
   if (!params.success || !body.success) {
     return json({ ok: false, code: "INVALID_REQUEST", error: "Requisição inválida." }, 400);
+  }
+  if (
+    !canConfigureContract({
+      role: auth.profile.role,
+      contract: auth.profile.role === "financeiro" ? await loadContractConfigureContext(params.data.id) : null,
+    })
+  ) {
+    return json({ ok: false, code: "CONTRACT_FORBIDDEN", error: "Sem permissão para revisar o contrato." }, 403);
   }
 
   const supabase = createSupabaseAdminClient();
