@@ -26,6 +26,12 @@ Correções do teste de telas (local, banco de produção, sem envio à D4Sign n
 - Lead do RD não mostra mais "Avançar para esta etapa" (a rota responde 403). Ficha do contrato aberta pelo lead volta para o lead. Texto da área no Perfil sem o espaço sobrando.
 - Assinar contratos (sócios): o botão Assinar abria a janela da D4Sign deslocada para cima e para a esquerda, com o PDF fora da tela. O `DialogContent` centraliza com a propriedade `translate` (Tailwind 4) e o diálogo de tela cheia só zerava `transform`. `d4sign-embed-dialog.tsx` zera `translate` e o deslize da animação. Erro já existia em `main`.
 
+## 2026-10-15 — Migrations de 15/10: conferência e correção antes de aplicar
+
+- Conferência no remoto (só leitura): as 4 migrations da carteira de 18/09 já estavam aplicadas (docs corrigidos); `20261008183000` (plataforma, área de cross selling, decisor) continua não aplicada.
+- `20261015123000`: o backfill lia `transicoes_etapa.created_at`, que não existe no remoto (a coluna é `criado_em`); a migration falharia. Corrigido.
+- Ensaio das 7 migrations numa transação desfeita: sem erros; `plpgsql_check` sem problemas nas 6 funções. Aplicação pendente (regra de proteção de produção do Claude Code); pacote para o SQL Editor no runbook.
+
 ## 2026-10-14 — ICP: custo por hora fora da tela e margem explicada
 
 - Carteira: saiu o bloco "Custo por hora de cada área e horas consideradas" (critério do custo da hora ainda em definição).

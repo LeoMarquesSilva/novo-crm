@@ -177,6 +177,8 @@ Guardar no ticket de mudança: commit/deploy, projeto Supabase, operador/aprovad
 ## Inclusão pelo lead (2026-10-15)
 
 - Ordem das migrations novas (depois do deploy do código): `20261015120000` → `20261015121000` → `20261015122000` → `20261015123000` → `20261015124000` → `20261015125000` → `20261015126000`. Conferir antes as policies remotas de `app_users` e das tabelas de workflow (`pg_policies`) e a constraint de `oportunidades.encerramento`.
+- Conferência de 15/10/2026 (só leitura): `app_users` já barrava a troca do próprio `role` na policy de UPDATE; tabelas de workflow com escrita de anon/authenticated liberada por grant e policies por papel; `encerramento` já tem `oportunidades_encerramento_chk` (a 123000 não duplica); módulo com `app_user_module_access_module_check` só `icp`. Ensaio das 7 numa transação desfeita: sem erros e `plpgsql_check` limpo nas 6 funções; o backfill passa 2 leads para `ganho` (68 → 70).
+- A aplicação pelo Claude Code foi barrada pela regra de proteção de produção; o pacote único (`begin` … `commit`, com o registro em `supabase_migrations.schema_migrations`) roda no SQL Editor do Supabase.
 - Depois de aplicar a `20261015120000`, conferir com rollback: `set local role authenticated` + `update app_users set role = 'admin'` deve falhar com `42501`.
 - Financeiro: na etapa Inclusão no Faturamento, o botão "Incluir no gerenciamento de contratos" (aba Faturamento do lead) cria/pré-preenche o rascunho e abre a configuração; o Financeiro salva e ativa (o lead vai para Boas-vindas). Fora disso, configurar continua com admin/controladoria.
 - Liberar o time Operações Legais em Configurações → Usuários (switch "Ops Legais") antes do primeiro cadastro; sem membros, os avisos vão para os admins.
