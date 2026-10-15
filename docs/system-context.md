@@ -246,7 +246,7 @@ Migrações aplicadas:
 - `20260520140000_lead_activity_events.sql` — timeline unificada do lead
 - `20260807120000_scope_import.sql` — importação IA de escopos: bucket `scope-import-documents`, tabelas `scope_import_*`, RLS sem policies (service role)
 
-Migrações de 2026-10-15 (segurança + fluxo contrato → pós-venda), **versionadas e não aplicadas no remoto** — aplicar depois do deploy do código, nesta ordem:
+Migrações de 2026-10-15 (segurança + fluxo contrato → pós-venda), **aplicadas no remoto em 15/10/2026**, depois do deploy do código (PR #11), nesta ordem e registradas em `supabase_migrations.schema_migrations` com a versão do arquivo:
 
 - `20261015120000_app_users_privileged_columns_guard.sql` — `revoke insert/update/delete` de `app_users` para anon/authenticated + trigger que barra mudança de `role`/`area`/`auth_user_id`/`id` pela sessão do usuário.
 - `20261015121000_revoke_browser_writes_workflow.sql` — sem escrita do navegador em `oportunidades`, `lead_intakes`, `field_values`, `transicoes_etapa`, `contract_review_tasks` (conferir antes as policies remotas).
@@ -256,7 +256,9 @@ Migrações de 2026-10-15 (segurança + fluxo contrato → pós-venda), **versio
 - `20261015125000_contract_signature_rpcs.sql` — `register_contract_sent_atomic`, `complete_contract_signature_atomic`.
 - `20261015126000_client_onboarding_rpcs.sql` — `submit_/return_/conclude_client_onboarding_atomic`.
 
-Sem elas o código segue funcionando: RPC ausente cai no caminho antigo (`finalize_d4sign_opportunity`, `transition_opportunity_atomic`), as rotas do cadastro respondem 409 "migration pendente" e o switch de Operações Legais responde 409.
+O código mantém os fallbacks para um banco sem elas: RPC ausente cai no caminho antigo (`finalize_d4sign_opportunity`, `transition_opportunity_atomic`), as rotas do cadastro respondem 409 "migration pendente" e o switch de Operações Legais responde 409.
+
+Estado conferido depois de aplicar: anon/authenticated só leem `app_users`, `oportunidades`, `lead_intakes`, `field_values`, `transicoes_etapa` e `contract_review_tasks` (`crm_in_app_notifications` continua gravável de propósito, para `lida_em`); `lead_client_onboarding` sem acesso do navegador; as 5 RPCs novas só para `service_role`. A policy antiga "app_users: update proprio ou admin" tem uma subconsulta em `app_users` que dá recursão infinita (42P17) se for avaliada; sem o grant de UPDATE ela não é mais usada.
 
 Migrações contratuais versionadas no repositório, ainda não aplicadas remotamente nesta entrega:
 

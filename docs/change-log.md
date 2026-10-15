@@ -30,7 +30,8 @@ Correções do teste de telas (local, banco de produção, sem envio à D4Sign n
 
 - Conferência no remoto (só leitura): as 4 migrations da carteira de 18/09 já estavam aplicadas (docs corrigidos); `20261008183000` (plataforma, área de cross selling, decisor) continua não aplicada.
 - `20261015123000`: o backfill lia `transicoes_etapa.created_at`, que não existe no remoto (a coluna é `criado_em`); a migration falharia. Corrigido.
-- Ensaio das 7 migrations numa transação desfeita: sem erros; `plpgsql_check` sem problemas nas 6 funções. Aplicação pendente (regra de proteção de produção do Claude Code); pacote para o SQL Editor no runbook.
+- Ensaio das 7 migrations numa transação desfeita: sem erros; `plpgsql_check` sem problemas nas 6 funções.
+- **Aplicadas no remoto em 15/10/2026** (com aprovação manual do usuário), na ordem, cada uma registrada em `supabase_migrations.schema_migrations`. Conferência: navegador só lê as tabelas de usuários e de workflow; RPCs novas só `service_role`; módulo `operacoes_legais` aceito; backfill 68 → 70 vendas ganhas.
 
 ## 2026-10-14 — ICP: custo por hora fora da tela e margem explicada
 
