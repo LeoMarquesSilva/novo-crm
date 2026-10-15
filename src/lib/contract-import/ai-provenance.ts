@@ -2,7 +2,8 @@ import type { Json } from "@/lib/supabase/database.types";
 import type { SioeRateioSnapshot } from "./sioe-rateio";
 import type { ContractImportExtraction, ContractImportEvidence } from "./schemas";
 
-export type AiProvenanceSource = "contrato" | "sioe";
+/** `cadastro`: dado do lead (cadastro do cliente confirmado por Operações Legais / proposta). */
+export type AiProvenanceSource = "contrato" | "sioe" | "cadastro";
 
 export type AiProvenanceItem = {
   field: string;
@@ -141,7 +142,7 @@ export function parseAiProvenance(snapshot: Json | null | undefined): {
       field: normalizeProvenanceField(row.field),
       quote: row.quote,
       clause: typeof row.clause === "string" ? row.clause : null,
-      source: row.source === "sioe" ? "sioe" : "contrato",
+      source: row.source === "sioe" ? "sioe" : row.source === "cadastro" ? "cadastro" : "contrato",
       extractedValue: typeof row.extractedValue === "string" ? row.extractedValue : null,
     }];
   });

@@ -44,7 +44,11 @@ export function mergeOportunidadeD4SignSigners(
   });
 }
 
-/** Copia signatários enriquecidos para `oportunidades` (kanban lê daqui). */
+/**
+ * Copia signatários enriquecidos para `oportunidades` (kanban lê daqui). Só para o
+ * documento atual do lead: um documento substituído (reenvio) ou cancelado não mexe
+ * mais nos signatários. A conclusão (todos assinaram) é de `completeSignedContract`.
+ */
 export async function syncOportunidadeFromD4SignSigners(
   supabase: SupabaseClient,
   oportunidadeId: string,
@@ -52,39 +56,28 @@ export async function syncOportunidadeFromD4SignSigners(
   options?: {
     d4signStatus?: string | null;
     nowIso?: string;
-    advanceStageIfAllSigned?: boolean;
+    /** Documento de onde vieram os signatários; diferente do atual → ignora. */
+    documentUuid?: string | null;
   },
-): Promise<void> {
+): Promise<{ applied: boolean; allSigned: boolean; merged: PersistedD4SignSigner[] }> {
   const nowIso = options?.nowIso ?? new Date().toISOString();
   const { data: opp } = await supabase
     .from("oportunidades")
-    .select("d4sign_signers, etapa")
+    .select("d4sign_signers, etapa, d4sign_document_uuid")
     .eq("id", oportunidadeId)
     .maybeSingle();
-  if (!opp) return;
+  if (!opp) return { applied: false, allSigned: false, merged: [] };
+
+  const current = (opp as { d4sign_document_uuid?: string | null }).d4sign_document_uuid ?? null;
+  if (options?.documentUuid && current && current !== options.documentUuid) {
+    return { applied: false, allSigned: false, merged: [] };
+  }
 
   const merged = mergeOportunidadeD4SignSigners(
     signers,
     (opp.d4sign_signers ?? []) as PersistedD4SignSigner[],
   );
   const allSigned = merged.length > 0 && merged.every((s) => s.signed);
-
-  if (options?.advanceStageIfAllSigned && allSigned) {
-    const { error } = await supabase.rpc("finalize_d4sign_opportunity", {
-      p_opportunity_id: oportunidadeId,
-      p_signers: merged,
-      p_now: nowIso,
-    });
-    if (error) throw error;
-    if (options.d4signStatus) {
-      const { error: statusError } = await supabase
-        .from("oportunidades")
-        .update({ d4sign_status: options.d4signStatus } as never)
-        .eq("id", oportunidadeId);
-      if (statusError) throw statusError;
-    }
-    return;
-  }
 
   const updatePayload: Record<string, unknown> = {
     d4sign_signers: merged,
@@ -94,7 +87,9 @@ export async function syncOportunidadeFromD4SignSigners(
   if (options?.d4signStatus) {
     updatePayload.d4sign_status = options.d4signStatus;
   }
-  await supabase.from("oportunidades").update(updatePayload as never).eq("id", oportunidadeId);
+  const { error } = await supabase.from("oportunidades").update(updatePayload as never).eq("id", oportunidadeId);
+  if (error) throw error;
+  return { applied: true, allSigned, merged };
 }
 
 /** Monta signatários iniciais a partir das keys do createlist (não depende de signaturelink). */

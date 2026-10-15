@@ -47,13 +47,14 @@ import {
 } from "@/lib/crm/pipeline-board-config";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
-import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-tasks";
+import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-task-status";
 import { resolveRdFieldEditor } from "@/lib/crm/lead-rd-field-editor-map";
 import { resolvePropostaEmpresaPrincipalNome } from "@/lib/crm/proposta-empresa-principal";
 import { cn } from "@/lib/utils";
 import { useLeadDetailRealtime } from "@/lib/crm/use-lead-detail-realtime";
 import type { LeadDetailData, LeadDetailViewer } from "./page";
 import { LeadD4SignPanel } from "./lead-d4sign-panel";
+import { ClientOnboardingTab } from "./client-onboarding/client-onboarding-tab";
 import { LeadClosingStatusButton } from "./lead-closing-status-button";
 import { LeadDeleteButton } from "./lead-delete-button";
 import {
@@ -104,6 +105,12 @@ export function LeadDetailView({
   ].includes(lead.etapa);
   const showBillingTab = ["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(lead.etapa);
   const isRdLead = Boolean(lead.rdDealId || lead.rdDealUrl || lead.filledFields.length > 0);
+  const isOnboardingStage = ["aguardando_cadastro", "cadastro_novo_cliente"].includes(lead.etapa);
+  const showOnboardingTab =
+    !isRdLead &&
+    ["aguardando_cadastro", "cadastro_novo_cliente", "inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(
+      lead.etapa,
+    );
   const intakeLeadType = lead.intakeFields.find((field) => field.key === "tipo_lead")?.value?.trim();
   const leadTypeDisplay = leadTypeLabel(intakeLeadType) || lead.tipo.replace(/_/g, " ");
   const isCrossSellingLead = normalizeLeadType(leadTypeDisplay).includes("crossselling");
@@ -144,6 +151,9 @@ export function LeadDetailView({
     isContractStage,
     showBilling: showBillingTab,
     isRdLead,
+    showOnboarding: showOnboardingTab,
+    isOnboardingStage,
+    isBillingStage: lead.etapa === "inclusao_faturamento",
   });
 
   const handleTabChange = (tab: LeadDetailTab) => {
@@ -162,6 +172,7 @@ export function LeadDetailView({
         heroContextBadge={heroContextBadge}
         propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
         viewer={viewer}
+        isRdLead={isRdLead}
       />
 
       <main className="min-w-0">
@@ -186,6 +197,11 @@ export function LeadDetailView({
                 {isContractStage ? (
                   <TabsTrigger value="contract" className="h-10 px-3 text-sm font-medium">
                     Contrato
+                  </TabsTrigger>
+                ) : null}
+                {showOnboardingTab ? (
+                  <TabsTrigger value="onboarding" className="h-10 px-3 text-sm font-medium">
+                    Cadastro
                   </TabsTrigger>
                 ) : null}
                 {showBillingTab ? (
@@ -288,9 +304,17 @@ export function LeadDetailView({
               </TabsContent>
             ) : null}
 
+            {showOnboardingTab ? (
+              <TabsContent value="onboarding" className="mt-4 space-y-5">
+                <ClientOnboardingTab leadId={lead.id} />
+              </TabsContent>
+            ) : null}
+
             {showBillingTab ? (
               <TabsContent value="billing" className="mt-4 space-y-5">
                 <ContractBillingOnboardingPanel
+                  leadId={lead.id}
+                  stage={lead.etapa}
                   contractBilling={lead.contractBilling}
                   showSetupAction={lead.etapa === "inclusao_faturamento"}
                 />
@@ -423,6 +447,7 @@ function LeadDetailHero({
   heroContextBadge,
   propostaEmpresaPrincipalNome,
   viewer,
+  isRdLead,
 }: {
   lead: LeadDetailData;
   etapaLabel: string;
@@ -431,6 +456,7 @@ function LeadDetailHero({
   heroContextBadge: { label: string; className: string } | null;
   propostaEmpresaPrincipalNome: string | null;
   viewer: LeadDetailViewer | null;
+  isRdLead: boolean;
 }) {
   const isPosVenda = isPosVendaPipelineStage(lead.etapa);
   const pipelineLabel = isPosVenda ? "Pós-venda" : isCadastroLeadOnlyStage(lead.etapa) ? "Pré-funil" : "Funil comercial";
@@ -544,7 +570,7 @@ function LeadDetailHero({
                 <ExternalLink className="h-3.5 w-3.5" />
               </Link>
             ) : null}
-            {canManageLead && lead.isSystemCreated ? (
+            {viewer?.role === "admin" && lead.isSystemCreated ? (
               <>
                 <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
                 <LeadDeleteButton leadId={lead.id} variant="icon" />
@@ -561,11 +587,14 @@ function LeadDetailHero({
         hasDueDiligence={lead.haveraDueDiligence}
         timeline={lead.lifecycleTimeline}
         canAdvance={
-          lead.encerramento == null &&
+          // Lead do RD é só leitura no CRM: a rota de transição responde 403.
+          !isRdLead &&
+          lead.encerramento !== "perdido" &&
           Boolean(viewer && ["admin", "comercial"].includes(viewer.role))
         }
         linkProposta={lead.linkProposta ?? null}
         linkContrato={lead.linkContrato ?? null}
+        leadName={lead.solicitante}
       />
 
       <div className="grid gap-px overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-neutral-200 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.15fr_1fr_1.25fr]">

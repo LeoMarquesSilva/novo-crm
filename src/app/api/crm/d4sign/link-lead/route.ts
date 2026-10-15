@@ -4,8 +4,8 @@
  * Body: { uuid_doc, oportunidade_id | null }
  */
 import { NextRequest, NextResponse } from "next/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { z } from "zod";
-import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const bodySchema = z.object({
@@ -15,11 +15,8 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "d4sign.ops" });
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
-      return NextResponse.json({ ok: false, error: "Apenas admin/comercial." }, { status: 403 });
-    }
 
     const parsed = bodySchema.safeParse(await request.json());
     if (!parsed.success) {
@@ -97,7 +94,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "d4sign.ops" });
     if (!auth.ok) return auth.response;
 
     const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";

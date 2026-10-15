@@ -3,16 +3,13 @@
  * Retorna uso da quota API D4Sign na última hora (10 req/h padrão).
  */
 import { NextResponse } from "next/server";
-import { requireAuthApi } from "@/lib/auth/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 
 export async function GET() {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "d4sign.ops" });
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
-      return NextResponse.json({ ok: false, error: "Apenas admin/comercial." }, { status: 403 });
-    }
 
     const quota = await getD4SignQuotaStatus("documents/list");
     return NextResponse.json({ ok: true, ...quota });

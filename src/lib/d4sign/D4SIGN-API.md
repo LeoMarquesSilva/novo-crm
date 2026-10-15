@@ -412,8 +412,8 @@ Coluna `d4sign_documents.signers` (JSONB):
 | `src/lib/d4sign/env.ts` | Variáveis de ambiente |
 | `src/lib/d4sign/firm-signers.ts` | Sócios da CONTRATADA |
 | `src/modules/crm/infrastructure/integrations/d4sign-client.ts` | Connector HTTP (chamadas à API) |
-| `src/app/api/crm/d4sign/import/route.ts` | Importa cofre → banco |
-| `src/app/api/crm/d4sign/sync/route.ts` | Sincroniza status |
+| `src/app/api/crm/d4sign/import/route.ts` | 410 — use `vault-sync` |
+| `src/app/api/crm/d4sign/sync/route.ts` | 410 — use `/api/cron/d4sign-sync` ou `vault-sync` |
 | `src/app/api/crm/d4sign/enrich-signers/route.ts` | Busca signatários (★ usa `/list`) |
 | `src/app/api/crm/d4sign/folders/route.ts` | Lista pastas (diagnóstico) |
 | `src/app/api/crm/leads/[id]/contrato/send-d4sign/route.ts` | Envia contrato p/ assinatura |

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { internalErrorResponse } from "@/lib/http/api-errors";
 import { z } from "zod";
 
 import { requireAdminApi } from "@/lib/auth/server";
@@ -40,8 +41,6 @@ export async function POST(request: Request) {
       records: result.records,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Falha inesperada na sincronização RD.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("admin/rd-sync", error, "Falha inesperada na sincronização RD.");
   }
 }

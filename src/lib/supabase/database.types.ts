@@ -230,6 +230,8 @@ export type Database = {
           email: string | null
           id: string
           nome: string
+          oportunidade_id: string | null
+          papel: string | null
           telefone: string | null
         }
         Insert: {
@@ -239,6 +241,8 @@ export type Database = {
           email?: string | null
           id?: string
           nome: string
+          oportunidade_id?: string | null
+          papel?: string | null
           telefone?: string | null
         }
         Update: {
@@ -248,6 +252,8 @@ export type Database = {
           email?: string | null
           id?: string
           nome?: string
+          oportunidade_id?: string | null
+          papel?: string | null
           telefone?: string | null
         }
         Relationships: [
@@ -2678,6 +2684,81 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_client_onboarding: {
+        Row: {
+          cliente_id: string | null
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          grupo_id: string | null
+          grupo_nome: string | null
+          id: string
+          oportunidade_id: string
+          ops_checklist: Json
+          payload: Json
+          return_comment: string | null
+          returned_at: string | null
+          returned_by: string | null
+          schema_version: number
+          status: string
+          submission_count: number
+          submitted_at: string | null
+          submitted_by: string | null
+          submitted_payload: Json | null
+          updated_at: string
+          updated_by: string | null
+          vios_referencia: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          concluded_at?: string | null
+          concluded_by?: string | null
+          created_at?: string
+          grupo_id?: string | null
+          grupo_nome?: string | null
+          id?: string
+          oportunidade_id: string
+          ops_checklist?: Json
+          payload?: Json
+          return_comment?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
+          schema_version?: number
+          status?: string
+          submission_count?: number
+          submitted_at?: string | null
+          submitted_by?: string | null
+          submitted_payload?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+          vios_referencia?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          concluded_at?: string | null
+          concluded_by?: string | null
+          created_at?: string
+          grupo_id?: string | null
+          grupo_nome?: string | null
+          id?: string
+          oportunidade_id?: string
+          ops_checklist?: Json
+          payload?: Json
+          return_comment?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
+          schema_version?: number
+          status?: string
+          submission_count?: number
+          submitted_at?: string | null
+          submitted_by?: string | null
+          submitted_payload?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+          vios_referencia?: string | null
+        }
+        Relationships: []
+      }
       lead_intakes: {
         Row: {
           areas_analise: string[]
@@ -2917,6 +2998,7 @@ export type Database = {
           solicitante_nome: string
           tipo: Database["public"]["Enums"]["demand_type"]
           updated_at: string
+          venda_fechada_em: string | null
         }
         Insert: {
           cliente_id?: string | null
@@ -2942,6 +3024,7 @@ export type Database = {
           solicitante_nome: string
           tipo: Database["public"]["Enums"]["demand_type"]
           updated_at?: string
+          venda_fechada_em?: string | null
         }
         Update: {
           cliente_id?: string | null
@@ -2967,6 +3050,7 @@ export type Database = {
           solicitante_nome?: string
           tipo?: Database["public"]["Enums"]["demand_type"]
           updated_at?: string
+          venda_fechada_em?: string | null
         }
         Relationships: [
           {
@@ -3772,6 +3856,47 @@ export type Database = {
         Args: { p_opportunity_id: string }
         Returns: boolean
       }
+      conclude_client_onboarding_atomic: {
+        Args: {
+          p_actor: string | null
+          p_checklist: Json
+          p_cliente: Json
+          p_cliente_id: string | null
+          p_contatos: Json
+          p_grupo_chave: string | null
+          p_grupo_id: string | null
+          p_grupo_nome: string | null
+          p_now: string
+          p_opportunity_id: string
+          p_vios_referencia: string | null
+        }
+        Returns: {
+          cliente_id: string
+          contract_id: string
+          grupo_id: string
+          transition_id: string
+        }[]
+      }
+      complete_contract_signature_atomic: {
+        Args: {
+          p_actor: string | null
+          p_auto_advance: boolean
+          p_document_uuid: string | null
+          p_now: string
+          p_opportunity_id: string
+          p_signed_at: string | null
+          p_signers: Json | null
+          p_source: string
+        }
+        Returns: {
+          contract_id: string | null
+          outcome: string
+          postsale_transition_id: string | null
+          sale_closed: boolean
+          signed_transition_id: string | null
+          stage: Database["public"]["Enums"]["opportunity_stage"]
+        }[]
+      }
       finalize_d4sign_opportunity: {
         Args: {
           p_now: string
@@ -3876,9 +4001,47 @@ export type Database = {
         }
         Returns: Database["public"]["Tables"]["contrato_fechamento_revisoes"]["Row"]
       }
+      register_contract_sent_atomic: {
+        Args: {
+          p_actor: string | null
+          p_document_uuid: string
+          p_expected_stage: Database["public"]["Enums"]["opportunity_stage"]
+          p_link_contrato: string | null
+          p_now: string
+          p_opportunity_id: string
+          p_previous_document_uuid: string | null
+          p_signers: Json
+        }
+        Returns: {
+          stage: Database["public"]["Enums"]["opportunity_stage"]
+          transition_id: string | null
+        }[]
+      }
+      return_client_onboarding_atomic: {
+        Args: {
+          p_actor: string | null
+          p_comment: string
+          p_now: string
+          p_opportunity_id: string
+        }
+        Returns: string
+      }
+      submit_client_onboarding_atomic: {
+        Args: {
+          p_actor: string | null
+          p_now: string
+          p_opportunity_id: string
+          p_payload: Json
+          p_schema_version: number
+        }
+        Returns: {
+          submission_count: number
+          transition_id: string
+        }[]
+      }
       transition_opportunity_atomic: {
         Args: {
-          p_changed_by: string
+          p_changed_by: string | null
           p_due_compilacao_entrada_em: string | null
           p_due_revisao_entrada_em: string | null
           p_due_revision_cycle: number | null

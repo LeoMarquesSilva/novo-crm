@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CrmSessionProvider } from "@/components/crm/crm-session-context";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -769,7 +770,7 @@ export function AppShell({
             </div>
           </header>
           <main className="min-h-dvh min-w-0 px-4 py-5 sm:px-6 lg:min-h-[calc(100dvh-4rem)] lg:py-6">
-            {children}
+            <CrmSessionProvider sessionUser={sessionUser}>{children}</CrmSessionProvider>
           </main>
         </div>
         <GlobalLeadSearch open={leadSearchOpen} onOpenChange={setLeadSearchOpen} />

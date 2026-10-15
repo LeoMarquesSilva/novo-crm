@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAuthApi } from "@/lib/auth/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
+import { internalErrorResponse, logServerError, publicErrorMessage } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { buildDueSharePointAgendamentoFields } from "@/modules/crm/application/services/build-due-sharepoint-agendamento-fields";
@@ -30,14 +31,21 @@ async function updateSharePointAudit(
     .update(values)
     .eq("oportunidade_id", oportunidadeId);
 
-  return error?.message ?? null;
+  if (!error) return null;
+  return `ref ${logServerError("leads/new/sharepoint-audit", error, { oportunidadeId })}`;
+}
+
+/** Aviso seguro para a tela: mensagem pública da integração + referência do log. */
+function safeWarning(scope: string, error: unknown, fallback: string): string {
+  const ref = logServerError(`leads/new/${scope}`, error);
+  return `${publicErrorMessage(error, fallback)} (ref ${ref})`;
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuthApi();
+  const auth = await requireLeadActionApi({ action: "lead.create" });
   if (!auth.ok) return auth.response;
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const parsed = newLeadPayloadSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -92,10 +100,7 @@ export async function POST(request: Request) {
       .single();
 
     if (oportunidadeError || !oportunidade) {
-      return NextResponse.json(
-        { ok: false, error: oportunidadeError?.message ?? "Falha ao criar lead" },
-        { status: 500 },
-      );
+      return internalErrorResponse("leads/new/oportunidade", oportunidadeError, "Falha ao criar lead.");
     }
     const leadDetailsInsert: Database["public"]["Tables"]["lead_intakes"]["Insert"] = {
       oportunidade_id: oportunidade.id,
@@ -126,10 +131,7 @@ export async function POST(request: Request) {
       .insert(leadDetailsInsert);
 
     if (leadDetailsError) {
-      return NextResponse.json(
-        { ok: false, error: leadDetailsError.message },
-        { status: 500 },
-      );
+      return internalErrorResponse("leads/new/intake", leadDetailsError, "Falha ao gravar os dados do lead.");
     }
 
     const warnings: string[] = [];
@@ -148,7 +150,7 @@ export async function POST(request: Request) {
       warnings.push(
         missingColumn
           ? "Plataforma, área do cross selling e decisor não foram gravados. Aplique a migration local 20261008183000_lead_plataforma_area_cross_selling.sql."
-          : `Campos extras do lead: ${extraFieldsError.message}`,
+          : `Campos extras do lead: ${safeWarning("extra-fields", extraFieldsError, "não foram gravados.")}`,
       );
     }
 
@@ -183,11 +185,7 @@ export async function POST(request: Request) {
         await syncDueAreaTasksForOpportunity(supabase, oportunidade.id);
       } catch (error) {
         warnings.push(
-          `Tarefas DUE: ${
-            error instanceof Error
-              ? error.message
-              : "Falha ao gerar tarefas automáticas por área."
-          }`,
+          `Tarefas DUE: ${safeWarning("due-tasks", error, "Falha ao gerar tarefas automáticas por área.")}`,
         );
       }
 
@@ -220,17 +218,15 @@ export async function POST(request: Request) {
           });
         } catch (error) {
           warnings.push(
-            `WhatsApp DUE: ${
-              error instanceof Error
-                ? error.message
-                : "Falha ao enviar mensagem de due diligence."
-            }`,
+            `WhatsApp DUE: ${safeWarning("whatsapp", error, "Falha ao enviar mensagem de due diligence.")}`,
           );
         }
       } else {
         warnings.push(
           `WhatsApp DUE: ${
-            configError?.message ?? "Configuração de destino WhatsApp não encontrada ou inativa."
+            configError
+              ? safeWarning("whatsapp-config", configError, "Não foi possível ler o destino do WhatsApp.")
+              : "Configuração de destino WhatsApp não encontrada ou inativa."
           }`,
         );
       }
@@ -250,10 +246,8 @@ export async function POST(request: Request) {
           warnings.push(`SharePoint DUE: item criado, mas auditoria falhou (${auditError}).`);
         }
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Falha ao criar agendamento da due no SharePoint.";
+        // Gravado no lead e mostrado na ficha: só a mensagem pública + referência do log.
+        const message = safeWarning("sharepoint", error, "Falha ao criar agendamento da due no SharePoint.");
         const auditError = await updateSharePointAudit(supabase, oportunidade.id, {
           sharepoint_agendamento_error: message,
           sharepoint_agendamento_created_at: null,
@@ -287,8 +281,6 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Falha inesperada ao criar lead.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("leads/new", error, "Falha inesperada ao criar lead.");
   }
 }

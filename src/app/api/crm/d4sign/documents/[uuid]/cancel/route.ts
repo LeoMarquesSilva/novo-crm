@@ -7,15 +7,10 @@
  * ainda chega e notifica admin/comercial.
  */
 import { NextResponse } from "next/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { z } from "zod";
-import { requireAuthApi } from "@/lib/auth/server";
-import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
+import { cancelD4SignDocument } from "@/lib/d4sign/cancel-document";
 import { authorizeD4SignDocumentAccess } from "@/lib/d4sign/document-access";
-import { PENDING_D4SIGN_STATUSES } from "@/lib/d4sign/enrich-documents";
-import { getD4SignEnv } from "@/lib/d4sign/env";
-import { mapPendingStatusId } from "@/lib/d4sign/pending-backfill-plan";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { D4SignConnector } from "@/modules/crm/infrastructure/integrations/d4sign-client";
 
 const bodySchema = z.object({
   reason: z.string().trim().min(5, "Informe o motivo (mínimo 5 caracteres).").max(500),
@@ -29,11 +24,8 @@ export async function POST(
   const access = await authorizeD4SignDocumentAccess(uuid);
   if (!access.ok) return access.response;
 
-  const auth = await requireAuthApi();
+  const auth = await requireLeadActionApi({ action: "d4sign.cancel" });
   if (!auth.ok) return auth.response;
-  if (auth.profile.role !== "admin") {
-    return NextResponse.json({ error: "Só administradores podem cancelar contratos." }, { status: 403 });
-  }
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
@@ -41,52 +33,17 @@ export async function POST(
   }
   const reason = parsed.data.reason;
 
-  const supabase = createSupabaseAdminClient();
-  const { data: doc } = await supabase
-    .from("d4sign_documents")
-    .select("d4sign_status")
-    .eq("uuid_doc", uuid)
-    .maybeSingle();
-  if (!doc?.d4sign_status || !PENDING_D4SIGN_STATUSES.has(doc.d4sign_status)) {
-    return NextResponse.json({ error: "Só contratos em andamento podem ser cancelados." }, { status: 409 });
+  const result = await cancelD4SignDocument({
+    uuid,
+    reason,
+    canceledBy: auth.user.email ?? null,
+    source: "crm-cancel",
+  });
+  if (!result.ok) {
+    const status =
+      result.reason === "not_pending" ? 409 : result.reason === "quota_exhausted" ? 429 : result.reason === "not_configured" ? 503 : 502;
+    return NextResponse.json({ error: result.message }, { status });
   }
 
-  const env = getD4SignEnv();
-  if (!env.tokenApi) return NextResponse.json({ error: "D4Sign não configurado." }, { status: 503 });
-  const quota = await getD4SignQuotaStatus("documents/cancel");
-  if (quota.remaining < 1) {
-    return NextResponse.json(
-      { error: "Limite de cancelamentos por hora da D4Sign atingido. Tente de novo mais tarde." },
-      { status: 429 },
-    );
-  }
-
-  let result: Awaited<ReturnType<D4SignConnector["cancelDocument"]>>;
-  try {
-    result = await D4SignConnector.fromEnv(env).cancelDocument(uuid, reason, { source: "crm-cancel" });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[D4Sign] cancelamento falhou", { uuid, message });
-    return NextResponse.json({ error: `A D4Sign recusou o cancelamento: ${message}` }, { status: 502 });
-  }
-
-  const nowIso = new Date().toISOString();
-  const status = mapPendingStatusId(result.statusId) ?? "6";
-  await supabase
-    .from("d4sign_documents")
-    .update({
-      d4sign_status: status,
-      status_name: result.statusName ?? "Cancelado",
-      status_comment: reason,
-      who_canceled: (result.whoCanceled ?? auth.user.email ?? null) as never,
-      last_synced_at: nowIso,
-      updated_at: nowIso,
-    })
-    .eq("uuid_doc", uuid);
-  await supabase
-    .from("oportunidades")
-    .update({ d4sign_status: status, d4sign_updated_at: nowIso, updated_at: nowIso } as never)
-    .eq("d4sign_document_uuid", uuid);
-
-  return NextResponse.json({ ok: true, status });
+  return NextResponse.json({ ok: true, status: result.status });
 }

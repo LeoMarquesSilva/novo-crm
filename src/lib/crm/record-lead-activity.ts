@@ -18,7 +18,13 @@ export type LeadActivityKind =
   | "due_ajustes_concluidos"
   | "contrato_enviado"
   | "contrato_assinado"
-  | "proposta_escopo_solicitado";
+  | "proposta_escopo_solicitado"
+  | "venda_fechada"
+  | "cadastro_cliente_enviado"
+  | "cadastro_cliente_devolvido"
+  | "cadastro_cliente_concluido"
+  | "contrato_incluido_gestao"
+  | "contrato_ativado";
 
 export async function recordLeadActivityEvent(
   supabase: SupabaseClient,

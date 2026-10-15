@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { z } from "zod";
-import { requireAuthApi } from "@/lib/auth/server";
 import { initializeContractFromProposal } from "@/lib/crm/contract-engine/initialize-from-proposal";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -13,14 +13,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "contract.edit" });
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
-      return NextResponse.json(
-        { ok: false, error: "Apenas comercial ou admin pode iniciar o contrato a partir da proposta." },
-        { status: 403 },
-      );
-    }
 
     const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
     if (!parsed.success) {

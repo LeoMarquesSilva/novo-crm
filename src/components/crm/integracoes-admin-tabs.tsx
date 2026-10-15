@@ -33,6 +33,13 @@ type IntegracoesAdminTabsProps = {
   initialTab: TabValue;
 };
 
+const OAUTH_ERROR_REASONS: Record<string, string> = {
+  denied: "A Microsoft recusou o acesso. Confira a conta e as permissões e tente novamente.",
+  state: "Estado OAuth inválido ou expirado. Tente novamente.",
+  exchange: "Não foi possível trocar o código de acesso com a Microsoft. Tente novamente.",
+  persist: "A conta foi autorizada, mas não foi possível salvar no CRM. Tente novamente.",
+};
+
 export function IntegracoesAdminTabs({
   whatsappInitialConfig,
   whatsappInitialConfigs,
@@ -52,13 +59,13 @@ export function IntegracoesAdminTabs({
           "A conta Microsoft foi associada (OAuth delegado, como no n8n). Os e-mails de novos leads passam a ser enviados por essa conta.",
       };
     }
-    const message = searchParams.get("message");
+    const reason = searchParams.get("reason");
     return {
       variant: "destructive",
       title: "Falha ao ligar Outlook",
-      description: message
-        ? decodeURIComponent(message)
-        : "Tente novamente ou verifique o registo da aplicação no Azure AD.",
+      description:
+        OAUTH_ERROR_REASONS[reason ?? ""] ??
+        "Tente novamente ou verifique o registo da aplicação no Azure AD.",
     };
   });
   const oauthHandled = useRef(false);

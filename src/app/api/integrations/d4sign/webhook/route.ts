@@ -31,12 +31,8 @@ import {
   isAllowedD4SignTypePost,
   isPayloadLengthAllowed,
 } from "@/lib/webhooks/security";
-import {
-  fetchLeadStakeholderContext,
-  notifyLeadStakeholdersInApp,
-  resolveLeadStakeholderAuthUserIds,
-} from "@/lib/crm/notify-lead-stakeholders";
-import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { notifyAudience, type NotificationAudience } from "@/lib/crm/notifications/crm-notify";
+import { completeSignedContract } from "@/lib/crm/post-signature/complete-signed-contract";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,27 +56,17 @@ const TYPE_POST_TO_D4SIGN_STATUS: Record<string, string> = {
 /** Status que um evento de assinatura/bounce atrasado não pode desfazer. */
 const TERMINAL_STATUSES = new Set(["1", "4", "6"]);
 
-/** Insere notificações in-app para todos os usuários admin/comercial. */
-async function notifyAdminComercial(
+/** Aviso no sino (idempotente por evento). Falha não derruba o webhook. */
+async function notifyD4SignEvent(
   admin: Admin,
-  tipo: string,
-  payload: Record<string, unknown>,
+  audience: NotificationAudience,
+  content: { tipo: string; title: string; preview: string; path: string; idempotencyKey: string; extra?: Record<string, unknown> },
 ): Promise<void> {
-  const { data: users } = await admin
-    .from("app_users")
-    .select("auth_user_id")
-    .in("role", ["admin", "comercial"])
-    .not("auth_user_id", "is", null);
-
-  if (!users || users.length === 0) return;
-
-  await admin.from("crm_in_app_notifications").insert(
-    users.map((u) => ({
-      user_id: u.auth_user_id as string,
-      tipo,
-      payload: payload as never,
-    })),
-  );
+  try {
+    await notifyAudience(admin, audience, content, { email: false });
+  } catch (error) {
+    console.warn("[D4Sign webhook] aviso não enviado", error instanceof Error ? error.message : error);
+  }
 }
 
 /** Controle do evento; não derruba o webhook se as colunas não existirem. */
@@ -216,7 +202,7 @@ export async function POST(request: Request) {
   const { data: opp, error: opportunityError } = oportunidadeId
     ? await admin
         .from("oportunidades")
-        .select("id, etapa, solicitante_nome, d4sign_signers, criado_por, solicitante_email")
+        .select("id, etapa, solicitante_nome, d4sign_signers, d4sign_document_uuid")
         .eq("id", oportunidadeId)
         .maybeSingle()
     : { data: null, error: null };
@@ -253,24 +239,29 @@ export async function POST(request: Request) {
   const docNome = documentName?.replace(/\.(docx?|pdf)$/i, "") ?? documentUuid;
   const leadNome = opp?.solicitante_nome ?? "Lead";
   const path = opp ? `/crm/leads/${opp.id}` : "/crm/contratos";
+  // Documento substituído (reenvio) ou cancelado não mexe mais no lead.
+  const isCurrentDocument = Boolean(opp && (!opp.d4sign_document_uuid || opp.d4sign_document_uuid === documentUuid));
+  const leadAudience: NotificationAudience = opp && isCurrentDocument
+    ? { leadTeamOf: opp.id, roles: ["admin"] }
+    : { roles: ["admin", "comercial"] };
 
   // ── E-mail não entregue (type_post "2") ───────────────────────────────────
   if (typePost === "2" && signerEmail) {
     const reason = updatedSigners.find((s) => s.email.toLowerCase() === signerEmail.toLowerCase())
       ?.email_sent_status;
-    await notifyAdminComercial(admin, "contrato_email_bounce", {
-      uuid_doc: documentUuid,
-      name_document: documentName ?? documentUuid,
-      signer_email: signerEmail,
+    await notifyD4SignEvent(admin, leadAudience, {
+      tipo: "contrato_email_bounce",
       title: "E-mail de contrato não entregue",
       preview: `Falha ao enviar o contrato para ${signerEmail}${reason && reason !== "Bounce" ? ` (${reason})` : ""}.`,
-      path: "/crm/contratos",
+      path: opp && isCurrentDocument ? path : "/crm/contratos",
+      idempotencyKey: `d4sign:2:${documentUuid}:${signerEmail.toLowerCase()}`,
+      extra: { uuid_doc: documentUuid, name_document: documentName ?? documentUuid, signer_email: signerEmail },
     });
   }
 
   // ── Signatário assinou (type_post "4") ────────────────────────────────────
   if (typePost === "4" && signerEmail) {
-    if (opp) {
+    if (opp && isCurrentDocument) {
       const oppSigners = applyWebhookToSigners(
         ((opp.d4sign_signers ?? []) as StoredWebhookSigner[]).filter((s) => s && typeof s.email === "string"),
         event,
@@ -293,75 +284,68 @@ export async function POST(request: Request) {
     if (updatedSigners.length > 1) {
       const signed = updatedSigners.filter((s) => s.signed).length;
       const total = updatedSigners.length;
-      await notifyAdminComercial(admin, "contrato_parcialmente_assinado", {
-        oportunidade_id: oportunidadeId,
-        solicitante_nome: leadNome,
-        uuid_doc: documentUuid,
-        name_document: docNome,
-        signer_email: signerEmail,
-        signed_count: signed,
-        total_signers: total,
-        title: `${leadNome} — ${signed}/${total} assinaram`,
-        preview: `${signerEmail} assinou o contrato. Aguardando ${total - signed} signatário(s).`,
-        path,
-      });
+      if (signed < total) {
+        await notifyD4SignEvent(admin, leadAudience, {
+          tipo: "contrato_parcialmente_assinado",
+          title: `${leadNome} — ${signed}/${total} assinaram`,
+          preview: `${signerEmail} assinou o contrato. Aguardando ${total - signed} signatário(s).`,
+          path,
+          idempotencyKey: `d4sign:4:${documentUuid}:${signerEmail.toLowerCase()}`,
+          extra: {
+            oportunidade_id: oportunidadeId,
+            uuid_doc: documentUuid,
+            signer_email: signerEmail,
+            signed_count: signed,
+            total_signers: total,
+          },
+        });
+      }
     }
   }
 
   // ── Documento finalizado (todos assinaram) ───────────────────────────────
+  // Contrato assinado, venda encerrada, pós-venda iniciado e avisos: um só caminho
+  // (o mesmo do sync), idempotente.
   if (typePost === "1" && opp) {
-    const { data: transitionId, error: finalizeError } = await admin.rpc(
-      "finalize_d4sign_opportunity",
-      {
-        p_opportunity_id: opp.id,
-        p_signers: updatedSigners as never,
-        p_now: nowIso,
-      },
-    );
-    if (finalizeError) {
-      return failWebhookProcessing(admin, eventId, "Falha ao finalizar oportunidade via D4Sign", finalizeError);
-    }
-
-    if (transitionId) {
-      await recordLeadActivityEvent(admin, {
-        oportunidadeId: opp.id,
-        kind: "contrato_assinado",
-        title: `Contrato assinado — ${docNome}`,
-        detail: "Documento finalizado via D4Sign (todos os signatários).",
-        etapa: "contrato_assinado",
-        sourceId: `trans:${transitionId}`,
-        metadata: { document_uuid: documentUuid, transition_id: transitionId },
+    try {
+      const completion = await completeSignedContract({
+        supabase: admin,
+        opportunityId: opp.id,
+        documentUuid,
+        signers: updatedSigners,
+        signedAt: finalizedAt ?? nowIso,
+        source: "webhook",
+        leadName: leadNome,
+        documentName,
       });
+      if (completion.outcome !== "completed" && completion.outcome !== "already_completed") {
+        console.warn("[D4Sign webhook] assinatura não aplicada ao lead", {
+          documentUuid,
+          opportunityId: opp.id,
+          outcome: completion.outcome,
+        });
+      }
+    } catch (finalizeError) {
+      return failWebhookProcessing(admin, eventId, "Falha ao concluir a assinatura no lead", finalizeError);
     }
-
-    const stakeholderCtx = await fetchLeadStakeholderContext(admin, opp.id);
-    const stakeholderAuthIds = await resolveLeadStakeholderAuthUserIds(admin, stakeholderCtx);
-    await notifyLeadStakeholdersInApp(admin, stakeholderAuthIds, "contrato_assinado", {
-      oportunidade_id: oportunidadeId,
-      solicitante_nome: leadNome,
-      uuid_doc: documentUuid,
-      name_document: docNome,
-      signer_email: signerEmail,
-      title: `Contrato assinado — ${leadNome}`,
-      preview: `O documento "${docNome}" foi assinado por todos os signatários.`,
-      path,
-    });
-    // E-mail desligado por enquanto — apenas notificação in-app para envolvidos do lead.
   }
 
   // ── Documento cancelado (type_post "3") ─────────────────────────────────
   if (typePost === "3") {
-    await notifyAdminComercial(admin, "contrato_cancelado", {
-      oportunidade_id: oportunidadeId,
-      solicitante_nome: leadNome,
-      uuid_doc: documentUuid,
-      name_document: docNome,
-      title: `Contrato cancelado — ${leadNome}`,
-      preview: event.cancellationMessage
-        ? `O documento "${docNome}" foi cancelado na D4Sign: ${event.cancellationMessage}`
-        : `O documento "${docNome}" foi cancelado na D4Sign.`,
-      path,
-    });
+    await notifyD4SignEvent(
+      admin,
+      opp && isCurrentDocument ? { leadTeamOf: opp.id, roles: ["admin", "comercial"] } : { roles: ["admin", "comercial"] },
+      {
+        tipo: "contrato_cancelado",
+        title: `Contrato cancelado — ${leadNome}`,
+        preview: event.cancellationMessage
+          ? `O documento "${docNome}" foi cancelado na D4Sign: ${event.cancellationMessage}`
+          : `O documento "${docNome}" foi cancelado na D4Sign.`,
+        path,
+        idempotencyKey: `d4sign:3:${documentUuid}`,
+        extra: { oportunidade_id: oportunidadeId, uuid_doc: documentUuid },
+      },
+    );
   }
 
   // 5. Persiste no catálogo (cria o documento se ainda não existia)

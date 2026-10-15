@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { documentErrorMessage, logServerError } from "@/lib/http/api-errors";
 import { randomUUID } from "crypto";
 import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
 import { requireAuthApi } from "@/lib/auth/server";
@@ -130,7 +131,8 @@ export async function POST(
       })
       .eq("id", claimed.id);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro ao processar PDF.";
+    logServerError("contracts/import/process", error, { documentId: claimed.id });
+    const message = documentErrorMessage(error, "Erro ao processar PDF.");
     await supabase
       .from("contract_import_documents")
       .update({ status: "erro", error_message: message, processed_at: new Date().toISOString() })

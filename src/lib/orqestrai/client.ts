@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createExternalServiceClient } from "@/lib/supabase/external-service-client";
 
 /**
  * Client server-side para o banco do ORQESTRAI (projeto Supabase separado do
@@ -42,9 +43,7 @@ export async function fetchOrqestraiCollaborators(): Promise<OrqestraiCollaborat
   if (!supabaseUrl || !key) return null;
 
   try {
-    const supabase = createClient(supabaseUrl, key, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const supabase = createExternalServiceClient(supabaseUrl, key);
     const { data, error } = await supabase
       .from("hr_employees")
       .select(

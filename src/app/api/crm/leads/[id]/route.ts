@@ -3,7 +3,9 @@ import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { patchLeadDetail } from "@/lib/crm/patch-lead-detail";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
-import { requireAuthApi } from "@/lib/auth/server";
+import { evaluateLeadAction } from "@/lib/auth/crm-access-policy";
+import { forbiddenResponse, requireCrmActorApi, requireLeadActionApi } from "@/lib/auth/crm-actor";
+import { internalErrorResponse, logServerError } from "@/lib/http/api-errors";
 
 const patchBodySchema = z
   .object({
@@ -37,17 +39,13 @@ export async function PATCH(
       );
     }
 
-    const auth = await requireAuthApi();
+    const auth = await requireCrmActorApi();
     if (!auth.ok) return auth.response;
 
     const supabase = createSupabaseAdminClient();
     if (parsed.data.closingStatus) {
-      if (!["admin", "comercial"].includes(auth.profile.role)) {
-        return NextResponse.json(
-          { ok: false, error: "Apenas comercial ou admin pode alterar o encerramento do lead." },
-          { status: 403 },
-        );
-      }
+      const decision = evaluateLeadAction(auth.actor, { action: "lead.close" });
+      if (!decision.allowed) return forbiddenResponse(decision);
 
       const { data: current, error: currentError } = await supabase
         .from("oportunidades")
@@ -56,10 +54,16 @@ export async function PATCH(
         .maybeSingle();
 
       if (currentError) {
-        return NextResponse.json({ ok: false, error: currentError.message }, { status: 500 });
+        return internalErrorResponse("leads/close/read", currentError);
       }
       if (!current) {
         return NextResponse.json({ ok: false, error: "Lead não encontrado." }, { status: 404 });
+      }
+      if (current.encerramento === "ganho") {
+        return NextResponse.json(
+          { ok: false, error: "A venda já foi encerrada como ganha (contrato assinado)." },
+          { status: 409 },
+        );
       }
 
       const nextStatus = parsed.data.closingStatus.value;
@@ -73,7 +77,7 @@ export async function PATCH(
           .eq("id", id);
 
         if (updateError) {
-          return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
+          return internalErrorResponse("leads/close/update", updateError);
         }
 
         await recordLeadActivityEvent(supabase, {
@@ -114,9 +118,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Falha inesperada ao atualizar o lead.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("leads/patch", error, "Falha inesperada ao atualizar o lead.");
   }
 }
 
@@ -125,14 +127,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "lead.delete" });
     if (!auth.ok) return auth.response;
-    if (!["admin", "comercial"].includes(auth.profile.role)) {
-      return NextResponse.json(
-        { ok: false, error: "Apenas comercial ou admin pode excluir leads." },
-        { status: 403 },
-      );
-    }
 
     const { id } = await params;
     const supabase = createSupabaseAdminClient();
@@ -144,7 +140,7 @@ export async function DELETE(
     if (deleteError) {
       const forbidden = deleteError.message.includes("LEAD_NOT_CREATED_IN_CRM");
       const notFound = deleteError.message.includes("OPPORTUNITY_NOT_FOUND");
-      console.error("Falha na exclusão atômica do lead", deleteError);
+      logServerError("leads/delete", deleteError, { id });
       return NextResponse.json(
         {
           ok: false,
@@ -160,7 +156,6 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha inesperada ao excluir lead.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("leads/delete", error, "Falha inesperada ao excluir lead.");
   }
 }

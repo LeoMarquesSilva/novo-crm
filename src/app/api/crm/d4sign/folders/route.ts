@@ -6,18 +6,15 @@
  * para testar se o walk recursivo de L1 retorna docs dos filhos.
  */
 import { NextResponse } from "next/server";
-import { requireAuthApi } from "@/lib/auth/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { getD4SignEnv } from "@/lib/d4sign/env";
 import { D4SignConnector } from "@/modules/crm/infrastructure/integrations/d4sign-client";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "d4sign.ops" });
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
-      return NextResponse.json({ ok: false, error: "Apenas admin/comercial." }, { status: 403 });
-    }
 
     const env = getD4SignEnv();
     if (!env.tokenApi || !env.safeUuid) {

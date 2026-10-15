@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAuthApi } from "@/lib/auth/server";
+import { evaluateLeadAction } from "@/lib/auth/crm-access-policy";
+import { requireCrmActorApi } from "@/lib/auth/crm-actor";
 import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import { resolvePipelineEtapaFromDbAndRd } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
 import {
@@ -33,8 +34,11 @@ import {
   syncDueAreaReviewTasksForOpportunity,
   syncDueAreaTasksForOpportunity,
 } from "@/lib/crm/due-area-tasks";
-import { actorFromAppUserRow, buildContractInAppNotification } from "@/lib/crm/in-app-notification-meta";
+import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { onEnteredInclusaoFaturamento } from "@/lib/crm/post-sale/on-enter-inclusao-faturamento";
+import { completeSignedContract } from "@/lib/crm/post-signature/complete-signed-contract";
+import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
 import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
 import { transitionOpportunity } from "@/modules/crm/application/services/transition-opportunity";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
@@ -43,7 +47,10 @@ import {
   CONTRACT_BILLING_BLOCKER_MESSAGE,
   type ContractTransitionBlocker,
 } from "@/modules/crm/domain/workflow-rules";
-import { loadWorkflowEvidenceBlocker } from "@/lib/crm/workflow-transition-evidence";
+import {
+  buildDedicatedActionBlocker,
+  loadWorkflowEvidenceBlocker,
+} from "@/lib/crm/workflow-transition-evidence";
 
 type OportunidadeUpdate = Database["public"]["Tables"]["oportunidades"]["Update"];
 
@@ -93,14 +100,8 @@ function normalizeToken(value: string): string {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuthApi();
+  const auth = await requireCrmActorApi();
   if (!auth.ok) return auth.response;
-  if (!auth.profile || !["admin", "comercial"].includes(auth.profile.role)) {
-    return NextResponse.json(
-      { ok: false, error: "Apenas comercial ou admin pode mover oportunidades." },
-      { status: 403 },
-    );
-  }
 
   let json: unknown;
   try {
@@ -145,8 +146,9 @@ export async function POST(request: Request) {
     ]);
 
     if (fetchError) {
+      console.error("Falha ao ler a oportunidade na transição", fetchError);
       return NextResponse.json(
-        { ok: false, error: fetchError.message },
+        { ok: false, error: "Não foi possível ler a oportunidade." },
         { status: 500 },
       );
     }
@@ -167,6 +169,32 @@ export async function POST(request: Request) {
       Boolean(reconRow?.detalhes),
       reconRow?.detalhes,
     );
+
+    const stageDecision = evaluateLeadAction(auth.actor, {
+      action: "stage.advance",
+      from: currentStage,
+      to: nextStage as OpportunityStage,
+      lead: {
+        createdByAppUserId: (row.criado_por as string | null) ?? null,
+        requesterEmail: (row.solicitante_email as string | null) ?? null,
+      },
+      channel: "manual",
+    });
+    if (!stageDecision.allowed) {
+      if (stageDecision.code === "use_dedicated_action") {
+        const blocker = buildDedicatedActionBlocker({
+          opportunityId,
+          message: stageDecision.reason,
+          actionKind: stageDecision.actionKind,
+        });
+        return NextResponse.json(
+          { ok: false, errors: [blocker.message], transitionBlocker: blocker },
+          { status: 422 },
+        );
+      }
+      return NextResponse.json({ ok: false, error: stageDecision.reason }, { status: 403 });
+    }
+
     const workflowEvidenceBlocker = await loadWorkflowEvidenceBlocker({
       supabase,
       oportunidadeId: opportunityId,
@@ -182,6 +210,21 @@ export async function POST(request: Request) {
         },
         { status: 422 },
       );
+    }
+
+    // Override do admin quando a assinatura já consta na D4Sign mas o lead não avançou
+    // (webhook perdido): mesmo caminho da assinatura automática (venda fechada, pós-venda, avisos).
+    if (currentStage === "contrato_enviado" && nextStage === "contrato_assinado") {
+      const completion = await completeSignedContract({
+        supabase,
+        opportunityId,
+        documentUuid: (row.d4sign_document_uuid as string | null) ?? null,
+        signers: row.d4sign_signers ?? null,
+        source: "manual",
+        actorAppUserId: auth.profile.id,
+        leadName: (row.solicitante_nome as string | null) ?? null,
+      });
+      return NextResponse.json({ ok: true, stage: completion.stage, outcome: completion.outcome });
     }
 
     const rowProposta = trimOrEmpty(row.link_proposta as string | null | undefined);
@@ -432,16 +475,21 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: defRows, error: defErr } = await supabase
-      .from("field_definitions")
-      .select("*")
-      .eq("pipeline_code", pipeline)
-      .eq("stage_code", nextStage)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true });
+    // Pós-venda usa o cadastro do cliente e a inclusão no faturamento, não campos do modal.
+    const { data: defRows, error: defErr } =
+      pipeline === "pos_venda"
+        ? { data: [] as Database["public"]["Tables"]["field_definitions"]["Row"][], error: null }
+        : await supabase
+            .from("field_definitions")
+            .select("*")
+            .eq("pipeline_code", pipeline)
+            .eq("stage_code", nextStage)
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true });
 
     if (defErr) {
-      return NextResponse.json({ ok: false, error: defErr.message }, { status: 500 });
+      console.error("Falha ao ler campos da etapa", defErr);
+      return NextResponse.json({ ok: false, error: "Não foi possível ler os campos da etapa." }, { status: 500 });
     }
 
     const defs = filterConfeccaoContratoTransitionDefinitions(
@@ -710,53 +758,16 @@ export async function POST(request: Request) {
 
     const originadoPor = actorFromAppUserRow(auth.profile);
 
+    if (nextStage === "aguardando_cadastro" && currentStage === "contrato_assinado") {
+      // Lead assinado antes do fluxo automático, movido pelo admin: abre o cadastro e fecha a venda.
+      await startPostSaleForLegacyLead(supabase, opportunityId, (row.solicitante_nome as string | null) ?? null);
+    }
+
     if (nextStage === "inclusao_faturamento") {
-      const { data: contract } = await supabase
-        .from("contratos")
-        .select("id, titulo")
-        .eq("oportunidade_id", opportunityId)
-        .maybeSingle();
-      if (contract) {
-        const idempotencyKey = `contract-setup:${contract.id}`;
-        const { data: operational } = await supabase
-          .from("contrato_responsaveis")
-          .select("app_user_id")
-          .eq("contrato_id", contract.id)
-          .or("papel.ilike.%operacional%,papel.ilike.%faturamento%")
-          .not("app_user_id", "is", null)
-          .limit(1)
-          .maybeSingle();
-        let { data: notificationUsers } = operational?.app_user_id
-          ? await supabase.from("app_users").select("id, auth_user_id").eq("id", operational.app_user_id).not("auth_user_id", "is", null)
-          : { data: null };
-        if (!notificationUsers?.length) {
-          const fallback = await supabase.from("app_users").select("id, auth_user_id").in("role", ["controladoria", "admin"]).not("auth_user_id", "is", null);
-          notificationUsers = fallback.data;
-        }
-        const assigneeId = notificationUsers?.[0]?.id ?? null;
-        await supabase.from("contrato_alertas").upsert({
-          contrato_id: contract.id,
-          tipo: "contrato_implantacao_pendente",
-          data_base: new Date().toISOString().slice(0, 10),
-          data_vencimento: new Date().toISOString().slice(0, 10),
-          responsavel_app_user_id: assigneeId,
-          idempotency_key: idempotencyKey,
-        }, { onConflict: "idempotency_key", ignoreDuplicates: true });
-        if (notificationUsers?.length) {
-          await supabase.from("crm_in_app_notifications").upsert(
-            notificationUsers.flatMap((user) => user.auth_user_id ? [buildContractInAppNotification({
-              userId: user.auth_user_id,
-              tipo: "contrato_implantacao_pendente",
-              idempotencyKey,
-              contractId: contract.id,
-              title: contract.titulo,
-              preview: "Implantação financeira pendente.",
-              originadoPor,
-            })] : []),
-            { onConflict: "user_id,idempotency_key", ignoreDuplicates: true },
-          );
-        }
-      }
+      await onEnteredInclusaoFaturamento(supabase, {
+        opportunityId,
+        leadName: (row.solicitante_nome as string | null) ?? null,
+      });
     }
 
     if (nextStage === "confeccao_proposta" && pipeline === "vendas") {
@@ -805,5 +816,40 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error ? error.message : "Falha inesperada na transição.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+async function startPostSaleForLegacyLead(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  opportunityId: string,
+  leadName: string | null,
+): Promise<void> {
+  try {
+    await supabase
+      .from("oportunidades")
+      .update({ encerramento: "ganho" })
+      .eq("id", opportunityId)
+      .is("encerramento", null);
+    await supabase
+      .from("lead_client_onboarding")
+      .upsert({ oportunidade_id: opportunityId, status: "rascunho" } as never, {
+        onConflict: "oportunidade_id",
+        ignoreDuplicates: true,
+      });
+    await notifyAudience(
+      supabase,
+      { leadTeamOf: opportunityId },
+      {
+        tipo: "cadastro_cliente_solicitado",
+        title: `Preencha o cadastro do cliente — ${leadName ?? "Lead"}`,
+        preview: "Confira os dados de cadastro e de faturamento e envie para Operações Legais.",
+        path: `/crm/leads/${encodeURIComponent(opportunityId)}?tab=onboarding`,
+        idempotencyKey: `cadastro-solicitado:${opportunityId}`,
+        extra: { oportunidade_id: opportunityId },
+      },
+      { email: false },
+    );
+  } catch (error) {
+    console.warn("[transition] início do pós-venda não completou", error);
   }
 }

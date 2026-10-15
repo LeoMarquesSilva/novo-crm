@@ -2,7 +2,8 @@ import { after } from "next/server";
 import { AppShell } from "@/components/crm/app-shell";
 import type { CrmSessionUser } from "@/components/crm/crm-session-user";
 import { requireAuth } from "@/lib/auth/server";
-import { hasModuleAccess } from "@/lib/auth/module-access";
+import { canAccessModule } from "@/lib/auth/crm-access-policy";
+import { listUserModules } from "@/lib/auth/module-access";
 import { getFirmSigners } from "@/lib/d4sign/firm-signers";
 import { canAccessPartnerSignatures, toPartnerSigners } from "@/lib/d4sign/partner-signatures";
 import { isPartnerOnlyEmail } from "@/lib/d4sign/partner-only";
@@ -17,8 +18,10 @@ export default async function CrmLayout({
   children: React.ReactNode;
 }>) {
   const { user, profile } = await requireAuth("/crm");
+  const modules = profile.role === "admin" ? [] : await listUserModules(profile.id);
 
   const sessionUser: CrmSessionUser = {
+    appUserId: profile.id,
     email: user.email ?? null,
     fullName: profile.full_name,
     avatarUrl: profile.avatar_url,
@@ -30,7 +33,8 @@ export default async function CrmLayout({
       partners: toPartnerSigners(getFirmSigners()),
     }),
     partnerOnly: isPartnerOnlyEmail(user.email),
-    canAccessIcp: await hasModuleAccess(profile, "icp"),
+    canAccessIcp: canAccessModule({ role: profile.role, modules, module: "icp" }),
+    modules,
   };
 
   // Reforço do cron do GitHub (que atrasa ou pula execuções): com o CRM em

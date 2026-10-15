@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { IntegrationError } from "@/lib/http/api-errors";
 import { RD_PIPELINE_STAGE_MAP as STAGE_MAP } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -189,9 +190,12 @@ export class RdImportConnector {
 
     const response = await fetchWithTimeout(url, { cache: "no-store" });
     if (!response.ok) {
-      const body = await response.text();
-      throw new Error(
-        `Falha na API do RD (${response.status}): ${body.slice(0, 300) || "sem detalhes"}`,
+      const body = await response.text().catch(() => "");
+      throw new IntegrationError(
+        "rd",
+        `RD Station respondeu HTTP ${response.status}.`,
+        body.slice(0, 300) || "sem detalhes",
+        response.status,
       );
     }
 

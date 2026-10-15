@@ -1,4 +1,11 @@
+import { IntegrationError } from "@/lib/http/api-errors";
 import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+
+const SHAREPOINT_NOT_CONFIGURED = "SharePoint não configurado no servidor.";
+
+function notConfigured(detail: string): IntegrationError {
+  return new IntegrationError("sharepoint", SHAREPOINT_NOT_CONFIGURED, detail);
+}
 
 export interface SharePointGraphConfig {
   tenantId: string;
@@ -30,19 +37,19 @@ export class SharePointGraphClient {
     const listId = process.env.SHAREPOINT_AGENDAMENTOS_LIST_ID;
 
     if (!tenantId?.trim()) {
-      throw new Error("Defina MICROSOFT_TENANT_ID (ou AZURE_AD_TENANT_ID).");
+      throw notConfigured("Defina MICROSOFT_TENANT_ID (ou AZURE_AD_TENANT_ID).");
     }
     if (!clientId?.trim()) {
-      throw new Error("Defina SHAREPOINT_CLIENT_ID (ou MICROSOFT_CLIENT_ID).");
+      throw notConfigured("Defina SHAREPOINT_CLIENT_ID (ou MICROSOFT_CLIENT_ID).");
     }
     if (!clientSecret?.trim()) {
-      throw new Error("Defina SHAREPOINT_CLIENT_SECRET (ou MICROSOFT_CLIENT_SECRET).");
+      throw notConfigured("Defina SHAREPOINT_CLIENT_SECRET (ou MICROSOFT_CLIENT_SECRET).");
     }
     if (!siteId?.trim()) {
-      throw new Error("Defina SHAREPOINT_SITE_ID (formato host,guid,guid do site no Graph).");
+      throw notConfigured("Defina SHAREPOINT_SITE_ID (formato host,guid,guid do site no Graph).");
     }
     if (!listId?.trim()) {
-      throw new Error("Defina SHAREPOINT_AGENDAMENTOS_LIST_ID (GUID da lista).");
+      throw notConfigured("Defina SHAREPOINT_AGENDAMENTOS_LIST_ID (GUID da lista).");
     }
 
     return new SharePointGraphClient({
@@ -72,10 +79,15 @@ export class SharePointGraphClient {
     const json = (await res.json()) as TokenResponse;
     if (!res.ok) {
       const msg = json.error_description ?? json.error ?? res.statusText;
-      throw new Error(`Falha ao obter token Microsoft (${res.status}): ${msg}`);
+      throw new IntegrationError(
+        "sharepoint",
+        `Falha ao autenticar no Microsoft Graph (HTTP ${res.status}).`,
+        msg,
+        res.status,
+      );
     }
     if (!json.access_token) {
-      throw new Error("Resposta de token sem access_token.");
+      throw new IntegrationError("sharepoint", "Falha ao autenticar no Microsoft Graph.", "sem access_token");
     }
     return json.access_token;
   }
@@ -104,7 +116,12 @@ export class SharePointGraphClient {
     try {
       body = text ? JSON.parse(text) : {};
     } catch {
-      throw new Error(`Resposta Graph inválida (${res.status}): ${text.slice(0, 400)}`);
+      throw new IntegrationError(
+        "sharepoint",
+        `SharePoint respondeu de forma inválida (HTTP ${res.status}).`,
+        text.slice(0, 400),
+        res.status,
+      );
     }
 
     if (!res.ok) {
@@ -115,12 +132,12 @@ export class SharePointGraphClient {
         typeof (body as { error: { message?: string } }).error?.message === "string"
           ? (body as { error: { message: string } }).error.message
           : text.slice(0, 400);
-      throw new Error(`Graph HTTP ${res.status}: ${err}`);
+      throw new IntegrationError("sharepoint", `SharePoint respondeu HTTP ${res.status}.`, err, res.status);
     }
 
     const o = body as { id?: string; webUrl?: string };
     if (!o.id) {
-      throw new Error("Resposta Graph sem id do item criado.");
+      throw new IntegrationError("sharepoint", "SharePoint não devolveu o item criado.", text.slice(0, 400));
     }
     return { id: o.id, webUrl: o.webUrl };
   }

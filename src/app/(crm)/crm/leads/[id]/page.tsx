@@ -139,6 +139,13 @@ export interface LeadDetailData extends Oportunidade {
   }>;
   lifecycleTimeline: LeadLifecycleTimeline;
   contractBilling: {
+    /** Inclusão no gerenciamento de contratos (prefill + leitura do PDF), se já feita. */
+    inclusion: {
+      prefilledAt: string | null;
+      pdfStatus: string | null;
+      pdfMessage: string | null;
+      divergences: { field: string; leadValue: string; pdfValue: string }[];
+    } | null;
     id: string;
     lifecycleStatus: "rascunho" | "em_revisao" | "ativo" | "suspenso" | "encerrado";
     version: {
@@ -778,10 +785,11 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       },
       suggestionsOrigin:
         Object.keys(originSnapshot).length > 0
-          ? "Dados sugeridos a partir da proposta e da assinatura."
-          : "Rascunho criado a partir da assinatura; confirme os dados financeiros.",
+          ? "Dados sugeridos a partir do cadastro do cliente, da proposta e do PDF assinado."
+          : "Rascunho criado a partir da assinatura; inclua no gerenciamento de contratos para pré-preencher.",
       blockers,
-      setupHref: `/crm/contratos/${contract.id}?setup=1&returnTo=/crm/leads/${id}`,
+      setupHref: `/crm/contratos/${contract.id}?setup=1&returnTo=${encodeURIComponent(`/crm/leads/${id}?tab=billing`)}`,
+      inclusion: readLeadInclusion(originSnapshot as Record<string, unknown>),
     };
   }
 
@@ -901,4 +909,23 @@ export default async function LeadDetailPage({
       initialTab={initialTab}
     />
   );
+}
+
+function readLeadInclusion(snapshot: Record<string, unknown>): NonNullable<LeadDetailData["contractBilling"]>["inclusion"] {
+  const raw = snapshot.leadInclusion;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const pdf = (r.pdf && typeof r.pdf === "object" ? r.pdf : {}) as Record<string, unknown>;
+  const divergences = Array.isArray(r.divergences)
+    ? r.divergences.filter(
+        (d): d is { field: string; leadValue: string; pdfValue: string } =>
+          Boolean(d) && typeof d === "object" && typeof (d as { field?: unknown }).field === "string",
+      )
+    : [];
+  return {
+    prefilledAt: typeof r.prefilledAt === "string" ? r.prefilledAt : null,
+    pdfStatus: typeof pdf.status === "string" ? pdf.status : null,
+    pdfMessage: typeof pdf.message === "string" ? pdf.message : null,
+    divergences,
+  };
 }

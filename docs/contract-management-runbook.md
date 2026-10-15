@@ -172,3 +172,11 @@ D4Sign:
 ## 10. Registro da execução
 
 Guardar no ticket de mudança: commit/deploy, projeto Supabase, operador/aprovador, timestamps, resultado de cada migration, contagens do dry-run e backfill, resposta do cron, matriz de papéis, smoke VIOS/D4Sign e decisão final de liberar ou reverter.
+
+
+## Inclusão pelo lead (2026-10-15)
+
+- Ordem das migrations novas (depois do deploy do código): `20261015120000` → `20261015121000` → `20261015122000` → `20261015123000` → `20261015124000` → `20261015125000` → `20261015126000`. Conferir antes as policies remotas de `app_users` e das tabelas de workflow (`pg_policies`) e a constraint de `oportunidades.encerramento`.
+- Depois de aplicar a `20261015120000`, conferir com rollback: `set local role authenticated` + `update app_users set role = 'admin'` deve falhar com `42501`.
+- Financeiro: na etapa Inclusão no Faturamento, o botão "Incluir no gerenciamento de contratos" (aba Faturamento do lead) cria/pré-preenche o rascunho e abre a configuração; o Financeiro salva e ativa (o lead vai para Boas-vindas). Fora disso, configurar continua com admin/controladoria.
+- Liberar o time Operações Legais em Configurações → Usuários (switch "Ops Legais") antes do primeiro cadastro; sem membros, os avisos vão para os admins.

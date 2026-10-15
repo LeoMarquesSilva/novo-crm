@@ -37,3 +37,28 @@ describe("resolveLeadDetailTab", () => {
     expect(resolveLeadDetailTab({ ...base, requested: "documentos" })).toBe("overview");
   });
 });
+
+describe("resolveLeadDetailTab — pós-venda", () => {
+  const base = {
+    requested: null,
+    hasDueDiligence: false,
+    isProposalStage: false,
+    isContractStage: false,
+    showBilling: false,
+    isRdLead: false,
+  };
+
+  it("etapas de cadastro abrem a aba Cadastro", () => {
+    expect(resolveLeadDetailTab({ ...base, showOnboarding: true, isOnboardingStage: true })).toBe("onboarding");
+  });
+
+  it("inclusão no faturamento abre a aba Faturamento", () => {
+    expect(
+      resolveLeadDetailTab({ ...base, showOnboarding: true, showBilling: true, isBillingStage: true }),
+    ).toBe("billing");
+  });
+
+  it("Cadastro escondido (lead do RD) cai no padrão", () => {
+    expect(resolveLeadDetailTab({ ...base, requested: "onboarding", showOnboarding: false })).toBe("overview");
+  });
+});

@@ -158,6 +158,17 @@ async function sendOutlookEmail(
 }
 
 /**
+ * Envio genérico pelo mesmo Outlook dos avisos de lead (conta delegada ligada em
+ * Integrações; senão a conta de aplicação `OUTLOOK_FROM_EMAIL`).
+ */
+export async function sendCrmNotificationEmail(
+  supabase: SupabaseClient,
+  input: { to: string[]; subject: string; html: string },
+): Promise<{ ok: boolean; error?: string }> {
+  return sendOutlookEmail(supabase, input.to, input.subject, input.html);
+}
+
+/**
  * Resolve destinatários combinando:
  *  1. Usuários do CRM com área correspondente às áreas do lead (via app_users + auth.users)
  *  2. Destinatários fixos da tabela lead_email_notification_config (fixed:due / fixed:sem_due)

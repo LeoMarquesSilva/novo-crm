@@ -262,6 +262,7 @@ export function NotificationList({ initial }: { initial: Row[] }) {
       "propostas",
       "indicadores",
       "anotacoes",
+      "pos_venda",
       "sla_etapa",
       "outras",
     ];

@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createExternalServiceClient } from "@/lib/supabase/external-service-client";
 
 const DEFAULT_SIOE_URL = "https://pzfxmlidwdmsqfwrxdbd.supabase.co";
 const PAGE_SIZE = 1000;
@@ -33,9 +34,7 @@ export function isSioeConfigured(): boolean {
 export function sioeClient(): SupabaseClient | null {
   const key = sioeKey();
   if (!key) return null;
-  return createClient(sioeUrl(), key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return createExternalServiceClient(sioeUrl(), key);
 }
 
 async function fetchAllRows<T extends Record<string, unknown>>(

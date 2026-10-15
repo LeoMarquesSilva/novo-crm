@@ -1,4 +1,4 @@
-import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
+import { canAccessContractCapability, canConfigureContract } from "@/lib/auth/crm-access-policy";
 import { timestampsMatch } from "@/lib/crm/timestamps";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -143,7 +143,8 @@ export async function saveContractConfiguration(
   repository: ContractConfigurationRepository,
   input: SaveContractConfigurationInput,
 ): Promise<{ updatedAt: string }> {
-  if (!canAccessContractCapability({ role: input.role, capability: "configure" })) {
+  // Financeiro configura só o contrato do lead em Inclusão no Faturamento (checado com o contexto).
+  if (!canAccessContractCapability({ role: input.role, capability: "configure" }) && input.role !== "financeiro") {
     throw new ContractConfigurationError(
       "CONTRACT_FORBIDDEN",
       "Você não tem permissão para configurar contratos.",
@@ -166,6 +167,22 @@ export async function saveContractConfiguration(
   const context = await repository.findVersionContext(input.contractId, versionId);
   if (!context) {
     throw new ContractConfigurationError("CONTRACT_NOT_FOUND", "Contrato ou versão não encontrado.");
+  }
+  if (
+    !canConfigureContract({
+      role: input.role,
+      contract: {
+        opportunityId: context.opportunityId,
+        opportunityStage: context.opportunityStage,
+        versionNumber: context.number,
+        versionStatus: context.status,
+      },
+    })
+  ) {
+    throw new ContractConfigurationError(
+      "CONTRACT_FORBIDDEN",
+      "Você não tem permissão para configurar este contrato.",
+    );
   }
   if (context.status !== "rascunho") {
     throw new ContractConfigurationError(

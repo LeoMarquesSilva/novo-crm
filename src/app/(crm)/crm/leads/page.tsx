@@ -11,6 +11,8 @@ import {
   type SituationFilter,
 } from "@/components/crm/leads-pipeline-toolbar";
 import { NewDemandForm } from "@/components/crm/new-demand-form";
+import { useCrmActor } from "@/components/crm/crm-session-context";
+import { canPerformLeadAction } from "@/lib/auth/crm-access-policy";
 import { PipelineBoardSkeleton } from "@/components/crm/pipeline-board-skeleton";
 import {
   PipelineKanbanErrorState,
@@ -144,6 +146,8 @@ function leadMatchesPipelineFilters(
 }
 
 export default function LeadsPage() {
+  const crmActor = useCrmActor();
+  const canCreateLead = crmActor ? canPerformLeadAction(crmActor, { action: "lead.create" }) : false;
   const router = useRouter();
   const [isCadastroOpen, setIsCadastroOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -425,7 +429,7 @@ export default function LeadsPage() {
         owners={ownerOptions}
         situation={situation}
         onSituationChange={setSituation}
-        onNovoCadastro={() => setIsCadastroOpen(true)}
+        onNovoCadastro={canCreateLead ? () => setIsCadastroOpen(true) : undefined}
         pinnedLeadId={pinnedLeadId}
       />
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock } from "lucide-react";
 
@@ -8,18 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
-import {
-  APP_USER_AREAS,
-  APP_USER_AREA_FORM_ITEMS,
-  APP_USER_ROLE_LABELS,
-} from "@/lib/crm/app-user-constants";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { APP_USER_ROLE_LABELS } from "@/lib/crm/app-user-constants";
 import { cn } from "@/lib/utils";
 
 export type ProfileFormInitial = {
@@ -48,32 +37,11 @@ type ProfileFormProps = {
 export function ProfileForm({ initial, hasProfileRow, role }: ProfileFormProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState(initial.full_name);
-  const [area, setArea] = useState(initial.area?.trim() ?? "");
+  const area = initial.area?.trim() ?? "";
   const [avatarUrl, setAvatarUrl] = useState(initial.avatar_url);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const areaCrmSelectItems = useMemo(() => {
-    const items: Record<string, string> = {
-      "": "Sem área definida",
-      ...APP_USER_AREA_FORM_ITEMS,
-    };
-    const init = initial.area?.trim();
-    if (init && items[init] === undefined) {
-      items[init] = init;
-    }
-    return items;
-  }, [initial.area]);
-
-  const orderedAreaKeys = useMemo(() => {
-    const keys: string[] = ["", ...(APP_USER_AREAS as readonly string[]).slice()];
-    const init = initial.area?.trim();
-    if (init && !keys.includes(init)) {
-      keys.push(init);
-    }
-    return keys;
-  }, [initial.area]);
 
   const roleMeta =
     role && APP_USER_ROLE_LABELS[role]
@@ -92,7 +60,7 @@ export function ProfileForm({ initial, hasProfileRow, role }: ProfileFormProps) 
     }
 
     const parsed = parseAvatarUrl(avatarUrl);
-    if (!parsed.ok) {
+    if (!parsed.ok || (parsed.value && !parsed.value.startsWith("https://"))) {
       setError("URL da foto inválida. Use um endereço https completo ou deixe em branco.");
       return;
     }
@@ -103,35 +71,20 @@ export function ProfileForm({ initial, hasProfileRow, role }: ProfileFormProps) 
       return;
     }
 
-    const areaValue = area.trim();
-    if (areaValue && !areaCrmSelectItems[areaValue]) {
-      setError("Selecione uma área válida na lista.");
-      return;
-    }
-
     setLoading(true);
     try {
-      const supabase = createSupabaseClient();
-      const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser();
-      if (userErr || !user) {
+      const res = await fetch("/api/crm/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: name, avatar_url: normalized }),
+      });
+      if (res.status === 401) {
         setError("Sessão expirada. Volte a entrar.");
         return;
       }
-
-      const { error: upErr } = await supabase
-        .from("app_users")
-        .update({
-          full_name: name,
-          area: areaValue ? areaValue : null,
-          avatar_url: normalized,
-        })
-        .eq("auth_user_id", user.id);
-
-      if (upErr) {
-        setError(upErr.message);
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !json?.ok) {
+        setError(json?.error ?? "Não foi possível salvar o perfil.");
         return;
       }
 
@@ -186,26 +139,13 @@ export function ProfileForm({ initial, hasProfileRow, role }: ProfileFormProps) 
 
           <div className="space-y-2">
             <Label htmlFor="profile-area">Área / departamento</Label>
-            <Select
-              modal={false}
-              items={areaCrmSelectItems}
-              value={area}
-              onValueChange={(v) => setArea(v ?? "")}
-            >
-              <SelectTrigger id="profile-area" size="default" className="w-full">
-                <SelectValue placeholder="Selecione a área" />
-              </SelectTrigger>
-              <CrmSelectContent className="max-h-[min(320px,70vh)]">
-                {orderedAreaKeys.map((a) => (
-                  <CrmSelectItem key={a} value={a}>
-                    {areaCrmSelectItems[a] ?? a}
-                  </CrmSelectItem>
-                ))}
-              </CrmSelectContent>
-            </Select>
-            <p className="text-v2-caption text-muted-foreground">
-              Mesmas opções que em{" "}
-              <span className="font-medium text-foreground">Administração → Utilizadores</span>.
+            <Input id="profile-area" value={area || "Sem área definida"} readOnly disabled />
+            <p className="flex items-center gap-1.5 text-v2-caption text-muted-foreground">
+              <Lock className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+              <span>
+                Definida pelo administrador em{" "}
+                <span className="font-medium text-foreground">Configurações → Usuários</span>.
+              </span>
             </p>
           </div>
 

@@ -1,36 +1,16 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requireAuthApi } from "@/lib/auth/server";
-import { ViosClientConnector } from "@/modules/crm/infrastructure/integrations/vios-client";
 
-const querySchema = z.object({
-  document: z.string().min(1),
-});
-
-export async function GET(request: Request) {
-  const auth = await requireAuthApi();
-  if (!auth.ok) return auth.response;
-
-  const url = new URL(request.url);
-  const parsed = querySchema.safeParse({
-    document: url.searchParams.get("document"),
-  });
-
-  if (!parsed.success) {
-    return NextResponse.json(
-      { ok: false, error: "Parâmetro document é obrigatório." },
-      { status: 400 },
-    );
-  }
-
-  try {
-    const connector = new ViosClientConnector(process.env.VIOS_API_KEY ?? "");
-    const record = await connector.searchClientByDocument(parsed.data.document);
-
-    return NextResponse.json({ ok: true, record });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Falha inesperada no VIOS.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
-  }
+/**
+ * @deprecated O VIOS não tem integração por API: o cadastro do cliente no VIOS é feito
+ * manualmente por Operações Legais (etapa Cadastro de Novo Cliente) e o CRM guarda só a
+ * referência. Esta rota devolvia um cliente fictício e foi desligada.
+ */
+export async function GET() {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: "Cadastro no VIOS é manual (Operações Legais). Integração por API não disponível.",
+    },
+    { status: 410 },
+  );
 }

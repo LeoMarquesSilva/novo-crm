@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { internalErrorResponse } from "@/lib/http/api-errors";
+import { verifySharedSecret } from "@/lib/webhooks/security";
 import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
 
 const fieldValueSchema = z.union([
@@ -25,14 +27,12 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   const expectedSecret = process.env.SHAREPOINT_INTEGRATION_SECRET;
   if (!expectedSecret) {
-    return NextResponse.json(
-      { ok: false, error: "SHAREPOINT_INTEGRATION_SECRET não configurado." },
-      { status: 500 },
-    );
+    console.error("[sharepoint/agendamentos] SHAREPOINT_INTEGRATION_SECRET não configurado.");
+    return NextResponse.json({ ok: false, error: "Integração indisponível." }, { status: 503 });
   }
 
   const sentSecret = request.headers.get("x-sharepoint-integration-secret");
-  if (!sentSecret || sentSecret !== expectedSecret) {
+  if (!verifySharedSecret(expectedSecret, sentSecret)) {
     return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
   }
 
@@ -50,8 +50,6 @@ export async function POST(request: Request) {
     const created = await client.createListItem(parsed.data.fields);
     return NextResponse.json({ ok: true, item: created });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Falha ao criar item no SharePoint.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse("sharepoint/agendamentos", error, "Falha ao criar item no SharePoint.");
   }
 }

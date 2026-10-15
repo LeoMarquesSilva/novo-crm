@@ -55,7 +55,25 @@ export const CRM_IN_APP_NOTIFICATION_TIPO_LABELS: Record<string, string> = {
   contrato_fechamento_pendente:   "Contrato — fechamento pendente",
   contrato_renovacao_pendente:    "Contrato — renovação pendente",
   contrato_excedente_sem_preco:   "Contrato — excedente sem preço",
+  venda_fechada:                  "Venda fechada",
+  cadastro_cliente_solicitado:    "Preencher cadastro do cliente",
+  cadastro_cliente_pendente:      "Cadastro de cliente pendente",
+  cadastro_cliente_devolvido:     "Cadastro devolvido para ajuste",
+  cadastro_cliente_concluido:     "Cadastro de cliente concluído",
+  faturamento_inclusao_pendente:  "Inclusão no faturamento",
+  contrato_ativado:               "Contrato ativado",
 };
+
+/** Tipos do fluxo de pós-venda (aba "Pós-venda" do sino). */
+export const POST_SALE_NOTIFICATION_TIPOS = new Set<string>([
+  "venda_fechada",
+  "cadastro_cliente_solicitado",
+  "cadastro_cliente_pendente",
+  "cadastro_cliente_devolvido",
+  "cadastro_cliente_concluido",
+  "faturamento_inclusao_pendente",
+  "contrato_ativado",
+]);
 
 /** Tipos `crm_in_app_notifications.tipo` que disparam a tab "SLA de etapa" (vazio até existir job/API). */
 export const SLA_STAGE_NOTIFICATION_TIPOS = new Set<string>([
@@ -78,6 +96,7 @@ export type NotificationTabGroupId =
   | "contratos"
   | "indicadores"
   | "anotacoes"
+  | "pos_venda"
   | "sla_etapa"
   | "outras";
 
@@ -91,6 +110,7 @@ export const NOTIFICATION_TAB_GROUPS: Array<{
   { id: "contratos", label: "Contratos"  },
   { id: "indicadores", label: "Indicadores" },
   { id: "anotacoes", label: "Anotações"  },
+  { id: "pos_venda", label: "Pós-venda"  },
   { id: "sla_etapa", label: "SLA de etapa" },
 ];
 
@@ -99,6 +119,7 @@ export function notificationTabGroupForTipo(tipo: string): Exclude<NotificationT
   if (tipo === "proposta_escopo_area") return "propostas";
   if (tipo === "indicator_pending_approval") return "indicadores";
   if (tipo === "lead_note_mention") return "anotacoes";
+  if (POST_SALE_NOTIFICATION_TIPOS.has(tipo)) return "pos_venda";
   if (SLA_STAGE_NOTIFICATION_TIPOS.has(tipo)) return "sla_etapa";
   if (
     tipo === "contrato_assinado" ||

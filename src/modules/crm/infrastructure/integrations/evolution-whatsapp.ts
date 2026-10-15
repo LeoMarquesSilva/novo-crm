@@ -1,4 +1,7 @@
+import { IntegrationError } from "@/lib/http/api-errors";
 import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+
+const NOT_CONFIGURED = "WhatsApp não configurado no servidor.";
 
 interface SendTextInput {
   destination: string;
@@ -38,15 +41,15 @@ export class EvolutionWhatsappConnector {
 
   private assertConfig() {
     if (!this.baseUrl) {
-      throw new Error("EVOLUTION_API_URL não configurado.");
+      throw new IntegrationError("evolution", NOT_CONFIGURED, "EVOLUTION_API_URL não configurado.");
     }
 
     if (!this.apiKey) {
-      throw new Error("EVOLUTION_API_KEY não configurado.");
+      throw new IntegrationError("evolution", NOT_CONFIGURED, "EVOLUTION_API_KEY não configurado.");
     }
 
     if (!this.instance) {
-      throw new Error("EVOLUTION_INSTANCE não configurado.");
+      throw new IntegrationError("evolution", NOT_CONFIGURED, "EVOLUTION_INSTANCE não configurado.");
     }
   }
 
@@ -64,8 +67,13 @@ export class EvolutionWhatsappConnector {
       },
     });
     if (!response.ok) {
-      const raw = await response.text();
-      throw new Error(`Falha ao consultar Evolution API: ${raw}`);
+      const raw = await response.text().catch(() => "");
+      throw new IntegrationError(
+        "evolution",
+        `Evolution API recusou a consulta (HTTP ${response.status}).`,
+        raw.slice(0, 500),
+        response.status,
+      );
     }
     return (await response.json()) as T;
   }
@@ -88,8 +96,13 @@ export class EvolutionWhatsappConnector {
     );
 
     if (!response.ok) {
-      const raw = await response.text();
-      throw new Error(`Falha ao enviar WhatsApp pela Evolution API: ${raw}`);
+      const raw = await response.text().catch(() => "");
+      throw new IntegrationError(
+        "evolution",
+        `Evolution API recusou o envio do WhatsApp (HTTP ${response.status}).`,
+        raw.slice(0, 500),
+        response.status,
+      );
     }
 
     const data = (await response.json()) as EvolutionApiResponse;

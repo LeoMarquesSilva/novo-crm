@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authorizeCronRequest } from "@/lib/http/cron-auth";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildContractInAppNotification } from "@/lib/crm/in-app-notification-meta";
@@ -10,11 +11,6 @@ import {
 
 export const maxDuration = 120;
 
-function isAuthorized(request: Request, secret: string) {
-  return request.headers.get("authorization") === `Bearer ${secret}`
-    || request.headers.get("x-cron-secret") === secret;
-}
-
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -22,13 +18,8 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || secret.length < 8) {
-    return NextResponse.json({ ok: false, error: "CRON_SECRET ausente ou fraco." }, { status: 503 });
-  }
-  if (!isAuthorized(request, secret)) {
-    return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
-  }
+  const denied = authorizeCronRequest(request);
+  if (denied) return denied;
 
   const supabase = createSupabaseAdminClient();
   const today = saoPauloDateFromInstant(new Date());

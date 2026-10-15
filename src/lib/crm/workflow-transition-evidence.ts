@@ -1,4 +1,6 @@
 import { generatedDocumentObjectExists } from "@/lib/crm/generated-document-storage";
+import { stageActionHref } from "@/lib/crm/stage-actions";
+import type { StageActionKind } from "@/modules/crm/domain/stage-transition-rules";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
@@ -18,10 +20,29 @@ export type WorkflowEvidenceBlocker = {
     | "contract_artifact_required"
     | "contract_review_required"
     | "d4sign_send_required"
-    | "d4sign_finalization_required";
+    | "d4sign_finalization_required"
+    | "use_dedicated_action";
   message: string;
   actionHref: string;
+  /** Ação da tela que substitui o arrasto (abre diálogo/aba em vez de só avisar). */
+  actionKind?: StageActionKind;
 };
+
+/** Blocker de etapa que só muda pela ação própria (envio, cadastro, ativação). */
+export function buildDedicatedActionBlocker(input: {
+  opportunityId: string;
+  message: string;
+  actionKind?: StageActionKind;
+}): WorkflowEvidenceBlocker {
+  return {
+    code: "use_dedicated_action",
+    message: input.message,
+    actionHref: input.actionKind
+      ? stageActionHref(input.actionKind, input.opportunityId)
+      : `/crm/leads/${encodeURIComponent(input.opportunityId)}`,
+    ...(input.actionKind ? { actionKind: input.actionKind } : {}),
+  };
+}
 
 const EMPTY_EVIDENCE: WorkflowTransitionEvidence = {
   proposalArtifactStored: false,
@@ -159,8 +180,9 @@ export function buildWorkflowEvidenceBlocker(
       return {
         code: "d4sign_send_required",
         message:
-          "Envie o contrato pela D4Sign dentro do CRM. A etapa será atualizada automaticamente após o envio.",
-        actionHref: contractHref,
+          "Envie o contrato para assinatura: a etapa muda sozinha depois do envio.",
+        actionHref: stageActionHref("open_send_dialog", oportunidadeId),
+        actionKind: "open_send_dialog",
       };
     }
   }

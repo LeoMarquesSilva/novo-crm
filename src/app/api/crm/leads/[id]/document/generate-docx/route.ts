@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { proposalDocxStream } from "@/lib/crm/proposta-docx-stream";
 import { proposalRenderRequestSchema } from "@/lib/crm/proposta-render-request";
-import { requireAuthApi } from "@/lib/auth/server";
 import { generatePropostaFile } from "@/lib/crm/generate-proposta-file";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -14,14 +14,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "proposal.manage" });
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
-      return NextResponse.json(
-        { ok: false, error: "Apenas comercial ou admin pode gerar a proposta." },
-        { status: 403 },
-      );
-    }
 
     const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
     if (!parsed.success) {

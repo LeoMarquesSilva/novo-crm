@@ -9,6 +9,7 @@ import {
   DynamicField,
   type FieldDefinition,
 } from "@/components/crm/dynamic-form";
+import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
 import { LeadStageDurationStrip } from "@/components/crm/lead-stage-duration-strip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -28,10 +29,12 @@ import { listBlockingCustomFields } from "@/lib/crm/compute-transition-requireme
 import { getNextLeadStage } from "@/lib/crm/lead-stage-duration-strip";
 import type { LeadLifecycleTimeline } from "@/lib/crm/lead-lifecycle-timeline";
 import { pipelineCodeForStage } from "@/lib/crm/pipeline-board-config";
+import { STAGE_ACTION_LABELS } from "@/lib/crm/stage-actions";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
 import { cn } from "@/lib/utils";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
+import type { StageActionKind } from "@/modules/crm/domain/stage-transition-rules";
 
 type FieldValue = string | string[] | undefined;
 
@@ -53,9 +56,11 @@ type TransitionRequirements = {
 type TransitionBlocker = {
   message: string;
   actionHref?: string;
+  actionKind?: StageActionKind;
 };
 
-function actionLabel(href: string): string {
+function actionLabel(href: string, kind?: StageActionKind): string {
+  if (kind) return STAGE_ACTION_LABELS[kind];
   if (href.includes("tab=proposal")) return "Abrir proposta";
   if (href.includes("tab=signature")) return "Abrir assinatura";
   if (href.includes("tab=contract")) return "Abrir contrato";
@@ -70,8 +75,10 @@ export function LeadDetailStageAdvance({
   canAdvance,
   linkProposta,
   linkContrato,
+  leadName,
 }: {
   leadId: string;
+  leadName?: string | null;
   currentStage: OpportunityStage;
   hasDueDiligence: boolean;
   timeline: LeadLifecycleTimeline;
@@ -90,8 +97,14 @@ export function LeadDetailStageAdvance({
     useState<TransitionRequirements | null>(null);
   const [blocker, setBlocker] = useState<TransitionBlocker | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
 
   const requestAdvance = async (targetStage: OpportunityStage) => {
+    // Contrato Elaborado → Enviado: a etapa muda pelo envio para assinatura.
+    if (currentStage === "contrato_elaborado" && targetStage === "contrato_enviado") {
+      setSendDialogOpen(true);
+      return;
+    }
     setOpen(true);
     setLoading(true);
     setRequirements(null);
@@ -130,6 +143,11 @@ export function LeadDetailStageAdvance({
         throw new Error(payload.error ?? "Não foi possível validar a próxima etapa.");
       }
       if (payload.transitionBlocker) {
+        if (payload.transitionBlocker.actionKind === "open_send_dialog") {
+          setOpen(false);
+          setSendDialogOpen(true);
+          return;
+        }
         setBlocker(payload.transitionBlocker);
         return;
       }
@@ -286,6 +304,14 @@ export function LeadDetailStageAdvance({
         advanceStage={nextStage}
         advancing={loading}
         onAdvance={nextStage ? requestAdvance : undefined}
+      />
+
+      <SendContractSignatureDialog
+        open={sendDialogOpen}
+        onOpenChange={setSendDialogOpen}
+        leadId={leadId}
+        leadName={leadName}
+        onSent={() => router.refresh()}
       />
 
       <Dialog
@@ -480,7 +506,7 @@ export function LeadDetailStageAdvance({
                 className={cn(buttonVariants({ variant: "cta" }), "mr-auto")}
                 onClick={() => setOpen(false)}
               >
-                {actionLabel(blocker.actionHref)}
+                {actionLabel(blocker.actionHref, blocker.actionKind)}
               </Link>
             ) : null}
             <Button

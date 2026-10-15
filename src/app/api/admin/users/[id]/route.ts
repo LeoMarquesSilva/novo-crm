@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminApi } from "@/lib/auth/server";
+import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
+import { APP_USER_ALL_AREAS } from "@/lib/crm/crm-areas";
+import { logServerError } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+
+const KNOWN_AREAS = new Set<string>(APP_USER_ALL_AREAS);
 
 const updateSchema = z.object({
   full_name: z.string().min(2).optional(),
@@ -34,7 +39,35 @@ export async function PATCH(
       }
     }
 
-    const { role: _role, ...profileFields } = parsed;
+    const profileFields: Omit<typeof parsed, "role"> = {
+      full_name: parsed.full_name,
+      area: parsed.area,
+      avatar_url: parsed.avatar_url,
+    };
+    for (const key of Object.keys(profileFields) as (keyof typeof profileFields)[]) {
+      if (profileFields[key] === undefined) delete profileFields[key];
+    }
+    if (profileFields.area !== undefined && profileFields.area !== null) {
+      const area = profileFields.area.trim();
+      if (!area) {
+        profileFields.area = null;
+      } else {
+        const canonical = normalizePracticeAreaKey(area);
+        if (KNOWN_AREAS.has(canonical)) {
+          profileFields.area = canonical;
+        } else {
+          // Valor legado já gravado pode ser reenviado sem mudança; valor novo fora da lista não.
+          const { data: current } = await supabase
+            .from("app_users")
+            .select("area")
+            .eq("id", id)
+            .maybeSingle();
+          if (current?.area !== area) {
+            return NextResponse.json({ error: "Área inválida." }, { status: 400 });
+          }
+        }
+      }
+    }
     if (Object.keys(profileFields).length > 0) {
       const { error: updateError } = await supabase
         .from("app_users")
@@ -42,7 +75,8 @@ export async function PATCH(
         .eq("id", id);
 
       if (updateError) {
-        return NextResponse.json({ error: updateError.message }, { status: 500 });
+        const ref = logServerError("admin/users/update", updateError, { id });
+        return NextResponse.json({ error: "Não foi possível salvar o usuário.", ref }, { status: 500 });
       }
     }
 
@@ -53,7 +87,8 @@ export async function PATCH(
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      const ref = logServerError("admin/users/read", error, { id });
+      return NextResponse.json({ error: "Não foi possível ler o usuário.", ref }, { status: 500 });
     }
 
     return NextResponse.json({ data });

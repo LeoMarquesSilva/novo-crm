@@ -3,16 +3,13 @@
  * Atualização unificada do cofre: listagem + pastas + enrich automático.
  */
 import { NextResponse } from "next/server";
-import { requireAuthApi } from "@/lib/auth/server";
+import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { runVaultSync } from "@/lib/d4sign/vault-sync";
 
 export async function POST() {
   try {
-    const auth = await requireAuthApi();
+    const auth = await requireLeadActionApi({ action: "d4sign.ops" });
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
-      return NextResponse.json({ ok: false, error: "Apenas admin/comercial." }, { status: 403 });
-    }
 
     const result = await runVaultSync({ apiSource: "vault-sync" });
 

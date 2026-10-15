@@ -4,6 +4,7 @@
  * pela service role.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { internalErrorResponse } from "@/lib/http/api-errors";
 import { z } from "zod";
 
 import { requireAdminApi } from "@/lib/auth/server";
@@ -43,7 +44,7 @@ export async function PATCH(
     .eq("id", id)
     .maybeSingle();
   if (targetError) {
-    return NextResponse.json({ ok: false, error: targetError.message }, { status: 500 });
+    return internalErrorResponse("admin/users/modules/read", targetError);
   }
   if (!target) {
     return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
@@ -59,7 +60,14 @@ export async function PATCH(
     : await supabase.from("app_user_module_access").delete().eq("app_user_id", id).eq("module", module);
 
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (error.code === "23514") {
+      // Check da tabela ainda não aceita o módulo (migration do módulo não aplicada no remoto).
+      return NextResponse.json(
+        { ok: false, error: "Esse módulo ainda não foi habilitado no banco (migration pendente)." },
+        { status: 409 },
+      );
+    }
+    return internalErrorResponse("admin/users/modules/write", error);
   }
 
   return NextResponse.json({ ok: true, id, module, enabled });

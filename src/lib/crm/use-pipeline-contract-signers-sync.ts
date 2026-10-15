@@ -78,6 +78,11 @@ export function usePipelineContractSignersSync(
           syncGate.quotaUntil = Date.now() + DEV_POLL_MS_AFTER_QUOTA;
           return;
         }
+        if (response.status === 403) {
+          // Perfil sem permissão de operar a D4Sign: não tenta de novo nesta sessão.
+          syncGate.quotaUntil = Number.POSITIVE_INFINITY;
+          return;
+        }
 
         if (response.ok && payload.ok && (payload.synced ?? 0) > 0) {
           notifySynced();

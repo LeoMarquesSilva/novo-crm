@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAuthApi } from "@/lib/auth/server";
+import { evaluateLeadAction } from "@/lib/auth/crm-access-policy";
+import { requireCrmActorApi } from "@/lib/auth/crm-actor";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   applyConfeccaoPropostaDefaults,
@@ -27,6 +28,7 @@ import {
   type ContractTransitionBlocker,
 } from "@/modules/crm/domain/workflow-rules";
 import {
+  buildDedicatedActionBlocker,
   loadWorkflowEvidenceBlocker,
   type WorkflowEvidenceBlocker,
 } from "@/lib/crm/workflow-transition-evidence";
@@ -98,7 +100,7 @@ const querySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAuthApi();
+  const auth = await requireCrmActorApi();
   if (!auth.ok) return auth.response;
 
   const sp = request.nextUrl.searchParams;
@@ -134,7 +136,7 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       supabase
         .from("oportunidades")
-        .select("id, etapa, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle")
+        .select("id, etapa, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle, criado_por, solicitante_email")
         .eq("id", opportunityId)
         .maybeSingle(),
       supabase
@@ -150,13 +152,17 @@ export async function GET(request: NextRequest) {
             .eq("oportunidade_id", opportunityId)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-      supabase
-        .from("field_definitions")
-        .select("*")
-        .eq("pipeline_code", pipeline as PipelineCode)
-        .eq("stage_code", nextStage)
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true }),
+      // Pós-venda usa o cadastro do cliente e a inclusão no faturamento (telas próprias),
+      // não campos configuráveis no modal de transição.
+      pipeline === "pos_venda"
+        ? Promise.resolve({ data: [], error: null })
+        : supabase
+            .from("field_definitions")
+            .select("*")
+            .eq("pipeline_code", pipeline as PipelineCode)
+            .eq("stage_code", nextStage)
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true }),
       supabase
         .from("field_values")
         .select("field_definition_id, value_json")
@@ -178,7 +184,8 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (fetchError) {
-      return NextResponse.json({ ok: false, error: fetchError.message }, { status: 500 });
+      console.error("Falha ao ler a oportunidade (requisitos de transição)", fetchError);
+      return NextResponse.json({ ok: false, error: "Não foi possível ler a oportunidade." }, { status: 500 });
     }
     if (!row) {
       return NextResponse.json({ ok: false, error: "Oportunidade não encontrada" }, { status: 404 });
@@ -189,6 +196,31 @@ export async function GET(request: NextRequest) {
         { ok: false, error: RD_KANBAN_VIEW_ONLY_MESSAGE },
         { status: 403 },
       );
+    }
+
+    const stageDecision = evaluateLeadAction(auth.actor, {
+      action: "stage.advance",
+      from: row.etapa as OpportunityStage,
+      to: nextStage as OpportunityStage,
+      lead: {
+        createdByAppUserId: (row.criado_por as string | null) ?? null,
+        requesterEmail: (row.solicitante_email as string | null) ?? null,
+      },
+      channel: "manual",
+    });
+    if (!stageDecision.allowed) {
+      if (stageDecision.code === "forbidden") {
+        return NextResponse.json({ ok: false, error: stageDecision.reason }, { status: 403 });
+      }
+      return NextResponse.json({
+        ok: true,
+        needsModal: false,
+        transitionBlocker: buildDedicatedActionBlocker({
+          opportunityId,
+          message: stageDecision.reason,
+          actionKind: stageDecision.actionKind,
+        }),
+      });
     }
 
     let transitionBlocker:

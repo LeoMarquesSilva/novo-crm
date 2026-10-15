@@ -126,10 +126,18 @@ function EmbedSignDialogContent({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         hideCloseButton
+        // Tela cheia. O DialogContent centraliza com `translate` (Tailwind 4), não com
+        // `transform`: sem zerar os dois a janela fica deslocada para cima e para a esquerda.
+        // As variáveis zeram o deslize de abertura/fechamento do tw-animate-css.
         style={{
           left: 0,
           top: 0,
           transform: "none",
+          translate: "none",
+          ["--tw-enter-translate-x" as string]: "0",
+          ["--tw-enter-translate-y" as string]: "0",
+          ["--tw-exit-translate-x" as string]: "0",
+          ["--tw-exit-translate-y" as string]: "0",
           width: "100vw",
           height: "100dvh",
           maxWidth: "none",

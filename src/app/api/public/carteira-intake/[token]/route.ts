@@ -5,6 +5,7 @@ import {
   loadGrupoIntakeGrid,
   submitGrupoIntakeRow,
 } from "@/lib/crm/grupo-intake-service";
+import { internalErrorResponse } from "@/lib/http/api-errors";
 
 export const maxDuration = 60;
 
@@ -20,8 +21,11 @@ export async function GET(
     }
     return NextResponse.json({ ok: true, data: result.data });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro ao carregar a grade.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse(
+      "public/carteira-intake/get",
+      error,
+      "Não foi possível carregar a grade. Tente novamente.",
+    );
   }
 }
 
@@ -31,7 +35,7 @@ export async function POST(
 ) {
   try {
     const { token } = await params;
-    const body = grupoIntakeRowSubmitSchema.parse(await request.json());
+    const body = grupoIntakeRowSubmitSchema.parse(await request.json().catch(() => null));
     const result = await submitGrupoIntakeRow(token, body);
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
@@ -41,7 +45,10 @@ export async function POST(
     if (error instanceof z.ZodError) {
       return NextResponse.json({ ok: false, error: "Dados inválidos." }, { status: 400 });
     }
-    const message = error instanceof Error ? error.message : "Erro ao gravar o preenchimento.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return internalErrorResponse(
+      "public/carteira-intake/post",
+      error,
+      "Não foi possível gravar o preenchimento. Tente novamente.",
+    );
   }
 }

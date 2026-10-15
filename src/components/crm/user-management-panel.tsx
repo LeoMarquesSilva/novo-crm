@@ -48,7 +48,12 @@ import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/cr
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { CRM_MODULE_LABELS, type CrmModule } from "@/lib/auth/crm-access-policy";
+import {
+  CRM_MODULE_LABELS,
+  CRM_MODULE_SHORT_LABELS,
+  CRM_MODULES,
+  type CrmModule,
+} from "@/lib/auth/crm-access-policy";
 import {
   APP_USER_AREAS,
   APP_USER_AREA_FORM_ITEMS,
@@ -462,8 +467,8 @@ function UserFormDialog({
 // ─── Module access toggle ──────────────────────────────────────────────────────
 
 /**
- * Liberação de um módulo (ex.: ICP) com efeito imediato (DS §19.3). Admin vê todos
- * os módulos, então o switch fica ligado e travado.
+ * Liberação de um módulo/time (ICP, Operações Legais) com efeito imediato (DS §19.3).
+ * Admin vê todos os módulos, então o switch fica ligado e travado.
  */
 function ModuleAccessSwitch({
   user,
@@ -510,7 +515,7 @@ function ModuleAccessSwitch({
         aria-label={`${label} para ${user.full_name}`}
       />
       <span className={cn("truncate", error && "text-danger-text")}>
-        {error ? "Erro ao salvar" : module.toUpperCase()}
+        {error ? "Erro ao salvar" : CRM_MODULE_SHORT_LABELS[module]}
       </span>
     </label>
   );
@@ -608,11 +613,16 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onModulesChange, onGran
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-success-text" aria-label="Salvo" />
               ) : null}
             </div>
-            <ModuleAccessSwitch
-              user={user}
-              module="icp"
-              onModulesChange={onModulesChange}
-            />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {CRM_MODULES.map((module) => (
+                <ModuleAccessSwitch
+                  key={module}
+                  user={user}
+                  module={module}
+                  onModulesChange={onModulesChange}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <Badge

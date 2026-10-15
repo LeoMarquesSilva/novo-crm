@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
+import { canAccessContractCapability, canConfigureContract } from "@/lib/auth/crm-access-policy";
+import { loadContractConfigureContext } from "@/modules/contracts/infrastructure/contract-configure-context";
 import { requireAuthApi } from "@/lib/auth/server";
 import { isIsoTimestamp } from "@/lib/crm/timestamps";
 import {
@@ -148,7 +149,7 @@ export async function PATCH(
     const code = auth.response.status === 401 ? "UNAUTHENTICATED" : "PROFILE_REQUIRED";
     return json({ ok: false, code, error: "Autenticação necessária.", issues: [] }, auth.response.status);
   }
-  if (!canAccessContractCapability({ role: auth.profile.role, capability: "configure" })) {
+  if (!canAccessContractCapability({ role: auth.profile.role, capability: "configure" }) && auth.profile.role !== "financeiro") {
     return json({ ok: false, code: "CONTRACT_FORBIDDEN", error: "Sem permissão para configurar contratos.", issues: [] }, 403);
   }
 
@@ -167,6 +168,15 @@ export async function PATCH(
       error: "Requisição inválida.",
       issues: [...(params.success ? [] : params.error.issues), ...(body.success ? [] : body.error.issues)],
     }, 400);
+  }
+
+  if (
+    !canConfigureContract({
+      role: auth.profile.role,
+      contract: auth.profile.role === "financeiro" ? await loadContractConfigureContext(params.data.id, (body.data.configuration as { version?: { id?: string } }).version?.id ?? null) : null,
+    })
+  ) {
+    return json({ ok: false, code: "CONTRACT_FORBIDDEN", error: "Sem permissão para configurar este contrato.", issues: [] }, 403);
   }
 
   try {

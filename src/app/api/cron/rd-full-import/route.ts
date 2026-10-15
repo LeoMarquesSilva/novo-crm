@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authorizeCronRequest } from "@/lib/http/cron-auth";
 import { runRdFullImport } from "@/lib/crm/rd-import-run";
 
 /**
@@ -7,30 +8,9 @@ import { runRdFullImport } from "@/lib/crm/rd-import-run";
  */
 export const maxDuration = 300;
 
-function isAuthorized(request: Request, secret: string): boolean {
-  const auth = request.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) {
-    return true;
-  }
-  return request.headers.get("x-cron-secret") === secret;
-}
-
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || secret.length < 8) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "CRON_SECRET ausente ou fraco — defina um segredo seguro no ambiente (ex.: 32 caracteres).",
-      },
-      { status: 503 },
-    );
-  }
-
-  if (!isAuthorized(request, secret)) {
-    return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
-  }
+  const denied = authorizeCronRequest(request);
+  if (denied) return denied;
 
   const url = new URL(request.url);
   const yearParam = url.searchParams.get("year");

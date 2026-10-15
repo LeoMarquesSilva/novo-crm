@@ -2,6 +2,30 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-15 — Segurança estrutural e fluxo contrato → pós-venda
+
+Segurança:
+- Papel e área só pelo admin: `/crm/perfil` grava nome e foto por `PATCH /api/crm/profile`; migration `20261015120000` (não aplicada) tira a escrita de `app_users` do navegador e barra troca de `role`/`area` pela sessão.
+- Política única (`crm-access-policy.ts` + `stage-transition-rules.ts`): criar lead (admin/comercial), excluir (só admin), concluir revisão do contrato (admin, comercial, Societário, designado — avança pela RPC atômica com histórico), envio/operação D4Sign, matriz de etapas. Testes de negação por papel e de rota.
+- Rotas 410: VIOS stub, `crm/d4sign/vault|sync|import`. Crons e SharePoint com segredo timing-safe. Erros genéricos com referência de log. Timeouts em SIOE, OrquestrAI e OpenAI. Aviso de indicador pendente ia para o id errado.
+- Migration `20261015121000` (não aplicada): sem escrita do navegador nas tabelas de workflow.
+
+Produto:
+- Diálogo de envio para assinatura (sócios preenchidos, e-mails do cliente sugeridos), reenvio cancelando o pendente, etapa pela RPC `register_contract_sent_atomic`.
+- Assinatura concluída (webhook ou sync, um só caminho): Contrato Assinado, venda ganha, pós-venda em Aguardando Cadastro, avisos no sino e por e-mail (equipe do lead, sócios, comercial, admin, Ops Legais, Financeiro), PDF assinado guardado.
+- Cadastro do cliente (responsável) → Operações Legais (checklist VIOS/legados, grupo, devolver/concluir) → cliente, grupo e contatos criados/vinculados → Inclusão no Faturamento.
+- Financeiro inclui o contrato no gerenciamento de contratos com pré-preenchimento do cadastro, proposta e leitura por IA do PDF assinado; configura e ativa (→ Boas-vindas).
+- Migrations `20261015122000`–`20261015126000` versionadas, não aplicadas.
+
+Validações: `npx vitest run` (todas as suítes), `npm run lint` (0 erros), `npx tsc --noEmit`, `npm run build`.
+
+Correções do teste de telas (local, banco de produção, sem envio à D4Sign nem e-mail):
+- Kanban (`GET /api/crm/leads`) dava 500 com ~430 leads: o filtro `.in()` com todos os ids ia na URL e a resposta do PostgREST passava de 16 KB de cabeçalho (`UND_ERR_HEADERS_OVERFLOW`). As consultas por lista de ids passam por `selectInChunks` (`src/lib/supabase/select-in-chunks.ts`, lotes de 150). Erro já existia em `main`.
+- Ficha do lead não compilava no navegador: `api-errors.ts` importava `node:crypto` e chegava ao bundle do cliente via `due-area-tasks.ts`. Agora usa `globalThis.crypto` e `isDueAreaTaskDelivered` mora em `due-area-task-status.ts`.
+- Reenvio para assinatura: sem o documento no cache `d4sign_documents`, o envio anterior não era tratado como pendente e não era cancelado. Usa o status gravado no lead e, sem status, trata Contrato Enviado como pendente.
+- Lead do RD não mostra mais "Avançar para esta etapa" (a rota responde 403). Ficha do contrato aberta pelo lead volta para o lead. Texto da área no Perfil sem o espaço sobrando.
+- Assinar contratos (sócios): o botão Assinar abria a janela da D4Sign deslocada para cima e para a esquerda, com o PDF fora da tela. O `DialogContent` centraliza com a propriedade `translate` (Tailwind 4) e o diálogo de tela cheia só zerava `transform`. `d4sign-embed-dialog.tsx` zera `translate` e o deslize da animação. Erro já existia em `main`.
+
 ## 2026-10-14 — ICP: custo por hora fora da tela e margem explicada
 
 - Carteira: saiu o bloco "Custo por hora de cada área e horas consideradas" (critério do custo da hora ainda em definição).

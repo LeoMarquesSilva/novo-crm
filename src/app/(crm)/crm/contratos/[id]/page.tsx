@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { ContractDetailShell } from "@/components/crm/contracts/contract-detail-shell";
-import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
+import { canConfigureContract } from "@/lib/auth/crm-access-policy";
 import { requireAuth } from "@/lib/auth/server";
 import { maybeBackfillImportedDraftRateio } from "@/lib/contract-import/persist-draft";
 import { getContractDetail } from "@/modules/contracts/infrastructure/contract-queries";
@@ -17,5 +17,14 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
   }
   const contract = await getContractDetail(id);
   if (!contract) notFound();
-  return <ContractDetailShell contract={contract} canConfigure={canAccessContractCapability({ role: profile.role, capability: "configure" })} />;
+  const canConfigure = canConfigureContract({
+    role: profile.role,
+    contract: {
+      opportunityId: contract.opportunityId,
+      opportunityStage: contract.opportunityStage,
+      versionNumber: contract.configuration ? 1 : null,
+      versionStatus: contract.configuration ? "rascunho" : null,
+    },
+  });
+  return <ContractDetailShell contract={contract} canConfigure={canConfigure} />;
 }

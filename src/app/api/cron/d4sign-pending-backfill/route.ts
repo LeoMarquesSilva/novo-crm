@@ -3,27 +3,14 @@
  * horária ficou no `d4sign-sync` (raiz + pastas de cliente + signatários).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeCronRequest } from "@/lib/http/cron-auth";
 import { runPendingSignatureBackfill } from "@/lib/d4sign/pending-backfill";
 
 export const maxDuration = 120;
 
-function isAuthorized(request: NextRequest, secret: string): boolean {
-  const auth = request.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) return true;
-  return request.headers.get("x-cron-secret") === secret;
-}
-
 async function run(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || secret.length < 8) {
-    return NextResponse.json(
-      { ok: false, error: "CRON_SECRET ausente ou fraco." },
-      { status: 503 },
-    );
-  }
-  if (!isAuthorized(request, secret)) {
-    return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
-  }
+  const denied = authorizeCronRequest(request);
+  if (denied) return denied;
 
   const result = await runPendingSignatureBackfill();
   return NextResponse.json(

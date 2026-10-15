@@ -15,6 +15,7 @@ import { getD4SignEnv } from "@/lib/d4sign/env";
 import { enrichDocuments, pickDocumentsToEnrich } from "@/lib/d4sign/enrich-documents";
 import { runPendingSignatureBackfill } from "@/lib/d4sign/pending-backfill";
 import { collectD4SignPdfLogs } from "@/lib/d4sign/pdf-log-sync";
+import { cacheSignedOpportunityPdfs } from "@/lib/d4sign/signed-pdf-cache";
 import { D4SIGN_HUMAN_RESERVE, planD4SignSyncBudget } from "@/lib/d4sign/sync-budget";
 import { peekVaultFolderWalk, runVaultFolderWalk } from "@/lib/d4sign/vault-folder-walk";
 import { foldersLeftInWalk } from "@/lib/d4sign/vault-folder-walk-plan";
@@ -155,10 +156,16 @@ export async function runD4SignSyncRound(trigger: string) {
       : null;
   });
 
+  // PDF assinado dos leads (a inclusão no faturamento lê o PDF): 1 download por rodada.
+  const signedPdfBudget = Math.min(1, budget.pdfLogs);
+  const signedPdfs = await stage("pdf-assinado", () =>
+    cacheSignedOpportunityPdfs({ maxDownloads: signedPdfBudget, deadline }),
+  );
+
   // Remetente pelo log do PDF: lê os PDFs já guardados (sem cota) e baixa
   // os demais com a cota de download acima da reserva humana.
   const pdfLogs = await stage("remetente", () =>
-    collectD4SignPdfLogs({ maxDownloads: budget.pdfLogs, deadline }),
+    collectD4SignPdfLogs({ maxDownloads: Math.max(0, budget.pdfLogs - (signedPdfs?.downloaded ?? 0)), deadline }),
   );
 
   return {
@@ -172,6 +179,7 @@ export async function runD4SignSyncRound(trigger: string) {
     enrich,
     listing,
     folders,
+    signedPdfs,
     pdfLogs,
     quota: await remainingByMethod(),
   };
