@@ -24,6 +24,7 @@ Correções do teste de telas (local, banco de produção, sem envio à D4Sign n
 - Ficha do lead não compilava no navegador: `api-errors.ts` importava `node:crypto` e chegava ao bundle do cliente via `due-area-tasks.ts`. Agora usa `globalThis.crypto` e `isDueAreaTaskDelivered` mora em `due-area-task-status.ts`.
 - Reenvio para assinatura: sem o documento no cache `d4sign_documents`, o envio anterior não era tratado como pendente e não era cancelado. Usa o status gravado no lead e, sem status, trata Contrato Enviado como pendente.
 - Lead do RD não mostra mais "Avançar para esta etapa" (a rota responde 403). Ficha do contrato aberta pelo lead volta para o lead. Texto da área no Perfil sem o espaço sobrando.
+- Assinar contratos (sócios): o botão Assinar abria a janela da D4Sign deslocada para cima e para a esquerda, com o PDF fora da tela. O `DialogContent` centraliza com a propriedade `translate` (Tailwind 4) e o diálogo de tela cheia só zerava `transform`. `d4sign-embed-dialog.tsx` zera `translate` e o deslize da animação. Erro já existia em `main`.
 
 ## 2026-10-14 — ICP: custo por hora fora da tela e margem explicada
 
