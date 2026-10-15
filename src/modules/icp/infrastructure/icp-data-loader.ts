@@ -221,6 +221,7 @@ async function loadIcpData(): Promise<IcpData> {
     groupMap,
     revenueRows,
     processRows,
+    activeFolderRows,
     pessoaRows,
     overdueRows,
     timesheetRows,
@@ -259,6 +260,17 @@ async function loadIcpData(): Promise<IcpData> {
           .not("data_cadastro", "is", null)
           .order("id")
           .range(from, to)
+    ),
+    // Pastas ativas: mesmo critério da projeção de contratos (src/lib/sioe/usage.ts).
+    fetchAll<{ id: string; grupo_cliente: string | null; area: string | null }>((from, to) =>
+      sioe
+        .from("processos_completo")
+        .select("id, grupo_cliente, area")
+        .eq("processo_encerrado", "Não")
+        .eq("situacao_processo", "Ativo")
+        .not("grupo_cliente", "is", null)
+        .order("id")
+        .range(from, to)
     ),
     fetchAll<{
       id: string;
@@ -397,6 +409,7 @@ async function loadIcpData(): Promise<IcpData> {
       count: excludedPayers.size,
       revenue: [...excludedPayers.values()].reduce((acc, v) => acc + v, 0),
     },
+    activeFolders: activeFolderRows.map((p) => ({ grupo: (p.grupo_cliente ?? "").trim(), area: p.area })),
     processes: processRows.map((p) => ({
       grupo: (p.grupo_cliente ?? "").trim(),
       area: p.area,
@@ -434,7 +447,7 @@ async function loadIcpData(): Promise<IcpData> {
 }
 
 /** Resultado em cache por 6 horas; o botão "Recalcular" invalida a tag. */
-export const getIcpData = unstable_cache(loadIcpData, ["crm-icp-data-v5"], {
+export const getIcpData = unstable_cache(loadIcpData, ["crm-icp-data-v6"], {
   revalidate: 60 * 60 * 6,
   tags: [ICP_CACHE_TAG],
 });

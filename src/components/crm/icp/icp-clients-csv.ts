@@ -23,6 +23,7 @@ export const ICP_CLIENTS_CSV_HEADER = [
   "Entrada",
   "Áreas que faturaram",
   "Tipo de contrato (plano de contas)",
+  "Pastas ativas",
   "Receita 12 meses",
   "Média mensal",
   "Em atraso",
@@ -55,6 +56,7 @@ export function buildClientsCsv(rows: IcpGroupRow[]): string {
       sortedPlans(g.revenueByPlan)
         .map(([plan]) => plan)
         .join(", "),
+      g.activeFolders,
       Math.round(g.revenue12m),
       Math.round(g.monthly),
       Math.round(g.overdue),

@@ -305,11 +305,14 @@ export function MiniBar({ value, warn }: { value: number; warn?: boolean }) {
 /* --------------------------------------------------------------- Indicadores */
 
 /** Grupo de KPIs numa única Surface dividida em colunas (§29.2). */
-export function KpiGroup({ label, children }: { label: string; children: ReactNode }) {
+export function KpiGroup({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <section
       aria-label={label}
-      className="grid gap-px overflow-hidden rounded-(--radius-v2-xl) border border-border bg-border sm:grid-cols-2 xl:grid-cols-4"
+      className={cn(
+        "grid gap-px overflow-hidden rounded-(--radius-v2-xl) border border-border bg-border sm:grid-cols-2 xl:grid-cols-4",
+        className,
+      )}
     >
       {children}
     </section>

@@ -3,14 +3,15 @@
 /** Aba Carteira: tipo de contrato = plano de contas do SIOE, por faixa e no painel próprio. */
 import { useState } from "react";
 import { Repeat } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { planSummary, type IcpData, type IcpGroupRow } from "@/modules/icp/domain/compute";
-import { HONORARIOS_MENSAIS, planShortLabel } from "@/modules/icp/domain/plano-contas";
+import { HONORARIOS_MENSAIS, HONORARIO_PLANS, planShortLabel } from "@/modules/icp/domain/plano-contas";
 import { INFO, SRC, groupsInScope, scopeText, type TierScope } from "./icp-content";
 import { money, pct } from "./icp-format";
 import { PlanDot, planFill } from "./icp-plano-contas";
-import { LabelWithInfo, Panel, TierScopeTabs } from "./icp-primitives";
+import { Panel, TierScopeTabs } from "./icp-primitives";
+import { SortableHead, nextSort, sortRows, type SortState } from "./icp-sort";
 
 /** Barra 100% com a receita da faixa dividida por plano de contas. */
 export function PlanMixBar({ groups }: { groups: IcpGroupRow[] }) {
@@ -53,13 +54,27 @@ export function PlanLegend({ groups }: { groups: IcpGroupRow[] }) {
   );
 }
 
-const headClass = "text-xs font-medium text-muted-foreground";
+type PlanSortKey = "plano" | "grupos" | "receita" | "share" | "ticket";
+
+/** Posição do plano na lista do SIOE (planos fora da lista vão para o fim). */
+function planOrder(plan: string): number {
+  const index = (HONORARIO_PLANS as readonly string[]).indexOf(plan);
+  return index === -1 ? HONORARIO_PLANS.length : index;
+}
 
 /** Grupos, receita e ticket por plano de contas do SIOE, um plano por linha. */
 export function PlanoContasPanel({ data }: { data: IcpData }) {
   const [scope, setScope] = useState<TierScope>("all");
   const inScope = groupsInScope(data, scope);
   const summary = planSummary(inScope);
+  const [sort, setSort] = useState<SortState<PlanSortKey>>({ key: "plano", desc: false });
+  const onSort = (key: PlanSortKey) => setSort((s) => nextSort(s, key));
+  const rows = sortRows(summary.rows, sort, (r, key) => {
+    if (key === "plano") return planOrder(r.plan);
+    if (key === "grupos") return r.groups;
+    if (key === "ticket") return r.avgMonthly;
+    return r.revenue;
+  });
 
   return (
     <Panel
@@ -93,21 +108,15 @@ export function PlanoContasPanel({ data }: { data: IcpData }) {
       <Table className="min-w-[620px]">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={headClass}>
-              <LabelWithInfo label="Plano de contas" info={INFO.tipoContrato} />
-            </TableHead>
-            <TableHead className={cn(headClass, "text-right")}>
-              <LabelWithInfo label="Grupos" info={INFO.gruposPorPlano} className="justify-end" />
-            </TableHead>
-            <TableHead className={cn(headClass, "text-right")}>Receita 12 meses</TableHead>
-            <TableHead className={cn(headClass, "text-right")}>% da receita</TableHead>
-            <TableHead className={cn(headClass, "text-right")}>
-              <LabelWithInfo label="Ticket/mês" info={INFO.ticketPorPlano} className="justify-end" />
-            </TableHead>
+            <SortableHead label="Plano de contas" sortKey="plano" sort={sort} onSort={onSort} info={INFO.tipoContrato} />
+            <SortableHead label="Grupos" sortKey="grupos" sort={sort} onSort={onSort} info={INFO.gruposPorPlano} align="right" />
+            <SortableHead label="Receita 12 meses" sortKey="receita" sort={sort} onSort={onSort} align="right" />
+            <SortableHead label="% da receita" sortKey="share" sort={sort} onSort={onSort} align="right" />
+            <SortableHead label="Ticket/mês" sortKey="ticket" sort={sort} onSort={onSort} info={INFO.ticketPorPlano} align="right" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {summary.rows.map((r) => (
+          {rows.map((r) => (
             <TableRow key={r.plan} className="hover:bg-transparent">
               <TableCell className="py-3">
                 <span className="inline-flex items-center gap-2 font-medium text-foreground">

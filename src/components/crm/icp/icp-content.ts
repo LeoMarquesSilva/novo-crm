@@ -83,7 +83,15 @@ export const INFO = {
   ticketPorPlano: "Receita do plano em 12 meses dividida por 12 e pelo número de grupos que pagaram nele.",
   atrasoReceita: "Valor vencido em aberto hoje dividido pela receita de 12 meses. Acima de 50% fica em âmbar.",
   horas: "Horas lançadas no timesheet do VIOS para o grupo nos últimos 12 meses.",
-  receitaHora: "Receita de 12 meses dividida pelas horas apontadas. Mostra quanto rendeu cada hora de trabalho.",
+  receitaHora:
+    "Conta: receita ÷ horas lançadas, somando só os clientes que têm horas no timesheet. Receita: honorários pagos em 12 meses (financeiro do VIOS). Horas: timesheet do VIOS no mesmo período. Mostra quanto rendeu cada hora de trabalho.",
+  pastasAtivas:
+    "Pastas (processos) do cliente que estão ativas hoje no VIOS: processo não encerrado e com situação Ativo. É a foto de hoje, não dos últimos 12 meses. Com filtro de área, conta só as pastas da área.",
+  pastasAtivasFaixa: "Média de pastas ativas hoje no VIOS por grupo da faixa (processo não encerrado e com situação Ativo).",
+  receitaHoraEscritorio:
+    "Média do escritório: receita de todos os clientes com horas lançadas ÷ todas as horas lançadas para eles em 12 meses (honorários pagos no financeiro e timesheet do VIOS). Cliente sem hora lançada, como só êxito, fica fora da conta para não inflar a média.",
+  tipoContratoOrdem:
+    "Plano de contas dos honorários pagos em 12 meses, com o nome igual ao do SIOE. Ao ordenar, a coluna segue a parte da receita em HONORÁRIOS MENSAIS.",
   custo:
     "Conta: horas lançadas para o cliente (timesheet do VIOS) × custo da hora da área. Custo da hora: custo de pessoal da área nos últimos 12 meses no financeiro do VIOS (remuneração, encargos e benefícios) ÷ todas as horas que a área lançou no período. Área sem custo de pessoal próprio usa a média do escritório. O critério ainda está em definição.",
   margem:

@@ -59,6 +59,12 @@ export function icpFixtureInput(): IcpInput {
       { grupo: "Grupo Beta", area: "Cível", dataCadastro: "2023-05-01" },
       { grupo: "Grupo Gama", area: "Trabalhista", dataCadastro: "2024-01-15" },
     ],
+    activeFolders: [
+      { grupo: "Grupo Alfa", area: "Insolvência" },
+      { grupo: "Grupo Alfa", area: "Insolvência" },
+      { grupo: "Grupo Alfa", area: "Trabalhista" },
+      { grupo: "Grupo Beta", area: "Cível" },
+    ],
     pessoas: [
       { grupo: "Grupo Alfa", tipo: "PESSOA JURÍDICA", uf: "SP", cidade: "Campinas", categoria: "Cliente ativo" },
       { grupo: "Grupo Beta", tipo: "PESSOA JURÍDICA", uf: "SP", cidade: "São Paulo", categoria: "Cliente ativo" },

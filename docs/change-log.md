@@ -2,6 +2,12 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-15 — ICP: receita média por hora e colunas ordenáveis na Carteira
+
+- Receita média por hora = receita ÷ horas lançadas, somando só quem tem horas no timesheet (`revenuePerHour`). Entra como indicador do escritório no topo da Carteira (R$ 362/h em 15/10), como coluna na tabela de faixas (com a linha "Escritório todo" no fim) e no comparativo dos blocos.
+- Pastas ativas do cliente: processos do SIOE com `processo_encerrado = "Não"` e `situacao_processo = "Ativo"` (mesmo critério de `src/lib/sioe/usage.ts`), contados por grupo e por área (`activeFolders`, `folders` nas métricas por área). Aparecem na lista dos blocos (coluna ordenável e detalhe), na tabela de faixas (média por grupo e linha do escritório), no comparativo dos blocos, na aba Clientes (coluna, detalhe) e no CSV. Em 15/10: 5.673 pastas ativas no SIOE, 5.284 nos 199 grupos pagantes. Cache do cálculo renomeado (`crm-icp-data-v6`).
+- Colunas ordenáveis pelo cabeçalho (primeiro clique do menor para o maior, segundo inverte, sem valor no fim) na tabela de faixas, na lista "Quem está em cada bloco" e na tabela de tipo de contrato (`icp-sort.tsx`). Tipo de contrato ordena pela parte da receita em HONORÁRIOS MENSAIS.
+
 ## 2026-10-15 — Segurança estrutural e fluxo contrato → pós-venda
 
 Segurança:

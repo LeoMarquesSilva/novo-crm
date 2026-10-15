@@ -20,10 +20,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { HONORARIOS_MENSAIS } from "@/modules/icp/domain/plano-contas";
 import {
   planSummary,
+  revenuePerHour,
   type IcpData,
   type IcpSizeBucket,
   type IcpSizeBucketKey,
@@ -31,8 +33,20 @@ import {
 } from "@/modules/icp/domain/compute";
 import { IcpAreaBadge, IcpAreaBadgeSpacer, IcpAreaTag } from "./icp-area-icon";
 import { GroupPlans, PlanDot, PlanStack } from "./icp-plano-contas";
+import { SortableHead, nextSort, sortRows, type SortState, type SortValue } from "./icp-sort";
 import { INFO, SIZE_BUCKET_LABEL, SRC } from "./icp-content";
-import { groupName, hoursLabel, marginOf, money, noSectorLabel, pct, predominant, ratio } from "./icp-format";
+import {
+  decimal,
+  groupName,
+  hoursLabel,
+  marginOf,
+  money,
+  moneyOrDash,
+  noSectorLabel,
+  pct,
+  predominant,
+  ratio,
+} from "./icp-format";
 import {
   CompanyLogo,
   EmployeeRange,
@@ -81,9 +95,17 @@ const SIZE_METRIC_SECTIONS: { title: string; rows: MetricRow[] }[] = [
         }),
       },
       {
-        label: "Receita por hora",
+        label: "Receita média por hora",
         info: INFO.receitaHora,
-        cells: (b) => ({ value: b.hours > 0 ? money(b.revenue / b.hours) : "—" }),
+        cells: (b) => ({ value: moneyOrDash(revenuePerHour(b.groups)) }),
+      },
+      {
+        label: "Pastas ativas por cliente",
+        info: INFO.pastasAtivas,
+        cells: (b) => ({
+          value: b.groups.length ? decimal(b.folders / b.groups.length) : "—",
+          sub: `${b.folders.toLocaleString("pt-BR")} pastas no total`,
+        }),
       },
       {
         label: "Custo de entrega",
@@ -436,13 +458,39 @@ function ComparisonTable({ buckets }: { buckets: IcpSizeBucket[] }) {
   );
 }
 
-const headClass = "text-xs font-medium text-muted-foreground";
-
 /** Bloco mostrado na lista: um dos três blocos ou todos os clientes pagantes. */
 export type IcpBucketView = IcpSizeBucketKey | "todos";
 
 /** Em "Todos", quantos grupos aparecem antes de expandir a lista. */
 const ALL_PREVIEW = 25;
+
+type BucketSortKey = "grupo" | "areas" | "tipo" | "receita" | "pastas" | "horas" | "receitaHora" | "margem" | "atraso";
+
+function bucketSortValue(g: IcpSizedGroup, key: BucketSortKey): SortValue {
+  switch (key) {
+    case "grupo":
+      return groupName(g.grupo).toLowerCase();
+    case "areas":
+      return g.group.areas.length;
+    case "tipo": {
+      // Parte da receita em HONORÁRIOS MENSAIS.
+      const total = Object.values(g.revenueByPlan).reduce((acc, v) => acc + v, 0);
+      return total > 0 ? (g.revenueByPlan[HONORARIOS_MENSAIS] ?? 0) / total : null;
+    }
+    case "receita":
+      return g.revenue;
+    case "pastas":
+      return g.folders;
+    case "horas":
+      return g.hours;
+    case "receitaHora":
+      return g.hours > 0 ? g.revenue / g.hours : null;
+    case "margem":
+      return marginOf(g.revenue, g.cost, g.hours);
+    case "atraso":
+      return g.overdue;
+  }
+}
 
 export function BucketListPanel({
   ref,
@@ -463,19 +511,24 @@ export function BucketListPanel({
 }) {
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
+  // Padrão: ranking por receita (do maior para o menor), como os blocos.
+  const [sort, setSort] = useState<SortState<BucketSortKey>>({ key: "receita", desc: true });
+  const onSort = (key: BucketSortKey) => setSort((s) => nextSort(s, key));
   const [open, setOpen] = useState<Set<string>>(new Set());
   const isAll = selected === "todos";
   const current = isAll ? null : (buckets.find((b) => b.key === selected) ?? buckets[0]);
   const list = isAll ? all : (current?.groups ?? []);
   const rankOf = new Map(all.map((g, i) => [g.grupo, i + 1]));
   const q = query.trim().toLowerCase();
-  const filtered = list.filter(
-    (g) => !q || g.grupo.toLowerCase().includes(q) || (g.group.sector ?? "").toLowerCase().includes(q),
+  const filtered = sortRows(
+    list.filter((g) => !q || g.grupo.toLowerCase().includes(q) || (g.group.sector ?? "").toLowerCase().includes(q)),
+    sort,
+    bucketSortValue,
   );
   // Busca sempre mostra tudo o que encontrou; sem busca, "Todos" começa pelos primeiros.
   const collapsed = isAll && !q && !showAll && filtered.length > ALL_PREVIEW;
   const rows = collapsed ? filtered.slice(0, ALL_PREVIEW) : filtered;
-  const columns = showAreas ? 8 : 7;
+  const columns = showAreas ? 9 : 8;
 
   function toggleRow(grupo: string) {
     setOpen((prev) => {
@@ -493,8 +546,8 @@ export function BucketListPanel({
         title="Quem está em cada bloco"
         description={
           isAll
-            ? `Todos os ${all.length} clientes que pagaram honorários em 12 meses, da maior para a menor receita`
-            : "Receita, tipo de contrato, horas, receita por hora, margem e atraso de cada grupo"
+            ? `Todos os ${all.length} clientes que pagaram honorários em 12 meses. Clique no título de uma coluna para ordenar.`
+            : "Receita, tipo de contrato, horas, receita média por hora, margem e atraso de cada grupo. Clique no título de uma coluna para ordenar."
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -527,33 +580,25 @@ export function BucketListPanel({
         }
       />
 
-      <Table className={showAreas ? "min-w-[1120px]" : "min-w-[920px]"}>
+      <Table className={showAreas ? "min-w-[1220px]" : "min-w-[1020px]"}>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={headClass}>Grupo</TableHead>
-            {showAreas && (
-              <TableHead className={headClass}>
-                <LabelWithInfo label="Áreas" info={INFO.areasGrupo} />
-              </TableHead>
-            )}
-            <TableHead className={headClass}>
-              <LabelWithInfo label="Tipo de contrato" info={INFO.tipoContrato} />
-            </TableHead>
-            <TableHead className={cn(headClass, "text-right")}>
-              <LabelWithInfo label="Receita 12 meses" info={INFO.receita} className="justify-end" />
-            </TableHead>
-            <TableHead className={cn(headClass, "text-right")}>
-              <LabelWithInfo label="Horas" info={INFO.horas} className="justify-end" />
-            </TableHead>
-            <TableHead className={cn(headClass, "text-right")}>
-              <LabelWithInfo label="Receita por hora" info={INFO.receitaHora} className="justify-end" />
-            </TableHead>
-            <TableHead className={cn(headClass, "pl-6")}>
-              <LabelWithInfo label="Margem" info={INFO.margem} />
-            </TableHead>
-            <TableHead className={cn(headClass, "text-right")}>
-              <LabelWithInfo label="Em atraso" info={INFO.atraso} className="justify-end" />
-            </TableHead>
+            <SortableHead label="Grupo" sortKey="grupo" sort={sort} onSort={onSort} />
+            {showAreas && <SortableHead label="Áreas" sortKey="areas" sort={sort} onSort={onSort} info={INFO.areasGrupo} />}
+            <SortableHead label="Tipo de contrato" sortKey="tipo" sort={sort} onSort={onSort} info={INFO.tipoContratoOrdem} />
+            <SortableHead label="Receita 12 meses" sortKey="receita" sort={sort} onSort={onSort} info={INFO.receita} align="right" />
+            <SortableHead label="Pastas ativas" sortKey="pastas" sort={sort} onSort={onSort} info={INFO.pastasAtivas} align="right" />
+            <SortableHead label="Horas" sortKey="horas" sort={sort} onSort={onSort} info={INFO.horas} align="right" />
+            <SortableHead
+              label="Receita média/hora"
+              sortKey="receitaHora"
+              sort={sort}
+              onSort={onSort}
+              info={INFO.receitaHora}
+              align="right"
+            />
+            <SortableHead label="Margem" sortKey="margem" sort={sort} onSort={onSort} info={INFO.margem} className="pl-6" />
+            <SortableHead label="Em atraso" sortKey="atraso" sort={sort} onSort={onSort} info={INFO.atraso} align="right" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -636,6 +681,7 @@ export function BucketListPanel({
                     <span className="font-semibold text-foreground">{money(g.revenue)}</span>
                     <span className="block text-xs text-muted-foreground">{money(g.revenue / 12)}/mês</span>
                   </TableCell>
+                  <TableCell className="py-3 text-right align-top tabular-nums">{g.folders > 0 ? g.folders : "—"}</TableCell>
                   <TableCell className="py-3 text-right align-top tabular-nums">{g.hours > 0 ? hoursLabel(g.hours) : "—"}</TableCell>
                   <TableCell className="py-3 text-right align-top tabular-nums">
                     {g.hours > 0 ? money(g.revenue / g.hours) : "—"}
@@ -752,6 +798,15 @@ function RankedGroupDetail({ group: g }: { group: IcpSizedGroup }) {
         <div>
           <dt className="text-muted-foreground">Custo de entrega</dt>
           <dd className="tabular-nums text-foreground">{g.hours > 0 ? money(g.cost) : "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Pastas ativas</dt>
+          <dd className="font-semibold tabular-nums text-foreground">
+            {g.folders}
+            {g.group.activeFolders !== g.folders && (
+              <span className="ml-1 font-normal text-muted-foreground">de {g.group.activeFolders} no grupo</span>
+            )}
+          </dd>
         </div>
       </dl>
     </div>

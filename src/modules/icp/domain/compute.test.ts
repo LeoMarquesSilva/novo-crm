@@ -4,6 +4,7 @@ import {
   employeeBandOf,
   planSummary,
   rankedGroups,
+  revenuePerHour,
   normalizePracticeArea,
   typicalEmployeeRange,
   sizeBuckets,
@@ -121,6 +122,41 @@ describe("computeIcp", () => {
     expect(trabalhista.revenueByPlan).toEqual({ "HONORÁRIOS SPOT": 10_000 });
     const [todos] = rankedGroups(data.groups, null);
     expect(todos.revenueByPlan).toEqual({ "HONORÁRIOS MENSAIS": 90_000, "HONORÁRIOS SPOT": 10_000 });
+  });
+
+  it("conta as pastas ativas do grupo, no total e por área", () => {
+    const data = computeIcp(
+      baseInput({
+        revenue: [
+          pay("Grupo Alfa", "Cível", 90_000, "HONORÁRIOS MENSAIS"),
+          pay("Grupo Alfa", "Trabalhista", 10_000, "HONORÁRIOS SPOT"),
+        ],
+        activeFolders: [
+          { grupo: "Grupo Alfa", area: "Cível" },
+          { grupo: "Grupo Alfa", area: "Cível" },
+          { grupo: "Grupo Alfa", area: "Trabalhista" },
+          { grupo: "Grupo Sem Receita", area: "Cível" },
+        ],
+      })
+    );
+
+    expect(data.groups).toHaveLength(1);
+    expect(data.groups[0].activeFolders).toBe(3);
+    expect(rankedGroups(data.groups, "Cível")[0].folders).toBe(2);
+    expect(rankedGroups(data.groups, "Trabalhista")[0].folders).toBe(1);
+    expect(sizeBuckets(data.groups, null)[0].folders).toBe(3);
+  });
+
+  it("calcula a receita média por hora só com quem tem horas lançadas", () => {
+    expect(
+      revenuePerHour([
+        { revenue: 120_000, hours: 100 },
+        { revenue: 30_000, hours: 50 },
+        { revenue: 50_000, hours: 0 },
+      ]),
+    ).toBe(1_000);
+    expect(revenuePerHour([{ revenue: 50_000, hours: 0 }])).toBeNull();
+    expect(revenuePerHour([])).toBeNull();
   });
 
   it("resume grupos e receita por plano de contas, na ordem do SIOE", () => {
@@ -246,8 +282,8 @@ describe("computeIcp", () => {
     expect(alfa.deliveryCost).toBe(50_000);
     expect(alfa.overdue).toBe(8_000);
     expect(alfa.areas).toEqual(["Insolvência", "Trabalhista"]);
-    expect(alfa.byArea["Insolvência"]).toEqual({ revenue: 100_000, hours: 400, cost: 40_000, overdue: 7_000 });
-    expect(alfa.byArea["Outros"]).toEqual({ revenue: 0, hours: 0, cost: 0, overdue: 1_000 });
+    expect(alfa.byArea["Insolvência"]).toEqual({ revenue: 100_000, hours: 400, cost: 40_000, overdue: 7_000, folders: 0 });
+    expect(alfa.byArea["Outros"]).toEqual({ revenue: 0, hours: 0, cost: 0, overdue: 1_000, folders: 0 });
   });
 
   it("marca grupos só de pessoa física e ignora lançamentos de centavos", () => {

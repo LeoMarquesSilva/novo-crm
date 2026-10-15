@@ -22,7 +22,7 @@ describe("buildClientsCsv", () => {
   it("começa com BOM e usa ';' como separador, com as mesmas colunas", () => {
     expect(csv.startsWith("﻿")).toBe(true);
     expect(header).toBe(ICP_CLIENTS_CSV_HEADER.join(";"));
-    expect(header.split(";")).toHaveLength(19);
+    expect(header.split(";")).toHaveLength(20);
     expect(lines).toHaveLength(data.groups.length);
   });
 
@@ -45,6 +45,7 @@ describe("buildClientsCsv", () => {
       "Insolvência",
       "Insolvência, Trabalhista, Cível",
       "HONORÁRIOS MENSAIS",
+      "3",
       "250000",
       "20833",
       "7000",
@@ -60,7 +61,8 @@ describe("buildClientsCsv", () => {
     expect(gama[13]).toBe("Trabalhista");
     // Plano de contas como no SIOE.
     expect(gama[15]).toBe("HONORÁRIOS DE ÊXITO");
-    expect(gama[18]).toBe("20000");
+    expect(gama[16]).toBe("0");
+    expect(gama[19]).toBe("20000");
   });
 
   it("nomeia o arquivo com a data", () => {

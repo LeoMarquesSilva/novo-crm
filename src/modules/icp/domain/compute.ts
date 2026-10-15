@@ -104,6 +104,11 @@ export interface IcpInput {
   /** Pagadores que não são clientes no VIOS (parte contrária, fornecedor, sem cadastro), já fora de revenue. */
   excludedPayers: { count: number; revenue: number };
   processes: IcpProcessRow[];
+  /**
+   * Pastas ativas no VIOS (processo não encerrado e com situação "Ativo"), uma linha por
+   * pasta, com o grupo e a área. Opcional: sem ela, todo grupo fica com zero pastas.
+   */
+  activeFolders?: { grupo: string; area: string | null }[];
   pessoas: IcpPessoaRow[];
   overdue: IcpOverdueRow[];
   hours: IcpHoursRow[];
@@ -139,6 +144,8 @@ export interface IcpAreaMetrics {
   hours: number;
   cost: number;
   overdue: number;
+  /** Pastas ativas no VIOS hoje (não é dos 12 meses). */
+  folders: number;
 }
 
 export interface IcpGroupRow {
@@ -176,6 +183,8 @@ export interface IcpGroupRow {
   /** Tipo de cliente no cadastro do VIOS: só pessoa física, com empresa, ou sem cadastro. */
   clientType: "pessoa_fisica" | "pessoa_juridica" | null;
   overdue: number;
+  /** Pastas ativas no VIOS hoje (processo não encerrado e com situação "Ativo"). */
+  activeFolders: number;
   hours12m: number;
   deliveryCost: number;
   byArea: Record<string, IcpAreaMetrics>;
@@ -525,6 +534,22 @@ export interface IcpPlanSummary {
   revenue: number;
 }
 
+/**
+ * Receita média por hora: receita ÷ horas lançadas, somando só quem tem horas no timesheet
+ * (cliente sem hora lançada, como êxito, ficaria com receita sem esforço e inflaria a média).
+ * null quando ninguém da lista tem horas.
+ */
+export function revenuePerHour(list: { revenue: number; hours: number }[]): number | null {
+  let revenue = 0;
+  let hours = 0;
+  for (const g of list) {
+    if (g.hours <= 0) continue;
+    revenue += g.revenue;
+    hours += g.hours;
+  }
+  return hours > 0 ? revenue / hours : null;
+}
+
 /** Tipo de contrato: grupos e receita por plano de contas do SIOE, para uma lista de grupos. */
 export function planSummary(list: Pick<IcpGroupRow, "revenue12m" | "revenueByPlan">[]): IcpPlanSummary {
   const revenue = list.reduce((acc, g) => acc + g.revenue12m, 0);
@@ -661,17 +686,28 @@ export function computeIcp(input: IcpInput): IcpData {
     overdueByGroup.set(o.grupo, perArea);
   }
 
+  const foldersByGroup = new Map<string, Map<string, number>>();
+  for (const f of input.activeFolders ?? []) {
+    if (!f.grupo) continue;
+    const perArea = foldersByGroup.get(f.grupo) ?? new Map<string, number>();
+    const area = areaKey(f.area);
+    perArea.set(area, (perArea.get(area) ?? 0) + 1);
+    foldersByGroup.set(f.grupo, perArea);
+  }
+
   function areaMetrics(grupo: string, revenueByArea: Map<string, number>): Record<string, IcpAreaMetrics> {
     const hours = hoursByGroup.get(grupo) ?? new Map<string, number>();
     const overdue = overdueByGroup.get(grupo) ?? new Map<string, number>();
+    const folders = foldersByGroup.get(grupo) ?? new Map<string, number>();
     const result: Record<string, IcpAreaMetrics> = {};
-    for (const area of new Set([...revenueByArea.keys(), ...hours.keys(), ...overdue.keys()])) {
+    for (const area of new Set([...revenueByArea.keys(), ...hours.keys(), ...overdue.keys(), ...folders.keys()])) {
       const h = hours.get(area) ?? 0;
       result[area] = {
         revenue: revenueByArea.get(area) ?? 0,
         hours: h,
         cost: h * (rateOf.get(area) ?? officeRate),
         overdue: overdue.get(area) ?? 0,
+        folders: folders.get(area) ?? 0,
       };
     }
     return result;
@@ -778,6 +814,7 @@ export function computeIcp(input: IcpInput): IcpData {
             ? "pessoa_fisica"
             : "pessoa_juridica",
         overdue: metrics.reduce((acc, m) => acc + m.overdue, 0),
+        activeFolders: metrics.reduce((acc, m) => acc + m.folders, 0),
         hours12m: metrics.reduce((acc, m) => acc + m.hours, 0),
         deliveryCost: metrics.reduce((acc, m) => acc + m.cost, 0),
         byArea,
@@ -1014,6 +1051,8 @@ export interface IcpSizeBucket {
   hours: number;
   cost: number;
   overdue: number;
+  /** Pastas ativas somadas dos grupos do bloco. */
+  folders: number;
   /** Posições no ranking por receita (1 = quem mais pagou); 0 quando o bloco está vazio. */
   rankFrom: number;
   rankTo: number;
@@ -1024,12 +1063,13 @@ export interface IcpSizeBucket {
 
 /** Números do grupo no escritório todo (area null) ou em uma área. */
 export function groupMetrics(group: IcpGroupRow, area: string | null): IcpAreaMetrics {
-  if (area) return group.byArea[area] ?? { revenue: 0, hours: 0, cost: 0, overdue: 0 };
+  if (area) return group.byArea[area] ?? { revenue: 0, hours: 0, cost: 0, overdue: 0, folders: 0 };
   return {
     revenue: group.revenue12m,
     hours: group.hours12m,
     cost: group.deliveryCost,
     overdue: group.overdue,
+    folders: group.activeFolders,
   };
 }
 
@@ -1074,6 +1114,7 @@ export function sizeBuckets(groups: IcpGroupRow[], area: string | null, size = 1
     hours: list.reduce((acc, g) => acc + g.hours, 0),
     cost: list.reduce((acc, g) => acc + g.cost, 0),
     overdue: list.reduce((acc, g) => acc + g.overdue, 0),
+    folders: list.reduce((acc, g) => acc + g.folders, 0),
     rankFrom: list.length ? firstIndex + 1 : 0,
     rankTo: list.length ? firstIndex + list.length : 0,
     rankedTotal: ranked.length,
