@@ -226,12 +226,18 @@ type SioeAggregatesJson = {
 
 /**
  * Função `icp_agregados` do SIOE (supabase/sioe/20261016120000_icp_agregados.sql): soma no
- * banco e devolve ~110 KB numa chamada. Devolve `null` se a função ainda não existir no SIOE.
+ * banco e devolve ~110 KB numa chamada. Devolve `null` (e o loader baixa as linhas) se a
+ * função não existir no SIOE ou se passar do statement_timeout da API (8 s), o que acontece
+ * quando o timesheet não está no cache do banco e a leitura vai ao disco.
  */
 async function loadSioeAggregatesRpc(sioe: SupabaseClient, since: string): Promise<SioeAggregates | null> {
   const { data, error } = await sioe.rpc("icp_agregados", { p_desde: since });
   if (error) {
     if (error.code === "PGRST202" || error.code === "42883") return null;
+    if (error.code === "57014") {
+      console.warn("[icp] icp_agregados passou do tempo no SIOE; lendo as linhas.");
+      return null;
+    }
     throw new Error(error.message);
   }
   const raw = (data ?? {}) as SioeAggregatesJson;
