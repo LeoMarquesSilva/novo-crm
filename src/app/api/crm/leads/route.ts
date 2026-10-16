@@ -228,13 +228,37 @@ function mapOpportunity(row: {
   };
 }
 
+/**
+ * Último snapshot RD de cada oportunidade. Lê a view `rd_deal_reconciliacao_resumo`
+ * (custom fields só com rótulo e valor: ~2 MB em vez de 16 MB); sem a view aplicada,
+ * cai na tabela inteira.
+ */
+async function selectRdReconciliation(supabase: ReturnType<typeof createSupabaseAdminClient>) {
+  const slim = await supabase
+    .from("rd_deal_reconciliacao_resumo")
+    .select("oportunidade_id, detalhes, reconciled_at")
+    .not("oportunidade_id", "is", null)
+    .order("reconciled_at", { ascending: false });
+  if (!slim.error || (slim.error.code !== "PGRST205" && slim.error.code !== "42P01")) return slim;
+  return supabase
+    .from("rd_deal_reconciliacao")
+    .select("oportunidade_id, detalhes, reconciled_at")
+    .not("oportunidade_id", "is", null)
+    .order("reconciled_at", { ascending: false });
+}
+
 export async function GET() {
   try {
     const auth = await requireAuthApi();
     if (!auth.ok) return auth.response;
 
     const supabase = createSupabaseAdminClient();
-    const [{ data: opportunitiesRows, error: opportunitiesError }, { data: usersRows, error: usersError }, authUsersResult] = await Promise.all([
+    const [
+      { data: opportunitiesRows, error: opportunitiesError },
+      { data: usersRows, error: usersError },
+      authUsersResult,
+      { data: reconciliationRows, error: reconciliationError },
+    ] = await Promise.all([
       supabase
         .from("oportunidades")
         // `*` evita 500 quando a coluna `encerramento` ainda não foi aplicada na base; após a migration ela passa a vir no payload.
@@ -243,6 +267,7 @@ export async function GET() {
         .limit(5000),
       supabase.from("app_users").select("id, full_name, auth_user_id, avatar_url"),
       supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+      selectRdReconciliation(supabase),
     ]);
 
     if (opportunitiesError) {
@@ -254,17 +279,30 @@ export async function GET() {
     if (authUsersResult.error) {
       throw authUsersResult.error;
     }
-
-    const opportunityIdSet = new Set((opportunitiesRows ?? []).map((r) => r.id));
-    const { data: reconciliationRows, error: reconciliationError } = await supabase
-      .from("rd_deal_reconciliacao")
-      .select("oportunidade_id, detalhes, reconciled_at")
-      .not("oportunidade_id", "is", null)
-      .order("reconciled_at", { ascending: false });
-
     if (reconciliationError) {
       throw reconciliationError;
     }
+
+    const opportunityIdSet = new Set((opportunitiesRows ?? []).map((r) => r.id));
+    const opportunityIds = (opportunitiesRows ?? []).map((row) => row.id);
+    // Dependem só das oportunidades e dos usuários: vão juntas.
+    const [usersWithOfficialPhotos, { data: leadIntakeRows, error: leadIntakeError }, { data: propostaEscopoRows }] =
+      await Promise.all([
+        overlayOfficialAvatars((usersRows ?? []).map((u) => ({ id: u.id, avatarUrl: u.avatar_url }))),
+        selectInChunks(opportunityIds, (ids) =>
+          supabase
+            .from("lead_intakes")
+            .select("oportunidade_id, solicitante_nome, local_reuniao, data_reuniao, horario_reuniao")
+            .in("oportunidade_id", ids),
+        ),
+        selectInChunks(opportunityIds, (ids) =>
+          supabase
+            .from("proposta_escopo_solicitacao")
+            .select("oportunidade_id, area_key, concluido_em")
+            .in("oportunidade_id", ids),
+        ),
+      ]);
+    if (leadIntakeError) throw leadIntakeError;
 
     const authEmailById = new Map<string, string>();
     for (const authUser of authUsersResult.data.users) {
@@ -279,9 +317,6 @@ export async function GET() {
       email: authEmailById.get(user.auth_user_id) ?? null,
     }));
 
-    const usersWithOfficialPhotos = await overlayOfficialAvatars(
-      (usersRows ?? []).map((u) => ({ id: u.id, avatarUrl: u.avatar_url })),
-    );
     const officialAvatarById = new Map(usersWithOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
 
     const userRowById = new Map<
@@ -317,15 +352,6 @@ export async function GET() {
         avatarUrl: user.avatarUrl,
       };
     }
-
-    const opportunityIds = (opportunitiesRows ?? []).map((row) => row.id);
-    const { data: leadIntakeRows, error: leadIntakeError } = await selectInChunks(opportunityIds, (ids) =>
-      supabase
-        .from("lead_intakes")
-        .select("oportunidade_id, solicitante_nome, local_reuniao, data_reuniao, horario_reuniao")
-        .in("oportunidade_id", ids),
-    );
-    if (leadIntakeError) throw leadIntakeError;
 
     const leadIntakeByOpportunity = new Map<
       string,
@@ -421,10 +447,21 @@ export async function GET() {
       cycleByOpportunityId.set(row.id, cycle);
     }
 
+    const CONTRACT_KANBAN_STAGES = new Set([
+      "confeccao_contrato",
+      "contrato_elaborado",
+      "contrato_enviado",
+      "contrato_assinado",
+    ]);
+    const contractStageIds = opportunities
+      .filter((op) => CONTRACT_KANBAN_STAGES.has(op.etapa))
+      .map((op) => op.id);
+
     const [
       { summary: dueAreaTasksSummary, breakdown: dueAreaTasksBreakdown },
       { summary: dueAreaReviewSummary, breakdown: dueAreaReviewBreakdown },
       { data: dueReviewRows },
+      { data: contractReviewRows },
     ] = await Promise.all([
       getDueAreaTasksSummaryWithBreakdown(supabase, dueOpportunityIds),
       getDueAreaReviewSummaryWithBreakdown(supabase, cycleByOpportunityId),
@@ -438,6 +475,14 @@ export async function GET() {
           .eq("status", "ajustes_solicitados")
           .order("responded_at", { ascending: false }),
       ),
+      contractStageIds.length > 0
+        ? selectInChunks(contractStageIds, (ids) =>
+            supabase
+              .from("contract_review_tasks")
+              .select("oportunidade_id, status, prazo_revisao, concluido_em")
+              .in("oportunidade_id", ids),
+          )
+        : Promise.resolve({ data: [] as { oportunidade_id: string; status: string; prazo_revisao: string | null; concluido_em: string | null }[] }),
     ]);
 
     const dueReviewAdjustmentsByOpportunity = new Map<string, DueReviewAdjustment[]>();
@@ -456,12 +501,6 @@ export async function GET() {
       dueReviewAdjustmentsByOpportunity.set(oid, list);
     }
 
-    const { data: propostaEscopoRows } = await selectInChunks(opportunityIds, (ids) =>
-      supabase
-        .from("proposta_escopo_solicitacao")
-        .select("oportunidade_id, area_key, concluido_em")
-        .in("oportunidade_id", ids),
-    );
     const propostaEscopoSummaryByOpportunity = new Map<
       string,
       { total: number; concluido: number; pendente: number }
@@ -491,36 +530,18 @@ export async function GET() {
       breakdown.sort((a, b) => a.areaKey.localeCompare(b.areaKey, "pt-BR", { sensitivity: "base" }));
     }
 
-    const CONTRACT_KANBAN_STAGES = new Set([
-      "confeccao_contrato",
-      "contrato_elaborado",
-      "contrato_enviado",
-      "contrato_assinado",
-    ]);
-    const contractStageIds = opportunities
-      .filter((op) => CONTRACT_KANBAN_STAGES.has(op.etapa))
-      .map((op) => op.id);
-
     const contractReviewByOpportunity = new Map<
       string,
       NonNullable<Oportunidade["contractReviewSummary"]>
     >();
-    if (contractStageIds.length > 0) {
-      const { data: contractReviewRows } = await selectInChunks(contractStageIds, (ids) =>
-        supabase
-          .from("contract_review_tasks")
-          .select("oportunidade_id, status, prazo_revisao, concluido_em")
-          .in("oportunidade_id", ids),
-      );
-      for (const row of contractReviewRows ?? []) {
-        const status = String(row.status);
-        if (status !== "pendente" && status !== "em_revisao" && status !== "concluido") continue;
-        contractReviewByOpportunity.set(String(row.oportunidade_id), {
-          status,
-          prazoRevisao: row.prazo_revisao ? String(row.prazo_revisao) : null,
-          concluidoEm: row.concluido_em ? String(row.concluido_em) : null,
-        });
-      }
+    for (const row of contractReviewRows ?? []) {
+      const status = String(row.status);
+      if (status !== "pendente" && status !== "em_revisao" && status !== "concluido") continue;
+      contractReviewByOpportunity.set(String(row.oportunidade_id), {
+        status,
+        prazoRevisao: row.prazo_revisao ? String(row.prazo_revisao) : null,
+        concluidoEm: row.concluido_em ? String(row.concluido_em) : null,
+      });
     }
 
     return NextResponse.json({
