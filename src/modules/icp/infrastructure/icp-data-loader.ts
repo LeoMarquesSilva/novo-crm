@@ -7,7 +7,9 @@ import {
   type IcpData,
   type IcpDemographicRow,
   type IcpGroupProfile,
+  type IcpHoursRow,
   type IcpNpsTheme,
+  type IcpProcessRow,
   type IcpRevenueItem,
 } from "@/modules/icp/domain/compute";
 import { loadCnpjRecords, requireSioeClient } from "@/modules/icp/infrastructure/cnpj-sync";
@@ -208,6 +210,113 @@ async function loadMarketingRows(orq: SupabaseClient | null, since: string): Pro
   return { npsRows, insightRows, linkedin, ga4Rows, whatsappRows };
 }
 
+/** Horas, pastas ativas e primeiro processo por grupo, já somados. */
+type SioeAggregates = {
+  hours: IcpHoursRow[];
+  activeFolders: { grupo: string; area: string | null; count: number }[];
+  /** O cálculo fica com o mais antigo de cada grupo; a função do SIOE já manda só ele. */
+  processes: IcpProcessRow[];
+};
+
+type SioeAggregatesJson = {
+  horas?: { grupo: string | null; area: string | null; horas: number | string | null }[];
+  pastas_ativas?: { grupo: string | null; area: string | null; pastas: number | string | null }[];
+  primeiro_processo?: { grupo: string | null; area: string | null; data_cadastro: string | null }[];
+};
+
+/**
+ * Função `icp_agregados` do SIOE (supabase/sioe/20261016120000_icp_agregados.sql): soma no
+ * banco e devolve ~110 KB numa chamada. Devolve `null` se a função ainda não existir no SIOE.
+ */
+async function loadSioeAggregatesRpc(sioe: SupabaseClient, since: string): Promise<SioeAggregates | null> {
+  const { data, error } = await sioe.rpc("icp_agregados", { p_desde: since });
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883") return null;
+    throw new Error(error.message);
+  }
+  const raw = (data ?? {}) as SioeAggregatesJson;
+  return {
+    hours: (raw.horas ?? []).map((r) => ({ grupo: r.grupo ?? "", area: r.area, horas: toNumber(r.horas) })),
+    activeFolders: (raw.pastas_ativas ?? []).map((r) => ({
+      grupo: r.grupo ?? "",
+      area: r.area,
+      count: toNumber(r.pastas),
+    })),
+    processes: (raw.primeiro_processo ?? []).map((r) => ({
+      grupo: r.grupo ?? "",
+      area: r.area,
+      dataCadastro: r.data_cadastro,
+    })),
+  };
+}
+
+/** Sem a função no SIOE: baixa as linhas (~20 MB, 200+ requisições) e soma aqui. */
+async function loadSioeAggregatesRows(sioe: SupabaseClient, since: string): Promise<SioeAggregates> {
+  const [processRows, activeFolderRows, timesheetRows] = await Promise.all([
+    fetchAllParallel<{ id: string; grupo_cliente: string | null; area: string | null; data_cadastro: string | null }>(
+      () =>
+        sioe
+          .from("processos_completo")
+          .select("id", { count: "exact", head: true })
+          .not("grupo_cliente", "is", null)
+          .not("data_cadastro", "is", null),
+      (from, to) =>
+        sioe
+          .from("processos_completo")
+          .select("id, grupo_cliente, area, data_cadastro")
+          .not("grupo_cliente", "is", null)
+          .not("data_cadastro", "is", null)
+          .order("id")
+          .range(from, to)
+    ),
+    // Pastas ativas: mesmo critério da projeção de contratos (src/lib/sioe/usage.ts).
+    fetchAll<{ id: string; grupo_cliente: string | null; area: string | null }>((from, to) =>
+      sioe
+        .from("processos_completo")
+        .select("id, grupo_cliente, area")
+        .eq("processo_encerrado", "Não")
+        .eq("situacao_processo", "Ativo")
+        .not("grupo_cliente", "is", null)
+        .order("id")
+        .range(from, to)
+    ),
+    fetchAllParallel<{ grupo_cliente: string | null; area: string | null; total_horas_decimal: number | string | null }>(
+      () => sioe.from("timesheets").select("id", { count: "exact", head: true }).gte("data", since),
+      (from, to) =>
+        sioe
+          .from("timesheets")
+          .select("grupo_cliente, area, total_horas_decimal")
+          .gte("data", since)
+          .order("id")
+          .range(from, to)
+    ),
+  ]);
+
+  // O timesheet tem mais de 150 mil linhas: soma por grupo e área antes do cálculo.
+  const hoursByKey = new Map<string, IcpHoursRow>();
+  for (const t of timesheetRows) {
+    const grupo = (t.grupo_cliente ?? "").trim();
+    const key = `${grupo}\u0000${t.area ?? ""}`;
+    const entry = hoursByKey.get(key) ?? { grupo, area: t.area, horas: 0 };
+    entry.horas += toNumber(t.total_horas_decimal);
+    hoursByKey.set(key, entry);
+  }
+
+  return {
+    hours: [...hoursByKey.values()],
+    activeFolders: activeFolderRows.map((p) => ({ grupo: (p.grupo_cliente ?? "").trim(), area: p.area, count: 1 })),
+    processes: processRows.map((p) => ({
+      grupo: (p.grupo_cliente ?? "").trim(),
+      area: p.area,
+      dataCadastro: p.data_cadastro,
+    })),
+  };
+}
+
+async function loadSioeAggregates(sioe: SupabaseClient, since: string): Promise<SioeAggregates> {
+  return (await loadSioeAggregatesRpc(sioe, since)) ?? (await loadSioeAggregatesRows(sioe, since));
+}
+
 async function loadIcpData(): Promise<IcpData> {
   const now = new Date();
   const since = windowStart(now);
@@ -220,11 +329,9 @@ async function loadIcpData(): Promise<IcpData> {
   const [
     groupMap,
     revenueRows,
-    processRows,
-    activeFolderRows,
+    sioeAggregates,
     pessoaRows,
     overdueRows,
-    timesheetRows,
     personnelRows,
     marketing,
     cnpjRecords,
@@ -251,28 +358,9 @@ async function loadIcpData(): Promise<IcpData> {
         .order("id")
         .range(from, to)
     ),
-    fetchAll<{ id: string; grupo_cliente: string | null; area: string | null; data_cadastro: string | null }>(
-      (from, to) =>
-        sioe
-          .from("processos_completo")
-          .select("id, grupo_cliente, area, data_cadastro")
-          .not("grupo_cliente", "is", null)
-          .not("data_cadastro", "is", null)
-          .order("id")
-          .range(from, to)
-    ),
-    // Pastas ativas: mesmo critério da projeção de contratos (src/lib/sioe/usage.ts).
-    fetchAll<{ id: string; grupo_cliente: string | null; area: string | null }>((from, to) =>
-      sioe
-        .from("processos_completo")
-        .select("id, grupo_cliente, area")
-        .eq("processo_encerrado", "Não")
-        .eq("situacao_processo", "Ativo")
-        .not("grupo_cliente", "is", null)
-        .order("id")
-        .range(from, to)
-    ),
-    fetchAll<{
+    loadSioeAggregates(sioe, since),
+    // ~30 mil pessoas: páginas em paralelo, não uma atrás da outra.
+    fetchAllParallel<{
       id: string;
       grupo_cliente: string | null;
       tipo: string | null;
@@ -281,12 +369,14 @@ async function loadIcpData(): Promise<IcpData> {
       categoria: string | null;
       cpf_cnpj: string | null;
       nome: string | null;
-    }>((from, to) =>
-      sioe
-        .from("pessoas")
-        .select("id, grupo_cliente, tipo, uf, cidade, categoria, cpf_cnpj, nome")
-        .order("id")
-        .range(from, to)
+    }>(
+      () => sioe.from("pessoas").select("id", { count: "exact", head: true }),
+      (from, to) =>
+        sioe
+          .from("pessoas")
+          .select("id, grupo_cliente, tipo, uf, cidade, categoria, cpf_cnpj, nome")
+          .order("id")
+          .range(from, to)
     ),
     fetchAll<{ id: string; cliente: string | null; departamento: string | null; valor_parcial_aberto: number | string | null }>(
       (from, to) =>
@@ -297,16 +387,6 @@ async function loadIcpData(): Promise<IcpData> {
           .ilike("plano_contas", "HONOR%")
           .gt("valor_parcial_aberto", 0)
           .lt("data_vencimento", today)
-          .order("id")
-          .range(from, to)
-    ),
-    fetchAllParallel<{ grupo_cliente: string | null; area: string | null; total_horas_decimal: number | string | null }>(
-      () => sioe.from("timesheets").select("id", { count: "exact", head: true }).gte("data", since),
-      (from, to) =>
-        sioe
-          .from("timesheets")
-          .select("grupo_cliente, area, total_horas_decimal")
-          .gte("data", since)
           .order("id")
           .range(from, to)
     ),
@@ -380,16 +460,6 @@ async function loadIcpData(): Promise<IcpData> {
   const pessoaGroup = (p: { grupo_cliente: string | null; nome: string | null }) =>
     (p.grupo_cliente ?? "").trim() || revenueKeyByName.get((p.nome ?? "").trim().toLowerCase()) || null;
 
-  // O timesheet tem mais de 150 mil linhas: soma por grupo e área antes do cálculo.
-  const hoursByKey = new Map<string, { grupo: string; area: string | null; horas: number }>();
-  for (const t of timesheetRows) {
-    const grupo = (t.grupo_cliente ?? "").trim();
-    const key = `${grupo}\u0000${t.area ?? ""}`;
-    const entry = hoursByKey.get(key) ?? { grupo, area: t.area, horas: 0 };
-    entry.horas += toNumber(t.total_horas_decimal);
-    hoursByKey.set(key, entry);
-  }
-
   const npsThemes: IcpNpsTheme[] = insightRows
     .filter((r) => !r.is_noise && Array.isArray(r.themes))
     .flatMap((r) => r.themes as { id?: string; polarity?: string }[])
@@ -409,12 +479,8 @@ async function loadIcpData(): Promise<IcpData> {
       count: excludedPayers.size,
       revenue: [...excludedPayers.values()].reduce((acc, v) => acc + v, 0),
     },
-    activeFolders: activeFolderRows.map((p) => ({ grupo: (p.grupo_cliente ?? "").trim(), area: p.area })),
-    processes: processRows.map((p) => ({
-      grupo: (p.grupo_cliente ?? "").trim(),
-      area: p.area,
-      dataCadastro: p.data_cadastro,
-    })),
+    activeFolders: sioeAggregates.activeFolders,
+    processes: sioeAggregates.processes,
     pessoas: pessoaRows.flatMap((p) => {
       const grupo = pessoaGroup(p);
       return grupo ? [{ grupo, tipo: p.tipo, uf: p.uf, cidade: p.cidade, categoria: p.categoria }] : [];
@@ -432,7 +498,7 @@ async function loadIcpData(): Promise<IcpData> {
         departamento: o.departamento,
         valor: toNumber(o.valor_parcial_aberto),
       })),
-    hours: [...hoursByKey.values()],
+    hours: sioeAggregates.hours,
     personnelCost: personnelRows.map((p) => ({ departamento: p.departamento, valor: toNumber(p.valor_pago_item) })),
     nps: npsRows.map((r) => ({ cargo: r.respondent_cargo, recommend: r.score_recommend })),
     npsThemes,

@@ -27,12 +27,14 @@ const REFRESH_FALLBACK_ERROR = "Não foi possível recalcular.";
 export function IcpDashboard({ data, error }: { data: IcpData | null; error: string | null }): JSX.Element {
   const router = useRouter();
   const [tab, setTab] = useState<IcpTabKey>("resumo");
-  const [refreshing, setRefreshing] = useState(false);
+  const [requesting, setRequesting] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  // O recálculo acontece no `router.refresh()`: o botão segue girando até a página voltar.
+  const [reloading, startTransition] = useTransition();
+  const refreshing = requesting || reloading;
 
   async function handleRefresh() {
-    setRefreshing(true);
+    setRequesting(true);
     setRefreshError(null);
     try {
       const res = await fetch(ICP_REFRESH_ENDPOINT, { method: "POST", credentials: "include" });
@@ -44,7 +46,7 @@ export function IcpDashboard({ data, error }: { data: IcpData | null; error: str
     } catch (err) {
       setRefreshError(err instanceof Error ? err.message : REFRESH_FALLBACK_ERROR);
     } finally {
-      setRefreshing(false);
+      setRequesting(false);
     }
   }
 

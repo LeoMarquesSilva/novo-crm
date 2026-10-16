@@ -12,13 +12,25 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 export const RD_RECONCILIATION_CACHE_TAG = "crm:rd-reconciliacao";
 export const CRM_USER_DIRECTORY_CACHE_TAG = "crm:user-directory";
 
+/**
+ * Lê a view `rd_deal_reconciliacao_resumo` (custom fields só com rótulo e valor: ~2 MB em
+ * vez de 16 MB); sem a view aplicada, cai na tabela inteira.
+ */
 async function loadRdReconciliationSummaries(): Promise<Record<string, RdLeadSummary>> {
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("rd_deal_reconciliacao")
+  const fromView = await supabase
+    .from("rd_deal_reconciliacao_resumo")
     .select("oportunidade_id, detalhes, reconciled_at")
     .not("oportunidade_id", "is", null)
     .order("reconciled_at", { ascending: false });
+  const viewMissing = fromView.error?.code === "PGRST205" || fromView.error?.code === "42P01";
+  const { data, error } = viewMissing
+    ? await supabase
+        .from("rd_deal_reconciliacao")
+        .select("oportunidade_id, detalhes, reconciled_at")
+        .not("oportunidade_id", "is", null)
+        .order("reconciled_at", { ascending: false })
+    : fromView;
   if (error) throw error;
   return summarizeRdReconciliationRows(data ?? []);
 }
