@@ -29,6 +29,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { CrmNavigationProgress } from "@/components/crm/crm-navigation-progress";
 import { CrmNotificationsBell } from "@/components/crm/crm-notifications-bell";
 import type { CrmSessionUser } from "@/components/crm/crm-session-user";
 import { GlobalLeadSearch } from "@/components/crm/global-lead-search";
@@ -523,6 +524,7 @@ export function AppShell({
   return (
     <TooltipProvider delayDuration={220} skipDelayDuration={80}>
       <div className="relative min-h-dvh w-full max-w-full overflow-x-hidden bg-[#f8f9fb]">
+        <CrmNavigationProgress />
         {/* Design System V2 (§14.3): header mobile entre 56px e 60px (py-2.5 + botão de 40px = 60px). */}
         <div className="sticky top-0 z-(--z-navigation) flex items-center justify-between border-b border-[#e6e9ef] bg-[#f8f9fb]/95 px-4 py-2.5 shadow-[0_1px_2px_rgba(16,31,46,0.03)] lg:hidden">
           <button
@@ -571,6 +573,12 @@ export function AppShell({
                 animate={{ x: 0 }}
                 exit={{ x: "-100%" }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
+                // Fecha ao escolher uma página: o carregamento aparece na hora, sem o menu por cima.
+                onClick={(event) => {
+                  if (event.target instanceof Element && event.target.closest("a[href]")) {
+                    setMobileOpen(false);
+                  }
+                }}
               >
                 <div className="mb-4 flex items-center gap-3">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-(--radius-v2-2xl) bg-[linear-gradient(135deg,#101F2E_0%,#24615b_58%,#C8A96B_100%)] text-sm font-black tracking-[-0.05em] text-white">

@@ -68,6 +68,11 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 4. Infra acessa repositório/integração.
 5. Resposta estruturada retorna para UI/API.
 
+### 3.4 Hospedagem e desempenho da navegação (2026-10-16)
+- As funções da Vercel rodam em `gru1` (São Paulo), em `vercel.json` (`regions`), perto dos três Supabase (CRM, SIOE e ORQESTRAI, todos `sa-east-1`). Antes rodavam no padrão `iad1` (Washington), e cada consulta ao banco cruzava o continente. Uma página faz várias consultas em sequência, e isso somava segundos por clique. O plano Hobby aceita uma região só. O `proxy` (Routing Middleware) roda em todas as regiões.
+- `requireAuth` usa `React.cache`: layout e página dividem `getUser` + perfil no mesmo request. Só o layout pede a foto oficial (`requireAuth(path, { officialAvatar: true })`); as páginas não esperam a API de fotos.
+- Toda rota de `/crm` tem `loading.tsx` (`CrmRouteLoading`, em `crm/`, `leads/`, `contratos/`, `admin/` e `admin/proposta-escopo/`): o Next pré-carrega o esqueleto e o mostra no clique, sem esperar o servidor. O `AppShell` tem uma barra fina no topo (`CrmNavigationProgress`), que começa no clique de qualquer link interno e termina quando a URL muda. Links para `/api/*`, nova aba e download ficam fora. No celular, o menu lateral fecha ao escolher uma página, para o carregamento não ficar escondido atrás dele.
+
 ## 4) Rotas web e comportamento
 
 - `/`: landing técnica para entrada no CRM.
