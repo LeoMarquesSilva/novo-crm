@@ -260,9 +260,9 @@ Migrações de 2026-10-15 (segurança + fluxo contrato → pós-venda), **versio
 - `20261015124000_lead_client_onboarding.sql` — tabela `lead_client_onboarding` (RLS sem policies) e colunas `papel`/`oportunidade_id` em `contatos_cliente`.
 - `20261015125000_contract_signature_rpcs.sql` — `register_contract_sent_atomic`, `complete_contract_signature_atomic`.
 - `20261015126000_client_onboarding_rpcs.sql` — `submit_/return_/conclude_client_onboarding_atomic`.
-- `20261016120000_rd_deal_reconciliacao_resumo.sql` — view `rd_deal_reconciliacao_resumo` (`security_invoker`, só service role): mesmo `detalhes`, mas os custom fields do deal só com rótulo e valor, sem os vazios (~2 MB em vez de 16 MB). O `GET /api/crm/leads` lê a view e, sem ela, a tabela.
+- `20261016120000_rd_deal_reconciliacao_resumo.sql` — view `rd_deal_reconciliacao_resumo` (`security_invoker`, só service role): mesmo `detalhes`, mas os custom fields do deal só com rótulo e valor, sem os vazios (~2 MB em vez de 16 MB). O `GET /api/crm/leads` lê a view e, sem ela, a tabela. Aplicada no remoto em 16/10/2026.
 
-SQL de outro banco: `supabase/sioe/` guarda o que é aplicado no **SIOE** (não no CRM). `20261016120000_icp_agregados.sql` cria `icp_agregados(p_desde)` (só service role), que devolve num jsonb as horas do timesheet e as pastas ativas por grupo/área e o primeiro processo de cada grupo. O loader do ICP chama a função e, sem ela (`PGRST202`), volta a baixar as linhas.
+SQL de outro banco: `supabase/sioe/` guarda o que é aplicado no **SIOE** (não no CRM). `20261016120000_icp_agregados.sql` cria `icp_agregados(p_desde)` (só service role), que devolve num jsonb as horas do timesheet e as pastas ativas por grupo/área e o primeiro processo de cada grupo. O loader do ICP chama a função e, sem ela (`PGRST202`), volta a baixar as linhas. Aplicada no SIOE em 16/10/2026 direto por SQL, fora do histórico de migrations do SIOE (`supabase_migrations`): o arquivo deve ser copiado para o repositório do SIOE. Conferida contra o método antigo, sem diferença. Para desfazer: `drop function public.icp_agregados(date);`.
 
 Sem elas o código segue funcionando: RPC ausente cai no caminho antigo (`finalize_d4sign_opportunity`, `transition_opportunity_atomic`), as rotas do cadastro respondem 409 "migration pendente" e o switch de Operações Legais responde 409.
 
