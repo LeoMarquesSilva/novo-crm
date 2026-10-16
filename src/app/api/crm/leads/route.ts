@@ -7,21 +7,26 @@ import {
   getDueAreaTasksSummaryWithBreakdown,
   type DueAreaTaskSummary,
 } from "@/lib/crm/due-area-tasks";
+import { getCrmUserDirectory, getRdReconciliationSummaries } from "@/lib/crm/kanban-data-cache";
 import { resolveSolicitanteInternoDisplay } from "@/lib/crm/resolve-app-user-display";
 import type { SignerAppUserLookup } from "@/lib/crm/signer-avatar-catalog";
 import { internalErrorResponse } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { selectInChunks } from "@/lib/supabase/select-in-chunks";
-import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 import type { Oportunidade } from "@/modules/crm/domain/entities";
 
 type LeadApiRecord = Oportunidade;
 
-interface SystemUser {
-  id: string;
-  fullName: string;
-  email: string | null;
-}
+/** Só as colunas que o kanban usa (o `*` trazia o que a tela não lê). */
+const OPPORTUNITY_COLUMNS =
+  "id, cliente_id, contrato_base_id, tipo, etapa, havera_due_diligence, solicitante_nome, solicitante_email, criado_por, created_at, updated_at, encerramento, link_proposta, link_contrato, d4sign_signers, d4sign_updated_at, d4sign_status, d4sign_document_uuid, due_revision_cycle";
+
+const CONTRACT_KANBAN_STAGES = new Set([
+  "confeccao_contrato",
+  "contrato_elaborado",
+  "contrato_enviado",
+  "contrato_assinado",
+]);
 
 type DueReviewAdjustment = {
   areaKey: string;
@@ -34,87 +39,6 @@ type PropostaEscopoBreakdownRow = {
   areaKey: string;
   concluido: boolean;
 };
-
-function normalizeLabel(label: string): string {
-  return label
-    .replace(/[\u2013\u2014\u2015]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function asString(value: unknown): string | null {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed ? trimmed : null;
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  return null;
-}
-
-function getDealCustomFieldValue(
-  details: unknown,
-  labels: string[],
-): string | null {
-  if (!details || typeof details !== "object") return null;
-  const detailsObj = details as Record<string, unknown>;
-  const deal =
-    detailsObj.deal && typeof detailsObj.deal === "object"
-      ? (detailsObj.deal as Record<string, unknown>)
-      : null;
-  if (!deal || !Array.isArray(deal.deal_custom_fields)) {
-    return null;
-  }
-
-  const targetLabels = labels.map(normalizeLabel);
-  for (const field of deal.deal_custom_fields) {
-    if (!field || typeof field !== "object") continue;
-    const row = field as Record<string, unknown>;
-    const customField =
-      row.custom_field && typeof row.custom_field === "object"
-        ? (row.custom_field as Record<string, unknown>)
-        : null;
-    const rawLabel = asString(customField?.label) ?? asString(row.label);
-    if (!rawLabel) continue;
-    if (!targetLabels.includes(normalizeLabel(rawLabel))) continue;
-    const value = asString(row.value) ?? asString(row.content);
-    if (value) return value;
-  }
-
-  return null;
-}
-
-function getRdDealUpdatedAtIso(details: unknown): string | null {
-  if (!details || typeof details !== "object") return null;
-  const root = details as Record<string, unknown>;
-  const deal =
-    root.deal && typeof root.deal === "object"
-      ? (root.deal as Record<string, unknown>)
-      : null;
-  if (!deal) return null;
-  const raw = asString(deal.updated_at) ?? asString(deal.updatedAt);
-  return raw?.trim() ? raw : null;
-}
-
-function getRdDealLostReason(details: unknown): string | null {
-  if (!details || typeof details !== "object") return null;
-  const root = details as Record<string, unknown>;
-  const deal =
-    root.deal && typeof root.deal === "object"
-      ? (root.deal as Record<string, unknown>)
-      : null;
-  if (!deal) return null;
-
-  const lostReason =
-    deal.deal_lost_reason && typeof deal.deal_lost_reason === "object"
-      ? (deal.deal_lost_reason as Record<string, unknown>)
-      : null;
-  if (!lostReason) return null;
-
-  return asString(lostReason.name) ?? asString(lostReason.reason) ?? null;
-}
 
 function normalizeComparableText(value: string): string {
   return value.replace(/\s+/g, " ").trim().toLowerCase();
@@ -228,130 +152,97 @@ function mapOpportunity(row: {
   };
 }
 
-/**
- * Último snapshot RD de cada oportunidade. Lê a view `rd_deal_reconciliacao_resumo`
- * (custom fields só com rótulo e valor: ~2 MB em vez de 16 MB); sem a view aplicada,
- * cai na tabela inteira.
- */
-async function selectRdReconciliation(supabase: ReturnType<typeof createSupabaseAdminClient>) {
-  const slim = await supabase
-    .from("rd_deal_reconciliacao_resumo")
-    .select("oportunidade_id, detalhes, reconciled_at")
-    .not("oportunidade_id", "is", null)
-    .order("reconciled_at", { ascending: false });
-  if (!slim.error || (slim.error.code !== "PGRST205" && slim.error.code !== "42P01")) return slim;
-  return supabase
-    .from("rd_deal_reconciliacao")
-    .select("oportunidade_id, detalhes, reconciled_at")
-    .not("oportunidade_id", "is", null)
-    .order("reconciled_at", { ascending: false });
-}
-
 export async function GET() {
   try {
     const auth = await requireAuthApi();
     if (!auth.ok) return auth.response;
 
     const supabase = createSupabaseAdminClient();
+    // Tudo que não depende dos ids dos leads sai junto. Snapshot do RD e usuários vêm do cache
+    // (ver kanban-data-cache.ts); quais leads são do RD é lido na hora (só ids, leve).
     const [
       { data: opportunitiesRows, error: opportunitiesError },
-      { data: usersRows, error: usersError },
-      authUsersResult,
-      { data: reconciliationRows, error: reconciliationError },
+      { data: rdLinkRows, error: rdLinkError },
+      rdSummaries,
+      directory,
     ] = await Promise.all([
       supabase
         .from("oportunidades")
-        // `*` evita 500 quando a coluna `encerramento` ainda não foi aplicada na base; após a migration ela passa a vir no payload.
-        .select("*")
+        .select(OPPORTUNITY_COLUMNS)
         .order("created_at", { ascending: false })
         .limit(5000),
-      supabase.from("app_users").select("id, full_name, auth_user_id, avatar_url"),
-      supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-      selectRdReconciliation(supabase),
+      supabase.from("rd_deal_reconciliacao").select("oportunidade_id").not("oportunidade_id", "is", null),
+      getRdReconciliationSummaries(),
+      getCrmUserDirectory(),
     ]);
+    if (opportunitiesError) throw opportunitiesError;
+    if (rdLinkError) throw rdLinkError;
 
-    if (opportunitiesError) {
-      throw opportunitiesError;
-    }
-    if (usersError) {
-      throw usersError;
-    }
-    if (authUsersResult.error) {
-      throw authUsersResult.error;
-    }
-    if (reconciliationError) {
-      throw reconciliationError;
-    }
+    const rdOpportunityIds = new Set((rdLinkRows ?? []).map((row) => String(row.oportunidade_id)));
 
-    const opportunityIdSet = new Set((opportunitiesRows ?? []).map((r) => r.id));
-    const opportunityIds = (opportunitiesRows ?? []).map((row) => row.id);
-    // Dependem só das oportunidades e dos usuários: vão juntas.
-    const [usersWithOfficialPhotos, { data: leadIntakeRows, error: leadIntakeError }, { data: propostaEscopoRows }] =
-      await Promise.all([
-        overlayOfficialAvatars((usersRows ?? []).map((u) => ({ id: u.id, avatarUrl: u.avatar_url }))),
-        selectInChunks(opportunityIds, (ids) =>
-          supabase
-            .from("lead_intakes")
-            .select("oportunidade_id, solicitante_nome, local_reuniao, data_reuniao, horario_reuniao")
-            .in("oportunidade_id", ids),
-        ),
-        selectInChunks(opportunityIds, (ids) =>
-          supabase
-            .from("proposta_escopo_solicitacao")
-            .select("oportunidade_id, area_key, concluido_em")
-            .in("oportunidade_id", ids),
-        ),
-      ]);
-    if (leadIntakeError) throw leadIntakeError;
-
-    const authEmailById = new Map<string, string>();
-    for (const authUser of authUsersResult.data.users) {
-      if (authUser.id && authUser.email) {
-        authEmailById.set(authUser.id, authUser.email.toLowerCase());
-      }
-    }
-
-    const systemUsers: SystemUser[] = (usersRows ?? []).map((user) => ({
-      id: user.id,
-      fullName: user.full_name,
-      email: authEmailById.get(user.auth_user_id) ?? null,
-    }));
-
-    const officialAvatarById = new Map(usersWithOfficialPhotos.map((u) => [u.id, u.avatarUrl]));
-
-    const userRowById = new Map<
-      string,
-      { full_name: string; avatar_url: string | null }
-    >();
-    for (const u of usersRows ?? []) {
-      userRowById.set(u.id, {
-        full_name: u.full_name,
-        avatar_url: officialAvatarById.get(u.id) ?? u.avatar_url,
-      });
-    }
-
-    const ownerByEmail = new Map<
-      string,
-      { id: string; fullName: string; avatarUrl: string | null }
-    >();
-    for (const user of systemUsers) {
-      if (user.email) {
-        const row = userRowById.get(user.id);
-        ownerByEmail.set(user.email.toLowerCase(), {
-          id: user.id,
-          fullName: user.fullName,
-          avatarUrl: row?.avatar_url ?? null,
-        });
-      }
-    }
-
+    const ownerByEmail = new Map<string, { id: string; fullName: string; avatarUrl: string | null }>();
     const usersByEmail: SignerAppUserLookup = {};
-    for (const [email, user] of ownerByEmail) {
-      usersByEmail[email] = {
-        fullName: user.fullName,
-        avatarUrl: user.avatarUrl,
-      };
+    for (const user of directory) {
+      if (!user.email) continue;
+      ownerByEmail.set(user.email, { id: user.id, fullName: user.fullName, avatarUrl: user.avatarUrl });
+      usersByEmail[user.email] = { fullName: user.fullName, avatarUrl: user.avatarUrl };
     }
+
+    const rows = (opportunitiesRows ?? []).map((row) => {
+      const origemRd = rdOpportunityIds.has(row.id);
+      const rd = origemRd ? (rdSummaries[row.id] ?? null) : null;
+      return { row, origemRd, rd, etapa: resolvePipelineEtapaFromDbAndRd(row.etapa, origemRd, rd?.details ?? null) };
+    });
+
+    const opportunityIds = rows.map(({ row }) => row.id);
+    const dueOpportunityIds = rows.filter(({ row }) => row.havera_due_diligence).map(({ row }) => row.id);
+    const cycleByOpportunityId = new Map<string, number>();
+    for (const { row } of rows) {
+      if (row.havera_due_diligence) cycleByOpportunityId.set(row.id, Number(row.due_revision_cycle) || 0);
+    }
+    const contractStageIds = rows.filter(({ etapa }) => CONTRACT_KANBAN_STAGES.has(etapa)).map(({ row }) => row.id);
+
+    // Tudo que depende dos ids, em paralelo.
+    const [
+      { data: leadIntakeRows, error: leadIntakeError },
+      { summary: dueAreaTasksSummary, breakdown: dueAreaTasksBreakdown },
+      { summary: dueAreaReviewSummary, breakdown: dueAreaReviewBreakdown },
+      { data: dueReviewRows },
+      { data: propostaEscopoRows },
+      { data: contractReviewRows },
+    ] = await Promise.all([
+      selectInChunks(opportunityIds, (ids) =>
+        supabase
+          .from("lead_intakes")
+          .select("oportunidade_id, solicitante_nome, local_reuniao, data_reuniao, horario_reuniao")
+          .in("oportunidade_id", ids),
+      ),
+      getDueAreaTasksSummaryWithBreakdown(supabase, dueOpportunityIds),
+      getDueAreaReviewSummaryWithBreakdown(supabase, cycleByOpportunityId),
+      selectInChunks(dueOpportunityIds, (ids) =>
+        supabase
+          .from("due_area_review_tasks")
+          .select(
+            "oportunidade_id, revision_cycle, area_key, observacao_ajustes, responded_at, adjustment_completed_at, status",
+          )
+          .in("oportunidade_id", ids)
+          .eq("status", "ajustes_solicitados")
+          .order("responded_at", { ascending: false }),
+      ),
+      selectInChunks(opportunityIds, (ids) =>
+        supabase
+          .from("proposta_escopo_solicitacao")
+          .select("oportunidade_id, area_key, concluido_em")
+          .in("oportunidade_id", ids),
+      ),
+      selectInChunks(contractStageIds, (ids) =>
+        supabase
+          .from("contract_review_tasks")
+          .select("oportunidade_id, status, prazo_revisao, concluido_em")
+          .in("oportunidade_id", ids),
+      ),
+    ]);
+    if (leadIntakeError) throw leadIntakeError;
 
     const leadIntakeByOpportunity = new Map<
       string,
@@ -373,36 +264,15 @@ export async function GET() {
       });
     }
 
-    const reconciliationByOpportunity = new Map<string, unknown>();
-    for (const row of reconciliationRows ?? []) {
-      const oid = row.oportunidade_id ? String(row.oportunidade_id) : "";
-      if (!oid || !opportunityIdSet.has(oid)) continue;
-      if (!reconciliationByOpportunity.has(oid)) {
-        reconciliationByOpportunity.set(oid, row.detalhes);
-      }
-    }
-
-    const opportunities = (opportunitiesRows ?? []).map((row) => {
-      const origemRd = reconciliationByOpportunity.has(row.id);
-      const reconciliationDetails = reconciliationByOpportunity.get(row.id);
-      const rdDealAtualizadoEm = getRdDealUpdatedAtIso(reconciliationDetails);
-      const motivoPerda = getRdDealLostReason(reconciliationDetails);
-      const rdOwnerEmailRaw = getDealCustomFieldValue(reconciliationDetails, [
-        "Cadastro realizado por",
-        "Cadastro realizado por (e-mail)",
-      ]);
-      const solicitanteRdRaw = getDealCustomFieldValue(reconciliationDetails, [
-        "Solicitante",
-        "Nome do solicitante",
-        "Solicitante (nome)",
-      ]);
+    const opportunities = rows.map(({ row, origemRd, rd, etapa }) => {
+      const solicitanteRdRaw = rd?.solicitante ?? null;
       const solicitanteRd =
         solicitanteRdRaw &&
         normalizeComparableText(solicitanteRdRaw) !==
           normalizeComparableText(row.solicitante_nome)
           ? solicitanteRdRaw
           : null;
-      const rdOwnerEmail = rdOwnerEmailRaw ? rdOwnerEmailRaw.toLowerCase() : null;
+      const rdOwnerEmail = rd?.cadastroRealizadoPor ? rd.cadastroRealizadoPor.toLowerCase() : null;
       const mappedOwner = rdOwnerEmail ? ownerByEmail.get(rdOwnerEmail) : null;
       const solicitanteEmail = row.solicitante_email?.trim().toLowerCase() ?? null;
       const solicitanteByEmail = solicitanteEmail
@@ -414,12 +284,6 @@ export async function GET() {
         solicitanteEmail,
         usersByEmail,
       });
-
-      const etapa = resolvePipelineEtapaFromDbAndRd(
-        row.etapa,
-        origemRd,
-        reconciliationDetails,
-      );
 
       return mapOpportunity({
         ...row,
@@ -434,56 +298,10 @@ export async function GET() {
           solicitanteDisplay.nome === "—" ? null : solicitanteDisplay.nome,
         solicitanteUsuarioAvatarUrl: solicitanteDisplay.avatarUrl,
         origemRd,
-        rdDealAtualizadoEm,
-        motivoPerda,
+        rdDealAtualizadoEm: rd?.rdDealAtualizadoEm ?? null,
+        motivoPerda: rd?.motivoPerda ?? null,
       });
     });
-
-    const dueOpportunityIds = opportunities.filter((op) => op.haveraDueDiligence).map((op) => op.id);
-    const cycleByOpportunityId = new Map<string, number>();
-    for (const row of opportunitiesRows ?? []) {
-      if (!row?.id || !dueOpportunityIds.includes(row.id)) continue;
-      const cycle = Number(row.due_revision_cycle) || 0;
-      cycleByOpportunityId.set(row.id, cycle);
-    }
-
-    const CONTRACT_KANBAN_STAGES = new Set([
-      "confeccao_contrato",
-      "contrato_elaborado",
-      "contrato_enviado",
-      "contrato_assinado",
-    ]);
-    const contractStageIds = opportunities
-      .filter((op) => CONTRACT_KANBAN_STAGES.has(op.etapa))
-      .map((op) => op.id);
-
-    const [
-      { summary: dueAreaTasksSummary, breakdown: dueAreaTasksBreakdown },
-      { summary: dueAreaReviewSummary, breakdown: dueAreaReviewBreakdown },
-      { data: dueReviewRows },
-      { data: contractReviewRows },
-    ] = await Promise.all([
-      getDueAreaTasksSummaryWithBreakdown(supabase, dueOpportunityIds),
-      getDueAreaReviewSummaryWithBreakdown(supabase, cycleByOpportunityId),
-      selectInChunks(dueOpportunityIds, (ids) =>
-        supabase
-          .from("due_area_review_tasks")
-          .select(
-            "oportunidade_id, revision_cycle, area_key, observacao_ajustes, responded_at, adjustment_completed_at, status",
-          )
-          .in("oportunidade_id", ids)
-          .eq("status", "ajustes_solicitados")
-          .order("responded_at", { ascending: false }),
-      ),
-      contractStageIds.length > 0
-        ? selectInChunks(contractStageIds, (ids) =>
-            supabase
-              .from("contract_review_tasks")
-              .select("oportunidade_id, status, prazo_revisao, concluido_em")
-              .in("oportunidade_id", ids),
-          )
-        : Promise.resolve({ data: [] as { oportunidade_id: string; status: string; prazo_revisao: string | null; concluido_em: string | null }[] }),
-    ]);
 
     const dueReviewAdjustmentsByOpportunity = new Map<string, DueReviewAdjustment[]>();
     for (const row of dueReviewRows ?? []) {
@@ -562,17 +380,14 @@ export async function GET() {
         propostaEscopoBreakdown: propostaEscopoBreakdownByOpportunity.get(op.id) ?? null,
         contractReviewSummary: contractReviewByOpportunity.get(op.id) ?? null,
       })),
-      owners: systemUsers
+      owners: directory
         .filter((user) => user.email)
-        .map((user) => {
-          const row = userRowById.get(user.id);
-          return {
-            id: user.id,
-            name: user.fullName,
-            email: user.email,
-            avatarUrl: row?.avatar_url ?? null,
-          };
-        })
+        .map((user) => ({
+          id: user.id,
+          name: user.fullName,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+        }))
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
     });
   } catch (error) {

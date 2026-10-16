@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { invalidateRdReconciliationCache } from "@/lib/crm/kanban-data-cache";
 import {
   isPayloadLengthAllowed,
   verifySharedSecret,
@@ -67,5 +68,7 @@ export async function POST(request: Request) {
       { ok: false, error: "Falha temporária ao processar o webhook." },
       { status: 503, headers: { "Retry-After": "10" } },
     );
+  } finally {
+    invalidateRdReconciliationCache();
   }
 }

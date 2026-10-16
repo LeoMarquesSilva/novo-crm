@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminApi } from "@/lib/auth/server";
+import { invalidateCrmUserDirectory } from "@/lib/crm/kanban-data-cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const bodySchema = z.object({
@@ -30,6 +31,7 @@ export async function PATCH(
       return adminMutationRpcError(error.message);
     }
 
+    invalidateCrmUserDirectory();
     return NextResponse.json({ ok: true, id, role });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
