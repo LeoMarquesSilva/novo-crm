@@ -17,7 +17,7 @@ export default async function CrmLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { user, profile } = await requireAuth("/crm");
+  const { user, profile } = await requireAuth("/crm", { officialAvatar: true });
   const modules = profile.role === "admin" ? [] : await listUserModules(profile.id);
 
   const sessionUser: CrmSessionUser = {

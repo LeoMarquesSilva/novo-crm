@@ -14,6 +14,8 @@ Levantado por listagem direta do repositório em 14/09/2026. Se a estrutura muda
 ## Layout global / AppShell / Sidebar
 
 - `src/components/crm/app-shell.tsx` — shell principal, sidebar, navegação. **Fase 3.**
+- `src/components/crm/crm-navigation-progress.tsx` — barra de carregamento no topo durante a troca de página (montada no `AppShell`).
+- `src/components/crm/crm-route-loading.tsx` — esqueleto de página usado pelos `loading.tsx` de `src/app/(crm)/crm/**`.
 - `src/components/crm/crm-page-header.tsx` — PageHeader (título, breadcrumb, ações).
 - `src/components/crm/crm-entity-header.tsx` — EntityHeader da ficha (Fase 4, criado a partir do detalhe do lead).
 - `src/components/crm/crm-surface-header.tsx` — header de superfície/card.
