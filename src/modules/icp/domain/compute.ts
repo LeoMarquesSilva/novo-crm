@@ -105,10 +105,11 @@ export interface IcpInput {
   excludedPayers: { count: number; revenue: number };
   processes: IcpProcessRow[];
   /**
-   * Pastas ativas no VIOS (processo não encerrado e com situação "Ativo"), uma linha por
-   * pasta, com o grupo e a área. Opcional: sem ela, todo grupo fica com zero pastas.
+   * Pastas ativas no VIOS (processo não encerrado e com situação "Ativo"), com o grupo e
+   * a área: uma linha por pasta, ou já somadas em `count`. Opcional: sem ela, todo grupo
+   * fica com zero pastas.
    */
-  activeFolders?: { grupo: string; area: string | null }[];
+  activeFolders?: { grupo: string; area: string | null; count?: number }[];
   pessoas: IcpPessoaRow[];
   overdue: IcpOverdueRow[];
   hours: IcpHoursRow[];
@@ -691,7 +692,7 @@ export function computeIcp(input: IcpInput): IcpData {
     if (!f.grupo) continue;
     const perArea = foldersByGroup.get(f.grupo) ?? new Map<string, number>();
     const area = areaKey(f.area);
-    perArea.set(area, (perArea.get(area) ?? 0) + 1);
+    perArea.set(area, (perArea.get(area) ?? 0) + (f.count ?? 1));
     foldersByGroup.set(f.grupo, perArea);
   }
 

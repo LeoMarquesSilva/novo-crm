@@ -147,6 +147,21 @@ describe("computeIcp", () => {
     expect(sizeBuckets(data.groups, null)[0].folders).toBe(3);
   });
 
+  it("aceita as pastas ativas já somadas pelo banco (count)", () => {
+    const data = computeIcp(
+      baseInput({
+        revenue: [pay("Grupo Alfa", "Cível", 90_000, "HONORÁRIOS MENSAIS")],
+        activeFolders: [
+          { grupo: "Grupo Alfa", area: "Cível", count: 5 },
+          { grupo: "Grupo Alfa", area: "Trabalhista", count: 2 },
+        ],
+      })
+    );
+
+    expect(data.groups[0].activeFolders).toBe(7);
+    expect(rankedGroups(data.groups, "Cível")[0].folders).toBe(5);
+  });
+
   it("calcula a receita média por hora só com quem tem horas lançadas", () => {
     expect(
       revenuePerHour([

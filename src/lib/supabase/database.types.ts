@@ -3804,6 +3804,15 @@ export type Database = {
       }
     }
     Views: {
+      rd_deal_reconciliacao_resumo: {
+        Row: {
+          detalhes: Json | null
+          id: string | null
+          oportunidade_id: string | null
+          reconciled_at: string | null
+        }
+        Relationships: []
+      }
       v_field_definitions_duplicate_labels: {
         Row: {
           definition_ids: string[] | null
