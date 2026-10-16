@@ -72,6 +72,11 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 - As funções da Vercel rodam em `gru1` (São Paulo), em `vercel.json` (`regions`), perto dos três Supabase (CRM, SIOE e ORQESTRAI, todos `sa-east-1`). Antes rodavam no padrão `iad1` (Washington), e cada consulta ao banco cruzava o continente. Uma página faz várias consultas em sequência, e isso somava segundos por clique. O plano Hobby aceita uma região só. O `proxy` (Routing Middleware) roda em todas as regiões.
 - `requireAuth` usa `React.cache`: layout e página dividem `getUser` + perfil no mesmo request. Só o layout pede a foto oficial (`requireAuth(path, { officialAvatar: true })`); as páginas não esperam a API de fotos.
 - Toda rota de `/crm` tem `loading.tsx` (`CrmRouteLoading`, em `crm/`, `leads/`, `contratos/`, `admin/` e `admin/proposta-escopo/`): o Next pré-carrega o esqueleto e o mostra no clique, sem esperar o servidor. O `AppShell` tem uma barra fina no topo (`CrmNavigationProgress`), que começa no clique de qualquer link interno e termina quando a URL muda. Links para `/api/*`, nova aba e download ficam fora. No celular, o menu lateral fecha ao escolher uma página, para o carregamento não ficar escondido atrás dele.
+- Kanban de leads (`GET /api/crm/leads`):
+  - O snapshot do RD (`rd_deal_reconciliacao.detalhes`, ~37 KB por negócio, 15,6 MB no total em 16/10, quase tudo em `deal_custom_fields`) não é mais lido a cada abertura. `getRdReconciliationSummaries` (`src/lib/crm/kanban-data-cache.ts`, `unstable_cache`, 6 h, tag `crm:rd-reconciliacao`) guarda só etapa, `updated_at`, motivo da perda, "Cadastro realizado por" e "Solicitante" (`rd-reconciliation-summary.ts`). `runRdFullImport` (cron, admin) e o webhook do RD expiram a tag. Quais leads são do RD continua lido na hora (só `oportunidade_id`).
+  - Usuários (nome, e-mail do auth, foto oficial) vêm de `getCrmUserDirectory` (2 min, tag `crm:user-directory`). Perfil e Usuários (criar, editar, excluir, papel) expiram a tag.
+  - Oportunidades com as colunas que o kanban usa. As demais consultas (intake, DUE, revisão DUE, escopo da proposta, revisão do contrato) rodam juntas, depois das oportunidades.
+  - A tela guarda a última lista por usuário (memória e `sessionStorage` da aba, `crm.kanban.snapshot.v1`): ao abrir, mostra na hora e atualiza em segundo plano.
 
 ## 4) Rotas web e comportamento
 
