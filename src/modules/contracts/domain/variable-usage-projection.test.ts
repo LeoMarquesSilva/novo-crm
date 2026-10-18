@@ -123,3 +123,18 @@ describe("projeção por competência (teste E2E 18/10/2026)", () => {
     ]);
   });
 });
+
+describe("projeção da mensalidade que começa no meio do mês", () => {
+  const components = [{ kind: "mensal_fixo", effectiveFrom: "2026-10-18", effectiveTo: null, amountCents: "100000" }];
+  const noAreas = new Map<string, string>();
+
+  it("segue a escolha do Financeiro, como o fechamento", () => {
+    expect(projectMonthlyRuns(components, noAreas, null, "2026-10-01", 3, "mes_cheio")).toEqual([
+      { from: "2026-10-01", to: null, cents: 100_000 },
+    ]);
+    expect(projectMonthlyRuns(components, noAreas, null, "2026-10-01", 3, "mes_seguinte")).toEqual([
+      { from: "2026-10-01", to: "2026-10-01", cents: 0 },
+      { from: "2026-11-01", to: null, cents: 100_000 },
+    ]);
+  });
+});

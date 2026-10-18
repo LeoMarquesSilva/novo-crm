@@ -1,3 +1,4 @@
+import type { StartMonthBilling } from "./competency";
 import type { MoneyCents } from "./money";
 import type { VariableUsageSnapshot } from "./variable-usage-projection";
 
@@ -163,6 +164,8 @@ export type ContractVersionSnapshot = {
   id: string;
   effectiveFrom: string;
   effectiveTo: string | null;
+  /** Mensalidade fixa que começa depois do dia 1; sem resposta vale `mes_seguinte` (ver `competency.ts`). */
+  startMonthBilling?: StartMonthBilling | null;
   components: BillingComponent[];
   areaAllocations: AreaAllocationRule[];
   partnerShares: PartnerShareRule[];

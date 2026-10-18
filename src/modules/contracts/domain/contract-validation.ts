@@ -3,6 +3,7 @@ import type {
   BillingComponent,
   ContractVersionSnapshot,
 } from "./entities";
+import { isMonthlyFeeStartingMidMonth } from "./competency";
 import type { MoneyCents } from "./money";
 
 export type ContractValidationIssue = {
@@ -178,6 +179,13 @@ export function validateContractConfiguration(
       ));
     }
   });
+
+  if (!input.version.startMonthBilling && input.version.components.some(isMonthlyFeeStartingMidMonth)) {
+    const message = "Escolha como cobrar a mensalidade que começa no meio do mês (etapa Identificação e vigência).";
+    issues.push(imported
+      ? warning("start_month_billing_required", "version.startMonthBilling", message)
+      : error("start_month_billing_required", "version.startMonthBilling", message));
+  }
 
   const stepped = input.version.components
     .map((component, index) => ({ component, index }))

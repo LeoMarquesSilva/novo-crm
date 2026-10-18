@@ -18,6 +18,12 @@ import {
   inferRenewalAlertDate,
 } from "@/lib/crm/contract-renewal-date";
 import {
+  isMonthlyFeeStartingMidMonth,
+  parseStartMonthBilling,
+  START_MONTH_BILLING_LABELS,
+  type StartMonthBilling,
+} from "@/modules/contracts/domain/competency";
+import {
   projectMonthlyRuns,
   type ProjectionRun,
 } from "@/modules/contracts/domain/variable-usage-projection";
@@ -43,6 +49,7 @@ import {
   basisPointsToMaskedPercent,
   centsToMaskedBrl,
   competencyLabel,
+  startMonthBillingHelp,
 } from "./contract-setup-form-helpers";
 
 const IDENTITY_SOURCE_KEYS = new Set([
@@ -105,6 +112,8 @@ function projection(configuration: ContractConfigurationDraft, usage: ContractDe
     areaKeyById,
     usage,
     firstMonth > currentMonth ? firstMonth : currentMonth,
+    24,
+    configuration.version.startMonthBilling,
   );
 }
 
@@ -229,6 +238,10 @@ export function ContractSetupWizard({
       </div>
     );
   }
+
+  const startMonthHelp = startMonthBillingHelp(configuration.version.components, {
+    replacesVersion: (contract.versions.find((version) => version.id === configuration.version.id)?.number ?? 1) > 1,
+  });
 
   const sourceChanges = Object.entries(contract.sourceFields).filter(([key, field]) => {
     if (field.source === "manual") return false;
@@ -405,6 +418,15 @@ export function ContractSetupWizard({
       setStep(0);
       return;
     }
+    if (
+      !currentConfiguration.version.startMonthBilling &&
+      currentConfiguration.version.components.some(isMonthlyFeeStartingMidMonth)
+    ) {
+      setIssues([{ path: "version.startMonthBilling", message: "Escolha como cobrar a mensalidade do mês de início." }]);
+      setMessage("A configuração contratual contém erros. Escolha como cobrar a mensalidade na etapa de identificação.");
+      setStep(0);
+      return;
+    }
     const updatedAt = dirty ? await saveDraft() : expectedUpdatedAt;
     if (!updatedAt) return;
     setBusy(true);
@@ -565,6 +587,36 @@ export function ContractSetupWizard({
               Prazo indeterminado
               {hintFor("indefinite")}
             </label>
+            {startMonthHelp ? (
+              <div className="md:col-span-2">
+                <Field
+                  label="Mensalidade no mês de início"
+                  hint={<span className="block text-xs font-normal text-zinc-500">{startMonthHelp}</span>}
+                >
+                  <Select
+                    items={START_MONTH_BILLING_LABELS}
+                    value={configuration.version.startMonthBilling ?? ""}
+                    disabled={!canConfigure}
+                    onValueChange={(next) => patchVersion({ startMonthBilling: parseStartMonthBilling(next) })}
+                  >
+                    <SelectTrigger className="!h-10 w-full border-[#dfe5ee] bg-white shadow-sm md:max-w-sm">
+                      <CrmSelectValue
+                        value={configuration.version.startMonthBilling}
+                        labels={START_MONTH_BILLING_LABELS}
+                        placeholder="Escolha como cobrar"
+                      />
+                    </SelectTrigger>
+                    <CrmSelectContent>
+                      {(Object.keys(START_MONTH_BILLING_LABELS) as StartMonthBilling[]).map((option) => (
+                        <CrmSelectItem key={option} value={option}>
+                          {START_MONTH_BILLING_LABELS[option]}
+                        </CrmSelectItem>
+                      ))}
+                    </CrmSelectContent>
+                  </Select>
+                </Field>
+              </div>
+            ) : null}
             <Field label="Dia de vencimento" hint={hintFor("dueDay")}>
               <Input
                 type="number"

@@ -1,3 +1,5 @@
+import { isComponentEffectiveInCompetency, type StartMonthBilling } from "./competency";
+
 export type VariableUsageSnapshot = {
   competency: string;
   foldersTotal: number;
@@ -66,25 +68,20 @@ export function usageQuantityForKind(
   return match?.[1] ?? 0;
 }
 
-/** O componente vale na competência (AAAA-MM-01) quando o período cobre algum dia do mês. */
-export function isEffectiveInCompetency(component: ProjectionComponent, competency: string): boolean {
-  if (component.effectiveFrom && `${component.effectiveFrom.slice(0, 7)}-01` > competency) return false;
-  if (component.effectiveTo && component.effectiveTo < competency) return false;
-  return true;
-}
-
 /**
  * Valor mensal projetado do componente. Com `competency`, respeita o período do componente
- * (manutenção que só começa depois das parcelas fica fora) e usa a parcela daquele mês;
- * sem ela, considera o componente vigente e a 1ª parcela.
+ * pela mesma regra do fechamento (`isComponentEffectiveInCompetency`) e usa a parcela daquele
+ * mês (`startMonthBilling` decide a mensalidade que começa no meio do mês); sem ela, considera o
+ * componente vigente e a 1ª parcela.
  */
 export function projectMonthlyComponentCents(
   component: ProjectionComponent,
   areaKey: string | null | undefined,
   usage: VariableUsageSnapshot | null | undefined,
   competency?: string,
+  startMonthBilling?: StartMonthBilling | null,
 ): number {
-  if (competency && !isEffectiveInCompetency(component, competency)) return 0;
+  if (competency && !isComponentEffectiveInCompetency(component, competency, startMonthBilling)) return 0;
   if (RECURRING_FIXED.has(component.kind)) return asFiniteNumber(component.amountCents);
   if (component.kind === "mensal_preco_fechado") {
     const installment = competency
@@ -108,10 +105,11 @@ export function projectMonthlyTotalCents(
   areaKeyById: ReadonlyMap<string, string>,
   usage: VariableUsageSnapshot | null | undefined,
   competency?: string,
+  startMonthBilling?: StartMonthBilling | null,
 ): number {
   return components.reduce((sum, component) => {
     const areaKey = component.areaId ? (areaKeyById.get(component.areaId) ?? null) : null;
-    return sum + projectMonthlyComponentCents(component, areaKey, usage, competency);
+    return sum + projectMonthlyComponentCents(component, areaKey, usage, competency, startMonthBilling);
   }, 0);
 }
 
@@ -130,11 +128,12 @@ export function projectMonthlyRuns(
   usage: VariableUsageSnapshot | null | undefined,
   fromCompetency: string,
   months = 24,
+  startMonthBilling?: StartMonthBilling | null,
 ): ProjectionRun[] {
   const runs: ProjectionRun[] = [];
   let competency = fromCompetency;
   for (let index = 0; index < months; index += 1) {
-    const cents = projectMonthlyTotalCents(components, areaKeyById, usage, competency);
+    const cents = projectMonthlyTotalCents(components, areaKeyById, usage, competency, startMonthBilling);
     const last = runs.at(-1);
     if (last && last.cents === cents) last.to = competency;
     else runs.push({ from: competency, to: competency, cents });
