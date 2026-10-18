@@ -274,7 +274,7 @@ export async function POST(request: Request) {
     }
 
     // Envio de e-mail de notificação (não-bloqueante)
-    sendLeadNotificationEmail(supabase, payload).then((result) => {
+    sendLeadNotificationEmail(supabase, payload, { oportunidadeId: oportunidade.id }).then((result) => {
       if (!result.ok) {
         console.warn("[leads/new] E-mail de notificação falhou:", result.error);
       }
