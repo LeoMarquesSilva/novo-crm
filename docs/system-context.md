@@ -483,3 +483,7 @@ Mudança pelo caminho errado responde 422 com `transitionBlocker { code: "use_de
 - Erros: `src/lib/http/api-errors.ts` (`PublicError`, `IntegrationError`, `internalErrorResponse` com `ref`); Evolution, SharePoint, RD, OpenAI, criação de lead, grade pública da carteira, importações e OAuth Microsoft (`reason=`) não devolvem mais corpo de resposta, mensagem do banco ou nome de variável.
 - Prazos: SIOE e OrquestrAI via `createExternalServiceClient` (30 s); OpenAI `timeout` 50 s (consolidação 120 s), 1 tentativa do SDK, repetição manual só para resposta fora do formato.
 - Avisos: `src/lib/crm/notifications/crm-notify.ts` (`resolveNotificationRecipients`, `notifyInApp` com `idempotency_key`, `notifyByEmail` pelo Outlook do CRM — `CRM_NOTIFY_EMAIL_ENABLED=0` desliga); avisos do webhook D4Sign passam por ele. Indicador pendente agora avisa pelo id de login.
+
+### 14.4 Ajustes do teste ponta a ponta (2026-10-18)
+
+- **Datas sem hora:** o prazo de revisão do contrato (`cc_prazo_revisao` → `contract_review_tasks.prazo_revisao`) é gravado como a meia-noite de São Paulo (`2026-10-20` → `2026-10-20T03:00:00Z`, `saoPauloMidnightIso` em `src/lib/format-datetime.ts`); antes ia `T00:00Z` e aparecia um dia antes. A aba Contrato, o kanban, o aviso do builder e a notificação usam a parte `yyyy-mm-dd` do valor e mostram `dd/mm/aaaa`; registros antigos (`T00:00Z`) continuam mostrando o dia escolhido. Prazo que não é data devolve 400.

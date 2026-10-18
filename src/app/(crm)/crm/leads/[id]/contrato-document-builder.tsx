@@ -66,6 +66,12 @@ import {
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import {
+  daysBetweenYmd,
+  formatDateYmdBr,
+  parseDateOnlyInput,
+  saoPauloDateYmd,
+} from "@/lib/format-datetime";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { evaluateCondition, type FieldCondition } from "@/lib/crm/field-condition";
 import { usePaginatedBlocks, type PreviewBlock } from "@/lib/crm/document-pagination";
@@ -1327,7 +1333,10 @@ function ContratoBuilderDialog({
                           <strong>Ao salvar</strong>, a área{" "}
                           <span className="font-semibold">Societário e Contratos</span> será notificada
                           para revisar este contrato até{" "}
-                          <strong>{draftValues.cc_prazo_revisao}</strong>.
+                          <strong>
+                            {formatDateYmdBr(draftValues.cc_prazo_revisao) || draftValues.cc_prazo_revisao}
+                          </strong>
+                          .
                         </p>
                       </div>
                     </div>
@@ -1982,16 +1991,11 @@ function ReviewTaskCard({
       })
     : false;
   const cfg = REVIEW_STATUS_CFG[reviewTask.status];
-  const prazoDate = reviewTask.prazo_revisao
-    ? new Date(reviewTask.prazo_revisao)
-    : null;
-  const prazoStr = prazoDate
-    ? prazoDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
-    : null;
-  const hoje = new Date();
-  const diasRestantes = prazoDate
-    ? Math.ceil((prazoDate.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
-    : null;
+  // Prazo é data sem hora: a parte `yyyy-mm-dd` do ISO é o dia escolhido (meia-noite de
+  // São Paulo; registros antigos têm T00:00Z). Converter para Date desloca um dia.
+  const prazoYmd = parseDateOnlyInput(reviewTask.prazo_revisao);
+  const prazoStr = prazoYmd ? formatDateYmdBr(prazoYmd) : null;
+  const diasRestantes = prazoYmd ? daysBetweenYmd(saoPauloDateYmd(), prazoYmd) : null;
   const atrasado = diasRestantes !== null && diasRestantes < 0 && reviewTask.status !== "concluido";
 
   async function updateStatus(status: ReviewTask["status"]) {

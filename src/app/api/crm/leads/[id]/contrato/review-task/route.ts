@@ -18,6 +18,7 @@ import { forbiddenResponse, requireCrmActorApi, requireLeadActionApi } from "@/l
 import { requireAuthApi } from "@/lib/auth/server";
 import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { formatDateYmdBr, parseDateOnlyInput, saoPauloMidnightIso } from "@/lib/format-datetime";
 import { internalErrorResponse, logServerError } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
@@ -96,13 +97,16 @@ export async function POST(
       }
     }
 
-    const prazoIso = parsed.data.prazoRevisao
-      ? new Date(
-          parsed.data.prazoRevisao.includes("/")
-            ? parsed.data.prazoRevisao.split("/").reverse().join("-")
-            : parsed.data.prazoRevisao,
-        ).toISOString()
-      : null;
+    // O prazo é uma data sem hora: grava a meia-noite de São Paulo (T03:00Z), não T00:00Z,
+    // que aparece como o dia anterior para quem está no Brasil.
+    const prazoYmd = parsed.data.prazoRevisao ? parseDateOnlyInput(parsed.data.prazoRevisao) : null;
+    if (parsed.data.prazoRevisao && !prazoYmd) {
+      return NextResponse.json(
+        { ok: false, error: "Prazo de revisão inválido. Use dd/mm/aaaa." },
+        { status: 400 },
+      );
+    }
+    const prazoIso = prazoYmd ? saoPauloMidnightIso(prazoYmd) : null;
 
     // Upsert review task
     const { data: task, error: taskErr } = await supabase
@@ -129,12 +133,8 @@ export async function POST(
       .not("auth_user_id", "is", null);
 
     const now = new Date().toISOString();
-    if (recipients && recipients.length > 0 && prazoIso) {
-      const prazoFormatado = new Date(prazoIso).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
+    if (recipients && recipients.length > 0 && prazoIso && prazoYmd) {
+      const prazoFormatado = formatDateYmdBr(prazoYmd);
       const solicitanteNome = op.solicitante_nome ?? "";
       const requestedBy = auth.profile?.full_name ?? "Sistema";
 
