@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Save, Send } from "lucide-react";
 
@@ -57,7 +57,7 @@ const STATUS_LABEL: Record<ClientOnboardingStatus, string> = {
  * Aba "Cadastro" da ficha do lead (pós-venda): o responsável preenche e envia para
  * Operações Legais; Operações Legais confere, cadastra e conclui (ou devolve).
  */
-export function ClientOnboardingTab({ leadId }: { leadId: string }) {
+export function ClientOnboardingTab({ leadId, stage }: { leadId: string; stage?: string }) {
   const router = useRouter();
   const base = `/api/crm/leads/${encodeURIComponent(leadId)}/onboarding`;
   const [data, setData] = useState<OnboardingResponse | null>(null);
@@ -69,11 +69,16 @@ export function ClientOnboardingTab({ leadId }: { leadId: string }) {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
+  // Só a leitura mais recente vale: uma resposta atrasada (ex.: a da montagem) não pode
+  // sobrescrever o status novo depois do envio.
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
       const res = await fetch(base, { cache: "no-store" });
       const json = (await res.json().catch(() => null)) as OnboardingResponse | null;
+      if (seq !== loadSeq.current) return;
       if (!res.ok || !json?.ok) {
         setMessage({ tone: "error", text: json?.error ?? "Não foi possível carregar o cadastro." });
         return;
@@ -83,13 +88,20 @@ export function ClientOnboardingTab({ leadId }: { leadId: string }) {
       setUpdatedAt(json.onboarding?.updatedAt ?? null);
       setDirty(false);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [base]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A etapa do lead mudou no servidor (envio, devolução ou conclusão, aqui ou por outra
+  // pessoa via Realtime → router.refresh): relê o cadastro em vez de ficar no status antigo.
+  const loadedStage = data?.stage;
+  useEffect(() => {
+    if (stage && loadedStage && stage !== loadedStage && !dirty) void load();
+  }, [stage, loadedStage, dirty, load]);
 
   async function saveDraft(): Promise<boolean> {
     if (!payload) return false;
@@ -125,14 +137,34 @@ export function ClientOnboardingTab({ leadId }: { leadId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ payload }),
       });
-      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; stage?: string } | null;
       if (!res.ok || !json?.ok) {
         setMessage({ tone: "error", text: json?.error ?? "Não foi possível enviar o cadastro." });
         return;
       }
       setMessage({ tone: "success", text: "Cadastro enviado para Operações Legais." });
-      await load();
+      // Mostra o novo status já com a resposta do envio; a releitura completa vem em seguida.
+      setDirty(false);
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              stage: json.stage ?? "cadastro_novo_cliente",
+              onboarding: {
+                returnComment: null,
+                returnedAt: null,
+                concludedAt: null,
+                grupoNome: null,
+                viosReferencia: null,
+                updatedAt: new Date().toISOString(),
+                ...current.onboarding,
+                status: "enviado",
+              },
+            }
+          : current,
+      );
       router.refresh();
+      await load();
     } finally {
       setSaving(false);
       setSubmitOpen(false);
