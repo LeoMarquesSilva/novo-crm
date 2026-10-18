@@ -1,4 +1,8 @@
-import { normalizeImportedAreaKey, type ContractImportExtraction } from "@/lib/contract-import/schemas";
+import {
+  normalizeAdjustmentIndex,
+  normalizeImportedAreaKey,
+  type ContractImportExtraction,
+} from "@/lib/contract-import/schemas";
 import type { SioeRateioSnapshot } from "@/lib/contract-import/sioe-rateio";
 import type { ContractPrefillResult } from "@/modules/contracts/application/services/build-contract-prefill";
 import { onlyDigits, type ClientOnboardingPayload } from "@/modules/crm/domain/client-onboarding";
@@ -9,6 +13,7 @@ const EXTRACTION_KINDS = new Set<ExtractionComponent["kind"]>([
   "mensal_fixo",
   "mensal_escalonado",
   "mensal_preco_fechado",
+  "manutencao",
   "exito_percentual",
   "exito_valor_fixo",
   "despesa_km",
@@ -51,6 +56,10 @@ export function buildLeadExtraction(input: {
     if (key && !areas.has(key)) areas.set(key, { areaKey: key, includedProcesses: null, includedHours: null });
   }
 
+  const firstInvoiceAt = onboarding?.financeiro.primeiroFaturamentoCondicionado
+    ? null
+    : onboarding?.financeiro.primeiroFaturamento || null;
+
   const components: ExtractionComponent[] = [];
   for (const { value } of input.prefill.billingComponents) {
     const kind = EXTRACTION_KINDS.has(value.kind as ExtractionComponent["kind"])
@@ -60,6 +69,7 @@ export function buildLeadExtraction(input: {
         : null;
     if (!kind) continue;
     const firstInstallment = value.installments?.[0];
+    const closedPrice = kind === "mensal_preco_fechado";
     components.push({
       kind,
       description: value.description,
@@ -67,6 +77,16 @@ export function buildLeadExtraction(input: {
       percentageBasisPoints: value.percentageBasisPoints ?? null,
       installmentCount: value.installments?.length ? value.installments.length : null,
       installmentAmountCents: toNumber(firstInstallment?.amountCents ?? null),
+      // 1ª parcela = primeiro faturamento confirmado no cadastro; as demais seguem a proposta.
+      ...(closedPrice
+        ? {
+            firstDueDate: firstInvoiceAt ?? firstInstallment?.dueDate ?? null,
+            installments: value.installments?.map((installment) => ({
+              amountCents: toNumber(installment.amountCents),
+              dueDate: installment.dueDate,
+            })),
+          }
+        : {}),
       requiresManualRelease: value.requiresManualRelease || value.kind === "mensal_condicionado",
       includedQuantity: value.includedQuantity ?? null,
       unitAmountCents: toNumber(value.unitAmountCents ?? null),
@@ -93,9 +113,7 @@ export function buildLeadExtraction(input: {
     signedAt: null,
     indefinite: true,
     dueDay: null,
-    firstInvoiceAt: onboarding?.financeiro.primeiroFaturamentoCondicionado
-      ? null
-      : onboarding?.financeiro.primeiroFaturamento || null,
+    firstInvoiceAt,
     firstInvoiceConditioned: onboarding?.financeiro.primeiroFaturamentoCondicionado ?? false,
     adjustmentIndex: adjustmentIndexFromOnboarding(onboarding?.financeiro.reajuste.indice ?? ""),
     taxMode: null,
@@ -110,23 +128,97 @@ export function buildLeadExtraction(input: {
 
 export type InclusionDivergence = { field: string; leadValue: string; pdfValue: string };
 
+const SUCCESS_KINDS = new Set<ExtractionComponent["kind"]>(["exito_percentual", "exito_valor_fixo"]);
+
+function hasValue(component: ExtractionComponent): boolean {
+  return component.kind === "exito_percentual"
+    ? Boolean(component.percentageBasisPoints)
+    : Boolean(component.amountCents);
+}
+
+/**
+ * Cobrança do PDF completada pela proposta onde o contrato não basta:
+ * - preço fechado: 1ª parcela no primeiro faturamento do cadastro; se o total e o número de
+ *   parcelas batem com a proposta, valores e vencimentos das parcelas vêm dela;
+ * - êxito: contrato que remete à proposta ("conforme condições da proposta") ou que não
+ *   traz o êxito recebe o percentual/valor da proposta.
+ */
+function completePdfComponents(
+  pdf: ExtractionComponent[],
+  lead: ExtractionComponent[],
+  firstInvoiceAt: string | null | undefined,
+): { components: ExtractionComponent[]; fromProposal: ExtractionComponent[] } {
+  const fromProposal: ExtractionComponent[] = [];
+  const leadClosed = lead.find((component) => component.kind === "mensal_preco_fechado");
+  let components = pdf.map((component) => {
+    if (component.kind === "mensal_preco_fechado") {
+      const pdfTotal =
+        component.amountCents ?? (component.installmentAmountCents ?? 0) * (component.installmentCount ?? 0);
+      const sameDeal =
+        leadClosed?.installments?.length &&
+        leadClosed.installments.length === component.installmentCount &&
+        leadClosed.amountCents === pdfTotal;
+      return {
+        ...component,
+        firstDueDate: firstInvoiceAt ?? component.firstDueDate ?? null,
+        ...(sameDeal && leadClosed?.installments ? { installments: leadClosed.installments } : {}),
+      };
+    }
+    if (SUCCESS_KINDS.has(component.kind) && !hasValue(component)) {
+      const fallback = lead.find((candidate) => candidate.kind === component.kind && hasValue(candidate));
+      if (fallback) {
+        const completed = {
+          ...component,
+          amountCents: fallback.amountCents ?? null,
+          percentageBasisPoints: fallback.percentageBasisPoints ?? null,
+          requiresManualRelease: true,
+        };
+        fromProposal.push(completed);
+        return completed;
+      }
+    }
+    return component;
+  });
+
+  const leadSuccess = lead.filter((component) => SUCCESS_KINDS.has(component.kind) && hasValue(component));
+  if (leadSuccess.length && !components.some((component) => SUCCESS_KINDS.has(component.kind) && hasValue(component))) {
+    // Êxito do PDF sem valor some: o da proposta entra no lugar.
+    components = [
+      ...components.filter((component) => !SUCCESS_KINDS.has(component.kind)),
+      ...leadSuccess,
+    ];
+    fromProposal.push(...leadSuccess);
+  }
+  return { components, fromProposal };
+}
+
 /**
  * Junta lead e PDF. O que o responsável e Operações Legais confirmaram no cadastro
  * (vigência, primeiro faturamento, reajuste) prevalece e o PDF completa o que falta;
- * cobrança (componentes) vem do contrato assinado quando a IA achou, senão da proposta.
+ * cobrança (componentes) vem do contrato assinado quando a IA achou, completada pela
+ * proposta (êxito, parcelas); sem PDF, da proposta.
  */
 export function mergeLeadAndPdfExtraction(
   lead: ContractImportExtraction,
   pdf: ContractImportExtraction | null,
-): { extraction: ContractImportExtraction; divergences: InclusionDivergence[] } {
-  if (!pdf) return { extraction: lead, divergences: [] };
+): {
+  extraction: ContractImportExtraction;
+  divergences: InclusionDivergence[];
+  /** Componentes do PDF completados pela proposta (para a origem no assistente). */
+  fromProposal: ExtractionComponent[];
+} {
+  if (!pdf) return { extraction: lead, divergences: [], fromProposal: [] };
   const divergences: InclusionDivergence[] = [];
   const compare = (field: string, a: string | null | undefined, b: string | null | undefined) => {
     if (a && b && a.trim() !== b.trim()) divergences.push({ field, leadValue: a, pdfValue: b });
   };
   compare("startsAt", lead.startsAt, pdf.startsAt);
   compare("firstInvoiceAt", lead.firstInvoiceAt, pdf.firstInvoiceAt);
-  compare("adjustmentIndex", lead.adjustmentIndex, pdf.adjustmentIndex);
+  compare(
+    "adjustmentIndex",
+    normalizeAdjustmentIndex(lead.adjustmentIndex) ?? lead.adjustmentIndex,
+    normalizeAdjustmentIndex(pdf.adjustmentIndex) ?? pdf.adjustmentIndex,
+  );
 
   const leadTotal = lead.components.reduce((acc, c) => acc + (c.amountCents ?? 0), 0);
   const pdfTotal = pdf.components.reduce((acc, c) => acc + (c.amountCents ?? 0), 0);
@@ -144,18 +236,25 @@ export function mergeLeadAndPdfExtraction(
     if (key && !areas.has(key)) areas.set(key, { ...area, areaKey: key });
   }
 
+  const firstInvoiceAt = lead.firstInvoiceAt ?? pdf.firstInvoiceAt ?? null;
+  const completed =
+    pdf.components.length > 0
+      ? completePdfComponents(pdf.components, lead.components, firstInvoiceAt)
+      : { components: lead.components, fromProposal: [] };
+
   return {
     extraction: {
       ...pdf,
       parties: lead.parties.length ? lead.parties : pdf.parties,
       startsAt: lead.startsAt ?? pdf.startsAt ?? null,
-      firstInvoiceAt: lead.firstInvoiceAt ?? pdf.firstInvoiceAt ?? null,
+      firstInvoiceAt,
       firstInvoiceConditioned: lead.firstInvoiceConditioned || pdf.firstInvoiceConditioned,
       adjustmentIndex: lead.adjustmentIndex ?? pdf.adjustmentIndex ?? null,
       areas: [...areas.values()],
-      components: pdf.components.length > 0 ? pdf.components : lead.components,
+      components: completed.components,
     },
     divergences,
+    fromProposal: completed.fromProposal,
   };
 }
 

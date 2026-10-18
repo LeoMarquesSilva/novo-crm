@@ -23,6 +23,7 @@ const installment = z.object({
   number: z.number().int().positive(),
   competency: date,
   amountCents: cents,
+  dueDate: date.optional(),
 });
 
 const component = z.object({

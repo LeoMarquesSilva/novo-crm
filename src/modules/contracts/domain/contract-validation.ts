@@ -157,6 +157,16 @@ export function validateContractConfiguration(
         "A área referenciada pelo componente não pertence à versão.",
       ));
     }
+    if ("installments" in component && component.installments) {
+      const competencies = component.installments.map((installment) => installment.competency);
+      if (new Set(competencies).size !== competencies.length) {
+        issues.push(error(
+          "installment_competency_duplicated",
+          `version.components[${index}].installments`,
+          "Cada parcela precisa cair em uma competência (mês) diferente.",
+        ));
+      }
+    }
     const startsBeforeVersion = component.effectiveFrom < input.version.effectiveFrom;
     const endsAfterVersion = input.version.effectiveTo !== null &&
       (component.effectiveTo === null || component.effectiveTo > input.version.effectiveTo);

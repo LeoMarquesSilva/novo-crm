@@ -45,6 +45,8 @@ type RecurringComponent = ComponentBase & {
 
 type InstallmentComponent = ComponentBase & {
   kind: "mensal_preco_fechado";
+  /** Preço total contratado (soma das parcelas); a cobrança mensal segue as parcelas. */
+  amountCents?: MoneyCents;
   installments: BillingInstallment[];
 };
 
@@ -108,6 +110,8 @@ export type BillingInstallment = {
   number: number;
   competency: string;
   amountCents: MoneyCents;
+  /** Vencimento (AAAA-MM-DD); sem ele, vale o 1º dia da competência. */
+  dueDate?: string;
 };
 
 export type ContractConsumption = {

@@ -42,6 +42,13 @@ export function maskedPercentToBasisPoints(masked: string): number | null {
   return Number(digits);
 }
 
+const MONTH_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+/** Competência `AAAA-MM-01` → `out/2026`. */
+export function competencyLabel(competency: string): string {
+  return `${MONTH_LABELS[Number(competency.slice(5, 7)) - 1] ?? ""}/${competency.slice(0, 4)}`;
+}
+
 export const BILLING_KIND_LABELS: Record<string, string> = {
   mensal_fixo: "Mensalidade fixa",
   mensal_preco_fechado: "Preço fechado (parcelas)",

@@ -79,7 +79,11 @@ async function readSignedPdfWithAi(
 }
 
 /** Itens de origem "cadastro" para os campos que vieram do lead (e não do PDF). */
-function leadProvenance(extraction: ContractImportExtraction, pdf: ContractImportExtraction | null): AiProvenanceItem[] {
+function leadProvenance(
+  extraction: ContractImportExtraction,
+  pdf: ContractImportExtraction | null,
+  fromProposal: ContractImportExtraction["components"],
+): AiProvenanceItem[] {
   const items: AiProvenanceItem[] = [];
   const add = (field: string, value: string | null | undefined, fromPdf: string | null | undefined) => {
     if (!value || (fromPdf && fromPdf === value)) return;
@@ -101,6 +105,21 @@ function leadProvenance(extraction: ContractImportExtraction, pdf: ContractImpor
       clause: null,
       source: "cadastro",
       extractedValue: extraction.components.map((c) => c.description || c.kind).join("; "),
+    });
+  }
+  if (pdf?.components.length && fromProposal.length) {
+    items.push({
+      field: "components",
+      quote: "O contrato não traz o valor; completado pelo investimento da proposta.",
+      clause: null,
+      source: "cadastro",
+      extractedValue: fromProposal
+        .map((c) =>
+          c.kind === "exito_percentual" && c.percentageBasisPoints
+            ? `Êxito ${c.percentageBasisPoints / 100}%`
+            : c.description || c.kind,
+        )
+        .join("; "),
     });
   }
   return items;
@@ -180,7 +199,7 @@ export async function includeLeadContract(
   const leadExtraction = buildLeadExtraction({ onboarding, prefill });
 
   const pdfRead = await readSignedPdfWithAi(o.d4sign_document_uuid);
-  const { extraction, divergences } = mergeLeadAndPdfExtraction(leadExtraction, pdfRead.extraction);
+  const { extraction, divergences, fromProposal } = mergeLeadAndPdfExtraction(leadExtraction, pdfRead.extraction);
   const rateio = rateioFromOnboarding(onboarding);
 
   const configuration = applyAnnualRenewalDefaults(
@@ -234,7 +253,7 @@ export async function includeLeadContract(
   const snapshot = {
     ...previous,
     origin: "lead",
-    aiProvenance: [...(pdfSnapshot?.aiProvenance ?? []), ...leadProvenance(extraction, pdfRead.extraction)],
+    aiProvenance: [...(pdfSnapshot?.aiProvenance ?? []), ...leadProvenance(extraction, pdfRead.extraction, fromProposal)],
     reviewedFieldKeys: Array.isArray(previous.reviewedFieldKeys) ? previous.reviewedFieldKeys : [],
     leadInclusion: {
       prefilledAt: prefilled ? now : ((previous.leadInclusion as Record<string, unknown> | undefined)?.prefilledAt ?? null),

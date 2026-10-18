@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   billableUsageQuantity,
   nextCompetencyMonth,
+  projectMonthlyRuns,
   projectMonthlyTotalCents,
   projectVariableAmountCents,
   usageQuantityForKind,
@@ -89,5 +90,36 @@ describe("projectMonthlyTotalCents", () => {
 describe("nextCompetencyMonth", () => {
   it("avança setembro para outubro", () => {
     expect(nextCompetencyMonth("2026-09-01")).toBe("2026-10-01");
+  });
+});
+
+describe("projeção por competência (teste E2E 18/10/2026)", () => {
+  const components = [
+    {
+      kind: "mensal_preco_fechado",
+      effectiveFrom: "2026-10-18",
+      effectiveTo: null,
+      installments: ["2026-10-01", "2026-11-01", "2026-12-01", "2027-01-01", "2027-02-01"].map((competency) => ({
+        competency,
+        amountCents: "240000",
+      })),
+    },
+    { kind: "manutencao", effectiveFrom: "2027-03-01", effectiveTo: null, amountCents: "25000" },
+    { kind: "exito_percentual", effectiveFrom: "2026-10-18", effectiveTo: null },
+  ];
+  const noAreas = new Map<string, string>();
+
+  it("não soma a manutenção antes do início nem parcela fora do mês", () => {
+    expect(projectMonthlyTotalCents(components, noAreas, null, "2026-10-01")).toBe(240_000);
+    expect(projectMonthlyTotalCents(components, noAreas, null, "2027-02-01")).toBe(240_000);
+    expect(projectMonthlyTotalCents(components, noAreas, null, "2027-03-01")).toBe(25_000);
+    expect(projectMonthlyTotalCents(components, noAreas, null, "2026-09-01")).toBe(0);
+  });
+
+  it("agrupa os meses em trechos de mesmo valor", () => {
+    expect(projectMonthlyRuns(components, noAreas, null, "2026-10-01", 12)).toEqual([
+      { from: "2026-10-01", to: "2027-02-01", cents: 240_000 },
+      { from: "2027-03-01", to: null, cents: 25_000 },
+    ]);
   });
 });

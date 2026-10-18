@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { renatoProposalEscopoJson as renatoProposal } from "@/lib/crm/contract-inclusion/fixtures/renato-e2e";
+
 import { moneyCents } from "../../domain/money";
 import { buildContractPrefill } from "./build-contract-prefill";
 
@@ -169,13 +171,13 @@ describe("buildContractPrefill", () => {
         source: "proposta",
         requiresConfirmation: true,
         value: expect.objectContaining({
-          kind: "spot",
+          kind: "mensal_preco_fechado",
           areaKey: "Societário e Contratos",
           amountCents: moneyCents(BigInt(1_200_000)),
-          requiresManualRelease: true,
+          requiresManualRelease: false,
           installments: [
-            { number: 1, amountCents: moneyCents(BigInt(700_000)), dueCondition: "na assinatura" },
-            { number: 2, amountCents: moneyCents(BigInt(500_000)), dueCondition: "30 dias depois" },
+            { number: 1, amountCents: moneyCents(BigInt(700_000)), dueCondition: "na assinatura", dueDate: null },
+            { number: 2, amountCents: moneyCents(BigInt(500_000)), dueCondition: "30 dias depois", dueDate: null },
           ],
         }),
       }),
@@ -243,11 +245,11 @@ describe("buildContractPrefill", () => {
 
     expect(
       result.billingComponents
-        .filter(({ value }) => value.kind === "mensal_fixo" || value.kind === "spot")
+        .filter(({ value }) => ["mensal_fixo", "spot", "mensal_preco_fechado"].includes(value.kind))
         .map(({ value, source }) => ({ kind: value.kind, amountCents: value.amountCents, source })),
     ).toEqual([
       { kind: "mensal_fixo", amountCents: moneyCents(BigInt(1_460_000)), source: "proposta" },
-      { kind: "spot", amountCents: moneyCents(BigInt(1_200_000)), source: "proposta" },
+      { kind: "mensal_preco_fechado", amountCents: moneyCents(BigInt(1_200_000)), source: "proposta" },
     ]);
   });
 
@@ -290,7 +292,73 @@ describe("buildContractPrefill", () => {
     ]);
     expect(result.billingComponents.map(({ value }) => value.kind)).toEqual([
       "mensal_fixo",
-      "spot",
+      "mensal_preco_fechado",
+    ]);
+  });
+
+  it("completa manutenção e êxito pelo investimento consolidado da proposta (teste E2E 18/10/2026)", () => {
+    const result = buildContractPrefill({ fieldValues: { cp_escopo_detalhe_json: renatoProposal } });
+    expect(result.billingComponents.map(({ value }) => value)).toEqual([
+      expect.objectContaining({
+        kind: "mensal_preco_fechado",
+        areaKey: "Societário e Contratos",
+        amountCents: moneyCents(BigInt(1_200_000)),
+        requiresManualRelease: false,
+        installments: [
+          { number: 1, amountCents: moneyCents(BigInt(240_000)), dueCondition: "na data de assinatura do Contrato", dueDate: null },
+          { number: 2, amountCents: moneyCents(BigInt(240_000)), dueCondition: "20/11/2026", dueDate: "2026-11-20" },
+          { number: 3, amountCents: moneyCents(BigInt(240_000)), dueCondition: "20/12/2026", dueDate: "2026-12-20" },
+          { number: 4, amountCents: moneyCents(BigInt(240_000)), dueCondition: "20/01/2027", dueDate: "2027-01-20" },
+          { number: 5, amountCents: moneyCents(BigInt(240_000)), dueCondition: "20/02/2027", dueDate: "2027-02-20" },
+        ],
+      }),
+      expect.objectContaining({
+        kind: "manutencao",
+        areaKey: "Societário e Contratos",
+        amountCents: moneyCents(BigInt(25_000)),
+        requiresManualRelease: false,
+      }),
+      expect.objectContaining({
+        kind: "exito_percentual",
+        areaKey: "Societário e Contratos",
+        percentageBasisPoints: 500,
+        requiresManualRelease: true,
+      }),
+    ]);
+  });
+
+  it("SPOT condicionado continua gatilho e híbridos viram dois componentes", () => {
+    const proposal = JSON.stringify({
+      Cível: [
+        {
+          id: "c1",
+          tipoId: "contencioso",
+          subtipoId: "um_processo",
+          investimento: {
+            tipoId: "honorarios_hibridos",
+            subtipoId: "mensal_mais_exito",
+            placeholders: { VALORMENSAL: "3.000,00", PORCENTAGEMHONORARIOS: "10" },
+          },
+        },
+        {
+          id: "c2",
+          tipoId: "contencioso",
+          subtipoId: "um_processo",
+          investimento: {
+            tipoId: "honorarios_contratuais",
+            subtipoId: "spot_condicionado",
+            placeholders: { VALORSPOT: "5.000,00", PARCELAS: "2", VALORPARCELA: "2.500,00" },
+          },
+        },
+      ],
+    });
+    const kinds = buildContractPrefill({ fieldValues: { cp_escopo_detalhe_json: proposal } }).billingComponents.map(
+      ({ value }) => [value.kind, value.requiresManualRelease],
+    );
+    expect(kinds).toEqual([
+      ["mensal_fixo", false],
+      ["exito_percentual", true],
+      ["spot", true],
     ]);
   });
 });

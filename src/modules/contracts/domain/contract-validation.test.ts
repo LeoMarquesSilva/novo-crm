@@ -62,6 +62,24 @@ function validConfiguration(): ContractConfigurationInput {
 }
 
 describe("validateContractConfiguration", () => {
+  it("recusa duas parcelas do preço fechado na mesma competência", () => {
+    const configuration = validConfiguration();
+    configuration.version.components.push({
+      id: "closed-1",
+      kind: "mensal_preco_fechado",
+      description: "Preço fechado",
+      effectiveFrom: "2026-08-01",
+      effectiveTo: null,
+      installments: [
+        { number: 1, competency: "2026-08-01", dueDate: "2026-08-05", amountCents: moneyCents(BigInt(5_000)) },
+        { number: 2, competency: "2026-08-01", dueDate: "2026-08-25", amountCents: moneyCents(BigInt(5_000)) },
+      ],
+    });
+    expect(validateContractConfiguration(configuration).map((issue) => issue.code)).toContain(
+      "installment_competency_duplicated",
+    );
+  });
+
   it("reports each missing activation prerequisite with a stable code and path", () => {
     const input = validConfiguration();
     input.clientId = null;

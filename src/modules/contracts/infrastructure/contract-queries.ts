@@ -63,7 +63,7 @@ export type ContractComponentDraft = {
   effectiveTo: string | null;
   areaId?: string;
   amountCents?: string;
-  installments?: Array<{ number: number; competency: string; amountCents: string }>;
+  installments?: Array<{ number: number; competency: string; amountCents: string; dueDate?: string }>;
   requiresManualRelease?: boolean;
   chargeMode?: "quantidade_total" | "excedente";
   includedQuantity?: number;
@@ -519,7 +519,7 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
   const componentIds = (componentsResult.data ?? []).map((component) => component.id);
   const installmentsResult = componentIds.length
-    ? await supabase.from("contrato_parcelas").select("id, componente_id, numero, competencia, valor").in("componente_id", componentIds).order("numero")
+    ? await supabase.from("contrato_parcelas").select("id, componente_id, numero, competencia, vencimento, valor").in("componente_id", componentIds).order("numero")
     : { data: [], error: null };
 
   const areas = (areasResult.data ?? []).map((area) => ({
@@ -533,7 +533,12 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
   const components = (componentsResult.data ?? []).map<ContractComponentDraft>((component) => {
     const installments = (installmentsResult.data ?? [])
       .filter((installment) => installment.componente_id === component.id)
-      .map((installment) => ({ number: installment.numero, competency: installment.competencia, amountCents: toCents(installment.valor) ?? "0" }));
+      .map((installment) => ({
+        number: installment.numero,
+        competency: installment.competencia,
+        dueDate: installment.vencimento,
+        amountCents: toCents(installment.valor) ?? "0",
+      }));
     return {
       id: component.id,
       kind: component.tipo,

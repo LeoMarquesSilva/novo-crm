@@ -11,12 +11,16 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
+import { competencyMonthStart } from "@/lib/format-datetime";
 import {
   applyAnnualRenewalDefaults,
   inferAnnualRenewalDate,
   inferRenewalAlertDate,
 } from "@/lib/crm/contract-renewal-date";
-import { projectMonthlyTotalCents } from "@/modules/contracts/domain/variable-usage-projection";
+import {
+  projectMonthlyRuns,
+  type ProjectionRun,
+} from "@/modules/contracts/domain/variable-usage-projection";
 import { reattachOptionalAreaIds, reattachRequiredAreaIds } from "@/modules/contracts/domain/reattach-area-ids";
 import type {
   ContractConfigurationDraft,
@@ -38,6 +42,7 @@ import {
   TRIGGER_KINDS,
   basisPointsToMaskedPercent,
   centsToMaskedBrl,
+  competencyLabel,
 } from "./contract-setup-form-helpers";
 
 const IDENTITY_SOURCE_KEYS = new Set([
@@ -89,9 +94,51 @@ function stringify(value: unknown) {
   return JSON.stringify(value);
 }
 
-function projection(configuration: ContractConfigurationDraft, usage: ContractDetailViewModel["sioeUsage"]): number {
+/** Projeção a partir do 1º faturamento (ou do mês atual, se já passou), por trechos de mesmo valor. */
+function projection(configuration: ContractConfigurationDraft, usage: ContractDetailViewModel["sioeUsage"]): ProjectionRun[] {
   const areaKeyById = new Map(configuration.areas.map((area) => [area.id, area.areaKey]));
-  return projectMonthlyTotalCents(configuration.version.components, areaKeyById, usage);
+  const currentMonth = competencyMonthStart();
+  const firstBilling = configuration.firstInvoiceAt ?? configuration.startsAt;
+  const firstMonth = firstBilling ? `${firstBilling.slice(0, 7)}-01` : currentMonth;
+  return projectMonthlyRuns(
+    configuration.version.components,
+    areaKeyById,
+    usage,
+    firstMonth > currentMonth ? firstMonth : currentMonth,
+  );
+}
+
+function ProjectionSummary({ runs, loading }: { runs: ProjectionRun[]; loading: boolean }) {
+  const first = runs[0];
+  return (
+    <div className="rounded-2xl bg-[#102033] p-5 text-white">
+      <p className="text-xs uppercase tracking-wide text-slate-400">
+        Projeção mensal estimada{first ? ` · ${competencyLabel(first.from)}` : ""}
+      </p>
+      <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">
+        {loading ? "…" : centsToMaskedBrl(first?.cents ?? 0) || "R$ 0,00"}
+      </p>
+      {!loading && runs.length > 1 ? (
+        <ul className="mt-3 space-y-1 text-sm text-slate-300" aria-label="Projeção por período">
+          {runs.map((run) => (
+            <li key={run.from} className="flex flex-wrap justify-between gap-2 tabular-nums">
+              <span>
+                {run.to === null
+                  ? `A partir de ${competencyLabel(run.from)}`
+                  : run.to === run.from
+                    ? competencyLabel(run.from)
+                    : `${competencyLabel(run.from)} a ${competencyLabel(run.to)}`}
+              </span>
+              <span className="font-medium text-white">{centsToMaskedBrl(run.cents) || "R$ 0,00"}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="mt-2 text-xs text-slate-400">
+        Inclui mensalidades, parcelas do mês e variáveis projetadas com a quantidade atual do SIOE (pastas ativas / horas do mês), respeitando o início de cada componente. Gatilhos de êxito ficam de fora até liberação manual.
+      </p>
+    </div>
+  );
 }
 
 export function ContractSetupWizard({
@@ -644,6 +691,7 @@ export function ContractSetupWizard({
             value={configuration.version.components}
             areas={configuration.areas}
             startsAt={configuration.startsAt}
+            firstInvoiceAt={configuration.firstInvoiceAt}
             disabled={!canConfigure}
             sioeUsage={sioeUsage}
             sioeUsageLoading={sioeUsageLoading}
@@ -681,15 +729,7 @@ export function ContractSetupWizard({
 
         {step === 5 ? (
           <div className="space-y-4">
-            <div className="rounded-2xl bg-[#102033] p-5 text-white">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Projeção mensal estimada</p>
-              <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">
-                {sioeUsageLoading ? "…" : centsToMaskedBrl(projection(configuration, sioeUsage)) || "R$ 0,00"}
-              </p>
-              <p className="mt-2 text-xs text-slate-400">
-                Inclui mensalidades e variáveis projetadas com a quantidade atual do SIOE (pastas ativas / horas do mês). Gatilhos de êxito ficam de fora até liberação manual.
-              </p>
-            </div>
+            <ProjectionSummary runs={projection(configuration, sioeUsage)} loading={sioeUsageLoading} />
 
             <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
