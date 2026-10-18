@@ -83,6 +83,7 @@ import {
   SIGNATURE_PAGE_LAST,
 } from "@/lib/crm/contrato-signature-pins";
 import type { LeadDetailData } from "./page";
+import { HonorariosDaPropostaPanel, type IgnoredCommercialField } from "./contrato-honorarios-panel";
 import {
   ClienteCadastroApplyDialog,
   clienteCadastroPromptWasDeclined,
@@ -104,6 +105,7 @@ import {
 import { buildCanonicalContract } from "@/lib/crm/contract-engine/build-canonical";
 import { SECTION_ORDER } from "@/lib/crm/contract-engine/clause-engine";
 import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
+import { investmentItemHasValue } from "@/lib/crm/contract-engine/payment";
 import { applyObjectOverride } from "@/lib/crm/contract-engine/object-engine";
 import { appendContractEngineEvent } from "@/lib/crm/contract-engine/object-events";
 import { resolveContractScopes } from "@/lib/crm/contract-engine/proposal-snapshot";
@@ -918,7 +920,19 @@ function ContratoBuilderDialog({
   const scopesComplete = Boolean(
     liveBuild && liveBuild.data.scopes.length > 0 && liveBuild.data.scopes.every((s) => !s.missingProfile),
   );
-  const valsComplete = Boolean(draftValues.cc_tipo_pagamento?.trim());
+  const valsComplete =
+    Boolean(draftValues.cc_tipo_pagamento?.trim()) &&
+    (!liveBuild || liveBuild.data.investment.items.some(investmentItemHasValue));
+  // Com o motor ativo a cláusula de honorários vem da proposta; texto digitado nos
+  // campos antigos (valores, % de êxito) é listado no painel como "não entra".
+  const ignoredCommercialFields: IgnoredCommercialField[] = liveBuild
+    ? (["cc_valores", "cc_exito_percentual"] as const).flatMap((code) => {
+        const value = draftValues[code]?.trim();
+        if (!value) return [];
+        const def = fieldByCode[code];
+        return [{ code, label: def ? userFacingFieldLabel(def.label, def.fieldCode) : code, value }];
+      })
+    : [];
   const prazComplete = Boolean(draftValues.cc_prazo_revisao?.trim());
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -1252,37 +1266,57 @@ function ContratoBuilderDialog({
                   title="Condições Comerciais"
                   isComplete={valsComplete}
                 >
+                  {liveBuild ? (
+                    <HonorariosDaPropostaPanel
+                      payment={liveBuild.data.payment}
+                      investment={liveBuild.data.investment}
+                      ignoredFields={ignoredCommercialFields}
+                      onClearField={(code) => fieldChange(code, "")}
+                      disabled={saving || generating}
+                    />
+                  ) : null}
                   {(SECTION_VALORES as readonly string[]).map((code) => {
                     if (!isVisible(code)) return null;
+                    // Motor ativo: valores e vencimentos saem do investimento da proposta.
+                    if (liveBuild && code === "cc_valores") return null;
                     const f = fieldByCode[code];
                     if (!f) return null;
                     // cc_valores é obrigatório sempre que há forma de pagamento definida e
                     // ela não é "Êxito" puro (mesma regra de listContratoPendingFields) —
                     // is_required no banco é false porque a obrigatoriedade é condicional,
                     // então o asterisco precisa desse override pontual pra não ficar errado.
+                    // Só vale sem o motor (com ele o campo nem aparece).
                     const requiredOverride =
                       code === "cc_valores"
                         ? Boolean(draftValues.cc_tipo_pagamento?.trim()) &&
                           draftValues.cc_tipo_pagamento?.trim() !== "Êxito"
                         : undefined;
                     return (
-                      <CcFieldInput
-                        key={code}
-                        field={f}
-                        value={draftValues[code] ?? ""}
-                        onChange={(v) => fieldChange(code, v)}
-                        disabled={saving || generating}
-                        requiredOverride={requiredOverride}
-                      />
+                      <div key={code} className="space-y-1">
+                        <CcFieldInput
+                          field={f}
+                          value={draftValues[code] ?? ""}
+                          onChange={(v) => fieldChange(code, v)}
+                          disabled={saving || generating}
+                          requiredOverride={requiredOverride}
+                        />
+                        {liveBuild && code === "cc_tipo_pagamento" ? (
+                          <p className="text-xs text-muted-foreground">
+                            Classificação interna do honorário; não muda o texto do contrato.
+                          </p>
+                        ) : null}
+                      </div>
                     );
                   })}
-                  <InclusionToggleCard
-                    item={EXITO_CONFIG}
-                    fieldByCode={fieldByCode}
-                    draftValues={draftValues}
-                    onChange={fieldChange}
-                    disabled={saving || generating}
-                  />
+                  {liveBuild ? null : (
+                    <InclusionToggleCard
+                      item={EXITO_CONFIG}
+                      fieldByCode={fieldByCode}
+                      draftValues={draftValues}
+                      onChange={fieldChange}
+                      disabled={saving || generating}
+                    />
+                  )}
                 </FormSection>
 
                 {/* Seção 5: Vigência e início */}

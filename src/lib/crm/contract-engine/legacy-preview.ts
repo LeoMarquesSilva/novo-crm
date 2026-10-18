@@ -2,6 +2,7 @@ import type { ClausulaAdicional, ContratoDocumentPagePreview } from "@/lib/crm/c
 import { CONTRACT_CLAUSE_CATALOG } from "./clause-catalog";
 import { SECTION_ORDER } from "./clause-engine";
 import { renderContractObjectPlainText } from "./object-engine";
+import { paymentMethodDisplay } from "./payment";
 import type { CanonicalContractData } from "./types";
 
 /** Título das seções cujo conteúdo já está representado dentro de `objeto` (não repetir). */
@@ -68,7 +69,9 @@ export function previewFromCanonical(data: CanonicalContractData): ContratoDocum
     limiteProcessos: "",
     limiteHoras: "",
     exitoAreas: "",
-    tipoPagamento: data.payment.method,
+    // Sem forma de pagamento na proposta a linha "Forma de pagamento" não sai
+    // (antes saía "Forma de pagamento: indefinido.").
+    tipoPagamento: paymentMethodDisplay(data.payment),
     prazoConfeccao: "",
     prazoRevisao: "",
     // As "áreas" (heading + detalhes) do sistema legado de toggles cc_incluir_*

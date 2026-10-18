@@ -3,6 +3,7 @@ import { getSubtipoDef } from "@/data/proposta-tipos-catalog";
 import { getPrimarySumKeyForSubtipo } from "@/lib/crm/proposta-investimento-consolidado";
 import { parseEscopoJsonWithMeta } from "@/lib/crm/proposta-escopo-json";
 import { formatBrlComExtenso, parseAmount } from "./money";
+import { classifyInvestmentSubtype } from "./payment";
 import { getScopeProfile } from "./scope-profiles";
 import type {
   ContractingParty,
@@ -169,8 +170,10 @@ export function resolveContractInvestment(escopoJson: string): ContractInvestmen
     }
   }
 
+  // Total de parcela única: recorrentes (mensal, manutenção) e êxito não somam
+  // com o valor fechado — R$ 12.000 + R$ 250/mês não é "R$ 12.250".
   const totalAmount = items.reduce<number | null>((acc, item) => {
-    if (item.amount == null) return acc;
+    if (item.amount == null || classifyInvestmentSubtype(item.subtipoId) !== "fixed") return acc;
     return (acc ?? 0) + item.amount;
   }, null);
 
