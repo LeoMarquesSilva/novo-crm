@@ -69,6 +69,7 @@ import { cn } from "@/lib/utils";
 import {
   daysBetweenYmd,
   formatDateYmdBr,
+  formatMaybeDateLikeBr,
   parseDateOnlyInput,
   saoPauloDateYmd,
 } from "@/lib/format-datetime";
@@ -108,6 +109,7 @@ import {
   mergeInheritedContractAreaToggles,
 } from "@/lib/crm/contract-engine/inherit-areas";
 import { buildCanonicalContract } from "@/lib/crm/contract-engine/build-canonical";
+import { describeTermRule } from "@/lib/crm/contract-engine/term";
 import { SECTION_ORDER } from "@/lib/crm/contract-engine/clause-engine";
 import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
 import { applyObjectOverride } from "@/lib/crm/contract-engine/object-engine";
@@ -1297,9 +1299,7 @@ function ContratoBuilderDialog({
                     <div className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3 text-xs text-foreground">
                       <p>
                         <span className="font-bold">Vigência: </span>
-                        {liveBuild.data.term.kind === "indefinite"
-                          ? "Prazo indeterminado"
-                          : liveBuild.data.term.estimateLabel || liveBuild.data.term.kind}
+                        {describeTermRule(liveBuild.data.term)}
                       </p>
                       <p className="mt-1">
                         <span className="font-bold">Início: </span>
@@ -1307,7 +1307,7 @@ function ContratoBuilderDialog({
                           ? "Na assinatura"
                           : liveBuild.data.startRule.kind === "on_first_payment"
                             ? "No primeiro pagamento"
-                            : liveBuild.data.startRule.date || "Data definida"}
+                            : formatMaybeDateLikeBr(liveBuild.data.startRule.date ?? "") || "Data definida"}
                       </p>
                       <p className="mt-1 text-[10px] text-muted-foreground">Resolvida pelo perfil contratual ✓</p>
                     </div>
