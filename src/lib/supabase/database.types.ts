@@ -501,10 +501,13 @@ export type Database = {
       }
       contract_review_tasks: {
         Row: {
+          approved_by: string | null
           assigned_to: string | null
           concluido_em: string | null
           created_at: string
           created_by: string | null
+          document_hash: string | null
+          document_version_id: string | null
           id: string
           notificado_em: string | null
           observacao: string | null
@@ -514,10 +517,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved_by?: string | null
           assigned_to?: string | null
           concluido_em?: string | null
           created_at?: string
           created_by?: string | null
+          document_hash?: string | null
+          document_version_id?: string | null
           id?: string
           notificado_em?: string | null
           observacao?: string | null
@@ -527,10 +533,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved_by?: string | null
           assigned_to?: string | null
           concluido_em?: string | null
           created_at?: string
           created_by?: string | null
+          document_hash?: string | null
+          document_version_id?: string | null
           id?: string
           notificado_em?: string | null
           observacao?: string | null

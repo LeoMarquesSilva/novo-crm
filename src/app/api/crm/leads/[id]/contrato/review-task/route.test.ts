@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { findLatestStoredGeneratedDocumentVersion } from "@/lib/crm/workflow-transition-evidence";
 import { createSupabaseFake } from "@/test/supabase-fake";
 import { mockCrmSession } from "@/test/mock-crm-auth";
 import { PATCH, POST } from "./route";
@@ -11,7 +12,9 @@ vi.mock("@/lib/auth/module-access", () => ({ listUserModules: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
 vi.mock("@/lib/crm/record-lead-activity", () => ({ recordLeadActivityEvent: vi.fn() }));
 vi.mock("@/lib/crm/workflow-transition-evidence", () => ({
-  hasStoredGeneratedDocument: vi.fn().mockResolvedValue(true),
+  findLatestStoredGeneratedDocumentVersion: vi
+    .fn()
+    .mockResolvedValue({ id: "version-7", generatedFilePath: "documentos/contratos/x/v7.docx" }),
 }));
 vi.mock("@/lib/crm/proposta-document-data", () => ({
   loadDefaultContratoTemplate: vi.fn().mockResolvedValue(null),
@@ -52,10 +55,16 @@ describe("PATCH review-task", () => {
   });
 
   it("comercial conclui e o lead avança pela RPC atômica", async () => {
-    mockCrmSession({ role: "comercial" });
+    mockCrmSession({ role: "comercial", appUserId: "comercial-1" });
     const fake = setupDb();
     const res = await conclude();
     expect(res.status).toBe(200);
+    const update = fake.calls.find((c) => c.table === "contract_review_tasks" && c.method === "update");
+    expect(update?.args[0]).toMatchObject({
+      status: "concluido",
+      approved_by: "comercial-1",
+      document_version_id: "version-7",
+    });
     expect(fake.rpc).toHaveBeenCalledWith(
       "transition_opportunity_atomic",
       expect.objectContaining({
@@ -69,6 +78,15 @@ describe("PATCH review-task", () => {
     mockCrmSession({ role: "controladoria", area: "Societário e Contratos" });
     setupDb();
     expect((await conclude()).status).toBe(200);
+  });
+
+  it("sem versão gerada no storage não conclui", async () => {
+    mockCrmSession({ role: "comercial" });
+    vi.mocked(findLatestStoredGeneratedDocumentVersion).mockResolvedValueOnce(null);
+    const fake = setupDb();
+    const res = await conclude();
+    expect(res.status).toBe(422);
+    expect(fake.calls.some((c) => c.method === "update")).toBe(false);
   });
 
   it("designado para a tarefa conclui", async () => {
