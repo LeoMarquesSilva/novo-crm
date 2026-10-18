@@ -10,6 +10,8 @@ import {
   type VariableUsageSnapshot,
 } from "@/modules/contracts/domain/variable-usage-projection";
 import type { Database, Json } from "@/lib/supabase/database.types";
+import type { StartMonthBilling } from "@/modules/contracts/domain/competency";
+import { readStartMonthBilling } from "@/modules/contracts/infrastructure/start-month-billing";
 
 export type ContractSource = "proposta" | "contrato" | "rd" | "manual";
 
@@ -100,6 +102,7 @@ export type ContractConfigurationDraft = {
     id: string;
     effectiveFrom: string;
     effectiveTo: string | null;
+    startMonthBilling: StartMonthBilling | null;
     components: ContractComponentDraft[];
     areaAllocations: Array<
       | { id: string; componentId?: string; areaId: string; mode: "percentual"; percentageBasisPoints: number }
@@ -508,15 +511,16 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     ?? versions.find((version) => version.id === contract.versao_ativa_id)
     ?? versions[0];
   const versionId = editableVersion?.id;
-  const [areasResult, componentsResult, allocationsResult, sharesResult, commissionsResult] = versionId
+  const [areasResult, componentsResult, allocationsResult, sharesResult, commissionsResult, startMonthBilling] = versionId
     ? await Promise.all([
         supabase.from("contrato_areas").select("id, area_key, processos_incluidos, horas_incluidas, valor_excedente_processo, valor_excedente_hora").eq("versao_id", versionId).order("area_key"),
         supabase.from("contrato_componentes_cobranca").select("id, area_id, tipo, descricao, periodo_inicio, periodo_fim, valor_fixo, valor_unitario, quantidade_incluida, percentual, modo_cobranca_variavel, liberacao_manual_necessaria, condicao_liberacao, tratamento_tributario, elegivel_rateio, elegivel_participacao, elegivel_comissao, ordem").eq("versao_id", versionId).order("ordem"),
         supabase.from("contrato_rateios_area").select("id, componente_id, area_id, modo, percentual, valor").eq("versao_id", versionId),
         supabase.from("contrato_participacoes_socios").select("id, componente_id, socio_app_user_id, percentual").eq("versao_id", versionId),
         supabase.from("contrato_comissoes").select("id, componente_id, beneficiario_app_user_id, percentual, valor, base_calculo").eq("versao_id", versionId),
+        readStartMonthBilling(supabase, versionId),
       ])
-    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }, { data: [], error: null }, { data: [], error: null }, null];
   const componentIds = (componentsResult.data ?? []).map((component) => component.id);
   const installmentsResult = componentIds.length
     ? await supabase.from("contrato_parcelas").select("id, componente_id, numero, competencia, vencimento, valor").in("componente_id", componentIds).order("numero")
@@ -593,6 +597,7 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
       id: editableVersion.id,
       effectiveFrom: editableVersion.vigente_de ?? contract.vigente_de ?? "",
       effectiveTo: editableVersion.vigente_ate,
+      startMonthBilling,
       components,
       areaAllocations,
       partnerShares: (sharesResult.data ?? []).flatMap((share) => share.socio_app_user_id ? [{

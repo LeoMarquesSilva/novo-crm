@@ -5,6 +5,7 @@ import { canAccessContractCapability } from "@/lib/auth/crm-access-policy";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
+import { nextCompetencyMonth } from "@/modules/contracts/domain/variable-usage-projection";
 
 const uuid = z.string().uuid();
 const competency = z.string().regex(/^\d{4}-\d{2}-01$/);
@@ -35,7 +36,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.from("contrato_consumos_mensais").select("*").eq("contrato_id", params.data.id).eq("competencia", query.data.competency).order("created_at");
   if (error) return json({ ok: false, code: "INTERNAL_ERROR", error: error.message }, 500);
-  const { data: version } = await supabase.from("contrato_versoes").select("id").eq("contrato_id", params.data.id).eq("status", "ativa").lte("vigente_de", query.data.competency).or(`vigente_ate.is.null,vigente_ate.gte.${query.data.competency}`).limit(1).maybeSingle();
+  const { data: version } = await supabase.from("contrato_versoes").select("id").eq("contrato_id", params.data.id).eq("status", "ativa").lt("vigente_de", nextCompetencyMonth(query.data.competency)).or(`vigente_ate.is.null,vigente_ate.gte.${query.data.competency}`).limit(1).maybeSingle();
   if (!version) return json({ ok: true, versionId: null, items: data, resolutions: [], components: [], areas: [] });
   const [resolutions, components, areas] = await Promise.all([
     supabase.from("contrato_resolucoes_mensais").select("componente_id,liberado,valor,base_calculo,motivo").eq("contrato_id", params.data.id).eq("versao_id", version.id).eq("competencia", query.data.competency),

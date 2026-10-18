@@ -1379,6 +1379,7 @@ export type Database = {
           ativada_em: string | null
           ativada_por: string | null
           atualizado_por: string | null
+          cobranca_mes_inicio: string | null
           contrato_id: string
           created_at: string
           criado_por: string | null
@@ -1396,6 +1397,7 @@ export type Database = {
           ativada_em?: string | null
           ativada_por?: string | null
           atualizado_por?: string | null
+          cobranca_mes_inicio?: string | null
           contrato_id: string
           created_at?: string
           criado_por?: string | null
@@ -1413,6 +1415,7 @@ export type Database = {
           ativada_em?: string | null
           ativada_por?: string | null
           atualizado_por?: string | null
+          cobranca_mes_inicio?: string | null
           contrato_id?: string
           created_at?: string
           criado_por?: string | null

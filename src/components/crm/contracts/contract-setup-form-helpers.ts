@@ -3,6 +3,10 @@ import {
   maskBrlCurrencyFromInput,
   parseBrlUserInput,
 } from "@/lib/crm/proposta-valor-brl-extenso";
+import { formatDateYmdBr } from "@/lib/format-datetime";
+import { isMonthlyFeeStartingMidMonth } from "@/modules/contracts/domain/competency";
+import { competencyOf } from "@/modules/contracts/domain/installment-schedule";
+import { nextCompetencyMonth } from "@/modules/contracts/domain/variable-usage-projection";
 
 export function newContractDraftId() {
   return crypto.randomUUID();
@@ -47,6 +51,31 @@ const MONTH_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "s
 /** Competência `AAAA-MM-01` → `out/2026`. */
 export function competencyLabel(competency: string): string {
   return `${MONTH_LABELS[Number(competency.slice(5, 7)) - 1] ?? ""}/${competency.slice(0, 4)}`;
+}
+
+/**
+ * Explicação da pergunta sobre a mensalidade que começa no meio do mês, com os meses do contrato;
+ * `null` quando nenhuma mensalidade começa depois do dia 1.
+ */
+export function startMonthBillingHelp(
+  components: Array<{ kind: string; effectiveFrom?: string | null }>,
+  options: { replacesVersion: boolean },
+): string | null {
+  const start = components
+    .filter(isMonthlyFeeStartingMidMonth)
+    .map((component) => component.effectiveFrom!)
+    .sort()[0];
+  if (!start) return null;
+  const month = competencyOf(start);
+  const parts = [
+    `A mensalidade começa em ${formatDateYmdBr(start)}.`,
+    `Mês cheio: cobra ${competencyLabel(month)} inteiro; o mês em que a vigência termina no meio não é cobrado.`,
+    `Mês seguinte: a 1ª mensalidade é de ${competencyLabel(nextCompetencyMonth(month))}; o mês do fim é cobrado.`,
+  ];
+  if (options.replacesVersion) {
+    parts.push(`Em reajuste ou aditivo, "mês seguinte" deixa ${competencyLabel(month)} sem mensalidade, porque a versão anterior não fecha mais esse mês.`);
+  }
+  return parts.join(" ");
 }
 
 export const BILLING_KIND_LABELS: Record<string, string> = {
