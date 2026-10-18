@@ -76,7 +76,8 @@ import type { ClienteCadastroRow } from "@/lib/crm/cliente-cadastro-cp-fields";
 import type { ClienteContratoResumo } from "@/lib/crm/lookup-cliente-by-document";
 
 interface NewDemandFormProps {
-  onSuccess?: () => void;
+  /** `warning`: lead criado, mas algo não foi gravado/enviado (a tela precisa mostrar). */
+  onSuccess?: (result: { oportunidadeId: string | null; warning: string | null }) => void;
   onRequestClose?: () => void;
 }
 
@@ -1059,7 +1060,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     type ApiResult = {
       ok?: boolean;
       error?: string;
-      warning?: string;
+      warning?: string | null;
+      data?: { oportunidade_id?: string };
       details?: unknown;
     };
 
@@ -1112,7 +1114,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       setSuccess("Novo lead cadastrado com sucesso.");
       resetForm();
       finishSaving();
-      onSuccess?.();
+      onSuccess?.({
+        oportunidadeId: result.data?.oportunidade_id ?? null,
+        warning: result.warning ?? null,
+      });
     } catch {
       setError("Erro de rede ao salvar lead.");
       finishSaving();

@@ -136,22 +136,34 @@ export async function POST(request: Request) {
 
     const warnings: string[] = [];
 
-    const { error: extraFieldsError } = await supabase
-      .from("lead_intakes")
-      .update({
-        plataforma: payload.tipo_de_lead === "Lead Digital" ? payload.plataforma ?? null : null,
-        area_cross_selling:
-          payload.tipo_de_lead === "Cross Selling" ? payload.area_cross_selling ?? null : null,
-        decisor: payload.decisor?.trim() || null,
-      })
-      .eq("oportunidade_id", oportunidade.id);
-    if (extraFieldsError) {
-      const missingColumn = /plataforma|area_cross_selling|decisor/.test(extraFieldsError.message);
-      warnings.push(
-        missingColumn
-          ? "Plataforma, área do cross selling e decisor não foram gravados. Aplique a migration local 20261008183000_lead_plataforma_area_cross_selling.sql."
-          : `Campos extras do lead: ${safeWarning("extra-fields", extraFieldsError, "não foram gravados.")}`,
-      );
+    // Colunas da migration 20261008183000 (ainda não aplicada no remoto): sem elas o
+    // lead é criado, mas o usuário precisa saber que esses campos não ficaram gravados.
+    const extraFields = {
+      plataforma: payload.tipo_de_lead === "Lead Digital" ? payload.plataforma ?? null : null,
+      area_cross_selling:
+        payload.tipo_de_lead === "Cross Selling" ? payload.area_cross_selling ?? null : null,
+      decisor: payload.decisor?.trim() || null,
+    };
+    const filledExtraLabels = [
+      extraFields.plataforma ? "Plataforma" : null,
+      extraFields.area_cross_selling ? "Área do cross selling" : null,
+      extraFields.decisor ? "Decisor" : null,
+    ].filter((label): label is string => Boolean(label));
+    if (filledExtraLabels.length > 0) {
+      const { error: extraFieldsError } = await supabase
+        .from("lead_intakes")
+        .update(extraFields)
+        .eq("oportunidade_id", oportunidade.id);
+      if (extraFieldsError) {
+        const missingColumn = /plataforma|area_cross_selling|decisor/.test(extraFieldsError.message);
+        // Plataforma (Lead Digital) e área (Cross Selling) não vêm juntas: no máximo dois rótulos.
+        const fields = filledExtraLabels.join(" e ");
+        warnings.push(
+          missingColumn
+            ? `O lead foi criado, mas ${fields} não ${filledExtraLabels.length > 1 ? "foram gravados" : "foi gravado"}: o banco ainda não tem ${filledExtraLabels.length > 1 ? "esses campos" : "esse campo"} (migration 20261008183000 pendente). Avise o administrador e anote a informação na ficha do lead.`
+            : `Campos extras do lead: ${safeWarning("extra-fields", extraFieldsError, "não foram gravados.")}`,
+        );
+      }
     }
 
     await recordLeadActivityEvent(supabase, {
