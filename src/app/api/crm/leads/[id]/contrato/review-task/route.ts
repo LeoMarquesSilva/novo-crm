@@ -8,6 +8,8 @@
  * PATCH /api/crm/leads/[id]/contrato/review-task
  * Atualiza status (em_revisao | concluido) + observação. Concluem: admin, comercial,
  * a área Societário e Contratos e quem foi designado (`contract.review.update`).
+ * A conclusão grava quem aprovou (`approved_by`) e a versão gerada revisada
+ * (`document_version_id`, a mais recente com arquivo no storage).
  * Ao concluir em `confeccao_contrato`, o lead vai para `contrato_elaborado` pelo
  * RPC `transition_opportunity_atomic`.
  */
@@ -18,11 +20,12 @@ import { forbiddenResponse, requireCrmActorApi, requireLeadActionApi } from "@/l
 import { requireAuthApi } from "@/lib/auth/server";
 import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { formatDateYmdBr, parseDateOnlyInput, saoPauloMidnightIso } from "@/lib/format-datetime";
 import { internalErrorResponse, logServerError } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
 import { loadDefaultContratoTemplate } from "@/lib/crm/proposta-document-data";
-import { hasStoredGeneratedDocument } from "@/lib/crm/workflow-transition-evidence";
+import { findLatestStoredGeneratedDocumentVersion } from "@/lib/crm/workflow-transition-evidence";
 
 const upsertSchema = z.object({
   prazoRevisao: z.string().min(1).optional().nullable(),
@@ -96,13 +99,16 @@ export async function POST(
       }
     }
 
-    const prazoIso = parsed.data.prazoRevisao
-      ? new Date(
-          parsed.data.prazoRevisao.includes("/")
-            ? parsed.data.prazoRevisao.split("/").reverse().join("-")
-            : parsed.data.prazoRevisao,
-        ).toISOString()
-      : null;
+    // O prazo é uma data sem hora: grava a meia-noite de São Paulo (T03:00Z), não T00:00Z,
+    // que aparece como o dia anterior para quem está no Brasil.
+    const prazoYmd = parsed.data.prazoRevisao ? parseDateOnlyInput(parsed.data.prazoRevisao) : null;
+    if (parsed.data.prazoRevisao && !prazoYmd) {
+      return NextResponse.json(
+        { ok: false, error: "Prazo de revisão inválido. Use dd/mm/aaaa." },
+        { status: 400 },
+      );
+    }
+    const prazoIso = prazoYmd ? saoPauloMidnightIso(prazoYmd) : null;
 
     // Upsert review task
     const { data: task, error: taskErr } = await supabase
@@ -129,12 +135,8 @@ export async function POST(
       .not("auth_user_id", "is", null);
 
     const now = new Date().toISOString();
-    if (recipients && recipients.length > 0 && prazoIso) {
-      const prazoFormatado = new Date(prazoIso).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
+    if (recipients && recipients.length > 0 && prazoIso && prazoYmd) {
+      const prazoFormatado = formatDateYmdBr(prazoYmd);
       const solicitanteNome = op.solicitante_nome ?? "";
       const requestedBy = auth.profile?.full_name ?? "Sistema";
 
@@ -211,13 +213,16 @@ export async function PATCH(
     });
     if (!decision.allowed) return forbiddenResponse(decision);
 
+    // Versão gerada que foi revisada: fica gravada na tarefa junto com quem concluiu.
+    let reviewedVersionId: string | null = null;
     if (parsed.data.status === "concluido") {
-      const hasStoredContract = await hasStoredGeneratedDocument(
+      const reviewedVersion = await findLatestStoredGeneratedDocumentVersion(
         supabase,
         oportunidadeId,
         "contrato",
       );
-      if (!hasStoredContract) {
+      reviewedVersionId = reviewedVersion?.id ?? null;
+      if (!reviewedVersion) {
         return NextResponse.json(
           {
             ok: false,
@@ -233,12 +238,16 @@ export async function PATCH(
     const updateData: {
       status?: string;
       concluido_em?: string;
+      approved_by?: string;
+      document_version_id?: string | null;
       observacao?: string | null;
     } = {};
     if (parsed.data.status) {
       updateData.status = parsed.data.status;
       if (parsed.data.status === "concluido") {
         updateData.concluido_em = new Date().toISOString();
+        updateData.approved_by = auth.profile.id;
+        updateData.document_version_id = reviewedVersionId;
       }
     }
     if (parsed.data.observacao !== undefined) {

@@ -46,12 +46,7 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { TimeInputBr } from "@/components/ui/time-input-br";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  DynamicField,
-  evaluateCondition,
-  type FieldCondition,
-  type FieldDefinition,
-} from "@/components/crm/dynamic-form";
+import { DynamicField, type FieldDefinition } from "@/components/crm/dynamic-form";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
 import {
   isCpNomeFocalSingleTokenOnly,
@@ -71,14 +66,19 @@ import { cn } from "@/lib/utils";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import type { SignerAppUserLookup } from "@/lib/crm/signer-avatar-catalog";
 import {
-  buildCpQualificacaoText,
   ConfeccaoReuniaoModalSection,
-  parsePropostaEmpresasJson,
   type EmpresaIntakeRow,
 } from "@/components/crm/confeccao-reuniao-modal-section";
-import { PROPOSTA_TIPOS_CATALOG, type PropostaAreaKey } from "@/data/proposta-tipos-catalog";
-import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
-import { areaHasEscopoTipoFilled, extractTiposByAreaFromEscopoJson } from "@/lib/crm/proposta-escopo-direcionamento";
+import {
+  buildTransitionFieldPayload,
+  isReuniaoConfeccaoTransition,
+  prepareConfeccaoFieldValues,
+  REUNIAO_CONFECCAO_HIDDEN_FROM_GENERIC,
+  REUNIAO_CONFECCAO_MANAGED_CODES,
+  validateReuniaoConfeccaoValues,
+  visibleTransitionCustomFields,
+  withConfeccaoQualificacao,
+} from "@/components/crm/confeccao-proposta-transition";
 import {
   ModalHeader,
   newLeadModalFieldClass,
@@ -129,36 +129,6 @@ interface PipelineBoardProps {
   }) => void;
 }
 
-/** Campos tratados pelo bloco dedicado Reunião → elaboração da proposta (não repetir no formulário genérico). */
-const REUNIAO_CONFECCAO_MANAGED_CODES = new Set([
-  "cp_gestor_contrato",
-  "cp_proposta_empresas_json",
-  "cp_cliente_cep",
-  "cp_cliente_logradouro",
-  "cp_cliente_bairro",
-  "cp_cliente_cidade",
-  "cp_cliente_uf",
-  "cp_cliente_numero",
-  "cp_cliente_complemento",
-  "cp_qualificacao",
-  "cp_areas_objeto",
-  "cp_escopo_detalhe_json",
-  "cp_prazo_entrega",
-  "cp_objeto_proposta",
-]);
-
-/** Ocultos neste modal (preenchimento no detalhe do lead ou fora deste passo). */
-const REUNIAO_CONFECCAO_HIDDEN_FROM_GENERIC = new Set([
-  "cp_nome_focal",
-  "cp_email_focal",
-  "cp_tel_focal",
-  "cp_realizou_due",
-  "cp_captador",
-  "cp_info_adicionais",
-  "cp_primeiro_vencimento",
-  /** Preenchido no builder da proposta, não neste modal de transição. */
-  "cp_tributacao",
-]);
 const MEETING_TIME_SUGGESTIONS = ["09:30", "11:30", "14:30", "16:30"];
 const MEETING_LOCATION_PENDING = "Não definido ainda";
 
@@ -389,97 +359,6 @@ function Column({
   );
 }
 
-function normalizeAreasObjetoFromServer(
-  raw: string | string[] | undefined,
-): string[] | undefined {
-  if (raw === undefined) return undefined;
-  if (Array.isArray(raw)) return raw.map((x) => String(x).trim()).filter(Boolean);
-  if (typeof raw === "string" && raw.trim()) {
-    try {
-      const j = JSON.parse(raw) as unknown;
-      if (Array.isArray(j)) return j.map((x) => String(x).trim()).filter(Boolean);
-    } catch {
-      /* fallthrough */
-    }
-    return raw
-      .split(/[,;\n]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  return undefined;
-}
-
-function validateReuniaoConfeccaoModal(m: TransitionModalState): string | null {
-  const empresasPayload = parsePropostaEmpresasJson(
-    typeof m.customValues.cp_proposta_empresas_json === "string"
-      ? m.customValues.cp_proposta_empresas_json
-      : "",
-  );
-  const cep = String(m.customValues.cp_cliente_cep ?? "").replace(/\D/g, "");
-  if (cep.length !== 8) {
-    return "Informe um CEP válido (8 dígitos).";
-  }
-  if (!String(m.customValues.cp_cliente_numero ?? "").trim()) {
-    return "Informe o número do endereço.";
-  }
-  const log = String(m.customValues.cp_cliente_logradouro ?? "").trim();
-  const cid = String(m.customValues.cp_cliente_cidade ?? "").trim();
-  if (!log && !cid) {
-    return "Busque o CEP ou preencha logradouro e cidade.";
-  }
-  const areas = normalizeAreasObjetoFromServer(m.customValues.cp_areas_objeto);
-  if (!areas || areas.length === 0) {
-    return "Selecione pelo menos uma área de escopo.";
-  }
-  const escopoRaw =
-    typeof m.customValues.cp_escopo_detalhe_json === "string"
-      ? m.customValues.cp_escopo_detalhe_json
-      : "";
-  const tiposByArea = extractTiposByAreaFromEscopoJson(escopoRaw, areas);
-  for (const area of areas) {
-    const catalogArea = normalizePracticeAreaKey(area) as PropostaAreaKey;
-    const tipos = PROPOSTA_TIPOS_CATALOG[catalogArea] ?? [];
-    if (tipos.length > 0 && !areaHasEscopoTipoFilled(tiposByArea, area)) {
-      return `Selecione pelo menos um tipo de escopo para a área ${area}.`;
-    }
-  }
-  if (!String(m.customValues.cp_prazo_entrega ?? "").trim()) {
-    return "Informe o prazo para entrega.";
-  }
-  if (m.empresasIntake.length === 0) {
-    const ok = empresasPayload.extras.some(
-      (ex) => ex.razao_social.trim().length > 0 && ex.documento.trim().length > 0,
-    );
-    if (!ok) {
-      return "Cadastre uma empresa na ficha do lead ou preencha razão social e CNPJ/CPF adicionais.";
-    }
-  }
-  return null;
-}
-
-function prepareConfeccaoFieldValues(params: {
-  fieldValues: Record<string, string | string[] | undefined>;
-  empresasIntake: EmpresaIntakeRow[];
-}): Record<string, string | string[] | undefined> {
-  let out = { ...params.fieldValues };
-  const areas = normalizeAreasObjetoFromServer(out.cp_areas_objeto);
-  if (areas) out = { ...out, cp_areas_objeto: areas };
-  if (params.empresasIntake.length > 0) {
-    const raw = out.cp_proposta_empresas_json;
-    const empty = !raw || (typeof raw === "string" && raw.trim() === "");
-    if (empty) {
-      out = {
-        ...out,
-        cp_proposta_empresas_json: JSON.stringify({
-          primaryIndex: params.empresasIntake[0].index,
-          extras: [],
-        }),
-      };
-    }
-  }
-  return out;
-}
-
 export function PipelineBoard({
   opportunities,
   stageColumns,
@@ -589,27 +468,18 @@ export function PipelineBoard({
 
   const isReuniaoConfeccaoModal =
     transitionModal != null &&
-    transitionModal.sourceStage === "reuniao" &&
-    transitionModal.nextStage === "confeccao_proposta" &&
-    pipelineCode === "vendas";
+    isReuniaoConfeccaoTransition({
+      sourceStage: transitionModal.sourceStage,
+      nextStage: transitionModal.nextStage,
+      pipeline: pipelineCode,
+    });
 
   const visibleCustomFields = useMemo(() => {
     if (!transitionModal) return [];
-    return transitionModal.customFields
-      .filter((f) => f.is_active !== false)
-      .filter((f) =>
-        evaluateCondition(f.condition_json as FieldCondition, transitionModal.customValues),
-      )
-      .filter((f) => {
-        // Herdados da proposta / preenchidos no builder — não pedir no modal.
-        if (transitionModal.nextStage === "confeccao_contrato") {
-          return false;
-        }
-        if (!isReuniaoConfeccaoModal) return true;
-        if (REUNIAO_CONFECCAO_MANAGED_CODES.has(f.field_code)) return false;
-        if (REUNIAO_CONFECCAO_HIDDEN_FROM_GENERIC.has(f.field_code)) return false;
-        return true;
-      });
+    return visibleTransitionCustomFields(transitionModal.customFields, transitionModal.customValues, {
+      nextStage: transitionModal.nextStage,
+      reuniaoConfeccao: isReuniaoConfeccaoModal,
+    });
   }, [transitionModal, isReuniaoConfeccaoModal]);
 
   const commitTransition = useCallback(
@@ -901,39 +771,20 @@ export function PipelineBoard({
       }
     }
 
-    const isReuniaoConf =
-      m.sourceStage === "reuniao" &&
-      m.nextStage === "confeccao_proposta" &&
-      pipelineCode === "vendas";
+    const isReuniaoConf = isReuniaoConfeccaoTransition({
+      sourceStage: m.sourceStage,
+      nextStage: m.nextStage,
+      pipeline: pipelineCode,
+    });
 
     let mergedValues = m.customValues;
     if (isReuniaoConf) {
-      const vEmp = validateReuniaoConfeccaoModal(m);
+      const vEmp = validateReuniaoConfeccaoValues(m);
       if (vEmp) {
         setModalError(vEmp);
         return;
       }
-      const empresasPayload = parsePropostaEmpresasJson(
-        typeof m.customValues.cp_proposta_empresas_json === "string"
-          ? m.customValues.cp_proposta_empresas_json
-          : "",
-      );
-      mergedValues = {
-        ...m.customValues,
-        cp_qualificacao: buildCpQualificacaoText({
-          empresasIntake: m.empresasIntake,
-          empresasPayload,
-          endereco: {
-            cep: String(m.customValues.cp_cliente_cep ?? ""),
-            logradouro: String(m.customValues.cp_cliente_logradouro ?? ""),
-            numero: String(m.customValues.cp_cliente_numero ?? ""),
-            complemento: String(m.customValues.cp_cliente_complemento ?? ""),
-            bairro: String(m.customValues.cp_cliente_bairro ?? ""),
-            cidade: String(m.customValues.cp_cliente_cidade ?? ""),
-            uf: String(m.customValues.cp_cliente_uf ?? ""),
-          },
-        }),
-      };
+      mergedValues = withConfeccaoQualificacao(m);
     }
 
     let blocking = listBlockingCustomFields(m.customFields, mergedValues);
@@ -967,24 +818,11 @@ export function PipelineBoard({
     setTransitionSubmitting(true);
     void (async () => {
       try {
-        const fieldPayload: Record<string, string | string[]> = {};
-        const codesOut = new Set<string>();
-        for (const f of visibleCustomFields) {
-          codesOut.add(f.field_code);
-        }
-        if (isReuniaoConf) {
-          REUNIAO_CONFECCAO_MANAGED_CODES.forEach((c) => codesOut.add(c));
-        }
-        for (const code of codesOut) {
-          const v = mergedValues[code];
-          if (v !== undefined && v !== "") {
-            if (Array.isArray(v) && v.length > 0) {
-              fieldPayload[code] = v;
-            } else if (!Array.isArray(v) && String(v).trim() !== "") {
-              fieldPayload[code] = String(v).trim();
-            }
-          }
-        }
+        const fieldPayload = buildTransitionFieldPayload({
+          visibleFields: visibleCustomFields,
+          values: mergedValues,
+          reuniaoConfeccao: isReuniaoConf,
+        });
 
         await commitTransition(item, nextStage, {
           linkProposta: linkProposta.trim() || undefined,

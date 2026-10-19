@@ -27,6 +27,35 @@ export function renderTermText(rule: ContractTermRule): string {
   }
 }
 
+/** Rótulo curto da vigência para a tela (o texto do contrato é `renderTermText`). */
+export function describeTermRule(rule: ContractTermRule): string {
+  const deliverable = rule.deliverable?.trim() || "entregável contratado";
+  switch (rule.kind) {
+    case "fixed_months": {
+      const months = rule.months ?? 12;
+      return `${months} ${months === 1 ? "mês" : "meses"}`;
+    }
+    case "fixed_days": {
+      const days = rule.days ?? 30;
+      return `${days} ${days === 1 ? "dia" : "dias"}`;
+    }
+    case "until_deliverable":
+      return `Até a entrega: ${deliverable}`;
+    case "until_deliverable_with_estimate": {
+      const estimate =
+        rule.estimateLabel?.trim() ||
+        (rule.months ? `${rule.months} meses` : rule.days ? `${rule.days} dias` : "");
+      return estimate ? `Até a entrega: ${deliverable} (estimativa: ${estimate})` : `Até a entrega: ${deliverable}`;
+    }
+    case "indefinite":
+      return "Prazo indeterminado";
+    case "manual":
+      return rule.estimateLabel?.trim() || "Definida nas condições contratuais";
+    default:
+      return "A definir";
+  }
+}
+
 export function renderStartText(rule: ContractStartRule): string {
   switch (rule.kind) {
     case "on_signature":

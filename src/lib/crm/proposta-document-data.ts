@@ -62,13 +62,22 @@ export type PropostaDocumentSnapshot = {
 
 type DocumentTemplateRow = Database["public"]["Tables"]["document_templates"]["Row"];
 
+/**
+ * Parte do nome usada na chave do Supabase Storage e no nome do download. O Storage
+ * recusa a chave ("Invalid key") com caracteres fora da lista segura do S3 (ex.: `[`, `]`,
+ * `#`, `%`), então fica só letra (com acento latino), número, espaço e `& ' ( ) + , - . ! @ _`.
+ */
+const FILENAME_PART_DISALLOWED = /[^A-Za-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u017F _&'()+,\-.!@]/g;
+
 export function sanitizeFilenamePart(s: string): string {
   return (
     s
-      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+      .normalize("NFC")
+      .replace(FILENAME_PART_DISALLOWED, "")
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 80) || "lead"
+      .slice(0, 80)
+      .trim() || "lead"
   );
 }
 

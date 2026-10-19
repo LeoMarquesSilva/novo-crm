@@ -271,6 +271,9 @@ export function PropostaDocumentBuilder({
   const [builderOpen, setBuilderOpen] = useState(false);
   const autoOpenedRef = useRef(false);
 
+  // Só a primeira carga mostra "Preparando o editor": numa releitura (depois de Salvar ou
+  // Gerar) o editor continua montado. Desmontar recriava o editor com o escopo das props
+  // antigas (antes do router.refresh) e a seção Investimento aparecia vazia.
   const refreshState = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -309,7 +312,7 @@ export function PropostaDocumentBuilder({
 
   const hasInstance = Boolean(docState?.instance);
 
-  if (loading) {
+  if (loading && !docState) {
     return (
       <section className={documentBuilderHubClass}>
         <div className="flex min-h-24 items-center justify-center gap-2 px-5 py-6 text-sm text-muted-foreground">
@@ -320,7 +323,7 @@ export function PropostaDocumentBuilder({
     );
   }
 
-  if (error || !docState) {
+  if (!docState) {
     return (
       <section className={documentBuilderHubClass}>
         <div className="flex flex-col items-start gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -368,6 +371,18 @@ export function PropostaDocumentBuilder({
           )
         }
       />
+
+      {error ? (
+        <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-3 text-sm text-danger-text sm:px-6">
+          <span className="flex min-w-0 items-center gap-2">
+            <TriangleAlert className="size-4 shrink-0" aria-hidden />
+            Não foi possível atualizar a proposta: {error}
+          </span>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refreshState()}>
+            Tentar novamente
+          </Button>
+        </div>
+      ) : null}
 
       {docState.versions.length > 0 ? (
         <div className="border-t border-border px-5 py-4 sm:px-6">
@@ -786,30 +801,28 @@ function PropostaBuilderDialog({
     setFeedback(null);
   }
 
+  /** Grava os campos; quem chama controla o estado (`saving` no Salvar, `generating` no Gerar). */
   async function persistAllFields() {
-    setSaving(true);
     const definitionIds = new Map(proposalPipelineFields.map((field) => [field.fieldCode, field.definitionId]));
     if (escopoDetalhe) definitionIds.set("cp_escopo_detalhe_json", escopoDetalhe.definitionId);
-    try {
-      const saved = await persistProposalDraft({
-        leadId: lead.id,
-        templateId: selectedTemplateId,
-        responsavel,
-        draftValues,
-        savedValues,
-        definitionIds,
-      });
-      setSavedTemplateId(saved.templateId);
-      setSavedResponsavel(saved.responsavel);
-      setSavedValues(saved.draftValues);
-    } finally {
-      setSaving(false);
-    }
+    const saved = await persistProposalDraft({
+      leadId: lead.id,
+      templateId: selectedTemplateId,
+      responsavel,
+      draftValues,
+      savedValues,
+      definitionIds,
+    });
+    setSavedTemplateId(saved.templateId);
+    setSavedResponsavel(saved.responsavel);
+    setSavedValues(saved.draftValues);
   }
 
   async function saveDraft() {
     if (operationRef.current || scopeSaving) return;
     operationRef.current = true;
+    // `saving` cobre o salvamento e a releitura: Gerar fica desabilitado até o fim.
+    setSaving(true);
     setSaveError(null);
     setFeedback(null);
     try {
@@ -820,6 +833,7 @@ function PropostaBuilderDialog({
     } catch (error) {
       setSaveError((error instanceof Error ? error.message : "Falha ao salvar.") + " O salvamento pode estar parcial. Revise e tente novamente.");
     } finally {
+      setSaving(false);
       operationRef.current = false;
     }
   }

@@ -33,17 +33,30 @@ export function basisPointsToMaskedPercent(basisPoints: number | null | undefine
   return `${formatNumberPtBr2(basisPoints / 100)}%`;
 }
 
-/** Máscara de percentual: dígitos como centésimos (`1500` → `15,00%`). */
-export function maskPercentFromInput(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, 5);
-  if (!digits) return "";
-  return `${formatNumberPtBr2(Number(digits) / 100)}%`;
+/** Basis points → texto editável sem `%` (`1500` → `15`, `1250` → `12,5`). */
+export function basisPointsToPercentText(basisPoints: number | null | undefined): string {
+  if (basisPoints === null || basisPoints === undefined) return "";
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2, useGrouping: false }).format(
+    basisPoints / 100,
+  );
 }
 
-export function maskedPercentToBasisPoints(masked: string): number | null {
-  const digits = masked.replace(/\D/g, "");
-  if (!digits) return null;
-  return Number(digits);
+/**
+ * Texto digitado no campo de percentual: o número é o próprio percentual (`5` = 5%,
+ * `12,5` = 12,5%), com até 3 inteiros e 2 decimais. Devolve o texto limpo ou `null`
+ * quando a tecla não forma um percentual (o campo mantém o valor anterior).
+ */
+export function sanitizePercentTyping(raw: string): string | null {
+  const text = raw.replace(/[%\s]/g, "").replace(".", ",");
+  return /^\d{0,3}(,\d{0,2})?$/.test(text) ? text : null;
+}
+
+/** Texto do percentual (`12,5`) → basis points (`1250`); vazio → `null`. */
+export function percentTextToBasisPoints(text: string): number | null {
+  const normalized = text.replace(",", ".");
+  if (!normalized || normalized === ".") return null;
+  const value = Number(normalized);
+  return Number.isFinite(value) ? Math.round(value * 100) : null;
 }
 
 const MONTH_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];

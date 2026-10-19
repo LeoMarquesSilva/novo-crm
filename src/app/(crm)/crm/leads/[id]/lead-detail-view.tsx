@@ -306,7 +306,7 @@ export function LeadDetailView({
 
             {showOnboardingTab ? (
               <TabsContent value="onboarding" className="mt-4 space-y-5">
-                <ClientOnboardingTab leadId={lead.id} />
+                <ClientOnboardingTab leadId={lead.id} stage={lead.etapa} />
               </TabsContent>
             ) : null}
 

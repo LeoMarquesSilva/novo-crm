@@ -52,11 +52,12 @@ const EMPTY_EVIDENCE: WorkflowTransitionEvidence = {
   d4SignDocumentFinalized: false,
 };
 
-export async function hasStoredGeneratedDocument(
+/** Versão gerada mais recente cujo arquivo ainda existe no storage (ou `null`). */
+export async function findLatestStoredGeneratedDocumentVersion(
   supabase: SupabaseAdminClient,
   oportunidadeId: string,
   documentType: "proposta" | "contrato",
-): Promise<boolean> {
+): Promise<{ id: string; generatedFilePath: string } | null> {
   const { data: templates, error: templatesError } = await supabase
     .from("document_templates")
     .select("id")
@@ -64,7 +65,7 @@ export async function hasStoredGeneratedDocument(
   if (templatesError) throw templatesError;
 
   const templateIds = (templates ?? []).map((row) => row.id);
-  if (templateIds.length === 0) return false;
+  if (templateIds.length === 0) return null;
 
   const { data: instances, error: instancesError } = await supabase
     .from("document_instances")
@@ -74,11 +75,11 @@ export async function hasStoredGeneratedDocument(
   if (instancesError) throw instancesError;
 
   const instanceIds = (instances ?? []).map((row) => row.id);
-  if (instanceIds.length === 0) return false;
+  if (instanceIds.length === 0) return null;
 
   const { data: versions, error: versionsError } = await supabase
     .from("document_versions")
-    .select("generated_file_path, generated_at")
+    .select("id, generated_file_path, generated_at")
     .in("instance_id", instanceIds)
     .not("generated_file_path", "is", null)
     .order("generated_at", { ascending: false })
@@ -88,11 +89,19 @@ export async function hasStoredGeneratedDocument(
   for (const version of versions ?? []) {
     const path = version.generated_file_path?.trim();
     if (path && (await generatedDocumentObjectExists(supabase, path))) {
-      return true;
+      return { id: version.id, generatedFilePath: path };
     }
   }
 
-  return false;
+  return null;
+}
+
+export async function hasStoredGeneratedDocument(
+  supabase: SupabaseAdminClient,
+  oportunidadeId: string,
+  documentType: "proposta" | "contrato",
+): Promise<boolean> {
+  return (await findLatestStoredGeneratedDocumentVersion(supabase, oportunidadeId, documentType)) !== null;
 }
 
 function isCanceledD4SignDocument(row: {
