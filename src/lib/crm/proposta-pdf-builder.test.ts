@@ -95,9 +95,13 @@ describe("buildPropostaPdf", () => {
     expect(texts.join(" ")).not.toContain("06/10/2026");
   });
 
-  it("torna clicáveis LinkedIn, Instagram e e-mail nos CVs, mantendo o link do site no rodapé", async () => {
+  it("torna clicáveis os ícones da capa e dos CVs, mantendo o link do site no rodapé dos CVs", async () => {
     const doc = await PDFDocument.load(await buildPropostaPdf(canonical()));
     const site = "http://www.bismarchipires.com.br/";
+    expect(linkUris(doc, 0)).toEqual([
+      "https://www.instagram.com/bismarchipires/",
+      "https://www.linkedin.com/company/bismarchipires/",
+    ]);
     expect(linkUris(doc, 3)).toEqual([
       "https://www.linkedin.com/in/gustavo-bismarchi/",
       "https://www.instagram.com/bismarchipires/",
