@@ -1,8 +1,9 @@
 "use client";
 
-import { Download, FileWarning, Loader2 } from "lucide-react";
+import { Download, Eye, FileWarning, Loader2 } from "lucide-react";
 import { useState } from "react";
 
+import { GeneratedDocumentPreviewDialog } from "@/components/crm/generated-document-preview-dialog";
 import { Button } from "@/components/ui/button";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 
@@ -25,6 +26,7 @@ export function GeneratedDocumentVersionList({
 }) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [errorById, setErrorById] = useState<Record<string, string>>({});
+  const [previewing, setPreviewing] = useState<GeneratedDocumentVersionListItem | null>(null);
 
   if (versions.length === 0) {
     return <p className="text-sm text-muted-foreground">Nenhuma versão gerada ainda.</p>;
@@ -70,23 +72,35 @@ export function GeneratedDocumentVersionList({
               </p>
             </div>
             {version.file_available ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
-                disabled={downloadingId === version.id}
-                onClick={() => void download(version)}
-              >
-                {downloadingId === version.id ? (
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <Download className="size-3.5" aria-hidden />
-                )}
-                {version.generated_file_path?.toLowerCase().endsWith(".pdf")
-                  ? "Baixar PDF"
-                  : "Baixar Word"}
-              </Button>
+              <div className="flex shrink-0 items-center gap-1">
+                {isPdf(version) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1.5 px-2.5 text-xs"
+                    onClick={() => setPreviewing(version)}
+                  >
+                    <Eye className="size-3.5" aria-hidden />
+                    Visualizar
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 gap-1.5 px-2.5 text-xs"
+                  disabled={downloadingId === version.id}
+                  onClick={() => void download(version)}
+                >
+                  {downloadingId === version.id ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Download className="size-3.5" aria-hidden />
+                  )}
+                  {isPdf(version) ? "Baixar PDF" : "Baixar Word"}
+                </Button>
+              </div>
             ) : (
               <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-warning-text">
                 <FileWarning className="size-3.5" aria-hidden />
@@ -99,6 +113,22 @@ export function GeneratedDocumentVersionList({
           ) : null}
         </div>
       ))}
+      {previewing ? (
+        <GeneratedDocumentPreviewDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPreviewing(null);
+          }}
+          leadId={leadId}
+          versionId={previewing.id}
+          versionNumber={previewing.version_number}
+          filename={previewing.generated_file_path?.split("/").at(-1) || `v${previewing.version_number}.pdf`}
+        />
+      ) : null}
     </div>
   );
+}
+
+function isPdf(version: GeneratedDocumentVersionListItem): boolean {
+  return Boolean(version.generated_file_path?.toLowerCase().endsWith(".pdf"));
 }

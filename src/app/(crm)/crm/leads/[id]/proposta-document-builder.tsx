@@ -347,7 +347,7 @@ export function PropostaDocumentBuilder({
         description={
           readOnly
             ? docState.versions.length > 0
-              ? "Consulte e baixe as versões oficiais geradas durante a elaboração da proposta."
+              ? "Consulte, visualize e baixe as versões oficiais geradas durante a elaboração da proposta."
               : "Nenhuma versão oficial da proposta foi encontrada para esta negociação."
             : hasInstance
             ? "Continue o rascunho diretamente no editor com formulário e prévia lado a lado."

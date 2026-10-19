@@ -7,8 +7,9 @@ import {
 } from "@/lib/crm/generated-document-storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+/** `?inline=1` devolve URL sem `Content-Disposition: attachment`, para abrir o PDF no navegador. */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string; versionId: string }> },
 ) {
   try {
@@ -55,9 +56,10 @@ export async function GET(
     }
 
     const filename = filePath.split("/").at(-1) || "documento";
+    const inline = new URL(request.url).searchParams.get("inline") === "1";
     const { data: signed, error: signedError } = await supabase.storage
       .from(GENERATED_DOCUMENTS_BUCKET)
-      .createSignedUrl(filePath, 120, { download: filename });
+      .createSignedUrl(filePath, 120, inline ? undefined : { download: filename });
     if (signedError || !signed?.signedUrl) {
       throw signedError ?? new Error("Não foi possível gerar o link de download.");
     }
