@@ -3,7 +3,7 @@ import { getContractedFirm } from "./firm-party";
 import { formatContractCityDate, toSaoPauloIso } from "./local-date";
 import { resolveContractObject } from "./object-engine";
 import { contractPartyGrammar } from "./party-language";
-import { buildPaymentFromInvestment } from "./payment";
+import { buildPaymentFromInvestment, investmentItemHasValue } from "./payment";
 import {
   applyScopeAdjustments,
   resolveContractingParties,
@@ -161,7 +161,7 @@ function collectPendencias(
     {
       code: "investment",
       label: "Investimento",
-      ok: data.investment.totalAmount != null && data.investment.totalAmount > 0,
+      ok: data.investment.items.some(investmentItemHasValue),
     },
     {
       code: "term",

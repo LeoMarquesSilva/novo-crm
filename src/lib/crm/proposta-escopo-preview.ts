@@ -4,6 +4,7 @@ import {
   formatInvestimentoCurrencyForMerge,
   formatValorParcelaPlaceholderForMerge,
   investmentSubtypeHasParcelas,
+  normalizeParcelasTemplate,
   PARCELAS_VENCIMENTOS_KEY,
   parseParcelasCount,
   VALOR_PARCELA_KEY,
@@ -121,35 +122,39 @@ export function mergeEscopoTemplate(
 /**
  * Substitui placeholders no texto de investimento; valores monetários viram `9.999,99 (nove mil...)`
  * (sem `R$` extra — o modelo já inclui `R$` antes do colchete quando aplicável).
+ * O trecho legado de parcelas do catálogo vira `[DETALHEPARCELAS]` antes (ver `normalizeParcelasTemplate`).
  */
 export function mergeInvestimentoTemplate(
   template: string,
   placeholders: Record<string, string>,
   opts: { defaultNomeEmpresa?: string | null } = {},
 ): string {
-  return template.replace(/\[([^\]]+)\]/g, (_, inner: string) => {
-    const key = inner.trim();
+  const usaParcelas =
+    investmentSubtypeHasParcelas(Object.keys(placeholders)) ||
+    parseParcelasCount(placeholders) > 0 ||
+    Boolean(placeholders[PARCELAS_VENCIMENTOS_KEY]?.trim());
+  return normalizeParcelasTemplate(template, placeholders).replace(
+    /\[([^\]]+)\](\s+cada\b)?/g,
+    (_match: string, inner: string, cada: string | undefined) => {
+      const key = inner.trim();
+      const rest = cada ?? "";
 
-    if (key === DETALHE_PARCELAS_KEY) {
-      return formatDetalheParcelasForMerge(placeholders);
-    }
-    if (
-      key === VALOR_PARCELA_KEY &&
-      (investmentSubtypeHasParcelas(Object.keys(placeholders)) ||
-        parseParcelasCount(placeholders) > 0 ||
-        Boolean(placeholders[PARCELAS_VENCIMENTOS_KEY]?.trim()))
-    ) {
-      return formatValorParcelaPlaceholderForMerge(placeholders);
-    }
+      if (key === DETALHE_PARCELAS_KEY) {
+        return `${formatDetalheParcelasForMerge(placeholders)}${rest}`;
+      }
+      if (key === VALOR_PARCELA_KEY && usaParcelas) {
+        return formatValorParcelaPlaceholderForMerge(placeholders, { cada: Boolean(cada) });
+      }
 
-    let v = placeholders[key];
-    if ((v == null || v === "") && key === ESCOPO_PLACEHOLDER_NOME_EMPRESA) {
-      v = opts.defaultNomeEmpresa ?? "";
-    }
-    if (v == null || v === "") return "";
-    if (PROPOSTA_INVESTIMENTO_PLACEHOLDER_CURRENCY.has(key)) {
-      return formatInvestimentoCurrencyForMerge(String(v));
-    }
-    return String(v);
-  });
+      let v = placeholders[key];
+      if ((v == null || v === "") && key === ESCOPO_PLACEHOLDER_NOME_EMPRESA) {
+        v = opts.defaultNomeEmpresa ?? "";
+      }
+      if (v == null || v === "") return rest;
+      if (PROPOSTA_INVESTIMENTO_PLACEHOLDER_CURRENCY.has(key)) {
+        return `${formatInvestimentoCurrencyForMerge(String(v))}${rest}`;
+      }
+      return `${String(v)}${rest}`;
+    },
+  );
 }

@@ -1,3 +1,4 @@
+import { investmentItemHasValue } from "./payment";
 import { extractProposalScopes } from "./proposal-snapshot";
 import type { ProposalContractSnapshot } from "./proposal-snapshot";
 import type { CanonicalContractData, ProposalContractAlignment } from "./types";
@@ -101,7 +102,7 @@ export function validateProposalContractAlignment(params: {
     }
   }
 
-  if (params.contract.investment.totalAmount == null) {
+  if (!params.contract.investment.items.some(investmentItemHasValue)) {
     warnings.push({
       code: "investment_missing",
       message: "O investimento estruturado da proposta não pôde ser resolvido.",

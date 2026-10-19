@@ -133,7 +133,8 @@ function parcelasTemAlgumVencimento(placeholders: Record<string, string>): boole
   return getParcelaVencimentos(placeholders).some((v) => v.trim().length > 0);
 }
 
-function parcelasQuantidadeLabelPt(count: number): string {
+/** "cinco parcelas", "duas parcelas" (até doze; acima disso, número). */
+export function parcelasQuantidadeLabelPt(count: number): string {
   return PARCELAS_QUANTIDADE_EXTENSO[count] ?? `${count} parcelas`;
 }
 
@@ -141,12 +142,66 @@ function parcelaOrdemAdjetivo(index: number): string {
   return PARCELA_ORDEM_ADJETIVO[index] ?? `${index + 1}ª`;
 }
 
-/** Normaliza texto de vencimento (aceita frase completa ou só o complemento). */
-export function formatParcelaVencimentoSuffix(raw: string): string {
-  const t = raw.trim();
+/** Começo que já encaixa depois de "vencendo a primeira" / "vencível" (preposição, prazo ou locução). */
+const VENCIMENTO_JA_REDIGIDO_RE =
+  /^(na|no|nas|nos|em|até|ao|aos|à|às|após|depois|a partir|antes|dentro|mediante|quando|conforme|com|contra|por ocasião|juntamente|todo|toda|sempre|\d+\s*(dias?|mês|mes|meses|semanas?|anos?)\b)/i;
+const VENCIMENTO_DATA_RE = /^(\d{1,2}[/.-]\d{1,2}([/.-]\d{2,4})?|\d{4}-\d{2}-\d{2})$/;
+const VENCIMENTO_FEMININO_RE =
+  /^(data|assinatura|entrega|conclusão|conclusao|aprovação|aprovacao|emissão|emissao|protocolização|protocolizacao|distribuição|distribuicao|homologação|homologacao|sentença|sentenca|audiência|audiencia|primeira|segunda|terceira|última|ultima)\b/i;
+const VENCIMENTO_MASCULINO_RE =
+  /^(dia|ato|mês|mes|prazo|término|termino|encerramento|protocolo|fim|final|início|inicio|primeiro|segundo|último|ultimo|pagamento|vencimento|recebimento|trânsito|transito)\b/i;
+
+/**
+ * Vencimento digitado na parcela → trecho que encaixa depois de "vencendo a primeira"
+ * ou "vencível": mantém frase já redigida ("na data de assinatura", "30 dias após a
+ * 1ª parcela"), põe "em" antes de data e "na"/"no" antes de substantivo solto.
+ */
+export function normalizeParcelaVencimento(raw: string): string {
+  const t = raw.trim().replace(/[\s.;,]+$/, "");
   if (!t) return "";
-  if (/^(na|no|em|até|aos?)\s/i.test(t)) return ` ${t}`;
-  return ` na ${t}`;
+  const lowerFirst = (v: string) => v.charAt(0).toLowerCase() + v.slice(1);
+  if (VENCIMENTO_JA_REDIGIDO_RE.test(t)) return /^\d/.test(t) ? t : lowerFirst(t);
+  if (VENCIMENTO_DATA_RE.test(t)) return `em ${t}`;
+  if (VENCIMENTO_FEMININO_RE.test(t)) return `na ${lowerFirst(t)}`;
+  if (VENCIMENTO_MASCULINO_RE.test(t)) return `no ${lowerFirst(t)}`;
+  return t;
+}
+
+/** Mesmo texto de `normalizeParcelaVencimento`, com espaço à esquerda (vazio quando não há). */
+export function formatParcelaVencimentoSuffix(raw: string): string {
+  const t = normalizeParcelaVencimento(raw);
+  return t ? ` ${t}` : "";
+}
+
+/** "a", "a e b", "a, b e c"; `serialComma` põe vírgula antes do "e" (itens que já têm vírgula). */
+function joinListaPt(items: string[], serialComma = false): string {
+  if (items.length <= 1) return items[0] ?? "";
+  const last = items[items.length - 1];
+  return `${items.slice(0, -1).join(", ")}${serialComma ? "," : ""} e ${last}`;
+}
+
+/** "vencendo a primeira na data de assinatura do Contrato, a segunda 30 dias após…" (só as preenchidas). */
+export function formatCronogramaParcelasIguais(placeholders: Record<string, string>): string {
+  const partes = getParcelaVencimentos(placeholders)
+    .map((raw, i) => {
+      const venc = normalizeParcelaVencimento(raw);
+      return venc ? `a ${parcelaOrdemAdjetivo(i)} ${venc}` : "";
+    })
+    .filter(Boolean);
+  return partes.length > 0 ? `vencendo ${joinListaPt(partes)}` : "";
+}
+
+/** "sendo a primeira no valor de R$ X, vencível …, e a segunda no valor de R$ Y, vencível …". */
+export function formatParcelasDistintasDetalhe(placeholders: Record<string, string>): string {
+  const vencimentos = getParcelaVencimentos(placeholders);
+  let algumVencimento = false;
+  const partes = getParcelaValues({ ...placeholders, [PARCELAS_IGUAIS_KEY]: "nao" }).map((raw, i) => {
+    const val = formatInvestimentoCurrencyForMerge(raw);
+    const venc = normalizeParcelaVencimento(vencimentos[i] ?? "");
+    if (venc) algumVencimento = true;
+    return `a ${parcelaOrdemAdjetivo(i)}${val ? ` no valor de R$ ${val}` : ""}${venc ? `, vencível ${venc}` : ""}`;
+  });
+  return partes.length > 0 ? `sendo ${joinListaPt(partes, algumVencimento)}` : "";
 }
 
 export function buildParcelasPlaceholdersPatch(
@@ -216,20 +271,16 @@ export function formatInvestimentoCurrencyForMerge(raw: string): string {
 
 function formatParcelasComVencimentos(placeholders: Record<string, string>): string {
   const count = parseParcelasCount(placeholders);
-  const values = getParcelaValues(placeholders);
-  const vencimentos = getParcelaVencimentos(placeholders);
-  const parts: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const val = formatInvestimentoCurrencyForMerge(values[i] ?? "");
-    const cond = formatParcelaVencimentoSuffix(vencimentos[i] ?? "");
-    const ord = parcelaOrdemAdjetivo(i);
-    if (i === 0) {
-      parts.push(`sendo a ${ord} no valor de R$ ${val}${cond}`);
-    } else {
-      parts.push(`e a ${ord} no valor de R$ ${val}${cond}`);
-    }
+  if (count === 1) {
+    const venc = normalizeParcelaVencimento(getParcelaVencimentos(placeholders)[0] ?? "");
+    return `a serem pagos em parcela única${venc ? ` ${venc}` : ""}`;
   }
-  return `a serem pagos em ${parcelasQuantidadeLabelPt(count)}, ${parts.join(" ")}`;
+  if (getParcelasModo(placeholders) === "iguais") {
+    const val = formatInvestimentoCurrencyForMerge(placeholders[VALOR_PARCELA_KEY] ?? "");
+    const cronograma = formatCronogramaParcelasIguais(placeholders);
+    return `a serem pagos em ${parcelasQuantidadeLabelPt(count)} iguais${val ? ` de R$ ${val}` : ""}${cronograma ? `, ${cronograma}` : ""}`;
+  }
+  return `a serem pagos em ${parcelasQuantidadeLabelPt(count)}, ${formatParcelasDistintasDetalhe(placeholders)}`;
 }
 
 /** Trecho de pagamento para `[DETALHEPARCELAS]` (à vista ou parcelas com vencimento). */
@@ -246,32 +297,58 @@ export function formatDetalheParcelasForMerge(placeholders: Record<string, strin
     return `para pagamento à vista ou, ainda, em até ${count} parcelas mensais e sucessivas de R$ ${val} cada`;
   }
 
-  const clause = formatValorParcelaPlaceholderForMerge(placeholders);
-  return `para pagamento à vista ou, ainda, em até ${count} parcelas mensais e sucessivas de R$ ${clause}`;
+  return `para pagamento à vista ou, ainda, em ${parcelasQuantidadeLabelPt(count)} mensais e sucessivas, ${formatParcelasDistintasDetalhe(placeholders)}`;
 }
 
-/** Texto que substitui `[VALORPARCELA]` no modelo (à vista + parcelas iguais ou distintas). */
-export function formatValorParcelaPlaceholderForMerge(placeholders: Record<string, string>): string {
+/**
+ * Texto que substitui `[VALORPARCELA]` num modelo que já traz `R$ ` antes do colchete
+ * (modelo do catálogo fora do padrão reconhecido por `normalizeParcelasTemplate`).
+ * `cada`: o modelo tinha " cada" logo depois do colchete (consumido pelo chamador).
+ */
+export function formatValorParcelaPlaceholderForMerge(
+  placeholders: Record<string, string>,
+  opts: { cada?: boolean } = {},
+): string {
   const count = parseParcelasCount(placeholders);
-  if (count < 1) return formatInvestimentoCurrencyForMerge(placeholders[VALOR_PARCELA_KEY] ?? "");
-
-  if (parcelasTemAlgumVencimento(placeholders)) {
-    return formatParcelasComVencimentos(placeholders);
-  }
+  const cada = opts.cada ? " cada" : "";
+  if (count < 1) return `${formatInvestimentoCurrencyForMerge(placeholders[VALOR_PARCELA_KEY] ?? "")}${cada}`;
 
   if (getParcelasModo(placeholders) === "iguais") {
-    return formatInvestimentoCurrencyForMerge(placeholders[VALOR_PARCELA_KEY] ?? "");
+    const val = formatInvestimentoCurrencyForMerge(placeholders[VALOR_PARCELA_KEY] ?? "");
+    const cronograma = formatCronogramaParcelasIguais(placeholders);
+    return `${val}${cada}${cronograma ? `, ${cronograma}` : ""}`;
   }
 
-  const values = getParcelaValues(placeholders);
-  return values
-    .map((v, i) => {
-      const formatted = formatInvestimentoCurrencyForMerge(v);
-      const ord = i + 1;
-      if (i === 0) return `${formatted} na ${ord}ª parcela`;
-      return `R$ ${formatted} na ${ord}ª parcela`;
-    })
-    .join(", ");
+  const vencimentos = getParcelaVencimentos(placeholders);
+  let algumVencimento = false;
+  const partes = getParcelaValues(placeholders).map((v, i) => {
+    const formatted = formatInvestimentoCurrencyForMerge(v);
+    const venc = normalizeParcelaVencimento(vencimentos[i] ?? "");
+    if (venc) algumVencimento = true;
+    return `${i === 0 ? "" : "R$ "}${formatted} na ${i + 1}ª parcela${venc ? `, vencível ${venc}` : ""}`;
+  });
+  return joinListaPt(partes, algumVencimento);
+}
+
+/**
+ * Trecho antigo do catálogo (SPOT e SPOT condicionado no banco):
+ * "para pagamento à vista ou, ainda, em até [PARCELAS] parcelas mensais e sucessivas de R$ [VALORPARCELA]".
+ * Com parcelas com vencimento ou valores distintos, a troca isolada de `[VALORPARCELA]`
+ * gera "de R$ a serem pagos em…"; por isso o trecho inteiro vira `[DETALHEPARCELAS]`.
+ */
+const TRECHO_PARCELAS_LEGADO_RE =
+  /para\s+pagamento\s+à\s+vista\s+ou,?\s*(?:ainda,?\s*)?em\s+até\s+\[PARCELAS\]\s+parcelas\s+mensais\s+e\s+sucessivas\s+de\s+R\$\s*\[VALORPARCELA\](?:\s+cada\b)?/giu;
+
+/**
+ * Troca o trecho legado de parcelas por `[DETALHEPARCELAS]` quando `PARCELAS` tem número
+ * (inclusive 0 = à vista). Sem número (ex.: preview do catálogo com exemplos) o modelo fica igual.
+ */
+export function normalizeParcelasTemplate(
+  template: string,
+  placeholders: Record<string, string>,
+): string {
+  if (!/^\d+$/.test(String(placeholders[PARCELAS_KEY] ?? "").trim())) return template;
+  return template.replace(TRECHO_PARCELAS_LEGADO_RE, `[${DETALHE_PARCELAS_KEY}]`);
 }
 
 export function validateParcelasPlaceholders(placeholders: Record<string, string>): boolean {
