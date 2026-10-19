@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, rgb, type Color, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, PDFString, rgb, type Color, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
 import {
   PROPOSTA_INVESTIMENTO_HEADING,
   stripInvestimentoSectionHeading,
@@ -61,6 +61,27 @@ const CAPA = {
   metaSize: 12,
 };
 const VIGENCIA = { x: 210.8, baseline: 221.52, size: 12, maxWidth: 176 };
+
+/** Ícones LinkedIn / Instagram / e-mail sob a foto: caixa de cada círculo medida na imagem do modelo (origem embaixo, em pt). */
+type CvLink = { left: number; right: number; url: string };
+const CV_LINKS: Record<"gustavo" | "ricardo", { bottom: number; top: number; links: CvLink[] }> = {
+  gustavo: {
+    bottom: 438.69, top: 467.12,
+    links: [
+      { left: 97.6, right: 126.04, url: "https://www.linkedin.com/in/gustavo-bismarchi/" },
+      { left: 139.45, right: 167.89, url: "https://www.instagram.com/bismarchipires/" },
+      { left: 181.29, right: 209.73, url: "mailto:gustavo@bismarchipires.com.br" },
+    ],
+  },
+  ricardo: {
+    bottom: 438.49, top: 467.28,
+    links: [
+      { left: 96.06, right: 124.84, url: "https://www.linkedin.com/in/ricardoviscardipires/" },
+      { left: 138.25, right: 167.04, url: "https://www.instagram.com/ricardoviscardipires/" },
+      { left: 180.45, right: 209.23, url: "mailto:ricardo@bismarchipires.com.br" },
+    ],
+  },
+};
 
 /** Margens do Word (pgMar 1417/1701 twips) e ritmo do estilo BPScopeBody (TNR 12, linha 278/240, depois 8 pt). */
 const BODY = {
@@ -280,6 +301,18 @@ function drawVigencia(page: PDFPage, data: CanonicalProposalData, font: PDFFont)
   page.drawText(text, { x: VIGENCIA.x, y: page.getHeight() - VIGENCIA.baseline, size, font, color: BLACK });
 }
 
+function addCvLinks(doc: PDFDocument, page: PDFPage, cv: (typeof CV_LINKS)[keyof typeof CV_LINKS]) {
+  for (const link of cv.links) {
+    page.node.addAnnot(doc.context.register(doc.context.obj({
+      Type: "Annot",
+      Subtype: "Link",
+      Rect: [link.left, cv.bottom, link.right, cv.top],
+      Border: [0, 0, 0],
+      A: { Type: "Action", S: "URI", URI: PDFString.of(link.url) },
+    })));
+  }
+}
+
 /**
  * Proposta em PDF montada direto do modelo BP: capa, institucional, páginas de conteúdo no timbrado
  * (escopo por área + investimento), CV Gustavo, CV Ricardo, assinaturas com vigência e contracapa.
@@ -304,7 +337,9 @@ export async function buildPropostaPdf(data: CanonicalProposalData, assets: Prop
   out.addPage(institucional);
   layoutContentPages(out, timbrado, buildContentBlocks(data, { regular: serif, bold: serifBold }), { regular: serif });
   out.addPage(cvGustavo);
+  addCvLinks(out, cvGustavo, CV_LINKS.gustavo);
   out.addPage(cvRicardo);
+  addCvLinks(out, cvRicardo, CV_LINKS.ricardo);
   out.addPage(assinaturas);
   drawVigencia(assinaturas, data, sans);
   out.addPage(contracapa);
