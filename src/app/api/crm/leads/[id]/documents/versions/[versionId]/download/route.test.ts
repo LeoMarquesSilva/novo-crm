@@ -84,6 +84,12 @@ describe("download de versão documental", () => {
     });
   });
 
+  it("com ?inline=1 emite URL sem forçar download, para visualizar no navegador", async () => {
+    const response = await GET(new Request("http://localhost?inline=1"), context());
+    expect(response.status).toBe(200);
+    expect(createSignedUrl).toHaveBeenCalledWith(versionPath, 120, undefined);
+  });
+
   it("não expõe versão pertencente a outro lead", async () => {
     instanceOpportunityId = "00000000-0000-4000-8000-000000000099";
     const response = await GET(new Request("http://localhost"), context());
