@@ -126,6 +126,10 @@ Regra de negócio: `src/modules/icp/{domain,infrastructure}/` (ver zona abaixo).
 
 Envio: `src/components/crm/contracts/send-contract-signature-dialog.tsx` (aberto pelo `pipeline-board.tsx`, `lead-detail-stage-advance.tsx` e `D4SignSendSection` em `contrato-document-builder.tsx`). Cadastro: `src/app/(crm)/crm/leads/[id]/client-onboarding/` (`client-onboarding-tab.tsx`, `client-onboarding-form.tsx`, `ops-legais-review-panel.tsx`). Faturamento: `src/app/(crm)/crm/leads/[id]/contract-billing-onboarding-panel.tsx`. Regras: `src/modules/crm/domain/client-onboarding.ts`, `src/modules/crm/domain/stage-transition-rules.ts`, `src/lib/crm/client-onboarding/*`, `src/lib/crm/contract-inclusion/*`, `src/lib/crm/post-signature/*` (não são trabalho visual).
 
+## Migrar do RD (virada)
+
+Rota: `src/app/(crm)/crm/migracao-rd/page.tsx` (fila + painel Dia da virada) e `migracao-rd/[id]/page.tsx` (formulário do negócio). Componentes: `src/components/crm/rd-migration/` — `rd-migration-queue.tsx`, `rd-migration-form.tsx` (reusa `ConfeccaoReuniaoModalSection`, `DynamicField` e `ClientOnboardingForm`), `rd-migration-status.tsx`. Regras e serviço: `src/lib/crm/rd-migration/*` (não são trabalho visual). Selo "Migrar do RD" no cartão do kanban (`pipeline-lead-card-content.tsx`) e aviso na ficha (`lead-detail-view.tsx`).
+
 ## Documentos (due diligence)
 
 Rota: `src/app/(crm)/crm/documentos/page.tsx` + `due-diligence-panel.tsx`, `due-timeline-ui.tsx`

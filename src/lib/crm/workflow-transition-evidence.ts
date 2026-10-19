@@ -3,6 +3,8 @@ import { stageActionHref } from "@/lib/crm/stage-actions";
 import type { StageActionKind } from "@/modules/crm/domain/stage-transition-rules";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
+import { stageIndex } from "@/lib/crm/rd-migration/scope";
+import { isMissingRdMigrationSchema } from "@/lib/crm/rd-migration/state";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -21,7 +23,8 @@ export type WorkflowEvidenceBlocker = {
     | "contract_review_required"
     | "d4sign_send_required"
     | "d4sign_finalization_required"
-    | "use_dedicated_action";
+    | "use_dedicated_action"
+    | "rd_migration_pending";
   message: string;
   actionHref: string;
   /** Ação da tela que substitui o arrasto (abre diálogo/aba em vez de só avisar). */
@@ -212,6 +215,27 @@ export function buildWorkflowEvidenceBlocker(
   return null;
 }
 
+/**
+ * Lead do RD convertido na virada já em Contrato Elaborado ou depois: a revisão do Societário foi
+ * feita no processo do RD (o link do contrato no SharePoint é a evidência, decisão de 19/10/2026).
+ */
+async function migratedWithRdContractReview(
+  supabase: SupabaseAdminClient,
+  oportunidadeId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("rd_migracoes")
+    .select("etapa_destino")
+    .eq("oportunidade_id", oportunidadeId)
+    .maybeSingle();
+  if (error) {
+    if (isMissingRdMigrationSchema(error)) return false;
+    throw error;
+  }
+  const stage = (data as { etapa_destino?: OpportunityStage | null } | null)?.etapa_destino;
+  return Boolean(stage) && stageIndex(stage as OpportunityStage) >= stageIndex("contrato_elaborado");
+}
+
 export async function loadWorkflowEvidenceBlocker(params: {
   supabase: SupabaseAdminClient;
   oportunidadeId: string;
@@ -248,7 +272,8 @@ export async function loadWorkflowEvidenceBlocker(params: {
       .maybeSingle();
     if (reviewError) throw reviewError;
     evidence.contractReviewApproved =
-      reviewTask?.status === "concluido" && Boolean(reviewTask.concluido_em);
+      (reviewTask?.status === "concluido" && Boolean(reviewTask.concluido_em)) ||
+      (await migratedWithRdContractReview(supabase, oportunidadeId));
   }
 
   if (

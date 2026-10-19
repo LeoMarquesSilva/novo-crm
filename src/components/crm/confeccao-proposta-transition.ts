@@ -4,15 +4,15 @@
  * validação, qualificação montada e quais campos genéricos aparecem.
  */
 import {
-  buildCpQualificacaoText,
-  parsePropostaEmpresasJson,
-  type EmpresaIntakeRow,
-} from "@/components/crm/confeccao-reuniao-modal-section";
-import {
   evaluateCondition,
   type FieldCondition,
   type FieldDefinition,
-} from "@/components/crm/dynamic-form";
+} from "@/lib/crm/crm-field-schema";
+import {
+  buildCpQualificacaoText,
+  parsePropostaEmpresasJson,
+  type EmpresaIntakeRow,
+} from "@/lib/crm/proposta-empresas";
 import { PROPOSTA_TIPOS_CATALOG, type PropostaAreaKey } from "@/data/proposta-tipos-catalog";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { areaHasEscopoTipoFilled, extractTiposByAreaFromEscopoJson } from "@/lib/crm/proposta-escopo-direcionamento";

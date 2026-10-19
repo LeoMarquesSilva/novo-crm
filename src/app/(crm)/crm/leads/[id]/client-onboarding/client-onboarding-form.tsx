@@ -21,6 +21,7 @@ const SOURCE_LABELS: Record<string, string> = {
   carteira: "Da carteira",
   assinatura: "Data da assinatura",
   ponto_focal: "Ponto focal — confirme",
+  rd: "Do RD",
 };
 
 function SourceChip({ source }: { source?: string }) {

@@ -16,6 +16,7 @@ Documento-fonte: `DESIGN_SYSTEM_V2_CRM_BP.md` (raiz do projeto) — é a especif
 - **Fases concluídas:** Fase 0 — Auditoria; Fase 1 — Fundação de tokens; Fase 2 — Primitives; Fase 3 — Shell; Fase 4 — Leads/Kanban; Fase 5 — Propostas/Contratos; Fase 6 — Demais módulos
 - **Próxima fase:** Fase 7 — Limpeza (remoção de tokens legados, Inter, estilos locais órfãos)
 - **Fora de fase (30/09/2026):** Importação de contratos PDF: recorte local + citações curtas; wizard **Enviar → Extrair → Conferir lote → Gravar rascunho** (`contract-import-review-card.tsx`); no rascunho, faixa da IA no campo e painel Conferir etapa (`PATCH .../ai-review`, `origem_snapshot`, sem DDL). Sem mudança de tokens globais.
+- **Fora de fase (19/10/2026):** tela nova **Migrar do RD** (`/crm/migracao-rd`, fila + formulário por negócio) feita direto com os primitives V2 (Table, Select/CrmSelect, Alert, AlertDialog, superfícies 12px sem sombra, selos semânticos warning/success/info); selo "Migrar do RD" no cartão do kanban e faixa de aviso na ficha do lead. Sem mudança de tokens globais. Verificação visual por teste de componente (jsdom); a tela não foi aberta no navegador porque leria o banco de produção.
 - **Bloqueios conhecidos:** ver seção "Bloqueios" abaixo
 
 ## Fases (referência rápida — ver seção 33 do documento-fonte para detalhes completos)

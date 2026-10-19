@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buildAtomicTransitionRpcArgs } from "@/lib/crm/atomic-transition";
 import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
+import { isOpportunityRdMigrated } from "@/lib/crm/rd-migration/state";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { loadSignedContractPdf } from "@/lib/d4sign/signed-pdf-cache";
 import { logServerError } from "@/lib/http/api-errors";
@@ -43,7 +44,10 @@ function isMissingRelation(error: { code?: string } | null): boolean {
   return error?.code === "42P01" || error?.code === "42703" || error?.code === "PGRST204";
 }
 
-/** Lead importado do RD: só leitura no CRM (não avança pós-venda nem dispara o aviso geral). */
+/**
+ * Lead importado do RD: só leitura no CRM (não avança pós-venda nem dispara o aviso geral).
+ * Depois de convertido na virada (`rd_migrado_em`), segue o fluxo do CRM.
+ */
 async function isRdLead(supabase: SupabaseClient, opportunityId: string): Promise<boolean> {
   const { data } = await supabase
     .from("rd_deal_reconciliacao")
@@ -51,7 +55,9 @@ async function isRdLead(supabase: SupabaseClient, opportunityId: string): Promis
     .eq("oportunidade_id", opportunityId)
     .limit(1)
     .maybeSingle();
-  return Boolean((data as { detalhes?: unknown } | null)?.detalhes);
+  const hasRdSnapshot = Boolean((data as { detalhes?: unknown } | null)?.detalhes);
+  if (!hasRdSnapshot) return false;
+  return !(await isOpportunityRdMigrated(supabase, opportunityId));
 }
 
 /** Caminho antigo, enquanto a migration 20261015125000 não está aplicada. */
