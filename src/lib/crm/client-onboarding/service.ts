@@ -256,7 +256,7 @@ export async function returnOnboarding(
   try {
     await notifyAudience(
       supabase,
-      { leadTeamOf: ctx.opportunity.id },
+      { leadOwnerOf: ctx.opportunity.id },
       {
         tipo: "cadastro_cliente_devolvido",
         title: `Cadastro devolvido — ${ctx.opportunity.solicitanteNome ?? "Lead"}`,

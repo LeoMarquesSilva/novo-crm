@@ -277,9 +277,10 @@ export async function completeSignedContract(input: {
         rdLead
           ? { leadTeamOf: opportunityId }
           : {
+              // Quem age no pós-venda (decisão de 19/10/2026): sem a lista inteira de admins e comerciais.
               leadTeamOf: opportunityId,
               firmPartners: true,
-              roles: ["admin", "comercial", "financeiro"],
+              roles: ["financeiro"],
               modules: ["operacoes_legais"],
             },
         {
@@ -296,7 +297,7 @@ export async function completeSignedContract(input: {
       if (!rdLead && result.stage === "aguardando_cadastro") {
         await notifyAudience(
           supabase,
-          { leadTeamOf: opportunityId },
+          { leadOwnerOf: opportunityId },
           {
             tipo: "cadastro_cliente_solicitado",
             title: `Preencha o cadastro do cliente — ${leadName}`,

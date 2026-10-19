@@ -838,7 +838,7 @@ async function startPostSaleForLegacyLead(
       });
     await notifyAudience(
       supabase,
-      { leadTeamOf: opportunityId },
+      { leadOwnerOf: opportunityId },
       {
         tipo: "cadastro_cliente_solicitado",
         title: `Preencha o cadastro do cliente — ${leadName ?? "Lead"}`,
