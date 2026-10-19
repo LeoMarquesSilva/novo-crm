@@ -246,4 +246,41 @@ describe("calculateAnnualReference", () => {
       }),
     ).toThrow(/override reason/i);
   });
+
+  it("conta a parcela do mês em que a vigência começa no meio do mês", () => {
+    const result = calculateAnnualReference({
+      projectionStart: "2026-10-01",
+      version: {
+        ...emptyVersion([
+          {
+            id: "closed",
+            kind: "mensal_preco_fechado",
+            description: "SPOT R$ 12.000 em 5x",
+            effectiveFrom: "2026-10-18",
+            effectiveTo: null,
+            installments: ["2026-10-01", "2026-11-01", "2026-12-01", "2027-01-01", "2027-02-01"].map((competency, index) => ({
+              number: index + 1,
+              competency,
+              amountCents: decimalToCents("2400"),
+            })),
+          },
+          {
+            id: "maintenance",
+            kind: "manutencao",
+            description: "Manutenção",
+            effectiveFrom: "2027-03-01",
+            effectiveTo: null,
+            amountCents: decimalToCents("250"),
+          },
+        ]),
+        effectiveFrom: "2026-10-18",
+      },
+      manualResolutions: [],
+    });
+
+    expect(result.competencies.slice(0, 6).map((entry) => entry.amountCents)).toEqual(
+      [240_000, 240_000, 240_000, 240_000, 240_000, 25_000].map(BigInt),
+    );
+    expect(result.calculatedCents).toBe(BigInt(1_200_000 + 7 * 25_000));
+  });
 });

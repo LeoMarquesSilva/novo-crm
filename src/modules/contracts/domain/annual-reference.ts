@@ -4,6 +4,8 @@ import type {
   BillingComponent,
   ManualBillingResolution,
 } from "./entities";
+import { periodTouchesCompetency, selectComponentsInCompetency } from "./competency";
+import { competencyOf } from "./installment-schedule";
 import { moneyCents, type MoneyCents } from "./money";
 import { projectMonthlyComponentCents } from "./variable-usage-projection";
 
@@ -14,11 +16,6 @@ function addMonths(competency: string, count: number): string {
   }
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1 + count, 1));
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-01`;
-}
-
-function isEffective(component: BillingComponent, competency: string): boolean {
-  return component.effectiveFrom <= competency &&
-    (component.effectiveTo === null || competency <= component.effectiveTo);
 }
 
 function releasedResolution(
@@ -43,7 +40,6 @@ function projectedAmount(
   competency: string,
   input: AnnualReferenceInput,
 ): MoneyCents {
-  if (!isEffective(component, competency)) return moneyCents(BigInt(0));
   const resolutions = input.manualResolutions;
 
   switch (component.kind) {
@@ -87,7 +83,7 @@ function projectedAmount(
           ? moneyCents(BigInt(0))
           : moneyCents((base * BigInt(component.percentageBasisPoints)) / BigInt(10_000));
       }
-      return component.effectiveFrom === competency
+      return competencyOf(component.effectiveFrom) === competency
         ? component.amountCents ?? moneyCents(BigInt(0))
         : moneyCents(BigInt(0));
     }
@@ -101,10 +97,8 @@ export function calculateAnnualReference(input: AnnualReferenceInput): AnnualRef
 
   const competencies = Array.from({ length: 12 }, (_, index) => {
     const competency = addMonths(input.projectionStart, index);
-    const versionIsEffective = input.version.effectiveFrom <= competency &&
-      (input.version.effectiveTo === null || competency <= input.version.effectiveTo);
-    const amount = versionIsEffective
-      ? input.version.components.reduce(
+    const amount = periodTouchesCompetency(input.version, competency)
+      ? selectComponentsInCompetency(input.version, competency).reduce(
           (total, component) => total + projectedAmount(component, competency, input),
           BigInt(0),
         )

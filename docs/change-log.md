@@ -2,6 +2,14 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-18 — Fechamento da competência do mês de início da vigência
+
+- A versão vale na competência quando algum dia do mês está na vigência. Uma vigência desde 18/10 fecha outubro, e a 1ª parcela do preço fechado entra no fechamento da competência dela. Antes, `findApplicableVersion`, `calculateMonthlyBilling` e o RPC `create_contract_closing_revision` exigiam `vigente_de ≤ dia 1`. A mesma regra vale para consumos, referência anual e projeção (`competency.ts`).
+- Mensalidade fixa que começa depois do dia 1: o Financeiro escolhe na configuração (etapa 1) entre cobrar o mês de início cheio e começar no mês seguinte. A escolha é gravada na versão (`cobranca_mes_inicio`) e é exigida ao salvar e ao ativar. Sem resposta, vale o mês seguinte, que é a regra anterior.
+- Migration `20261018130000` versionada, não aplicada.
+
+Validações: `npm test`, `npm run lint`, `npm run build`.
+
 ## 2026-10-15 — ICP: receita média por hora e colunas ordenáveis na Carteira
 
 - Receita média por hora = receita ÷ horas lançadas, somando só quem tem horas no timesheet (`revenuePerHour`). Entra como indicador do escritório no topo da Carteira (R$ 362/h em 15/10), como coluna na tabela de faixas (com a linha "Escritório todo" no fim) e no comparativo dos blocos.

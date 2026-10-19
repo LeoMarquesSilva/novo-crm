@@ -59,3 +59,28 @@ export async function onEnteredInclusaoFaturamento(
     },
   );
 }
+
+/**
+ * Contrato ativado = implantação concluída: fecha o alerta `contrato_implantacao_pendente`
+ * que a entrada em Inclusão no Faturamento abriu (e o job diário reabriria enquanto o lead
+ * estivesse nessa etapa).
+ */
+export async function resolveContractSetupAlert(
+  supabase: SupabaseClient,
+  input: { contractId: string; actorAppUserId: string; now?: string },
+): Promise<void> {
+  const now = input.now ?? new Date().toISOString();
+  const { error } = await supabase
+    .from("contrato_alertas")
+    .update({
+      status: "resolvido",
+      resolvido_em: now,
+      resolvido_por: input.actorAppUserId,
+      resolucao: JSON.stringify({ conclusion: "Contrato ativado no gerenciamento de contratos." }),
+      updated_at: now,
+    })
+    .eq("contrato_id", input.contractId)
+    .eq("tipo", "contrato_implantacao_pendente")
+    .neq("status", "resolvido");
+  if (error) throw error;
+}

@@ -62,6 +62,24 @@ function validConfiguration(): ContractConfigurationInput {
 }
 
 describe("validateContractConfiguration", () => {
+  it("recusa duas parcelas do preço fechado na mesma competência", () => {
+    const configuration = validConfiguration();
+    configuration.version.components.push({
+      id: "closed-1",
+      kind: "mensal_preco_fechado",
+      description: "Preço fechado",
+      effectiveFrom: "2026-08-01",
+      effectiveTo: null,
+      installments: [
+        { number: 1, competency: "2026-08-01", dueDate: "2026-08-05", amountCents: moneyCents(BigInt(5_000)) },
+        { number: 2, competency: "2026-08-01", dueDate: "2026-08-25", amountCents: moneyCents(BigInt(5_000)) },
+      ],
+    });
+    expect(validateContractConfiguration(configuration).map((issue) => issue.code)).toContain(
+      "installment_competency_duplicated",
+    );
+  });
+
   it("reports each missing activation prerequisite with a stable code and path", () => {
     const input = validConfiguration();
     input.clientId = null;
@@ -221,5 +239,38 @@ describe("validateContractConfiguration", () => {
     expect(issues.map((issue) => issue.code)).not.toEqual(
       expect.arrayContaining(["area_percentage_total_invalid", "partner_share_total_invalid"]),
     );
+  });
+
+  describe("mensalidade que começa no meio do mês", () => {
+    function midMonthConfiguration(): ContractConfigurationInput {
+      const input = validConfiguration();
+      input.startsAt = "2026-10-18";
+      input.version.effectiveFrom = "2026-10-18";
+      input.version.components = input.version.components.map((component) => ({ ...component, effectiveFrom: "2026-10-18" }));
+      return input;
+    }
+    const startMonthIssue = (issues: ReturnType<typeof validateContractConfiguration>) =>
+      issues.find((issue) => issue.code === "start_month_billing_required");
+
+    it("exige a escolha do Financeiro", () => {
+      expect(startMonthIssue(validateContractConfiguration(midMonthConfiguration()))).toMatchObject({
+        severity: "error",
+        path: "version.startMonthBilling",
+      });
+    });
+
+    it.each(["mes_cheio", "mes_seguinte"] as const)("aceita %s", (choice) => {
+      const input = midMonthConfiguration();
+      input.version.startMonthBilling = choice;
+      expect(startMonthIssue(validateContractConfiguration(input))).toBeUndefined();
+    });
+
+    it("não pergunta quando a mensalidade começa no dia 1", () => {
+      expect(startMonthIssue(validateContractConfiguration(validConfiguration()))).toBeUndefined();
+    });
+
+    it("na importação, só avisa", () => {
+      expect(startMonthIssue(validateContractConfiguration(midMonthConfiguration(), { imported: true }))?.severity).toBe("warning");
+    });
   });
 });

@@ -11,6 +11,8 @@ import type {
   ManualBillingResolution,
   PartnerShareRule,
 } from "./entities";
+import { periodTouchesCompetency, selectComponentsInCompetency } from "./competency";
+import { competencyOf } from "./installment-schedule";
 import { moneyCents, type MoneyCents } from "./money";
 
 type CalculatedCharge = {
@@ -36,17 +38,6 @@ function percentageOf(value: MoneyCents, basisPoints: number): MoneyCents {
   return moneyCents((value * BigInt(basisPoints)) / BigInt(10_000));
 }
 
-function isEffective(component: BillingComponent, competency: string): boolean {
-  return component.effectiveFrom <= competency &&
-    (component.effectiveTo === null || competency <= component.effectiveTo);
-}
-
-export function selectApplicableComponents(
-  components: BillingComponent[],
-  competency: string,
-): BillingComponent[] {
-  return components.filter((component) => isEffective(component, competency));
-}
 
 function findResolution(
   componentId: string,
@@ -162,7 +153,7 @@ function calculateManual(
   if (amountCents === undefined) {
     return null;
   }
-  if (component.kind === "spot" && !mustRelease && component.effectiveFrom !== competency) {
+  if (component.kind === "spot" && !mustRelease && competencyOf(component.effectiveFrom) !== competency) {
     return null;
   }
   return { component, amountCents, bucket: "honorarios" };
@@ -339,13 +330,12 @@ export function buildMemoryItem(charge: CalculatedCharge, index: number): Billin
 }
 
 export function calculateMonthlyBilling(input: BillingCalculationInput): BillingCalculationResult {
-  if (input.version.effectiveFrom > input.competency ||
-      (input.version.effectiveTo !== null && input.competency > input.version.effectiveTo)) {
+  if (!periodTouchesCompetency(input.version, input.competency)) {
     throw new Error("Contract version is not effective for the requested competency");
   }
 
   const blockers: BillingBlocker[] = [];
-  const charges = selectApplicableComponents(input.version.components, input.competency)
+  const charges = selectComponentsInCompetency(input.version, input.competency)
     .map((component) => calculateComponent(component, input, blockers))
     .filter((charge): charge is CalculatedCharge => charge !== null);
 

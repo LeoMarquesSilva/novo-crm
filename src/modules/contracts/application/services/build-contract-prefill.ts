@@ -1,13 +1,19 @@
 import type { BillingComponentKind } from "../../domain/entities";
 import { decimalToCents, type MoneyCents } from "../../domain/money";
+import type { PropostaInvestimentoEntry } from "@/data/proposta-tipos-catalog";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
+import { parseDueDateText } from "@/lib/crm/due-date-text";
 import { LEAD_RD_FIELD_LABELS } from "@/lib/crm/lead-rd-field-labels";
 import {
   getParcelaValues,
   getParcelaVencimentos,
   parseParcelasCount,
 } from "@/lib/crm/proposta-investimento-parcelas";
-import { parseEscopoJson, isInvestimentoDocumentoMetaKey } from "@/lib/crm/proposta-escopo-json";
+import {
+  isInvestimentoDocumentoMetaKey,
+  parseEscopoJson,
+  parseEscopoJsonWithMeta,
+} from "@/lib/crm/proposta-escopo-json";
 
 export type ContractPrefillSource = "contrato" | "proposta" | "manual" | "rd";
 
@@ -39,6 +45,8 @@ export type ContractPrefillBillingComponent = {
     number: number;
     amountCents: MoneyCents | null;
     dueCondition: string | null;
+    /** Vencimento lido do texto da proposta (AAAA-MM-DD), quando ele traz uma data. */
+    dueDate: string | null;
   }>;
 };
 
@@ -308,93 +316,118 @@ function proposalAreas(raw: unknown): Array<ContractPrefillSuggestion<ContractPr
   });
 }
 
+function investmentComponents(
+  investment: PropostaInvestimentoEntry,
+  key: string,
+  areaKey: string | undefined,
+): ContractPrefillBillingComponent[] {
+  const placeholders = investment.placeholders ?? {};
+  const result: ContractPrefillBillingComponent[] = [];
+  const base = { key, description: investment.subtipoId, ...(areaKey ? { areaKey } : {}) };
+  const pushAmount = (kind: BillingComponentKind, amountKey: string, requiresManualRelease: boolean) => {
+    const amountCents = optionalMoney(placeholders[amountKey]);
+    if (amountCents === null) return;
+    result.push({ ...base, kind, amountCents, requiresManualRelease });
+  };
+  const pushSuccessPercent = () => {
+    const percentageBasisPoints = optionalBasisPoints(placeholders.PORCENTAGEMHONORARIOS);
+    if (percentageBasisPoints === null) return;
+    result.push({ ...base, key: `${key}:exito`, kind: "exito_percentual", percentageBasisPoints, requiresManualRelease: true });
+  };
+  const pushSpot = (conditioned: boolean) => {
+    const amountCents = optionalMoney(placeholders.VALORSPOT);
+    if (amountCents === null) return;
+    const count = parseParcelasCount(placeholders);
+    const values = getParcelaValues(placeholders);
+    const dueConditions = getParcelaVencimentos(placeholders);
+    const installments = count > 0
+      ? Array.from({ length: count }, (_, index) => {
+          const dueCondition = scalar(dueConditions[index]);
+          return {
+            number: index + 1,
+            amountCents: optionalMoney(values[index]),
+            dueCondition,
+            dueDate: parseDueDateText(dueCondition)?.date ?? null,
+          };
+        })
+      : undefined;
+    // SPOT em parcelas com vencimento é preço fechado (cobrança mensal pelas parcelas); à
+    // vista ou condicionado continua gatilho com liberação manual.
+    const closedPrice = !conditioned && count >= 2;
+    result.push({
+      ...base,
+      kind: closedPrice ? "mensal_preco_fechado" : "spot",
+      amountCents,
+      requiresManualRelease: !closedPrice,
+      ...(installments ? { installments } : {}),
+    });
+  };
+  switch (investment.subtipoId) {
+    case "mensal_fixo":
+      pushAmount("mensal_fixo", "VALORMENSAL", false);
+      break;
+    case "mensal_escalonado":
+      pushAmount("mensal_escalonado", "VALORMENSALESCALONADO", false);
+      break;
+    case "mensal_condicionado":
+      pushAmount("mensal_condicionado", "VALORMENSALBASE", true);
+      break;
+    case "spot":
+    case "spot_condicionado":
+      pushSpot(investment.subtipoId === "spot_condicionado");
+      break;
+    case "manutencao":
+      pushAmount("manutencao", "VALORMANUTENCAO", false);
+      break;
+    case "exito_valor_fixo":
+      pushAmount("exito_valor_fixo", "VALOREXITO", true);
+      break;
+    case "exito_percentual":
+      pushSuccessPercent();
+      break;
+    case "mensal_mais_exito":
+      pushAmount("mensal_fixo", "VALORMENSAL", false);
+      pushSuccessPercent();
+      break;
+    case "spot_mais_exito":
+      pushSpot(false);
+      pushSuccessPercent();
+      break;
+  }
+  return result;
+}
+
+/** SPOT e preço fechado são a mesma cobrança (valor fechado): não duplicar entre as fontes. */
+function componentFamily(kind: BillingComponentKind): string {
+  return kind === "mensal_preco_fechado" ? "spot" : kind;
+}
+
 function proposalComponents(raw: unknown): Array<ContractPrefillSuggestion<ContractPrefillBillingComponent>> {
   const json = serializedProposalJson(raw);
   if (!json) return [];
-  const parsed = parseEscopoJson(json);
-  const result: Array<ContractPrefillSuggestion<ContractPrefillBillingComponent>> = [];
-  for (const [rawAreaKey, entries] of Object.entries(parsed)) {
-    if (isInvestimentoDocumentoMetaKey(rawAreaKey)) continue;
+  const { escopo, investimentoDocumento } = parseEscopoJsonWithMeta(json);
+  const result: ContractPrefillBillingComponent[] = [];
+  const areaKeys: string[] = [];
+  for (const [rawAreaKey, entries] of Object.entries(escopo)) {
     const areaKey = normalizePracticeAreaKey(rawAreaKey);
+    areaKeys.push(areaKey);
     for (const entry of entries) {
-      const investment = entry.investimento;
-      if (!investment) continue;
-      const placeholders = investment.placeholders ?? {};
-      const key = `proposal:${entry.id}:${investment.subtipoId}`;
-      const pushAmount = (
-        kind: BillingComponentKind,
-        amountKey: string,
-        requiresManualRelease: boolean,
-      ) => {
-        const amountCents = optionalMoney(placeholders[amountKey]);
-        if (amountCents === null) return;
-        result.push(suggestion({
-          key,
-          kind,
-          description: investment.subtipoId,
-          areaKey,
-          amountCents,
-          requiresManualRelease,
-        }, "proposta"));
-      };
-      switch (investment.subtipoId) {
-        case "mensal_fixo":
-          pushAmount("mensal_fixo", "VALORMENSAL", false);
-          break;
-        case "mensal_escalonado":
-          pushAmount("mensal_escalonado", "VALORMENSALESCALONADO", false);
-          break;
-        case "mensal_condicionado":
-          pushAmount("mensal_condicionado", "VALORMENSALBASE", true);
-          break;
-        case "spot":
-        case "spot_condicionado": {
-          const amountCents = optionalMoney(placeholders.VALORSPOT);
-          if (amountCents === null) break;
-          const count = parseParcelasCount(placeholders);
-          const values = getParcelaValues(placeholders);
-          const dueConditions = getParcelaVencimentos(placeholders);
-          const installments = count > 0
-            ? Array.from({ length: count }, (_, index) => ({
-                number: index + 1,
-                amountCents: optionalMoney(values[index]),
-                dueCondition: scalar(dueConditions[index]),
-              }))
-            : undefined;
-          result.push(suggestion({
-            key,
-            kind: "spot",
-            description: investment.subtipoId,
-            areaKey,
-            amountCents,
-            requiresManualRelease: true,
-            ...(installments ? { installments } : {}),
-          }, "proposta"));
-          break;
-        }
-        case "manutencao":
-          pushAmount("manutencao", "VALORMANUTENCAO", true);
-          break;
-        case "exito_valor_fixo":
-          pushAmount("exito_valor_fixo", "VALOREXITO", true);
-          break;
-        case "exito_percentual": {
-          const percentageBasisPoints = optionalBasisPoints(placeholders.PORCENTAGEMHONORARIOS);
-          if (percentageBasisPoints === null) break;
-          result.push(suggestion({
-            key,
-            kind: "exito_percentual",
-            description: investment.subtipoId,
-            areaKey,
-            percentageBasisPoints,
-            requiresManualRelease: true,
-          }, "proposta"));
-          break;
-        }
-      }
+      if (!entry.investimento) continue;
+      result.push(...investmentComponents(entry.investimento, `proposal:${entry.id}:${entry.investimento.subtipoId}`, areaKey));
     }
   }
-  return result;
+
+  // Investimento consolidado (o que a proposta mostra ao cliente): completa as formas de
+  // pagamento que não estão nos blocos por área — manutenção, êxito etc.
+  const families = new Set(result.map((component) => componentFamily(component.kind)));
+  const singleArea = areaKeys.length === 1 ? areaKeys[0] : undefined;
+  for (const item of investimentoDocumento?.items ?? []) {
+    for (const component of investmentComponents(item, `proposal:documento:${item.id}:${item.subtipoId}`, singleArea)) {
+      if (families.has(componentFamily(component.kind))) continue;
+      result.push(component);
+    }
+  }
+  return result.map((component) => suggestion(component, "proposta"));
 }
 
 function builderAreas(
@@ -494,15 +527,15 @@ export function buildContractPrefill(input: ContractPrefillSources): ContractPre
   const proposalComponentSuggestions = proposalComponents(
     selected.get("cp_escopo_detalhe_json")?.raw,
   );
-  const proposalComponentKinds = new Set(
-    proposalComponentSuggestions.map(({ value }) => value.kind),
+  const proposalComponentFamilies = new Set(
+    proposalComponentSuggestions.map(({ value }) => componentFamily(value.kind)),
   );
   const billingComponents = input.existingDraft?.billingComponents
     ? input.existingDraft.billingComponents.map((component) => suggestion(component, "contrato"))
     : [
         ...proposalComponentSuggestions,
         ...financeComponents(selected).filter(
-          ({ value }) => !proposalComponentKinds.has(value.kind),
+          ({ value }) => !proposalComponentFamilies.has(componentFamily(value.kind)),
         ),
       ];
 

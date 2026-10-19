@@ -3,6 +3,7 @@ import type {
   BillingComponent,
   ContractVersionSnapshot,
 } from "./entities";
+import { isMonthlyFeeStartingMidMonth } from "./competency";
 import type { MoneyCents } from "./money";
 
 export type ContractValidationIssue = {
@@ -157,6 +158,16 @@ export function validateContractConfiguration(
         "A área referenciada pelo componente não pertence à versão.",
       ));
     }
+    if ("installments" in component && component.installments) {
+      const competencies = component.installments.map((installment) => installment.competency);
+      if (new Set(competencies).size !== competencies.length) {
+        issues.push(error(
+          "installment_competency_duplicated",
+          `version.components[${index}].installments`,
+          "Cada parcela precisa cair em uma competência (mês) diferente.",
+        ));
+      }
+    }
     const startsBeforeVersion = component.effectiveFrom < input.version.effectiveFrom;
     const endsAfterVersion = input.version.effectiveTo !== null &&
       (component.effectiveTo === null || component.effectiveTo > input.version.effectiveTo);
@@ -168,6 +179,13 @@ export function validateContractConfiguration(
       ));
     }
   });
+
+  if (!input.version.startMonthBilling && input.version.components.some(isMonthlyFeeStartingMidMonth)) {
+    const message = "Escolha como cobrar a mensalidade que começa no meio do mês (etapa Identificação e vigência).";
+    issues.push(imported
+      ? warning("start_month_billing_required", "version.startMonthBilling", message)
+      : error("start_month_billing_required", "version.startMonthBilling", message));
+  }
 
   const stepped = input.version.components
     .map((component, index) => ({ component, index }))

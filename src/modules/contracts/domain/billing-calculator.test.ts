@@ -413,3 +413,112 @@ describe("calculateMonthlyBilling", () => {
     ]);
   });
 });
+
+describe("competência do início da vigência (teste E2E 18/10/2026)", () => {
+  const parcelas = ["2026-10-01", "2026-11-01", "2026-12-01", "2027-01-01", "2027-02-01"].map((competency, index) => ({
+    number: index + 1,
+    competency,
+    amountCents: decimalToCents("2400"),
+  }));
+  const components: BillingComponent[] = [
+    {
+      id: "spot",
+      kind: "mensal_preco_fechado",
+      description: "SPOT R$ 12.000 em 5x",
+      effectiveFrom: "2026-10-18",
+      effectiveTo: null,
+      installments: parcelas,
+    },
+    {
+      id: "manutencao",
+      kind: "manutencao",
+      description: "Manutenção",
+      effectiveFrom: "2027-03-01",
+      effectiveTo: null,
+      amountCents: decimalToCents("250"),
+    },
+    {
+      id: "exito",
+      kind: "exito_percentual",
+      description: "Êxito",
+      effectiveFrom: "2026-10-18",
+      effectiveTo: null,
+      percentageBasisPoints: 1_000,
+      requiresManualRelease: true,
+    },
+  ];
+  const closing = (competency: string, rest: Partial<BillingCalculationInput> = {}) =>
+    calculate(components, { competency, version: versionWith(components, { effectiveFrom: "2026-10-18" }), ...rest });
+
+  it("fecha outubro com a 1ª parcela, mesmo com a vigência começando no dia 18", () => {
+    const result = closing("2026-10-01");
+
+    expect(result.honorariosCents).toBe(BigInt(240_000));
+    expect(result.items.filter((item) => item.category === "charge").map((item) => item.componentId)).toEqual(["spot"]);
+    expect(result.blockers.map((blocker) => [blocker.code, blocker.componentId])).toEqual([
+      ["manual_release_required", "exito"],
+    ]);
+  });
+
+  it("cobra a última parcela em fevereiro e a manutenção só a partir de março", () => {
+    expect(closing("2027-02-01").honorariosCents).toBe(BigInt(240_000));
+    expect(closing("2027-03-01").honorariosCents).toBe(BigInt(25_000));
+  });
+
+  it("êxito liberado em outubro entra no fechamento de outubro", () => {
+    const result = closing("2026-10-01", {
+      manualResolutions: [{ componentId: "exito", competency: "2026-10-01", released: true, baseCents: decimalToCents("10000") }],
+    });
+
+    expect(result.honorariosCents).toBe(BigInt(340_000));
+    expect(result.blockers).toEqual([]);
+  });
+
+  it("recusa competência anterior ao mês do início da vigência", () => {
+    expect(() => closing("2026-09-01")).toThrow("Contract version is not effective for the requested competency");
+  });
+
+  describe("mensalidade fixa que começa no meio do mês (escolha do Financeiro)", () => {
+    const fixed: BillingComponent[] = [{
+      id: "fixed",
+      kind: "mensal_fixo",
+      description: "Mensalidade",
+      effectiveFrom: "2026-10-18",
+      effectiveTo: null,
+      amountCents: decimalToCents("1000"),
+    }];
+    const closeWith = (startMonthBilling: ContractVersionSnapshot["startMonthBilling"], competency: string) =>
+      calculate(fixed, {
+        competency,
+        version: versionWith(fixed, { effectiveFrom: "2026-10-18", effectiveTo: "2027-10-17", startMonthBilling }),
+      }).honorariosCents;
+
+    it("mes_cheio cobra outubro inteiro e não cobra o mês em que a vigência termina", () => {
+      expect(closeWith("mes_cheio", "2026-10-01")).toBe(BigInt(100_000));
+      expect(closeWith("mes_cheio", "2027-09-01")).toBe(BigInt(100_000));
+      expect(closeWith("mes_cheio", "2027-10-01")).toBe(BigInt(0));
+    });
+
+    it.each(["mes_seguinte", null, undefined] as const)("%s começa em novembro e cobra o mês do fim", (choice) => {
+      expect(closeWith(choice, "2026-10-01")).toBe(BigInt(0));
+      expect(closeWith(choice, "2026-11-01")).toBe(BigInt(100_000));
+      expect(closeWith(choice, "2027-10-01")).toBe(BigInt(100_000));
+    });
+  });
+
+  it("spot sem liberação manual é cobrado na competência em que começa", () => {
+    const spot: BillingComponent[] = [{
+      id: "spot",
+      kind: "spot",
+      description: "Spot",
+      effectiveFrom: "2026-10-18",
+      effectiveTo: null,
+      amountCents: decimalToCents("500"),
+      requiresManualRelease: false,
+    }];
+    const version = versionWith(spot, { effectiveFrom: "2026-10-18" });
+
+    expect(calculate(spot, { competency: "2026-10-01", version }).honorariosCents).toBe(BigInt(50_000));
+    expect(calculate(spot, { competency: "2026-11-01", version }).honorariosCents).toBe(BigInt(0));
+  });
+});

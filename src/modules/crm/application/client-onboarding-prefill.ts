@@ -1,4 +1,5 @@
 import type { ContractingParty, ContractingPartyAddress, ContractPayment, ContractStartRule } from "@/lib/crm/contract-engine/types";
+import { parseDueDateText } from "@/lib/crm/due-date-text";
 import {
   emptyClientOnboardingPayload,
   onlyDigits,
@@ -119,9 +120,12 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
     origin["financeiro.inicioVigencia"] = "assinatura";
   }
 
-  if (sources.payment?.firstDueDate) {
-    payload.financeiro.primeiroFaturamento = sources.payment.firstDueDate.slice(0, 10);
-    origin["financeiro.primeiroFaturamento"] = "contrato";
+  // O vencimento da proposta é texto livre ("na data de assinatura do Contrato"): só vira
+  // data quando dá para ler uma; senão o responsável informa.
+  const firstDue = parseDueDateText(sources.payment?.firstDueDate, { signedOn: sources.signedOn });
+  if (firstDue) {
+    payload.financeiro.primeiroFaturamento = firstDue.date;
+    origin["financeiro.primeiroFaturamento"] = firstDue.basis === "assinatura" ? "assinatura" : "contrato";
   }
 
   if (sources.contatoFinanceiro) {

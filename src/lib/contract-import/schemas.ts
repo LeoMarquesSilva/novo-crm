@@ -23,6 +23,7 @@ const componentSchema = z.object({
     "mensal_fixo",
     "mensal_escalonado",
     "mensal_preco_fechado",
+    "manutencao",
     "exito_percentual",
     "exito_valor_fixo",
     "despesa_km",
@@ -39,6 +40,11 @@ const componentSchema = z.object({
   installmentCount: z.number().int().nullable().optional(),
   installmentAmountCents: z.number().int().nullable().optional(),
   firstDueDate: z.string().nullable().optional(),
+  /** Só no fluxo do lead (parcelas da proposta); a IA não preenche. */
+  installments: z
+    .array(z.object({ amountCents: z.number().int().nullable(), dueDate: z.string().nullable().optional() }))
+    .nullable()
+    .optional(),
   requiresManualRelease: z.boolean().optional(),
   includedQuantity: z.number().nullable().optional(),
   unitAmountCents: z.number().int().nullable().optional(),
@@ -206,6 +212,7 @@ export const contractImportJsonSchema = {
               "mensal_fixo",
               "mensal_escalonado",
               "mensal_preco_fechado",
+              "manutencao",
               "exito_percentual",
               "exito_valor_fixo",
               "despesa_km",

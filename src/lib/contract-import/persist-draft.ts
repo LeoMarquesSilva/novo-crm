@@ -173,7 +173,7 @@ export async function writeImportedVersionContents(input: {
             componente_id: component.id,
             numero: installment.number,
             competencia: installment.competency,
-            vencimento: installment.competency,
+            vencimento: installment.dueDate ?? installment.competency,
             valor: centsToReais(installment.amountCents) ?? 0,
             created_at: now,
             updated_at: now,
@@ -213,6 +213,7 @@ const RATEIO_ELIGIBLE_KINDS = new Set([
   "mensal_fixo",
   "mensal_escalonado",
   "mensal_preco_fechado",
+  "manutencao",
   "variavel_processo",
 ]);
 

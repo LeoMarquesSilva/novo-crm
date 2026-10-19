@@ -15,6 +15,8 @@ import {
   type PreparedRevisionWrite,
 } from "@/modules/contracts/application/services/prepare-monthly-closing";
 import type { BillingComponent, ContractVersionSnapshot } from "@/modules/contracts/domain/entities";
+import { nextCompetencyMonth } from "@/modules/contracts/domain/variable-usage-projection";
+import { readStartMonthBilling } from "@/modules/contracts/infrastructure/start-month-billing";
 
 const uuid = z.string().uuid();
 const competency = z.string().regex(/^\d{4}-\d{2}-01$/);
@@ -30,16 +32,18 @@ class SupabaseClosingRepository implements ClosingPreparationRepository {
     return data ? { lifecycle: data.status } : null;
   }
   async findApplicableVersion(contractId: string, target: string): Promise<ContractVersionSnapshot | null> {
+    // A versão vale na competência quando algum dia do mês está na vigência (início em 18/10 fecha outubro).
     const { data: version, error } = await this.supabase.from("contrato_versoes").select("id,vigente_de,vigente_ate")
-      .eq("contrato_id", contractId).eq("status", "ativa").lte("vigente_de", target)
+      .eq("contrato_id", contractId).eq("status", "ativa").lt("vigente_de", nextCompetencyMonth(target))
       .or(`vigente_ate.is.null,vigente_ate.gte.${target}`).order("numero", { ascending: false }).limit(1).maybeSingle();
     if (error) throw new Error(error.message);
     if (!version?.vigente_de) return null;
-    const [componentsResult, allocationsResult, sharesResult, commissionsResult] = await Promise.all([
+    const [componentsResult, allocationsResult, sharesResult, commissionsResult, startMonthBilling] = await Promise.all([
       this.supabase.from("contrato_componentes_cobranca").select("*").eq("versao_id", version.id).order("ordem"),
       this.supabase.from("contrato_rateios_area").select("*").eq("versao_id", version.id),
       this.supabase.from("contrato_participacoes_socios").select("*").eq("versao_id", version.id),
       this.supabase.from("contrato_comissoes").select("*").eq("versao_id", version.id),
+      readStartMonthBilling(this.supabase, version.id),
     ]);
     const componentRows = componentsResult.data ?? [];
     const componentIds = componentRows.map((row) => row.id);
@@ -58,7 +62,7 @@ class SupabaseClosingRepository implements ClosingPreparationRepository {
       reason: row.condicao_liberacao ?? "Ajuste contratual",
     })) as unknown as BillingComponent[];
     return {
-      id: version.id, effectiveFrom: version.vigente_de, effectiveTo: version.vigente_ate, components,
+      id: version.id, effectiveFrom: version.vigente_de, effectiveTo: version.vigente_ate, startMonthBilling, components,
       areaAllocations: (allocationsResult.data ?? []).map((row): ContractVersionSnapshot["areaAllocations"][number] | null => row.modo === "percentual" ? { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), areaId: row.area_id, mode: "percentual", percentageBasisPoints: parseDatabasePercentageBasisPoints(row.percentual) } : row.valor === null ? null : { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), areaId: row.area_id, mode: "valor", amountCents: cents(row.valor) }).filter((row): row is ContractVersionSnapshot["areaAllocations"][number] => row !== null),
       partnerShares: (sharesResult.data ?? []).flatMap((row) => row.socio_app_user_id ? [{ id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), beneficiaryId: row.socio_app_user_id, percentageBasisPoints: parseDatabasePercentageBasisPoints(row.percentual) }] : []),
       commissions: (commissionsResult.data ?? []).map((row): ContractVersionSnapshot["commissions"][number] | null => !row.beneficiario_app_user_id ? null : row.percentual !== null ? { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), beneficiaryId: row.beneficiario_app_user_id, mode: "percentual", percentageBasisPoints: parseDatabasePercentageBasisPoints(row.percentual) } : row.valor === null ? null : { id: row.id, ...(row.componente_id ? { componentId: row.componente_id } : {}), beneficiaryId: row.beneficiario_app_user_id, mode: "valor", amountCents: cents(row.valor) }).filter((row): row is ContractVersionSnapshot["commissions"][number] => row !== null),

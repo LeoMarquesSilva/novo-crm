@@ -1,7 +1,10 @@
 import { applyAnnualRenewalDefaults } from "@/lib/crm/contract-renewal-date";
-import { moneyCents, type MoneyCents } from "@/modules/contracts/domain/money";
+import { isValidIsoDateString } from "@/lib/crm/date-br";
+import { moneyCents } from "@/modules/contracts/domain/money";
 import type { ContractConfigurationInput } from "@/modules/contracts/domain/contract-validation";
-import type { BillingComponent } from "@/modules/contracts/domain/entities";
+import type { BillingComponent, BillingInstallment } from "@/modules/contracts/domain/entities";
+import { addMonthsKeepingDay, competencyOf, splitTotalCents } from "@/modules/contracts/domain/installment-schedule";
+import { nextCompetencyMonth } from "@/modules/contracts/domain/variable-usage-projection";
 import {
   normalizeAdjustmentIndex,
   normalizeImportedAreaKey,
@@ -13,8 +16,11 @@ const RATEIO_ELIGIBLE_KINDS = new Set([
   "mensal_fixo",
   "mensal_escalonado",
   "mensal_preco_fechado",
+  "manutencao",
   "variavel_processo",
 ]);
+
+const MAINTENANCE_DESCRIPTION = /manuten[cç][aã]o/i;
 
 function looksLikeHourComponent(
   component: ContractImportExtraction["components"][number],
@@ -72,29 +78,57 @@ function dropEstimatedMonthlyDuplicates(
   });
 }
 
-function addMonths(isoDate: string, months: number): string {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const date = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1 + months, day ?? 1));
-  return date.toISOString().slice(0, 10);
-}
-
-function firstOfMonth(isoDate: string): string {
-  return `${isoDate.slice(0, 7)}-01`;
-}
-
+/**
+ * Parcelas mensais do preço fechado a partir do 1º vencimento (vencimento no mesmo dia de
+ * cada mês; competência = mês do vencimento). Sem valor da parcela, divide o total e põe
+ * a sobra de centavos na última.
+ */
 export function buildClosedPriceInstallments(input: {
   count: number;
-  amountCents: number;
+  installmentAmountCents?: number | null;
+  totalCents?: number | null;
   firstDueDate: string;
-}): Array<{ number: number; competency: string; amountCents: MoneyCents }> {
-  return Array.from({ length: input.count }, (_, index) => {
-    const due = addMonths(input.firstDueDate, index);
+  /** Parcelas já conhecidas (proposta): valor e vencimento de cada uma, quando houver. */
+  explicit?: Array<{ amountCents: number | null; dueDate?: string | null }> | null;
+}): BillingInstallment[] {
+  const count = Math.max(1, Math.floor(input.explicit?.length || input.count));
+  const amounts =
+    input.installmentAmountCents != null
+      ? Array.from({ length: count }, () => input.installmentAmountCents as number)
+      : splitTotalCents(input.totalCents ?? 0, count);
+  return Array.from({ length: count }, (_, index) => {
+    const known = input.explicit?.[index];
+    const dueDate =
+      index > 0 && known?.dueDate && isValidIsoDateString(known.dueDate)
+        ? known.dueDate
+        : addMonthsKeepingDay(input.firstDueDate, index);
     return {
       number: index + 1,
-      competency: firstOfMonth(due),
-      amountCents: moneyCents(BigInt(input.amountCents)),
+      competency: competencyOf(dueDate),
+      dueDate,
+      amountCents: moneyCents(BigInt(known?.amountCents ?? amounts[index] ?? 0)),
     };
   });
+}
+
+/**
+ * Honorários de manutenção são devidos depois da etapa principal ("após a quitação das
+ * parcelas"): quando o contrato tem preço fechado, a manutenção começa na competência
+ * seguinte à última parcela.
+ */
+export function startMaintenanceAfterInstallments(components: BillingComponent[]): BillingComponent[] {
+  const lastCompetency = components
+    .flatMap((component) => (component.kind === "mensal_preco_fechado" ? component.installments : []))
+    .map((installment) => installment.competency)
+    .sort()
+    .at(-1);
+  if (!lastCompetency) return components;
+  const start = nextCompetencyMonth(lastCompetency);
+  return components.map((component) =>
+    component.kind === "manutencao" && component.effectiveFrom < start
+      ? { ...component, effectiveFrom: start }
+      : component,
+  );
 }
 
 export function mapExtractionToConfiguration(input: {
@@ -130,7 +164,11 @@ export function mapExtractionToConfiguration(input: {
   }
 
   const components: BillingComponent[] = extraction.components.map((raw) => {
-    const component = remapUnitPricedToVariable(raw);
+    const remapped = remapUnitPricedToVariable(raw);
+    const component =
+      remapped.kind === "mensal_fixo" && MAINTENANCE_DESCRIPTION.test(remapped.description)
+        ? { ...remapped, kind: "manutencao" as const }
+        : remapped;
     const areaKey = normalizeImportedAreaKey(component.areaKey ?? null);
     const areaId = areaKey ? areaIdByKey.get(areaKey) : undefined;
     const effectiveFrom = component.effectiveFrom ?? versionFrom;
@@ -153,7 +191,7 @@ export function mapExtractionToConfiguration(input: {
       commissionEligible: false,
     };
 
-    if (component.kind === "mensal_fixo" || component.kind === "mensal_escalonado") {
+    if (component.kind === "mensal_fixo" || component.kind === "mensal_escalonado" || component.kind === "manutencao") {
       return {
         ...base,
         kind: component.kind,
@@ -161,17 +199,20 @@ export function mapExtractionToConfiguration(input: {
       };
     }
     if (component.kind === "mensal_preco_fechado") {
-      const count = component.installmentCount ?? 1;
-      const amount = component.installmentAmountCents ?? component.amountCents ?? 0;
-      const firstDue = component.firstDueDate ?? extraction.firstInvoiceAt ?? effectiveFrom;
+      const firstDue = [component.firstDueDate, component.installments?.[0]?.dueDate, extraction.firstInvoiceAt, effectiveFrom]
+        .find((date): date is string => Boolean(date && isValidIsoDateString(date))) ?? versionFrom;
+      const installments = buildClosedPriceInstallments({
+        count: component.installmentCount ?? 1,
+        installmentAmountCents: component.installmentAmountCents,
+        totalCents: component.amountCents,
+        firstDueDate: firstDue,
+        explicit: component.installments,
+      });
       return {
         ...base,
         kind: "mensal_preco_fechado",
-        installments: buildClosedPriceInstallments({
-          count,
-          amountCents: amount,
-          firstDueDate: firstDue,
-        }),
+        amountCents: moneyCents(installments.reduce((total, installment) => total + installment.amountCents, BigInt(0))),
+        installments,
       };
     }
     if (component.kind === "exito_percentual") {
@@ -254,7 +295,7 @@ export function mapExtractionToConfiguration(input: {
       id: versionId,
       effectiveFrom: versionFrom,
       effectiveTo: extraction.indefinite ? null : null,
-      components: dropEstimatedMonthlyDuplicates(components),
+      components: startMaintenanceAfterInstallments(dropEstimatedMonthlyDuplicates(components)),
       areaAllocations: [],
       partnerShares: [],
       commissions: [],
