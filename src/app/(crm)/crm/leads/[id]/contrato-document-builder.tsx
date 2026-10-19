@@ -696,6 +696,10 @@ function ContratoBuilderDialog({
 
   const [draftValues, setDraftValues] = useState<Record<string, string>>(initDraft);
   const [savedValues, setSavedValues] = useState<Record<string, string>>(initDraft);
+  /** Valor de cada campo `cc_*` como está no banco (sem os herdados que só a tela aplica). */
+  const [persistedFieldValues, setPersistedFieldValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(contratoState.ccFieldDefs.map((f) => [f.fieldCode, f.value])),
+  );
   // Sem seletor visível: "modelo" não afeta o conteúdo gerado (o Word é montado
   // programaticamente a partir dos dados, não de um arquivo de template — os 4
   // arquivos que essas linhas antigas apontavam nem existem mais no repo). Mantém
@@ -950,20 +954,36 @@ function ContratoBuilderDialog({
   }
 
   async function persistAllFields() {
-    const fieldDefs = contratoState.ccFieldDefs;
-    const patches = fieldDefs.map((f) =>
-      fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pipelineField: {
-            fieldDefinitionId: f.definitionId,
-            value: draftValues[f.fieldCode] ?? "",
-          },
-        }),
+    // Só os campos que mudaram desde a última gravação: antes ia um PATCH por campo a cada
+    // Salvar (~18), lento e com um "Campo atualizado" no histórico até para campo vazio.
+    const changedFields = contratoState.ccFieldDefs.filter(
+      (f) => (draftValues[f.fieldCode] ?? "").trim() !== (persistedFieldValues[f.fieldCode] ?? "").trim(),
+    );
+    const failures = await Promise.all(
+      changedFields.map(async (f) => {
+        const res = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pipelineField: {
+              fieldDefinitionId: f.definitionId,
+              value: draftValues[f.fieldCode] ?? "",
+            },
+          }),
+        });
+        if (res.ok) return null;
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        return `${f.label}: ${json.error ?? "não foi salvo"}`;
       }),
     );
-    await Promise.all(patches);
+    const failed = failures.filter((message): message is string => Boolean(message));
+    if (failed.length > 0) {
+      throw new Error(`Não foi possível salvar ${failed.join("; ")}.`);
+    }
+    setPersistedFieldValues((prev) => ({
+      ...prev,
+      ...Object.fromEntries(changedFields.map((f) => [f.fieldCode, draftValues[f.fieldCode] ?? ""])),
+    }));
     const completedFields = Object.entries(objectFields).filter(
       ([key, value]) => value.trim() && !String(savedObjectFields[key] ?? "").trim(),
     );

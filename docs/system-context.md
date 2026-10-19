@@ -261,7 +261,7 @@ Migrações aplicadas:
 - `20260520140000_lead_activity_events.sql` — timeline unificada do lead
 - `20260807120000_scope_import.sql` — importação IA de escopos: bucket `scope-import-documents`, tabelas `scope_import_*`, RLS sem policies (service role)
 
-Migrações de 2026-10-15 (segurança + fluxo contrato → pós-venda), **versionadas e não aplicadas no remoto** — aplicar depois do deploy do código, nesta ordem:
+Migrações de 2026-10-15 (segurança + fluxo contrato → pós-venda), versionadas; aplicar nesta ordem. Conferido no remoto em 18/10/2026 pela API do banco: `20261015123000` a `20261015126000` **estão aplicadas** (coluna `venda_fechada_em`, tabela `lead_client_onboarding`, `contatos_cliente.papel` e as RPCs de assinatura e de cadastro existem). `20261015120000` a `20261015122000` (revokes, trigger e check) não aparecem pela API e não foram conferidas:
 
 - `20261015120000_app_users_privileged_columns_guard.sql` — `revoke insert/update/delete` de `app_users` para anon/authenticated + trigger que barra mudança de `role`/`area`/`auth_user_id`/`id` pela sessão do usuário.
 - `20261015121000_revoke_browser_writes_workflow.sql` — sem escrita do navegador em `oportunidades`, `lead_intakes`, `field_values`, `transicoes_etapa`, `contract_review_tasks` (conferir antes as policies remotas).
