@@ -62,25 +62,29 @@ const CAPA = {
 };
 const VIGENCIA = { x: 210.8, baseline: 221.52, size: 12, maxWidth: 176 };
 
-/** Ícones LinkedIn / Instagram / e-mail sob a foto: caixa de cada círculo medida na imagem do modelo (origem embaixo, em pt). */
-type CvLink = { left: number; right: number; url: string };
-const CV_LINKS: Record<"gustavo" | "ricardo", { bottom: number; top: number; links: CvLink[] }> = {
-  gustavo: {
-    bottom: 438.69, top: 467.12,
-    links: [
-      { left: 97.6, right: 126.04, url: "https://www.linkedin.com/in/gustavo-bismarchi/" },
-      { left: 139.45, right: 167.89, url: "https://www.instagram.com/bismarchipires/" },
-      { left: 181.29, right: 209.73, url: "mailto:gustavo@bismarchipires.com.br" },
-    ],
-  },
-  ricardo: {
-    bottom: 438.49, top: 467.28,
-    links: [
-      { left: 96.06, right: 124.84, url: "https://www.linkedin.com/in/ricardoviscardipires/" },
-      { left: 138.25, right: 167.04, url: "https://www.instagram.com/ricardoviscardipires/" },
-      { left: 180.45, right: 209.23, url: "mailto:ricardo@bismarchipires.com.br" },
-    ],
-  },
+/** Área clicável sobre um ícone do modelo: [esquerda, base, direita, topo], origem embaixo, em pt. */
+type PageLink = { rect: [number, number, number, number]; url: string };
+
+const BP_INSTAGRAM = "https://www.instagram.com/bismarchipires/";
+
+/** Ícones Instagram / LinkedIn do rodapé da capa (vetoriais, ~16 pt): caixa do desenho + 2 pt de folga. */
+const CAPA_LINKS: PageLink[] = [
+  { rect: [86.04, 122.4, 106.39, 142.75], url: BP_INSTAGRAM },
+  { rect: [108.14, 123.23, 127.16, 142.17], url: "https://www.linkedin.com/company/bismarchipires/" },
+];
+
+/** Ícones LinkedIn / Instagram / e-mail sob a foto: caixa de cada círculo medida na imagem do modelo. */
+const CV_LINKS: Record<"gustavo" | "ricardo", PageLink[]> = {
+  gustavo: [
+    { rect: [97.6, 438.69, 126.04, 467.12], url: "https://www.linkedin.com/in/gustavo-bismarchi/" },
+    { rect: [139.45, 438.69, 167.89, 467.12], url: BP_INSTAGRAM },
+    { rect: [181.29, 438.69, 209.73, 467.12], url: "mailto:gustavo@bismarchipires.com.br" },
+  ],
+  ricardo: [
+    { rect: [96.06, 438.49, 124.84, 467.28], url: "https://www.linkedin.com/in/ricardoviscardipires/" },
+    { rect: [138.25, 438.49, 167.04, 467.28], url: "https://www.instagram.com/ricardoviscardipires/" },
+    { rect: [180.45, 438.49, 209.23, 467.28], url: "mailto:ricardo@bismarchipires.com.br" },
+  ],
 };
 
 /** Margens do Word (pgMar 1417/1701 twips) e ritmo do estilo BPScopeBody (TNR 12, linha 278/240, depois 8 pt). */
@@ -301,12 +305,12 @@ function drawVigencia(page: PDFPage, data: CanonicalProposalData, font: PDFFont)
   page.drawText(text, { x: VIGENCIA.x, y: page.getHeight() - VIGENCIA.baseline, size, font, color: BLACK });
 }
 
-function addCvLinks(doc: PDFDocument, page: PDFPage, cv: (typeof CV_LINKS)[keyof typeof CV_LINKS]) {
-  for (const link of cv.links) {
+function addLinks(doc: PDFDocument, page: PDFPage, links: PageLink[]) {
+  for (const link of links) {
     page.node.addAnnot(doc.context.register(doc.context.obj({
       Type: "Annot",
       Subtype: "Link",
-      Rect: [link.left, cv.bottom, link.right, cv.top],
+      Rect: link.rect,
       Border: [0, 0, 0],
       A: { Type: "Action", S: "URI", URI: PDFString.of(link.url) },
     })));
@@ -334,12 +338,13 @@ export async function buildPropostaPdf(data: CanonicalProposalData, assets: Prop
 
   out.addPage(capa);
   drawCapa(capa, data, { garamond, montserrat, montserratBold });
+  addLinks(out, capa, CAPA_LINKS);
   out.addPage(institucional);
   layoutContentPages(out, timbrado, buildContentBlocks(data, { regular: serif, bold: serifBold }), { regular: serif });
   out.addPage(cvGustavo);
-  addCvLinks(out, cvGustavo, CV_LINKS.gustavo);
+  addLinks(out, cvGustavo, CV_LINKS.gustavo);
   out.addPage(cvRicardo);
-  addCvLinks(out, cvRicardo, CV_LINKS.ricardo);
+  addLinks(out, cvRicardo, CV_LINKS.ricardo);
   out.addPage(assinaturas);
   drawVigencia(assinaturas, data, sans);
   out.addPage(contracapa);
