@@ -2,6 +2,18 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-20 — Apresentação automática da Due Diligence
+
+- O CRM monta o PPT da DUE no modelo do escritório a partir das planilhas das áreas: capa (razão social, CNPJ, empresas, logo), metodologia com as esferas certas, áreas envolvidas (cards com link), slides por área, conclusão recalculada e sócios. Áreas fora da due somem do arquivo.
+- Formatos por área: painel com gráficos, um slide por processo (automático até 5 processos ativos) e lista de processos. Reestruturação por formulário.
+- Regras de cálculo em `docs/DUE-APRESENTACAO-AUTOMATICA.md`; conferidas contra os PPTs entregues (Cível Sul Fluminense R$ 2.342.866,93; Tributário R$ 283.889.754,52; Trabalhista ALEA R$ 14.806.368,15; crédito ALEA R$ 116.108,20).
+- Planilha anexada na tarefa do levantamento; painel na ficha; card de modelos em `/crm/due-diligence`.
+- Modelo do CRM em `templates/due/MODELO-DUE-CRM.pptx`, gerado por `scripts/due-ppt/prepare-due-template.py`.
+- Migration `20261020120000_due_apresentacao_automatica.sql` (não aplicada).
+- Reestruturação: **Preencher a partir do PDF** lê edital do art. 52, §1º, relatório do AJ e plano com IA (`POST /api/crm/leads/[id]/due-apresentacao/reestruturacao-pdf`, PDF por URL assinada, apagado depois da leitura). A sugestão aparece em azul para revisão; só entra no rascunho ao aplicar, e dá para desfazer.
+
+Validações: `npx vitest run src/lib/due-ppt` (22 testes, inclui geração com o modelo do repositório), `npx tsc --noEmit`, eslint nos arquivos alterados; PPTs gerados com as planilhas reais abertos e renderizados no PowerPoint. Leitura do PDF: `npx vitest run src/lib/due-ppt src/components/crm/due-apresentacao` (50 testes; recorte, parse e mescla sem chamar a OpenAI), `npm run lint` sem erros; não testada com a OpenAI real.
+
 ## 2026-10-15 — ICP: receita média por hora e colunas ordenáveis na Carteira
 
 - Receita média por hora = receita ÷ horas lançadas, somando só quem tem horas no timesheet (`revenuePerHour`). Entra como indicador do escritório no topo da Carteira (R$ 362/h em 15/10), como coluna na tabela de faixas (com a linha "Escritório todo" no fim) e no comparativo dos blocos.

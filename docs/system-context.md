@@ -18,7 +18,7 @@ O CRM está em produção interna com persistência Supabase e fluxos principais
 - Autenticação Supabase Auth + proxy (`src/proxy.ts`, matcher `/crm`, `/login`) em rotas protegidas
 - Kanban e ficha do lead com dados reais (`oportunidades`, campos dinâmicos, intake)
 - Motor de workflow com transições via `POST /api/crm/leads/transition`
-- DUE por área (tarefas, revisão, ajustes) e proposta por área
+- DUE por área (tarefas, revisão, ajustes) e proposta por área; apresentação da DUE montada pelo CRM a partir das planilhas das áreas (§4.2)
 - Proposta com Word BP canônico, prévia por download DOCX e geração final validada; PDF montado direto no servidor (`pdf-lib`) a partir do modelo BP
 - Contrato com builder próprio e integração D4Sign (envio + webhook)
 - Histórico do lead (`lead_activity_events`) na aba **Histórico** da ficha
@@ -113,6 +113,15 @@ Variáveis críticas: `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, tok
 Observação: a navegação principal está no `AppShell` — grupos "Comercial", "Sócios" (Assinar Contratos; admin ou e-mail de sócio, via `CrmSessionUser.canAccessPartnerSignatures`) e "Configurações" (admin: Usuários, Campos, Modelo da proposta, Catálogo de Escopos, Integrações, Cláusulas), e rodapé com conta (avatar, link para perfil, sair).
 O `AppShell` também disponibiliza a busca global de leads em todas as páginas: lupa permanente na sidebar recolhida, botão de pesquisa quando expandida, lupa no header mobile e atalho `Ctrl/Cmd + K`. O modal consulta `GET /api/crm/leads/search?query=...`, pesquisa empresa/nome do lead, e-mail, solicitante interno e UUID, e mantém até seis acessos recentes em `localStorage`.
 
+### 4.2 Apresentação automática da DUE (20/10/2026)
+
+- Ficha do lead → aba Due diligence → **Apresentação automática** (admin/comercial). As áreas anexam a planilha `.xlsx` do levantamento na própria tarefa (o responsável da área pode; o CRM oferece marcar a tarefa como entregue). Comercial/admin podem soltar várias planilhas de uma vez: a área sai do nome do arquivo e das colunas (`detectarArea`).
+- O CRM calcula os números de cada área (regras em `docs/DUE-APRESENTACAO-AUTOMATICA.md`, conferidas contra os PPTs da ALEA e do Sul Fluminense), escolhe o formato (até 5 processos ativos → um slide por processo; acima → painel com gráficos; lista opcional), gera os textos (leitura executiva, observações, pontos de atenção, resumo por processo; editáveis) e monta o PPT **no navegador**, sobre o modelo ativo. "Gerar e anexar" sobe o arquivo como `ppt_compilacao` (Compilação/Revisão).
+- Reestruturação não tem planilha: formulário da RJ (autos, classes, plano, formas especiais, medidas) no rascunho. **Preencher a partir do PDF**: até 5 PDFs (edital do art. 52, §1º, relatório do AJ, plano) sobem por URL assinada para `due-documents/<lead>/reestruturacao-pdf/` (temporário; a rota apaga depois de ler), o texto sai com unpdf, é recortado (`recortarTrechos`) e vai à OpenAI com saída estruturada validada por `reestruturacaoSchema`. A sugestão não é gravada: o formulário mostra a prévia em azul, preenche só o vazio (substituições ficam desmarcadas) e só vai ao rascunho ao **Aplicar**; **Desfazer** volta enquanto o formulário não for mexido. Modelo: `DUE_REESTRUTURACAO_OPENAI_MODEL` (padrão: o de extração do `scope-import`).
+- Rascunho em `due_apresentacoes` (salva sozinho). Planilhas e logo em `due_documents` (`planilha_area` + `area_key`, `logo_cliente`).
+- `/crm/due-diligence`: card **Modelo da apresentação** (baixar; admin troca e volta a um anterior). Sem modelo cadastrado, a API sobe `templates/due/MODELO-DUE-CRM.pptx`. Cada lead não finalizado tem o atalho **Montar apresentação**.
+- Migration `20261020120000_due_apresentacao_automatica.sql` **não aplicada no remoto**. Sem ela, planilhas e logo não gravam (409 com aviso), o rascunho não salva e não dá para trocar o modelo; a tela abre e avisa.
+
 ## 5) Fluxos de negócio modelados
 
 ### 5.1 Abertura de demanda
@@ -201,6 +210,10 @@ No front de leads, o kanban renderiza as 12 etapas em colunas dedicadas. Ao arra
 - **`POST /api/crm/leads/transition`** — transição autenticada de etapa (uso atual do kanban e da ficha).
 - **`PATCH /api/crm/leads/[id]`** com `{ closingStatus: { value: "perdido" | null } }` — comercial/admin marca a negociação como perdida ou reabre o lead. Atualiza `oportunidades.encerramento` e registra a ação em `lead_activity_events`.
 - **`PATCH /api/crm/leads/[id]/due-area-review-adjustments`** — conclui tarefas com ajustes solicitados na Compilação. Body: `{ taskIds, evidenceKind: "file" | "link", evidenceLink?, completionNote? }`. `link` exige `evidenceLink` (http/https) e grava `oportunidades.link_proposta`; `file` exige um PPT em `due_documents` enviado após a solicitação de ajustes (o modal da ficha coleta o arquivo e faz o upload antes de concluir).
+- **`GET|POST|DELETE /api/crm/leads/[id]/due-documents`** — upload em duas etapas (URL assinada + `confirm`), `kind` = `ppt_compilacao` (padrão, .ppt/.pptx), `planilha_area` (.xlsx, exige `areaKey` = `reestruturacao|rec_cred|civel|trabalhista|tributario`) ou `logo_cliente` (.png/.jpg). Comercial/admin enviam tudo; o responsável da tarefa DUE da área envia/remove/baixa a planilha da própria área. `DELETE ?documentId=` só para planilha e logo. Sem a migration de 20/10, planilha/logo respondem 409.
+- **`GET|PUT|PATCH /api/crm/leads/[id]/due-apresentacao`** — rascunho da apresentação (`draftSchema`, `src/lib/due-ppt/draft.ts`); GET traz sugestões do cadastro (empresas de `empresas_json`, áreas de `areas_analise`); PATCH `{ geradoDocumentoId }` registra a última geração. Admin/comercial.
+- **`POST /api/crm/leads/[id]/due-apresentacao/reestruturacao-pdf`** — leitura por IA dos PDFs da recuperação judicial para o formulário da Reestruturação. Admin/comercial. `{ action: "create-upload-url", filename }` (só `.pdf`) → URL assinada em `due-documents/<lead>/reestruturacao-pdf/<uuid>.pdf`; `{ action: "extrair", arquivos: [{ storagePath, nome }] }` (1 a 5, até 50 MB cada, caminho dentro da pasta do lead) → `{ sugestao, avisos, documentos, modelo }`, `sugestao` no formato de `reestruturacaoSchema` (valores em número, datas `yyyy-mm-dd`, vazio quando o documento não traz). Não grava nada no banco; os PDFs saem do Storage ao fim. PDF sem texto vira aviso; nenhum legível → 422. `maxDuration` 300 s.
+- **`GET|POST|PATCH /api/crm/due/modelos`** — modelos da apresentação (bucket `due-documents/modelos/`, tabela `due_modelos_apresentacao`, um ativo). GET lista (admin/comercial/controladoria) e `?download=<id|ativo>` devolve URL assinada; sem modelo, sobe o do repositório. POST (admin) `create-upload-url` / `confirm`; PATCH (admin) `{ id }` reativa um anterior.
 - **`POST /api/workflow/validate`** e **`POST /api/workflow/transition`** — **descontinuados (410)**; substituídos pelo endpoint CRM acima.
 
 ### 6.3 Integrações
