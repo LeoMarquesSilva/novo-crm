@@ -11,6 +11,7 @@ Formato: data (ISO) | onda | resumo | validações.
 - Modelo do CRM em `templates/due/MODELO-DUE-CRM.pptx`, gerado por `scripts/due-ppt/prepare-due-template.py`.
 - Migration `20261020120000_due_apresentacao_automatica.sql` (não aplicada).
 - Reestruturação: **Preencher a partir do PDF** lê edital do art. 52, §1º, relatório do AJ e plano com IA (`POST /api/crm/leads/[id]/due-apresentacao/reestruturacao-pdf`, PDF por URL assinada, apagado depois da leitura). A sugestão aparece em azul para revisão; só entra no rascunho ao aplicar, e dá para desfazer.
+- Trabalhista, regras confirmadas com o advogado da área: suspensos somam em "Ativos"; o gráfico de pedidos mostra os 10 de maior incidência (catálogo `PEDIDOS_TRABALHISTAS`, inclui vínculo de emprego), não mais 9 categorias fixas; verbas rescisórias contam também multa 477 e aviso prévio. Sedna: Ativos 18, verbas rescisórias 76.
 
 Validações: `npx vitest run src/lib/due-ppt` (22 testes, inclui geração com o modelo do repositório), `npx tsc --noEmit`, eslint nos arquivos alterados; PPTs gerados com as planilhas reais abertos e renderizados no PowerPoint. Leitura do PDF: `npx vitest run src/lib/due-ppt src/components/crm/due-apresentacao` (50 testes; recorte, parse e mescla sem chamar a OpenAI), `npm run lint` sem erros; não testada com a OpenAI real.
 

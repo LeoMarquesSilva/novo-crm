@@ -1406,12 +1406,6 @@ function DueAreaTasksCard({
     } finally {
       setSavingTaskId(null);
     }
-    if (
-      task.status !== "disponibilizado" &&
-      window.confirm(`Planilha anexada. Marcar o levantamento de ${task.areaKey} como entregue?`)
-    ) {
-      await patchTask(task.id, { taskId: task.id, status: "disponibilizado", pastaDueConfirmada: true });
-    }
   }
 
   async function confirmSemProcessos() {
@@ -1598,9 +1592,29 @@ function DueAreaTasksCard({
                           ) : null}
                         </div>
                         {planilhasAnexadas[task.id]?.length ? (
-                          <p className="mt-2 text-xs font-semibold text-emerald-700">
-                            Planilha anexada: {planilhasAnexadas[task.id]!.join(", ")}
-                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                            <span className="font-semibold text-emerald-700">
+                              Planilha anexada: {planilhasAnexadas[task.id]!.join(", ")}
+                            </span>
+                            {task.status !== "disponibilizado" && canUpdate ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={isSaving}
+                                onClick={() =>
+                                  void patchTask(task.id, {
+                                    taskId: task.id,
+                                    status: "disponibilizado",
+                                    pastaDueConfirmada: true,
+                                  })
+                                }
+                              >
+                                Marcar levantamento como entregue
+                              </Button>
+                            ) : null}
+                          </div>
                         ) : null}
                       </div>
                     );

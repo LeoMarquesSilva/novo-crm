@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { analisarCivel, analisarRecCred, analisarTrabalhista, analisarTributario, ufDoProcesso } from "./analise";
+import {
+  MAX_PEDIDOS_GRAFICO,
+  analisarCivel,
+  analisarRecCred,
+  analisarTrabalhista,
+  analisarTributario,
+  ufDoProcesso,
+} from "./analise";
 import { metodologiaEsferas } from "./areas";
 import { brl, brlCompacto, formatarDocumento, pct, qtd2 } from "./format";
 import type { Processo } from "./processos";
@@ -90,20 +97,65 @@ describe("Cível", () => {
 describe("Trabalhista", () => {
   const ps = [
     proc({ numero: "1", valorEnvolvido: 100, valorCausa: 150, assuntos: "Horas Extras, Indenização por Dano Moral", dataDistribuicao: "2025-01-10" }),
-    proc({ numero: "2", valorEnvolvido: 300, valorCausa: 300, assuntos: "Verbas Rescisórias, Horas Extras", fase: "Liquidação", dataDistribuicao: "2025-03-01", poloAtivo: "FULANO DE TAL" }),
+    proc({ numero: "2", valorEnvolvido: 300, valorCausa: 300, assuntos: "Multa de 40% do FGTS, Horas Extras", fase: "Liquidação", dataDistribuicao: "2025-03-01", poloAtivo: "FULANO DE TAL" }),
     proc({ numero: "3", situacao: "Suspenso", valorEnvolvido: 50, valorCausa: 50, assuntos: "Multa do Artigo 477 da CLT", dataDistribuicao: "2023-05-05" }),
     proc({ numero: "4", situacao: "Arquivado", valorEnvolvido: 0, valorCausa: 400, assuntos: "Horas Extras", dataDistribuicao: "2022-01-01" }),
   ];
   const a = analisarTrabalhista(ps);
 
-  it("ativos incluem suspensos; passivo é o valor envolvido", () => {
+  it("suspensos somam em ativos; passivo é o valor envolvido dos não arquivados", () => {
     expect(a.ativos).toBe(3);
+    expect(a.suspensos).toBe(1);
     expect(a.arquivados).toBe(1);
     expect(a.passivo).toBe(450);
     expect(a.maior).toBe(300);
   });
 
-  it("média do valor da causa é de toda a planilha (como nos PPTs entregues)", () => {
+  it("valor envolvido entra como está na planilha (zero = acordo quitado, execução extinta…)", () => {
+    const a = analisarTrabalhista([
+      proc({ numero: "1", valorEnvolvido: 100, valorCausa: 100 }),
+      proc({ numero: "2", valorEnvolvido: 0, valorCausa: 900, valorLiquidacao: 1_300_000, fase: "Execução", ultimoMovimento: "Execução extinta." }),
+    ]);
+    expect(a.passivo).toBe(100);
+    expect(a.maior).toBe(100);
+    expect(a.zerados.map((p) => p.numero)).toEqual(["2"]);
+    expect(a.fases.find((f) => f.nome === "Execução")).toMatchObject({ qtd: 1, valor: 0 });
+    const semColuna = analisarTrabalhista([proc({ numero: "4", valorEnvolvido: null, valorCausa: 700 })]);
+    expect(semColuna.passivo).toBe(700);
+  });
+
+  it("multa 477 e aviso prévio contam como verbas rescisórias", () => {
+    const b = analisarTrabalhista([
+      proc({ numero: "1", assuntos: "Multa do Artigo 477 da CLT" }),
+      proc({ numero: "2", assuntos: "Aviso Prévio, Saldo de Salário" }),
+      proc({ numero: "3", assuntos: "Integração em Verbas Rescisórias" }),
+      proc({ numero: "4", assuntos: "Horas Extras" }),
+    ]);
+    expect(b.pedidos.map((p) => [p.rotulo, p.qtd])).toEqual([
+      ["Verbas rescisórias", 3],
+      ["Horas extras", 1],
+      ["Multa 477 CLT", 1],
+    ]);
+    expect(b.obsPedidos).toContain("verbas rescisórias e horas extras");
+  });
+
+  it("gráfico com os pedidos de maior incidência, até o limite", () => {
+    const assuntos = [
+      "Reconhecimento de Relação de Emprego", "Rescisão Indireta", "Intervalo Intrajornada", "Adicional de Insalubridade",
+      "Adicional de Periculosidade", "Indenização por Dano Moral", "Horas Extras", "Desvio de Função",
+      "Salário por Acúmulo de Cargo / Função", "Acidente de Trabalho", "Adicional Noturno", "Salário por Equiparação / Isonomia",
+    ];
+    // O 1º assunto aparece em 12 processos, o 2º em 11, … o último em 1.
+    const ps = assuntos.flatMap((assunto, i) =>
+      Array.from({ length: assuntos.length - i }, (_, k) => proc({ numero: `${i}-${k}`, assuntos: assunto })),
+    );
+    const b = analisarTrabalhista(ps);
+    expect(b.pedidos).toHaveLength(MAX_PEDIDOS_GRAFICO);
+    expect(b.pedidos[0]).toMatchObject({ rotulo: "Vínculo de emprego", qtd: 12 });
+    expect(b.pedidos.map((p) => p.rotulo)).not.toContain("Equiparação salarial");
+  });
+
+  it("média do valor da causa é de toda a planilha (padrão da área)", () => {
     expect(a.media).toBe(225);
   });
 

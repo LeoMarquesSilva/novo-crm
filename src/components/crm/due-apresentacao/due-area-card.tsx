@@ -35,7 +35,11 @@ function numeros(resumo: ResumoArea | null): string[] {
     }
     case "trabalhista": {
       const t = a as AnaliseTrabalhista;
-      return [`${t.ativos} ativos`, `${t.arquivados} arquivados`, `Potencial passivo ${brl(t.passivo)}`];
+      return [
+        t.suspensos ? `${t.ativos} ativos (${t.suspensos} suspensos)` : `${t.ativos} ativos`,
+        `${t.arquivados} arquivados`,
+        `Potencial passivo ${brl(t.passivo)}`,
+      ];
     }
     case "tributario": {
       const t = a as AnaliseTributario;
@@ -81,6 +85,8 @@ export function DueAreaCard({
 }) {
   const def = DUE_AREAS[id];
   const [aberto, setAberto] = useState(false);
+  // Confirmação dentro da linha (o navegador pode bloquear o confirm() nativo).
+  const [confirmarRemocao, setConfirmarRemocao] = useState<string | null>(null);
   const textos = resumo ? Object.entries(resumo.textos) : [];
   const avisosPlanilha = docs.flatMap((d) => {
     const l = lidas.get(d.id);
@@ -160,15 +166,42 @@ export function DueAreaCard({
                           )}{" "}
                           · {formatDateTimeBr(d.uploaded_at)}
                         </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Remover ${d.original_filename}`}
-                          onClick={() => onRemove(d)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                        </Button>
+                        {confirmarRemocao === d.id ? (
+                          <span className="flex shrink-0 items-center gap-1">
+                            <span className="font-semibold text-destructive">Remover?</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                setConfirmarRemocao(null);
+                                onRemove(d);
+                              }}
+                            >
+                              Sim, remover
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setConfirmarRemocao(null)}
+                            >
+                              Cancelar
+                            </Button>
+                          </span>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Remover ${d.original_filename}`}
+                            onClick={() => setConfirmarRemocao(d.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          </Button>
+                        )}
                       </li>
                     );
                   })}

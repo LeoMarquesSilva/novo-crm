@@ -119,6 +119,15 @@ export function analisarArea(dados: AreaDados, draft: DueApresentacaoDraft, hoje
     const a = analisarTrabalhista(dados.processos);
     analise = a;
     passivo = a.passivo;
+    if (a.zerados.length) {
+      const lista = a.zerados
+        .slice(0, 4)
+        .map((p) => `${p.numero}${p.ultimoMovimento ? ` (${p.ultimoMovimento.replace(/\.$/, "")})` : ""}`)
+        .join("; ");
+      avisos.push(
+        `${a.zerados.length} processo(s) não arquivado(s) com valor envolvido zero na planilha entram como zero no passivo: ${lista}${a.zerados.length > 4 ? "; …" : ""}.`,
+      );
+    }
     if (variante === "painel") {
       textos.obsAno = { rotulo: "Observação — processos por ano", texto: a.obsAno };
       textos.obsPedidos = { rotulo: "Observação — pedidos", texto: a.obsPedidos };
@@ -609,6 +618,14 @@ function reestruturacaoSlides(f: ReestruturacaoForm): SlideSpec[] {
 
 const SUPERSCRIPT = ["¹", "²", "³", "⁴"];
 
+/** "dívida ativa estadual (R$ …) e federal (R$ …)" ou com "nenhum débito na PGFN". */
+function notaAdministrativo(a: AnaliseTributario): string {
+  const pgfn = a.pgfn.tributario + a.pgfn.previdenciario + a.pgfn.multa;
+  if (a.pge > 0 && pgfn > 0) return `dívida ativa estadual de ${brl(a.pge)} e federal de ${brl(pgfn)}`;
+  if (pgfn > 0) return "dívida ativa federal; nenhum débito estadual informado";
+  return "dívida ativa estadual; nenhum débito na PGFN";
+}
+
 function conclusao(resumos: ResumoArea[]): SlideSpec {
   const passivos = resumos
     .filter((r) => DUE_AREAS[r.id].conclusaoKey && r.passivo != null)
@@ -630,7 +647,7 @@ function conclusao(resumos: ResumoArea[]): SlideSpec {
         const s = SUPERSCRIPT[notas.length]!;
         extra = ` · judicial + administrativo${s}`;
         notas.push(
-          `${s} O valor tributário soma o passivo judicial (${brl(a.passivoJudicial)}, ${a.processos} execuções fiscais) e o administrativo (${brl(a.administrativo)}, dívida ativa${a.pge > 0 ? " estadual" : ""}${a.pgfn.tributario + a.pgfn.previdenciario + a.pgfn.multa === 0 ? "; nenhum débito na PGFN" : ""}).`,
+          `${s} O valor tributário soma o passivo judicial (${brl(a.passivoJudicial)}, ${a.processos} execuções fiscais) e o administrativo (${brl(a.administrativo)}, ${notaAdministrativo(a)}).`,
         );
       }
     }
