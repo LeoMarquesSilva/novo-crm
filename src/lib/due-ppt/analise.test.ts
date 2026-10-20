@@ -85,6 +85,43 @@ describe("Cível", () => {
     expect(a.leitura).toContain("Maior exposição: busca e apreensão movido por Banco X S.A");
     expect(a.socios.map((s) => s.nome)).toEqual(["Sim", "Não informado"]);
   });
+
+  const porTribunal = (tribunal: string, numero: string, qtd: number) =>
+    Array.from({ length: qtd }, () => proc({ tribunal, numero }));
+
+  it("região: até 4 tribunais com a UF; sigla vazia sai do número CNJ", () => {
+    const r = analisarCivel([
+      ...porTribunal("TJSC", "0000001-00.2025.8.24.0001", 3),
+      ...porTribunal("TJ-SP", "0000001-00.2025.8.26.0001", 2),
+      ...porTribunal("", "0000001-00.2025.8.07.0001", 1),
+      ...porTribunal("TRF3", "0000001-00.2025.4.03.0001", 1),
+      proc({ tribunal: "TJSC", situacao: "Arquivado" }),
+    ]);
+    expect(r.regioes.map((g) => [g.nome, g.qtd])).toEqual([
+      ["SC · TJSC", 3],
+      ["SP · TJSP", 2],
+      ["DF · TJDFT", 1],
+      ["TRF3", 1],
+    ]);
+  });
+
+  it("região: com 5 ou mais tribunais, os 3 maiores + Outros", () => {
+    const r = analisarCivel([
+      ...porTribunal("TJSC", "0000001-00.2025.8.24.0001", 15),
+      ...porTribunal("TJSP", "0000001-00.2025.8.26.0001", 8),
+      ...porTribunal("TJRJ", "0000001-00.2025.8.19.0001", 4),
+      ...porTribunal("TJRS", "0000001-00.2025.8.21.0001", 2),
+      ...porTribunal("TJPE", "0000001-00.2025.8.17.0001", 2),
+      ...porTribunal("TJBA", "0000001-00.2025.8.05.0001", 1),
+    ]);
+    expect(r.regioes.map((g) => [g.nome, g.qtd])).toEqual([
+      ["SC · TJSC", 15],
+      ["SP · TJSP", 8],
+      ["RJ · TJRJ", 4],
+      ["Outros", 5],
+    ]);
+    expect(r.tribunais.map((t) => t.sigla)).toEqual(["TJSC", "TJSP", "TJRJ", "TJRS", "TJPE", "TJBA"]);
+  });
 });
 
 describe("Trabalhista", () => {

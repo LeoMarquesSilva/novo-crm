@@ -402,8 +402,13 @@ function faseSlots(prefix: string, fases: Array<{ nome: string; qtd: number; val
 function painelCivel(a: AnaliseCivel, ad: AreaDraft, resumo: ResumoArea): SlideSpec {
   const fase = faseSlots("CIVEL_FASE", a.fases, 3, "CIVEL_FASE_LINHA", 6.25);
   const socio = faseSlots("CIVEL_SOCIO", a.socios, 2, "CIVEL_SOCIO_LINHA", 6.25);
-  const reg1 = a.regioes[0];
-  const reg2 = a.regioes[1];
+  const regiao: Record<string, string> = {};
+  a.regioes.forEach((r, i) => {
+    regiao[`CIVEL_TRIBUNAL_${i + 1}`] = r.nome;
+    regiao[`CIVEL_TRIBUNAL_${i + 1}_QTD`] = qtd2(r.qtd);
+  });
+  // Modelos anteriores a out/2026 só têm CIVEL_REGIAO_1/2: o maior tribunal + "Outros".
+  const [trib1, ...outrosTrib] = a.tribunais;
   return {
     source: "SLIDE_CIVEL_PAINEL",
     tokens: {
@@ -412,10 +417,11 @@ function painelCivel(a: AnaliseCivel, ad: AreaDraft, resumo: ResumoArea): SlideS
       CIVEL_SUSPENSOS: qtd2(a.suspensos),
       CIVEL_MEDIA: brl(a.media),
       CIVEL_MAIOR: brl(a.maior),
-      CIVEL_REGIAO_1: reg1?.nome ?? "—",
-      CIVEL_REGIAO_1_QTD: qtd2(reg1?.qtd ?? 0),
-      CIVEL_REGIAO_2: reg2?.nome ?? "Outros",
-      CIVEL_REGIAO_2_QTD: qtd2(reg2?.qtd ?? 0),
+      ...regiao,
+      CIVEL_REGIAO_1: trib1?.sigla ?? "—",
+      CIVEL_REGIAO_1_QTD: qtd2(trib1?.qtd ?? 0),
+      CIVEL_REGIAO_2: outrosTrib.length === 1 ? outrosTrib[0]!.sigla : "Outros",
+      CIVEL_REGIAO_2_QTD: qtd2(outrosTrib.reduce((s, t) => s + t.qtd, 0)),
       CIVEL_TOP5_TITULO: "CASOS COM MAIOR VALOR",
       CIVEL_TOP5_L_PARTE: a.semPoloCliente ? "Autor" : "Credor",
       CIVEL_TOP5_N: String(a.top.length),
@@ -427,7 +433,15 @@ function painelCivel(a: AnaliseCivel, ad: AreaDraft, resumo: ResumoArea): SlideS
     tables: {
       TBL_CIVEL_TOP5: a.top.map((t) => ({ parte: t.parte || "—", processo: t.processo, valor: brl(t.valor) })),
     },
-    ops: [fase.op, socio.op],
+    ops: [
+      fase.op,
+      socio.op,
+      { kind: "columns", prefix: "CIVEL_TRIBUNAL", count: a.regioes.length },
+      // Com 4 colunas, "DF · TJDFT" não cabe na coluna com a fonte do modelo.
+      ...(a.regioes.length >= 4
+        ? [{ kind: "fontScale" as const, names: a.regioes.map((_, i) => `CIVEL_TRIBUNAL_${i + 1}_NOME`), scale: 0.9 }]
+        : []),
+    ],
   };
 }
 

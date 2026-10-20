@@ -6,6 +6,7 @@ import { draftSchema } from "./draft";
 import { conferirModelo } from "./modelo";
 import { buildDeck } from "./pptx/build";
 import { PptxPackage, slideMarker } from "./pptx/package";
+import { box, findByPrefix, findShape } from "./pptx/shapes";
 import { NS, desc } from "./pptx/xml";
 import type { Processo } from "./processos";
 
@@ -147,5 +148,65 @@ describe.skipIf(!existsSync(MODELO))("apresentação gerada a partir do modelo d
       .find((vs) => vs.includes("MONITÓRIA"));
     expect(tipo).toBeDefined();
     for (const p of slides) expect(textoDoSlide(pkg, p)).not.toContain("{{");
+  });
+
+  it("Cível: região em até 4 colunas (+ Outros) e os dois itens de sócio", () => {
+    const civel = (regs: Array<[string, string, number]>) => {
+      let i = 0;
+      return regs.flatMap(([tribunal, tr, qtd]) =>
+        Array.from({ length: qtd }, () => {
+          i++;
+          return proc(i, { tribunal, numero: `${2000000 + i}-11.2025.8.${tr}.0100`, socioPoloPassivo: i % 4 ? "NAO" : "SIM" });
+        }),
+      );
+    };
+    const montar = (processos: Processo[]) => {
+      const draft = draftSchema.parse({ capa: { razaoSocial: "X" }, areas: { civel: { incluir: true } } });
+      const { spec } = composeDeck({
+        draft,
+        areas: [{ id: "civel", processos, extras: { pge: null, pgfn: null } }],
+        hoje: new Date("2026-10-20T00:00:00Z"),
+      });
+      const out = buildDeck(modelo, spec);
+      expect(out.warnings).toEqual([]);
+      const pkg = new PptxPackage(out.bytes);
+      const painel = pkg.slidePaths().find((p) => slideMarker(pkg.xml(p)) === "SLIDE_CIVEL_PAINEL")!;
+      const doc = pkg.xml(painel);
+      const texto = (nome: string) =>
+        desc(findShape(doc, nome)!, NS.a, "t")
+          .map((t) => t.textContent ?? "")
+          .join("");
+      const tokens = spec.slides.find((s) => s.source === "SLIDE_CIVEL_PAINEL")!.tokens!;
+      expect(textoDoSlide(pkg, painel)).not.toContain("{{");
+      return { doc, texto, tokens };
+    };
+
+    const cinco = montar(civel([["TJSC", "24", 6], ["TJSP", "26", 4], ["TJRJ", "19", 3], ["TJRS", "21", 2], ["TJPE", "17", 1]]));
+    expect([1, 2, 3, 4].map((i) => cinco.texto(`CIVEL_TRIBUNAL_${i}_NOME`))).toEqual(["SC · TJSC", "SP · TJSP", "RJ · TJRJ", "Outros"]);
+    expect(cinco.texto("CIVEL_TRIBUNAL_4_QTD")).toBe("03");
+    expect(findByPrefix(cinco.doc, "CIVEL_TRIBUNAL_DIV_")).toHaveLength(3);
+    expect([cinco.texto("CIVEL_SOCIO_1_NOME"), cinco.texto("CIVEL_SOCIO_2_NOME")]).toEqual(["Sim", "Não"]);
+    expect(cinco.texto("CIVEL_SOCIO_2_QTD")).toBe("Processos: 12");
+    // Modelo antigo (só CIVEL_REGIAO_1/2): o maior + "Outros", como antes.
+    expect([cinco.tokens.CIVEL_REGIAO_1, cinco.tokens.CIVEL_REGIAO_1_QTD, cinco.tokens.CIVEL_REGIAO_2, cinco.tokens.CIVEL_REGIAO_2_QTD]).toEqual(
+      ["TJSC", "06", "Outros", "10"],
+    );
+
+    // Duas colunas dividem a faixa ao meio, com a divisória na fronteira.
+    const dois = montar(civel([["TJSP", "26", 4], ["TJDFT", "07", 3]]));
+    expect([dois.texto("CIVEL_TRIBUNAL_1_NOME"), dois.texto("CIVEL_TRIBUNAL_2_NOME")]).toEqual(["SP · TJSP", "DF · TJDFT"]);
+    expect(findShape(dois.doc, "CIVEL_TRIBUNAL_3_NOME")).toBeNull();
+    const col1 = box(findShape(dois.doc, "CIVEL_TRIBUNAL_1_NOME")!);
+    const col2 = box(findShape(dois.doc, "CIVEL_TRIBUNAL_2_NOME")!);
+    const div = box(findShape(dois.doc, "CIVEL_TRIBUNAL_DIV_1")!);
+    expect(col2.x).toBe(col1.x + col1.w);
+    expect(Math.abs(div.x + div.w / 2 - col2.x)).toBeLessThanOrEqual(1);
+    expect(findShape(dois.doc, "CIVEL_TRIBUNAL_DIV_2")).toBeNull();
+
+    const um = montar(civel([["TJSP", "26", 7]]));
+    expect(um.texto("CIVEL_TRIBUNAL_1_NOME")).toBe("SP · TJSP");
+    expect(findShape(um.doc, "CIVEL_TRIBUNAL_2_NOME")).toBeNull();
+    expect(findByPrefix(um.doc, "CIVEL_TRIBUNAL_DIV_")).toHaveLength(0);
+    expect(box(findShape(um.doc, "CIVEL_TRIBUNAL_1_NOME")!).w).toBe(2 * col1.w);
   });
 });
