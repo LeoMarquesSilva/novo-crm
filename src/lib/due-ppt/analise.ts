@@ -85,6 +85,9 @@ export type AnaliseCivel = {
   passivo: number;
   media: number;
   maior: number;
+  /** Tribunais dos não arquivados, do que tem mais processos para o que tem menos. */
+  tribunais: TribunalCivel[];
+  /** Quadro "Processos por região": até 4 tribunais ("SP · TJSP"); com mais, os 3 maiores + "Outros". */
   regioes: Agrupado[];
   fases: Agrupado[];
   socios: Agrupado[];
@@ -94,6 +97,44 @@ export type AnaliseCivel = {
   leitura: string;
 };
 
+export type TribunalCivel = { sigla: string; uf: string | null; qtd: number };
+
+const SEM_TRIBUNAL = "Não informado";
+
+/** Sigla pelo número CNJ: justiça estadual (J=8) → TJ + UF; federal (J=4) → TRF + região. */
+function tribunalDoNumero(numero: string): string | null {
+  const m = /\d{7}-?\d{2}\.?\d{4}\.?(\d)\.?(\d{2})\.?\d{4}/.exec(numero);
+  if (!m) return null;
+  if (m[1] === "4") return `TRF${Number(m[2])}`;
+  const uf = ufDoProcesso(numero);
+  return uf ? (uf === "DF" ? "TJDFT" : `TJ${uf}`) : null;
+}
+
+/** "TJ-SP" → "TJSP"; coluna vazia → sigla pelo número CNJ. */
+function siglaTribunal(p: Processo): string {
+  const t = p.tribunal.trim().toUpperCase();
+  if (!t) return tribunalDoNumero(p.numero) ?? SEM_TRIBUNAL;
+  return /^(TJ|TRF|TRT)[\s-]*[A-Z0-9]+$/.test(t) ? t.replace(/[\s-]/g, "") : t;
+}
+
+/** UF do tribunal: a da sigla (TJSP, TJDFT) ou a mais comum nos processos (coluna UF ou número CNJ). */
+function ufDoTribunal(sigla: string, ps: Processo[]): string | null {
+  const ufs = Object.values(UF_TR);
+  const tj = /^TJ([A-Z]{2})T?$/.exec(sigla);
+  if (tj && ufs.includes(tj[1]!)) return tj[1]!;
+  const cont = new Map<string, number>();
+  for (const p of ps) {
+    const col = p.uf.trim().toUpperCase();
+    const uf = ufs.includes(col) ? col : ufDoProcesso(p.numero);
+    if (uf) cont.set(uf, (cont.get(uf) ?? 0) + 1);
+  }
+  return [...cont.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
+function rotuloTribunal(t: TribunalCivel): string {
+  return t.uf ? `${t.uf} · ${t.sigla}` : t.sigla;
+}
+
 export function analisarCivel(processos: Processo[]): AnaliseCivel {
   const considerados = processos.filter((p) => !isArquivado(p));
   const semPoloCliente = considerados.every((p) => p.poloCliente == null);
@@ -101,19 +142,19 @@ export function analisarCivel(processos: Processo[]): AnaliseCivel {
   const passivo = soma(passivos, (p) => p.valorCausa);
   const valores = considerados.map((p) => p.valorCausa);
 
-  const porTribunal = new Map<string, number>();
+  const porTribunal = new Map<string, Processo[]>();
   for (const p of considerados) {
-    const t = (p.tribunal || "Não informado").toUpperCase();
-    porTribunal.set(t, (porTribunal.get(t) ?? 0) + 1);
+    const t = siglaTribunal(p);
+    porTribunal.set(t, [...(porTribunal.get(t) ?? []), p]);
   }
-  const tribunais = [...porTribunal.entries()].sort((a, b) => b[1] - a[1]);
-  const regioes: Agrupado[] =
-    tribunais.length <= 2
-      ? tribunais.map(([nome, qtd]) => ({ nome, qtd, valor: 0 }))
-      : [
-          { nome: tribunais[0]![0], qtd: tribunais[0]![1], valor: 0 },
-          { nome: "Outros", qtd: tribunais.slice(1).reduce((s, t) => s + t[1], 0), valor: 0 },
-        ];
+  const tribunais: TribunalCivel[] = [...porTribunal.entries()]
+    .map(([sigla, ps]) => ({ sigla, uf: sigla === SEM_TRIBUNAL ? null : ufDoTribunal(sigla, ps), qtd: ps.length }))
+    .sort((a, b) => b.qtd - a.qtd);
+  const regioes = limitarGrupos(
+    tribunais.map((t) => ({ nome: rotuloTribunal(t), qtd: t.qtd, valor: 0 })),
+    4,
+    "Outros",
+  );
 
   const socioMap = new Map<string, Agrupado>();
   for (const p of considerados) {
@@ -154,6 +195,7 @@ export function analisarCivel(processos: Processo[]): AnaliseCivel {
     passivo,
     media: valores.length ? soma(considerados, (p) => p.valorCausa) / valores.length : 0,
     maior: valores.length ? Math.max(...valores) : 0,
+    tribunais,
     regioes,
     fases,
     socios,

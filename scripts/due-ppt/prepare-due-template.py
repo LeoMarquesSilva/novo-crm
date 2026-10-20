@@ -202,6 +202,12 @@ def set_shape_id_name(el, sid, name):
     cnv.set("name", name)
 
 
+def set_creation_id(el, sid):
+    """creationId próprio para um shape copiado (o PowerPoint usa no Morph e na coautoria)."""
+    for node in el.iter(f"{{{A16_NS}}}creationId"):
+        node.set("id", "{%08X-0000-4000-8000-%012X}" % (sid, sid))
+
+
 def move_slide(prs, slide, new_index):
     lst = prs.slides._sldIdLst
     for sldId in list(lst):
@@ -462,10 +468,6 @@ def main(src_path, out_path):
         ("CaixaDeTexto 37", "{{CIVEL_SUSPENSOS}}"),
         ("CaixaDeTexto 52", "{{CIVEL_MEDIA}}"),
         ("CaixaDeTexto 54", "{{CIVEL_MAIOR}}"),
-        ("CaixaDeTexto 66", "{{CIVEL_REGIAO_1}}"),
-        ("CaixaDeTexto 56", "{{CIVEL_REGIAO_1_QTD}}"),
-        ("CaixaDeTexto 68", "{{CIVEL_REGIAO_2}}"),
-        ("CaixaDeTexto 58", "{{CIVEL_REGIAO_2_QTD}}"),
         ("CaixaDeTexto 177", "{{CIVEL_LEITURA}}"),
         ("CaixaDeTexto 63", "{{CIVEL_TOP5_TOTAL}}"),
     ]:
@@ -489,12 +491,41 @@ def main(src_path, out_path):
         el = copy.deepcopy(src._element)
         s17.shapes._spTree.append(el)
         set_shape_id_name(el, sid, f"CIVEL_SOCIO_2_{suf}")
+        set_creation_id(el, sid)
         sid += 1
         off = el.find(".//" + qn("a:off"))
         off.set("y", str(int(off.get("y")) + dy))
+        for t in el.iter(qn("a:t")):
+            t.text = (t.text or "").replace("CIVEL_SOCIO_1", "CIVEL_SOCIO_2")
     t17 = rename(s17, "Tabela 51", "TBL_CIVEL_TOP5")
     table_row_template(t17, ["{{row.parte}}", "{{row.processo}}", "{{row.valor}}"])
     set_cell(t17.table.cell(0, 0), "{{CIVEL_TOP5_L_PARTE}}")
+    # Processos por região: até 4 colunas (sigla + quantidade) com divisórias. O gerador
+    # mantém as que usa e divide a faixa entre elas.
+    for i, (nome, qtd) in {1: ("CaixaDeTexto 66", "CaixaDeTexto 56"), 2: ("CaixaDeTexto 68", "CaixaDeTexto 58")}.items():
+        tok(s17, nome, f"{{{{CIVEL_TRIBUNAL_{i}}}}}", new_name=f"CIVEL_TRIBUNAL_{i}_NOME")
+        tok(s17, qtd, f"{{{{CIVEL_TRIBUNAL_{i}_QTD}}}}", new_name=f"CIVEL_TRIBUNAL_{i}_QTD")
+    rename(s17, "Conector reto 194", "CIVEL_TRIBUNAL_DIV_1")
+    sid = next_shape_id(s17)
+    copias = [(f"CIVEL_TRIBUNAL_2_{suf}", f"CIVEL_TRIBUNAL_{i}_{suf}") for i in (3, 4) for suf in ("NOME", "QTD")]
+    copias += [("CIVEL_TRIBUNAL_DIV_1", f"CIVEL_TRIBUNAL_DIV_{i}") for i in (2, 3)]
+    for src, dst in copias:
+        el = copy.deepcopy(find(s17, src)._element)
+        s17.shapes._spTree.append(el)
+        set_shape_id_name(el, sid, dst)
+        set_creation_id(el, sid)
+        sid += 1
+        for t in el.iter(qn("a:t")):
+            t.text = (t.text or "").replace("CIVEL_TRIBUNAL_2", dst.rsplit("_", 1)[0])
+    col_x, col_w = Inches(10.12), Inches(2.92) // 4
+    for i in range(1, 5):
+        for suf in ("NOME", "QTD"):
+            shape = find(s17, f"CIVEL_TRIBUNAL_{i}_{suf}")
+            shape.left, shape.width = Emu(col_x + (i - 1) * col_w), Emu(col_w)
+            shape.text_frame.margin_left = shape.text_frame.margin_right = 0
+    for i in range(1, 4):
+        div = find(s17, f"CIVEL_TRIBUNAL_DIV_{i}")
+        div.left = Emu(col_x + i * col_w)
 
     # ── 19. Trabalhista — painel
     s19 = S[19]

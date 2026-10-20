@@ -50,7 +50,7 @@ Conferidas contra os PPTs entregues (Cível do Sul Fluminense e Trabalhista/Rec.
 - Potencial passivo: soma do valor da causa dos processos não arquivados com **polo do cliente = PASSIVO**. Sem a coluna de polo, soma todos (com aviso).
 - Ativos / suspensos: não arquivados, separados por "Suspenso".
 - Média e maior valor: sobre todos os não arquivados.
-- Região: tribunais; com mais de 2, o maior + "Outros".
+- Região: não arquivados por tribunal, do maior para o menor, com a UF ("SP · TJSP"; a UF sai da sigla TJxx ou, para TRF e outros, da coluna UF ou do número CNJ). Até 4 tribunais, um por coluna; com 5 ou mais, os 3 maiores + "Outros". Tribunal vazio sai do número CNJ (TJ + UF, TRF + região); "TJ-SP" vira "TJSP".
 - Fase processual e sócio no polo passivo: até 3 fases e 2 linhas de sócio (o excedente vira "Outras fases").
 - Casos com maior valor: top 5 do polo passivo (coluna = polo ativo).
 
@@ -92,6 +92,7 @@ O modelo ativo fica em `due_modelos_apresentacao` + bucket `due-documents/modelo
   - capa: `TXT_EMPRESA_n`, `ICO_EMPRESA_n`, `IMG_LOGO_CLIENTE`, `CIRCULO_CLIENTE`, `CIRCULO_ESCRITORIO`, `IMG_LOGO_ESCRITORIO`;
   - áreas envolvidas: grupos `AREA_REESTRUTURACAO`, `AREA_REC_CRED`, `AREA_CIVEL`, `AREA_TRABALHISTA`, `AREA_TRIBUTARIO` (com 5 áreas o layout do modelo fica como está; com menos, os cards são centralizados numa linha);
   - fases e sócios: `CIVEL_FASE_n_*`, `CIVEL_SOCIO_n_*`, `TRAB_FASE_n_*` + `*_LINHA`;
+  - região do Cível: colunas `CIVEL_TRIBUNAL_n_NOME` / `CIVEL_TRIBUNAL_n_QTD` (n = 1 a 4) e divisórias `CIVEL_TRIBUNAL_DIV_n`. O gerador deixa só as colunas usadas e divide entre elas a faixa que as 4 ocupam no modelo; com 4 colunas o nome sai 10% menor. Modelo sem essas colunas (anterior a 20/10/2026) segue com `{{CIVEL_REGIAO_1}}` / `{{CIVEL_REGIAO_2}}`: o maior tribunal + "Outros";
   - crédito: `RC_TIPO_QTD_n` (alinhados às barras do gráfico), gráficos `CHART_RC_TIPO|FAIXA|ANO|TEMPO`, `CHART_TRAB_ANO|PEDIDOS`;
   - tabelas: `TBL_*`;
   - conclusão: `CONC_<REEST|TRIB|TRAB|CIVEL>_<NOME|VALOR|TRILHO|BARRA|PCT|ICONE>`, `CONC_SEPARADOR`, `CONC_NOTAS`.

@@ -43,6 +43,14 @@ export type SlideOp =
   | { kind: "cardRow"; order: string[]; all: string[]; keepTemplateLayoutWhen?: number }
   /** Rótulos alinhados às barras de um gráfico de barras horizontais (de cima para baixo). */
   | { kind: "pills"; prefix: string; count: number }
+  /**
+   * Colunas `${prefix}_${i}_*` lado a lado: mantém `count` e divide entre elas, em partes
+   * iguais, a faixa que as colunas ocupam no modelo (cada shape fica com a largura da coluna).
+   * Divisórias `${prefix}_DIV_${i}` vão para a fronteira entre a coluna i e a i+1.
+   */
+  | { kind: "columns"; prefix: string; count: number }
+  /** Multiplica o tamanho da fonte (onde o texto define `sz`), arredondando para meio ponto. */
+  | { kind: "fontScale"; names: string[]; scale: number }
   | { kind: "image"; name: string; image: ImageAsset }
   | { kind: "moveTo"; name: string; xIn?: number; yIn?: number }
   | { kind: "shift"; names: string[]; dxIn?: number; dyIn?: number };
@@ -248,6 +256,41 @@ function opPills(doc: XDocument, op: Extract<SlideOp, { kind: "pills" }>) {
   });
 }
 
+function opColumns(doc: XDocument, op: Extract<SlideOp, { kind: "columns" }>, warn: (m: string) => void) {
+  let available = 0;
+  while (slotShapes(doc, op.prefix, available + 1).length) available++;
+  if (!available) return;
+  if (op.count > available) warn(`${op.prefix}: ${op.count} itens para ${available} posições no modelo.`);
+  const count = Math.max(0, Math.min(op.count, available));
+  const band = union(Array.from({ length: available }, (_, k) => slotShapes(doc, op.prefix, k + 1).map(box)).flat());
+  for (let i = count + 1; i <= available; i++) slotShapes(doc, op.prefix, i).forEach(removeShape);
+  for (let i = Math.max(1, count); i < available; i++) {
+    const div = findShape(doc, `${op.prefix}_DIV_${i}`);
+    if (div) removeShape(div);
+  }
+  if (!count) return;
+  const w = band.w / count;
+  for (let k = 0; k < count; k++) {
+    for (const s of slotShapes(doc, op.prefix, k + 1)) {
+      setPos(s, band.x + k * w);
+      setSize(s, w);
+    }
+    const div = k ? findShape(doc, `${op.prefix}_DIV_${k}`) : null;
+    if (div) setPos(div, band.x + k * w - box(div).w / 2);
+  }
+}
+
+function opFontScale(doc: XDocument, op: Extract<SlideOp, { kind: "fontScale" }>) {
+  for (const shp of matchNames(doc, op.names)) {
+    for (const tag of ["rPr", "endParaRPr", "defRPr"]) {
+      for (const pr of desc(shp, NS.a, tag)) {
+        const sz = Number(pr.getAttribute("sz"));
+        if (sz) pr.setAttribute("sz", String(Math.max(100, Math.round((sz * op.scale) / 50) * 50)));
+      }
+    }
+  }
+}
+
 // ─── montagem ─────────────────────────────────────────────────────────────────
 
 export function buildDeck(template: ArrayBuffer | Uint8Array, spec: DeckSpec): BuildResult {
@@ -306,6 +349,12 @@ export function buildDeck(template: ArrayBuffer | Uint8Array, spec: DeckSpec): B
           break;
         case "pills":
           opPills(doc, op);
+          break;
+        case "columns":
+          opColumns(doc, op, warn);
+          break;
+        case "fontScale":
+          opFontScale(doc, op);
           break;
         case "image":
           if (!replaceImage(pkg, path, op.name, op.image)) warn(`Imagem ${op.name} não encontrada.`);
