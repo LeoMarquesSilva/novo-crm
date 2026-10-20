@@ -75,6 +75,8 @@ function formatBytes(n: number | null): string {
 
 function kindLabel(kind: string): string {
   if (kind === "ppt_compilacao") return "Compilação (PPT)";
+  if (kind === "planilha_area") return "Planilha da área";
+  if (kind === "logo_cliente") return "Logo do cliente";
   if (kind === "outro") return "Outro";
   return kind;
 }
@@ -613,6 +615,15 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
               Abrir Due diligence
               <ExternalLink className="h-3 w-3 opacity-60" aria-hidden />
             </Link>
+            {phase !== "finalizada" ? (
+              <Link
+                href={`/crm/leads/${encodeURIComponent(lead.oportunidadeId)}?tab=due#due-apresentacao`}
+                className="inline-flex items-center gap-1 rounded-(--radius-v2-lg) border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-interactive-700 transition-colors hover:bg-muted"
+              >
+                <Presentation className="h-3 w-3 opacity-70" aria-hidden />
+                Montar apresentação
+              </Link>
+            ) : null}
           </div>
         </div>
 

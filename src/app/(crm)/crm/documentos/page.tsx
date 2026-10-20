@@ -19,6 +19,7 @@ import type {
 } from "@/lib/crm/due-diligence-timeline";
 import { montarTimelineDueDiligence } from "@/lib/crm/due-diligence-timeline";
 import { DueDiligencePanel, type DueDiligenceLeadRow } from "./due-diligence-panel";
+import { DueModelosCard } from "./due-modelos-card";
 
 const ETAPAS_TIMELINE_DUE = [
   "levantamento_dados",
@@ -338,6 +339,8 @@ export default async function CrmDueDiligencePage() {
           },
         ]}
       />
+
+      <DueModelosCard isAdmin={role === "admin"} />
 
       <DueDiligencePanel leads={leads} />
     </div>

@@ -2033,8 +2033,95 @@ export type Database = {
           },
         ]
       }
+      due_apresentacoes: {
+        Row: {
+          atualizado_em: string
+          atualizado_por_app_user_id: string | null
+          dados: Json
+          gerado_documento_id: string | null
+          gerado_em: string | null
+          gerado_por_app_user_id: string | null
+          oportunidade_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          atualizado_por_app_user_id?: string | null
+          dados?: Json
+          gerado_documento_id?: string | null
+          gerado_em?: string | null
+          gerado_por_app_user_id?: string | null
+          oportunidade_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          atualizado_por_app_user_id?: string | null
+          dados?: Json
+          gerado_documento_id?: string | null
+          gerado_em?: string | null
+          gerado_por_app_user_id?: string | null
+          oportunidade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "due_apresentacoes_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: true
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "due_apresentacoes_gerado_documento_id_fkey"
+            columns: ["gerado_documento_id"]
+            isOneToOne: false
+            referencedRelation: "due_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      due_modelos_apresentacao: {
+        Row: {
+          ativo: boolean
+          byte_size: number | null
+          enviado_em: string
+          enviado_por_app_user_id: string | null
+          id: string
+          nome_arquivo: string
+          observacao: string | null
+          storage_path: string
+        }
+        Insert: {
+          ativo?: boolean
+          byte_size?: number | null
+          enviado_em?: string
+          enviado_por_app_user_id?: string | null
+          id?: string
+          nome_arquivo: string
+          observacao?: string | null
+          storage_path: string
+        }
+        Update: {
+          ativo?: boolean
+          byte_size?: number | null
+          enviado_em?: string
+          enviado_por_app_user_id?: string | null
+          id?: string
+          nome_arquivo?: string
+          observacao?: string | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "due_modelos_apresentacao_enviado_por_app_user_id_fkey"
+            columns: ["enviado_por_app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       due_documents: {
         Row: {
+          area_key: string | null
           byte_size: number | null
           content_type: string | null
           document_kind: string
@@ -2047,6 +2134,7 @@ export type Database = {
           uploaded_by_app_user_id: string | null
         }
         Insert: {
+          area_key?: string | null
           byte_size?: number | null
           content_type?: string | null
           document_kind?: string
@@ -2059,6 +2147,7 @@ export type Database = {
           uploaded_by_app_user_id?: string | null
         }
         Update: {
+          area_key?: string | null
           byte_size?: number | null
           content_type?: string | null
           document_kind?: string

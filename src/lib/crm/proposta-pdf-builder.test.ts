@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { PDFDict, PDFDocument, PDFName, PDFNumber, PDFRawStream } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFRawStream, PDFString } from "pdf-lib";
 import { extractText, getDocumentProxy } from "unpdf";
 import type { CanonicalProposalData } from "./proposta-docx-data";
 import { buildPropostaPdf, PROPOSTA_MODELO_PAGE, readPropostaPdfAssets } from "./proposta-pdf-builder";
@@ -42,6 +42,20 @@ function imageFingerprint(doc: PDFDocument, index: number): string[] {
     .sort();
 }
 
+/** URIs of the page's link annotations, left to right. */
+function linkUris(doc: PDFDocument, index: number): string[] {
+  const annots = doc.getPage(index).node.lookupMaybe(PDFName.of("Annots"), PDFArray);
+  return (annots?.asArray() ?? [])
+    .map(ref => doc.context.lookup(ref, PDFDict))
+    .filter(annot => annot.get(PDFName.of("Subtype")) === PDFName.of("Link"))
+    .map(annot => ({
+      x: annot.lookup(PDFName.of("Rect"), PDFArray).lookup(0, PDFNumber).asNumber(),
+      uri: annot.lookup(PDFName.of("A"), PDFDict).lookup(PDFName.of("URI"), PDFString).decodeText(),
+    }))
+    .sort((a, b) => a.x - b.x)
+    .map(link => link.uri);
+}
+
 describe("buildPropostaPdf", () => {
   let model: PDFDocument;
   beforeAll(async () => {
@@ -79,6 +93,27 @@ describe("buildPropostaPdf", () => {
     expect(assinaturas).toContain("Vigência da Proposta: 10/11/2026");
     expect(texts.filter(text => text.includes("10/11/2026"))).toHaveLength(1);
     expect(texts.join(" ")).not.toContain("06/10/2026");
+  });
+
+  it("torna clicáveis os ícones da capa e dos CVs, mantendo o link do site no rodapé dos CVs", async () => {
+    const doc = await PDFDocument.load(await buildPropostaPdf(canonical()));
+    const site = "http://www.bismarchipires.com.br/";
+    expect(linkUris(doc, 0)).toEqual([
+      "https://www.instagram.com/bismarchipires/",
+      "https://www.linkedin.com/company/bismarchipires/",
+    ]);
+    expect(linkUris(doc, 3)).toEqual([
+      "https://www.linkedin.com/in/gustavo-bismarchi/",
+      "https://www.instagram.com/bismarchipires/",
+      "mailto:gustavo@bismarchipires.com.br",
+      site,
+    ]);
+    expect(linkUris(doc, 4)).toEqual([
+      "https://www.linkedin.com/in/ricardoviscardipires/",
+      "https://www.instagram.com/ricardoviscardipires/",
+      "mailto:ricardo@bismarchipires.com.br",
+      site,
+    ]);
   });
 
   it("quebra escopo longo em várias páginas do timbrado mantendo o fim do conteúdo", async () => {

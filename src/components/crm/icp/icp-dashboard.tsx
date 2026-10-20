@@ -10,6 +10,7 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { BR_TIMEZONE } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 import type { IcpData } from "@/modules/icp/domain/compute";
 import { CarteiraTab } from "./icp-carteira-tab";
@@ -93,7 +94,12 @@ export function IcpDashboard({ data, error }: { data: IcpData | null; error: str
             <p className="text-xs text-muted-foreground">
               Honorários pagos de {monthLabel(data.windowStart)} a {monthLabel(data.windowEnd)} · calculado em{" "}
               <span className="tabular-nums">
-                {new Date(data.generatedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                {/* Fuso fixo: o servidor (UTC) e o navegador precisam gerar o mesmo texto na hidratação. */}
+                {new Date(data.generatedAt).toLocaleString("pt-BR", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                  timeZone: BR_TIMEZONE,
+                })}
               </span>
             </p>
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>

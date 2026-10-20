@@ -13,6 +13,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { BR_TIMEZONE } from "@/lib/format-datetime";
 import { EMPLOYEE_BANDS, typicalEmployeeRange, type IcpData } from "@/modules/icp/domain/compute";
 import { SOURCE_SYSTEM, SRC, type Source } from "./icp-content";
 import { decimal, excludedRevenueNote, money, pct } from "./icp-format";
@@ -91,7 +92,9 @@ function IdealClientSummary({ data }: { data: IcpData }) {
   ].sort((a, b) => b.value - a.value);
   const topRegion = regions[0].value > 0 ? regions[0] : null;
   const topAdminRole = decisor.adminRoles[0];
-  const receitaDate = cnpjCoverage.fetchedAt ? new Date(cnpjCoverage.fetchedAt).toLocaleDateString("pt-BR") : null;
+  const receitaDate = cnpjCoverage.fetchedAt
+    ? new Date(cnpjCoverage.fetchedAt).toLocaleDateString("pt-BR", { timeZone: BR_TIMEZONE })
+    : null;
   const coreGroups = data.groups.filter((g) => g.tier === "A" || g.tier === "B");
   const coreWithEmployees = coreGroups.filter((g) => g.employeeBand);
   const topBand = EMPLOYEE_BANDS.map((b) => ({
