@@ -13,7 +13,15 @@ import {
   type RdCustomFieldValue,
   type RdDealSnapshot,
 } from "./rd-deal";
-import { emptyRdMigrationValues, type RdMigrationValues } from "./values";
+import {
+  extractCeps,
+  extractDocuments,
+  extractEmails,
+  extractParties,
+  extractPhones,
+  splitPeopleNames,
+} from "./documents";
+import { emptyRdMigrationValues, type RdMigrationEmpresa, type RdMigrationValues } from "./values";
 
 /**
  * Rótulos dos campos personalizados do RD (catálogo `catalogo-campos-rd-regras-etapas.md`).
@@ -77,6 +85,7 @@ export const RD_LABELS = {
 
 /** Rótulos longos que variam no texto entre parênteses: casam pelo começo. */
 const RD_LABEL_PREFIXES = {
+  demaisRazoes: "demais razoes sociais",
   cadSocios: "qualificacao dos socios",
   cadConsulta: "cadastrar na consulta automatizada",
   finPosicao: "posicao do responsavel",
@@ -99,10 +108,6 @@ export type RdMigrationPrefillInput = {
   /** Opções dos campos de lista (`field_definitions.field_options`) por `field_code`. */
   fieldOptions?: Record<string, string[] | null | undefined>;
 };
-
-function onlyDigits(value: string): string {
-  return value.replace(/\D/g, "");
-}
 
 function textOf(value: RdCustomFieldValue | null | undefined): string {
   if (value === null || value === undefined) return "";
@@ -168,13 +173,92 @@ export function parseRdPercent(raw: string): string {
 const UF_LIST =
   "AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO";
 
-/** Do endereço em texto livre do RD só sai o que é seguro: CEP e UF. O resto a pessoa confere. */
-export function parseRdAddress(raw: string): { cep: string; uf: string } {
-  const cepMatch = /\b(\d{2})\.?(\d{3})-?(\d{3})\b/.exec(raw);
-  const cep = cepMatch ? `${cepMatch[1]}${cepMatch[2]}${cepMatch[3]}` : "";
+/**
+ * Do endereço em texto livre do RD só sai o que é seguro: CEP e UF. O resto a pessoa confere.
+ * Dois endereços no mesmo campo ("Rua A … / Rua B …") ou dois CEPs: nada sai (`multiple`).
+ */
+export function parseRdAddress(raw: string): { cep: string; uf: string; multiple: boolean } {
+  const ceps = extractCeps(raw);
+  if (raw.split(/\s\/\s/).filter((p) => p.trim()).length > 1 || ceps.length > 1) {
+    return { cep: "", uf: "", multiple: true };
+  }
   const ufMatches = [...raw.matchAll(new RegExp(`(?:^|[\\s,/-])(${UF_LIST})(?=$|[\\s,./-])`, "g"))];
   const uf = ufMatches.length > 0 ? ufMatches[ufMatches.length - 1][1] : "";
-  return { cep: cep.length === 8 ? cep : "", uf };
+  return { cep: ceps[0] ?? "", uf, multiple: false };
+}
+
+/** O campo do RD traz mais de um valor (dois documentos, dois nomes, "a / b"). */
+export function rdHasMultipleValues(raw: string): boolean {
+  return splitPeopleNames(raw).length > 1 || extractDocuments(raw).length > 1;
+}
+
+/** Um CPF/CNPJ válido, quando o campo do RD tem exatamente um; senão "". */
+export function singleRdDocument(raw: string): string {
+  const docs = extractDocuments(raw);
+  return docs.length === 1 && !rdHasMultipleValues(raw) ? docs[0] : "";
+}
+
+/** Um e-mail, quando o campo do RD tem exatamente um; senão "". */
+export function singleRdEmail(raw: string): string {
+  const emails = extractEmails(raw);
+  return emails.length === 1 ? emails[0] : "";
+}
+
+/** Um telefone, quando o campo do RD tem exatamente um; senão "". */
+export function singleRdPhone(raw: string): string {
+  const phones = extractPhones(raw);
+  return phones.length === 1 ? phones[0] : "";
+}
+
+/** Um nome (pessoa/razão social), quando o campo do RD não lista mais de um; senão "". */
+export function singleRdName(raw: string): string {
+  return rdHasMultipleValues(raw) ? "" : raw.trim();
+}
+
+/**
+ * Empresas/pessoas do cadastro do lead a partir do RD. Com mais de um CPF/CNPJ válido, uma linha
+ * por documento (nome pelo "Demais Razões sociais" ou pela lista de nomes na mesma ordem); com um
+ * só, a razão social inteira (vírgula pode ser parte do nome) mais quem estiver em "Demais
+ * Razões sociais". Documento com digitação errada não entra: fica vazio para a pessoa conferir.
+ */
+export function rdEmpresasFromFields(input: {
+  razaoSocial: string;
+  documento: string;
+  demaisRazoes: string;
+  fallbackNome: string;
+}): RdMigrationEmpresa[] {
+  const docs = extractDocuments(input.documento);
+  const parties = extractParties(input.demaisRazoes);
+  const tipo = (doc: string): "CPF" | "CNPJ" => (doc.length === 11 ? "CPF" : "CNPJ");
+  const partyName = (doc: string) => parties.find((p) => p.documento === doc)?.nome ?? "";
+
+  if (docs.length > 1) {
+    const names = splitPeopleNames(input.razaoSocial);
+    const rows = docs.map((doc, i) => ({
+      tipo_documento: tipo(doc),
+      razao_social: partyName(doc) || (names.length === docs.length ? names[i] : (names[i] ?? "")),
+      documento: doc,
+    }));
+    for (const p of parties) {
+      if (!docs.includes(p.documento)) rows.push({ tipo_documento: tipo(p.documento), razao_social: p.nome, documento: p.documento });
+    }
+    return rows;
+  }
+
+  const razao = input.razaoSocial.trim();
+  const principalDoc = docs[0] ?? "";
+  const rows: RdMigrationEmpresa[] = [];
+  if (principalDoc || razao || input.fallbackNome.trim()) {
+    rows.push({
+      tipo_documento: principalDoc ? tipo(principalDoc) : "CNPJ",
+      razao_social: (principalDoc && partyName(principalDoc)) || razao || input.fallbackNome.trim(),
+      documento: principalDoc,
+    });
+  }
+  for (const p of parties) {
+    if (p.documento !== principalDoc) rows.push({ tipo_documento: tipo(p.documento), razao_social: p.nome, documento: p.documento });
+  }
+  return rows;
 }
 
 /** Área escrita no RD → área canônica do CRM (`CRM_PRACTICE_AREAS`); "ADD" e desconhecidas → null. */
@@ -341,14 +425,25 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
     return text;
   };
 
-  // Cadastro do lead (formulário de Novo Lead)
-  const razao = take("cadastro.empresas", RD_LABELS.razaoSocial) || opportunity.nome.trim();
-  const documento = onlyDigits(take("cadastro.empresas", RD_LABELS.documento));
-  if (razao || documento) {
-    values.cadastro.empresas = [
-      { tipo_documento: documento.length === 11 ? "CPF" : "CNPJ", razao_social: razao, documento },
-    ];
-  }
+  // Cadastro do lead (formulário de Novo Lead): uma linha por empresa/pessoa do RD
+  const demaisRazoes = fieldByPrefix(deal, RD_LABEL_PREFIXES.demaisRazoes);
+  values.cadastro.empresas = rdEmpresasFromFields({
+    razaoSocial: take("cadastro.empresas", RD_LABELS.razaoSocial),
+    documento: take("cadastro.empresas", RD_LABELS.documento),
+    demaisRazoes: textOf(demaisRazoes?.value),
+    fallbackNome: opportunity.nome,
+  });
+  const principal = values.cadastro.empresas[0];
+  const razao = principal?.razao_social ?? "";
+  const documento = principal?.documento ?? "";
+  // Notas para o cadastro do cliente quando o RD tem mais de um valor num campo de valor único.
+  const cadastroNotes: string[] = [];
+  const financeiroNotes: string[] = [];
+  const noteMultiple = (notes: string[], aliases: readonly string[]) => {
+    const hit = read(aliases);
+    const raw = textOf(hit?.value);
+    if (hit && raw) notes.push(`No RD, "${hit.label}" tem mais de um valor: ${raw}`);
+  };
   values.cadastro.tipoLead = mapRdLeadType(take("cadastro.tipoLead", RD_LABELS.tipoLead));
   values.cadastro.tipoIndicacao = matchOption(take("cadastro.tipoIndicacao", RD_LABELS.tipoIndicacao), indicationTypes);
   values.cadastro.nomeIndicacao = take("cadastro.nomeIndicacao", RD_LABELS.nomeIndicacao);
@@ -377,6 +472,7 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
 
   const qualificacao = textOf(read(RD_LABELS.qualificacao)?.value);
   const enderecoCp = parseRdAddress(qualificacao);
+  if (enderecoCp.multiple) cadastroNotes.push(`No RD, a qualificação tem mais de um endereço: ${qualificacao}`);
   setCampo("cp_cliente_cep", enderecoCp.cep, RD_LABELS.qualificacao);
   setCampo("cp_cliente_uf", enderecoCp.uf, RD_LABELS.qualificacao);
   setCampo("cp_areas_objeto", mapAreas(listOf(read(RD_LABELS.areasObjeto)?.value)), RD_LABELS.areasObjeto);
@@ -396,9 +492,10 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
   );
   const realizou = mapYesNo(textOf(read(RD_LABELS.realizouDue)?.value));
   setCampo("cp_realizou_due", option("cp_realizou_due", realizou === "Nao" ? "Não" : realizou), RD_LABELS.realizouDue);
-  setCampo("cp_nome_focal", textOf(read(RD_LABELS.nomeFocal)?.value), RD_LABELS.nomeFocal);
-  setCampo("cp_email_focal", textOf(read(RD_LABELS.emailFocal)?.value), RD_LABELS.emailFocal);
-  setCampo("cp_tel_focal", textOf(read(RD_LABELS.telFocal)?.value), RD_LABELS.telFocal);
+  // Ponto focal é uma pessoa: com dois nomes/e-mails/telefones no RD o campo fica para o responsável.
+  setCampo("cp_nome_focal", singleRdName(textOf(read(RD_LABELS.nomeFocal)?.value)), RD_LABELS.nomeFocal);
+  setCampo("cp_email_focal", singleRdEmail(textOf(read(RD_LABELS.emailFocal)?.value)), RD_LABELS.emailFocal);
+  setCampo("cp_tel_focal", singleRdPhone(textOf(read(RD_LABELS.telFocal)?.value)), RD_LABELS.telFocal);
   setCampo("cp_tributacao", option("cp_tributacao", textOf(read(RD_LABELS.tributacao)?.value)), RD_LABELS.tributacao);
   setCampo("cp_info_adicionais", textOf(read(RD_LABELS.infoAdicionais)?.value), RD_LABELS.infoAdicionais);
   values.campos = campos;
@@ -417,11 +514,33 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
 
   // Pós-venda: cadastro do cliente [CADASTRO] e faturamento [FINANCEIRO]
   const ob = values.onboarding;
-  ob.cadastro.razaoSocial = take("onboarding.cadastro.razaoSocial", RD_LABELS.cadRazaoSocial) || razao;
-  ob.cadastro.documento = onlyDigits(take("onboarding.cadastro.documento", RD_LABELS.cadDocumento)) || documento;
-  const enderecoCad = parseRdAddress(take("onboarding.cadastro.endereco", RD_LABELS.cadEndereco) || qualificacao);
+  // Cliente principal: um só. Com mais de um no RD (ou no cadastro do lead), fica para o responsável escolher.
+  const cadRazaoRaw = take("onboarding.cadastro.razaoSocial", RD_LABELS.cadRazaoSocial);
+  const cadDocRaw = take("onboarding.cadastro.documento", RD_LABELS.cadDocumento);
+  const cadMultiple = rdHasMultipleValues(cadDocRaw) || rdHasMultipleValues(cadRazaoRaw);
+  const leadMultiple = values.cadastro.empresas.length > 1;
+  if (cadMultiple) {
+    noteMultiple(cadastroNotes, RD_LABELS.cadDocumento);
+    if (rdHasMultipleValues(cadRazaoRaw)) noteMultiple(cadastroNotes, RD_LABELS.cadRazaoSocial);
+  } else if (cadDocRaw || cadRazaoRaw) {
+    ob.cadastro.razaoSocial = cadRazaoRaw || (leadMultiple ? "" : razao);
+    ob.cadastro.documento = singleRdDocument(cadDocRaw) || (leadMultiple ? "" : documento);
+  } else if (!leadMultiple) {
+    ob.cadastro.razaoSocial = razao;
+    ob.cadastro.documento = documento;
+  }
+  if (!cadMultiple && leadMultiple && !cadDocRaw) {
+    cadastroNotes.push(
+      `O lead tem mais de uma empresa/pessoa: ${values.cadastro.empresas.map((e) => `${e.razao_social} (${e.documento || "sem documento"})`).join("; ")}. Escolha o cliente principal.`,
+    );
+  }
+  const enderecoCadRaw = take("onboarding.cadastro.endereco", RD_LABELS.cadEndereco) || qualificacao;
+  const enderecoCad = parseRdAddress(enderecoCadRaw);
   ob.cadastro.endereco.cep = enderecoCad.cep;
   ob.cadastro.endereco.uf = enderecoCad.uf;
+  if (enderecoCad.multiple && enderecoCadRaw !== qualificacao) {
+    cadastroNotes.push(`No RD, o endereço tem mais de um valor: ${enderecoCadRaw}`);
+  }
   const extras: string[] = [];
   const cadInfo = take("onboarding.cadastro.informacoesAdicionais", RD_LABELS.cadInfo);
   if (cadInfo) extras.push(cadInfo);
@@ -429,11 +548,19 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
   if (socios && textOf(socios.value)) extras.push(`Sócios (RD): ${textOf(socios.value)}`);
   const consulta = fieldByPrefix(deal, RD_LABEL_PREFIXES.cadConsulta);
   if (consulta && textOf(consulta.value)) extras.push(`Consulta automatizada (RD): ${textOf(consulta.value)}`);
+  extras.push(...cadastroNotes);
   ob.cadastro.informacoesAdicionais = extras.join("\n");
   if (extras.length > 0) sources["onboarding.cadastro.informacoesAdicionais"] = "RD: [CADASTRO]";
 
-  ob.financeiro.faturamento.razaoSocial = take("onboarding.financeiro.faturamento.razaoSocial", RD_LABELS.finRazao);
-  ob.financeiro.faturamento.documento = onlyDigits(take("onboarding.financeiro.faturamento.documento", RD_LABELS.finDocumento));
+  const finRazaoRaw = take("onboarding.financeiro.faturamento.razaoSocial", RD_LABELS.finRazao);
+  const finDocRaw = take("onboarding.financeiro.faturamento.documento", RD_LABELS.finDocumento);
+  if (rdHasMultipleValues(finDocRaw) || rdHasMultipleValues(finRazaoRaw)) {
+    if (rdHasMultipleValues(finRazaoRaw)) noteMultiple(financeiroNotes, RD_LABELS.finRazao);
+    if (rdHasMultipleValues(finDocRaw)) noteMultiple(financeiroNotes, RD_LABELS.finDocumento);
+  } else {
+    ob.financeiro.faturamento.razaoSocial = finRazaoRaw;
+    ob.financeiro.faturamento.documento = singleRdDocument(finDocRaw);
+  }
   ob.financeiro.inicioVigencia = parseRdDate(take("onboarding.financeiro.inicioVigencia", RD_LABELS.finInicioVigencia));
   const primeiroFat = take("onboarding.financeiro.primeiroFaturamento", RD_LABELS.finPrimeiroFaturamento);
   const primeiroFatData = parseRdDate(primeiroFat);
@@ -443,11 +570,25 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
     ob.financeiro.primeiroFaturamentoCondicionado = true;
     ob.financeiro.condicaoPrimeiroFaturamento = primeiroFat;
   }
-  ob.financeiro.contatoFinanceiro.nome = take("onboarding.financeiro.contatoFinanceiro.nome", RD_LABELS.finResponsavel);
+  // Contato financeiro é uma pessoa: dois nomes, e-mails ou telefones no RD ficam na observação.
+  const contato = {
+    nome: take("onboarding.financeiro.contatoFinanceiro.nome", RD_LABELS.finResponsavel),
+    email: take("onboarding.financeiro.contatoFinanceiro.email", RD_LABELS.finEmail),
+    telefone: take("onboarding.financeiro.contatoFinanceiro.telefone", RD_LABELS.finTelefone),
+  };
   const posicao = fieldByPrefix(deal, RD_LABEL_PREFIXES.finPosicao);
-  ob.financeiro.contatoFinanceiro.posicao = textOf(posicao?.value);
-  ob.financeiro.contatoFinanceiro.email = take("onboarding.financeiro.contatoFinanceiro.email", RD_LABELS.finEmail);
-  ob.financeiro.contatoFinanceiro.telefone = take("onboarding.financeiro.contatoFinanceiro.telefone", RD_LABELS.finTelefone);
+  const contatoMultiple =
+    rdHasMultipleValues(contato.nome) || extractEmails(contato.email).length > 1 || extractPhones(contato.telefone).length > 1;
+  if (contatoMultiple) {
+    if (contato.nome) noteMultiple(financeiroNotes, RD_LABELS.finResponsavel);
+    if (contato.email) noteMultiple(financeiroNotes, RD_LABELS.finEmail);
+    if (contato.telefone) noteMultiple(financeiroNotes, RD_LABELS.finTelefone);
+  } else {
+    ob.financeiro.contatoFinanceiro.nome = contato.nome;
+    ob.financeiro.contatoFinanceiro.posicao = textOf(posicao?.value);
+    ob.financeiro.contatoFinanceiro.email = singleRdEmail(contato.email);
+    ob.financeiro.contatoFinanceiro.telefone = singleRdPhone(contato.telefone);
+  }
   ob.financeiro.repassePercentual = parseRdPercent(take("onboarding.financeiro.repassePercentual", RD_LABELS.finRepasse));
   const rateio = rdRateioPorArea(deal);
   ob.financeiro.rateioPorArea = rateio.rows;
@@ -459,7 +600,21 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
   ob.financeiro.reajuste.periodicidadeMeses = mapRdPeriodicidade(
     take("onboarding.financeiro.reajuste.periodicidadeMeses", RD_LABELS.finPeriodicidade),
   );
-  ob.financeiro.observacoes = take("onboarding.financeiro.observacoes", RD_LABELS.finObservacoes);
+  ob.financeiro.observacoes = [take("onboarding.financeiro.observacoes", RD_LABELS.finObservacoes), ...financeiroNotes]
+    .filter(Boolean)
+    .join("\n");
+  // Campo deixado vazio por ter mais de um valor no RD não leva o selo "Do RD".
+  const clearedPrefixes = [
+    ...(cadMultiple || (leadMultiple && !cadDocRaw) ? ["onboarding.cadastro.razaoSocial", "onboarding.cadastro.documento"] : []),
+    ...(enderecoCad.multiple ? ["onboarding.cadastro.endereco"] : []),
+    ...(!ob.financeiro.faturamento.razaoSocial && !ob.financeiro.faturamento.documento ? ["onboarding.financeiro.faturamento"] : []),
+    ...(contatoMultiple ? ["onboarding.financeiro.contatoFinanceiro"] : []),
+  ];
+  for (const path of Object.keys(sources)) {
+    if (clearedPrefixes.some((prefix) => path.startsWith(prefix))) delete sources[path];
+  }
+  if (financeiroNotes.length > 0) sources["onboarding.financeiro.observacoes"] = "RD: mais de um valor";
+
   // O formulário do cadastro mostra a origem como selo curto ("Do RD"); o rótulo exato fica em `sources`.
   ob.sources = Object.fromEntries(
     Object.keys(sources)

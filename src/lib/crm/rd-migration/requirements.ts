@@ -195,6 +195,20 @@ function cadastroItems(stage: OpportunityStage, values: RdMigrationValues): RdMi
       (empresa?.tipo_documento === "CPF" && doc.length !== 11) ||
       (empresa?.tipo_documento === "CNPJ" && doc.length !== 14),
   );
+  // Demais empresas/pessoas (ex.: dois clientes pessoa física no mesmo negócio do RD).
+  c.empresas.slice(1).forEach((extra, i) => {
+    const filled = extra.razao_social.trim() || extra.documento.trim();
+    if (!filled) return;
+    const extraDoc = digits(extra.documento);
+    const docOk =
+      (extra.tipo_documento === "CPF" && extraDoc.length === 11) ||
+      (extra.tipo_documento === "CNPJ" && extraDoc.length === 14);
+    add(
+      `empresas.${i + 1}`,
+      `Empresa/pessoa ${i + 2}: ${extra.razao_social.trim() ? `${extra.tipo_documento} de ${extra.razao_social.trim()}` : "nome"}`,
+      !extra.razao_social.trim() || !docOk,
+    );
+  });
   add("tipoLead", "Tipo de lead", !(leadTypes as readonly string[]).includes(c.tipoLead));
   if (c.tipoLead === "Indicacao") {
     add("tipoIndicacao", "Tipo de indicação", !(indicationTypes as readonly string[]).includes(c.tipoIndicacao));

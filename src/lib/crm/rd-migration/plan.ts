@@ -2,6 +2,8 @@ import {
   prepareConfeccaoFieldValues,
   withConfeccaoQualificacao,
 } from "@/components/crm/confeccao-proposta-transition";
+import { comContratantesPadrao } from "@/lib/crm/proposta-contratantes";
+import { parsePropostaEmpresasJson } from "@/lib/crm/proposta-empresas";
 import { listMissingOnboardingFields, type ClientOnboardingPayload } from "@/modules/crm/domain/client-onboarding";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
@@ -114,6 +116,14 @@ function nullIfEmpty(value: string): string | null {
 export function rdMigrationFieldValues(values: RdMigrationValues): Array<{ code: string; value: string | string[] }> {
   const empresasIntake = empresasIntakeFromCadastro(values);
   let campos = prepareConfeccaoFieldValues({ fieldValues: values.campos, empresasIntake });
+  if (empresasIntake.length > 1) {
+    // Como no avanço para a proposta: as demais pessoas/empresas do lead assinam como contratantes.
+    const escolha = comContratantesPadrao(
+      parsePropostaEmpresasJson(String(campos.cp_proposta_empresas_json ?? "")),
+      empresasIntake,
+    );
+    campos = { ...campos, cp_proposta_empresas_json: JSON.stringify(escolha) };
+  }
   const hasAddress = Boolean(String(campos.cp_cliente_cep ?? "").trim() || String(campos.cp_cliente_logradouro ?? "").trim());
   if (hasAddress) campos = withConfeccaoQualificacao({ customValues: campos, empresasIntake });
   const out: Array<{ code: string; value: string | string[] }> = [];

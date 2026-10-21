@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createSupabaseFake } from "@/test/supabase-fake";
 
-import { convertRdMigration, saveRdMigration } from "./service";
+import { convertAllRdMigrations, convertRdMigration, saveRdMigration } from "./service";
 
 const leadId = "00000000-0000-4000-8000-0000000000aa";
 const admin = { appUserId: "u-admin", isAdmin: true, email: "admin@bismarchipires.com.br" };
@@ -227,3 +227,48 @@ describe("conversão do negócio do RD", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 });
+
+describe("virada com o mesmo cliente em dois negócios", () => {
+  it("a conversão em lote pula os dois até o admin escolher", async () => {
+    const opp = (id: string, etapa: string) => ({
+      id,
+      etapa,
+      encerramento: null,
+      havera_due_diligence: false,
+      solicitante_nome: "RENATO MAROTTA STAREK",
+      solicitante_email: "ana.souza@bismarchipires.com.br",
+      link_proposta: null,
+      link_contrato: null,
+      d4sign_document_uuid: null,
+      venda_fechada_em: null,
+      rd_migrado_em: null,
+      cliente_id: null,
+    });
+    const recon = (id: string, stage: string) => ({
+      oportunidade_id: id,
+      reconciled_at: "2026-10-16",
+      detalhes: { deal: { ...deal, id: `deal-${id}`, deal_stage: { name: stage } } },
+    });
+    const fake = createSupabaseFake({
+      tables: {
+        rd_deal_reconciliacao_resumo: {
+          awaited: { data: [recon("venda", "Contrato Enviado"), recon("pos", "Inclusão no Fluxo de Faturamento")], error: null },
+        },
+        oportunidades: { awaited: { data: [opp("venda", "contrato_enviado"), opp("pos", "inclusao_faturamento")], error: null } },
+        rd_migracoes: { awaited: { data: [], error: null } },
+        app_users: { awaited: { data: [{ id: "u-ana", full_name: "Ana Paula Souza", auth_user_id: "auth-ana" }], error: null } },
+        field_definitions: { awaited: { data: [], error: null } },
+      },
+    });
+    Object.assign(fake.client, {
+      auth: { admin: { listUsers: vi.fn(async () => ({ data: { users: [] }, error: null })) } },
+    });
+
+    const summary = await convertAllRdMigrations(fake.client as never, { actor: admin, deadlineMs: 60_000 });
+
+    expect(summary).toMatchObject({ converted: 0, duplicates: 2, failed: [] });
+    expect(writes(fake, "oportunidades", "update")).toEqual([]);
+    expect(writes(fake, "rd_virada", "update")[0]).toMatchObject({ ultimo_resumo: expect.objectContaining({ duplicates: 2 }) });
+  });
+});
+

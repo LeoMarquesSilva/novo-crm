@@ -866,6 +866,34 @@ export function RdMigrationForm({ initial }: { initial: RdMigrationDetail }) {
           <AlertDescription>{detail.outOfScopeReason}</AlertDescription>
         </Alert>
       ) : null}
+      {detail.duplicate && detail.status !== "fora" ? (
+        <Alert className={detail.duplicate.suggested ? "border-info-border bg-info-bg" : "border-danger-border bg-danger-bg"}>
+          <AlertTitle className={detail.duplicate.suggested ? "text-info-text" : "text-danger-text"}>
+            Mesmo cliente em outro negócio do RD
+          </AlertTitle>
+          <AlertDescription>
+            <p>
+              {detail.duplicate.reason === "documento" ? "O mesmo CPF/CNPJ" : "O mesmo nome"} aparece em{" "}
+              {detail.duplicate.others.map((o, i) => (
+                <span key={o.opportunityId}>
+                  {i > 0 ? ", " : ""}
+                  <Link href={`/crm/migracao-rd/${encodeURIComponent(o.opportunityId)}`} className="font-medium underline">
+                    {o.nome}
+                  </Link>{" "}
+                  ({o.stageLabel ?? "fora da migração"})
+                </span>
+              ))}
+              . Converter os dois criaria dois leads para o mesmo cliente, por isso a conversão em lote pula estes negócios.
+            </p>
+            <p className="mt-1">
+              {detail.duplicate.suggested
+                ? "Sugestão: migrar este (etapa mais adiantada) e tirar os outros da migração."
+                : "Sugestão: tirar este da migração e completar o outro, que está mais adiantado."}
+              {detail.isAdmin ? "" : " Quem decide é o admin."}
+            </p>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {detail.status === "fora" ? (
         <Alert>
           <AlertTitle>Tirado da migração pelo admin</AlertTitle>
@@ -1198,6 +1226,9 @@ export function RdMigrationForm({ initial }: { initial: RdMigrationDetail }) {
               Ele vira lead do CRM em {detail.stageLabel ?? "sua etapa"} e o sync do RD deixa de alterá-lo. Use para o piloto
               ou para corrigir depois da virada; a conversão de todos é feita na fila.
               {pendingCount > 0 ? ` Ainda há ${pendingCount} pendências: o lead não avança até completar.` : ""}
+              {detail.duplicate
+                ? ` O mesmo cliente está em outro negócio da fila (${detail.duplicate.others.map((o) => o.nome).join(", ")}): tire o outro da migração para não criar dois leads.`
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

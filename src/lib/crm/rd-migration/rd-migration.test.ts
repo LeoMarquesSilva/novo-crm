@@ -157,7 +157,7 @@ describe("leitura do negócio do RD", () => {
     expect(parseRdDate("15/10/2026")).toBe("2026-10-15");
     expect(parseRdDate("A definir")).toBe("");
     expect(parseRdDate("31/02/2026")).toBe("");
-    expect(parseRdAddress("Rua X, 10 - Campinas/SP - CEP 13.010-000")).toEqual({ cep: "13010000", uf: "SP" });
+    expect(parseRdAddress("Rua X, 10 - Campinas/SP - CEP 13.010-000")).toEqual({ cep: "13010000", uf: "SP", multiple: false });
     expect(rdAreaToCrm("Contratos / Societário")).toBe("Societário e Contratos");
     expect(rdAreaToCrm("ADD")).toBeNull();
     const deal = readRdDeal(details({ stage: "Reunião", fields: RD_FIELDS }))!;

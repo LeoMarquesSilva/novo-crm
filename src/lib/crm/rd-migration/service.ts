@@ -25,6 +25,7 @@ import {
   type RdMigrationPlan,
   type RdMigrationResponsible,
 } from "./plan";
+import { findRdMigrationDuplicates } from "./duplicates";
 import { buildRdMigrationPrefill } from "./prefill";
 import { listRdFields, readRdDeal, type RdDealSnapshot } from "./rd-deal";
 import { computeRdMigrationRequirements, type RdMigrationRequirements } from "./requirements";
@@ -84,6 +85,15 @@ type MigrationContext = {
   values: RdMigrationValues;
   stage: OpportunityStage | null;
   requirements: RdMigrationRequirements | null;
+  /** Mesmo cliente em outro negócio da fila (preenchido na leitura da fila inteira). */
+  duplicate?: RdMigrationDuplicate | null;
+};
+
+export type RdMigrationDuplicate = {
+  /** Sugestão: migrar este (já convertido ou na etapa mais adiantada) e tirar os outros. */
+  suggested: boolean;
+  reason: "documento" | "nome";
+  others: Array<{ opportunityId: string; nome: string; stageLabel: string | null; status: RdMigrationStatus }>;
 };
 
 type SharedData = {
@@ -320,6 +330,7 @@ export type RdMigrationQueueItem = {
   complete: boolean;
   rdUpdatedAt: string | null;
   motivoFora: string | null;
+  duplicate: RdMigrationDuplicate | null;
 };
 
 export type RdViradaState = {
@@ -390,7 +401,41 @@ async function loadAllContexts(supabase: SupabaseClient): Promise<{
     if (!ctx.scope.inScope && !row && !opportunity.rd_migrado_em) continue;
     contexts.push(ctx);
   }
+  annotateDuplicates(contexts);
   return { contexts, schemaPending: migration.schemaPending, shared };
+}
+
+/** Marca negócios do mesmo cliente (CPF/CNPJ ou nome) que ainda estão na migração. */
+function annotateDuplicates(contexts: MigrationContext[]): void {
+  const active = contexts.filter((c) => c.status !== "fora" && (c.scope.inScope || c.opportunity.rd_migrado_em));
+  const byId = new Map(active.map((c) => [c.opportunity.id, c]));
+  const found = findRdMigrationDuplicates(
+    active.map((c) => ({
+      opportunityId: c.opportunity.id,
+      nome: c.opportunity.solicitante_nome,
+      documentos: c.values.cadastro.empresas.map((e) => e.documento.replace(/\D/g, "")).filter(Boolean),
+      stage: c.stage,
+      converted: Boolean(c.opportunity.rd_migrado_em),
+    })),
+  );
+  for (const ctx of contexts) {
+    const info = found.get(ctx.opportunity.id);
+    ctx.duplicate = info
+      ? {
+          suggested: info.suggested,
+          reason: info.reason,
+          others: info.others.map((id) => {
+            const other = byId.get(id)!;
+            return {
+              opportunityId: id,
+              nome: other.opportunity.solicitante_nome,
+              stageLabel: other.stage ? OPPORTUNITY_STAGE_LABELS[other.stage] : null,
+              status: other.status,
+            };
+          }),
+        }
+      : null;
+  }
 }
 
 function toQueueItem(ctx: MigrationContext): RdMigrationQueueItem {
@@ -411,6 +456,7 @@ function toQueueItem(ctx: MigrationContext): RdMigrationQueueItem {
     complete: ctx.requirements?.complete ?? false,
     rdUpdatedAt: ctx.deal?.updatedAt ?? null,
     motivoFora: ctx.row?.motivo_fora ?? null,
+    duplicate: ctx.duplicate ?? null,
   };
 }
 
@@ -488,6 +534,7 @@ export type RdMigrationDetail = {
   schemaPending: boolean;
   frozen: boolean;
   users: Array<{ id: string; fullName: string }>;
+  duplicate: RdMigrationDuplicate | null;
 };
 
 function canEditMigration(ctx: MigrationContext, actor: RdMigrationActor): boolean {
@@ -539,6 +586,7 @@ function toDetail(
     schemaPending: extra.schemaPending,
     frozen: extra.frozen,
     users: shared.users.map((u) => ({ id: u.id, fullName: u.fullName })),
+    duplicate: ctx.duplicate ?? null,
   };
 }
 
@@ -547,13 +595,16 @@ export async function loadRdMigrationDetail(
   opportunityId: string,
   actor: RdMigrationActor,
 ): Promise<RdMigrationDetail> {
-  const [{ ctx, schemaPending, shared }, virada] = await Promise.all([
+  const [{ ctx, schemaPending, shared }, virada, all] = await Promise.all([
     loadContext(supabase, opportunityId),
     loadRdViradaState(supabase),
+    // Duplicados dependem da fila inteira (mesmo CPF/CNPJ ou nome em outro negócio).
+    loadAllContexts(supabase),
   ]);
   if (!canViewMigration(ctx, actor)) {
     throw new PublicError("Só o responsável pelo lead e o admin veem esta migração.", 403, "FORBIDDEN");
   }
+  ctx.duplicate = all.contexts.find((c) => c.opportunity.id === opportunityId)?.duplicate ?? null;
   return toDetail(ctx, actor, shared, { schemaPending: schemaPending || virada.schemaPending, frozen: Boolean(virada.congeladoEm) });
 }
 
@@ -1086,6 +1137,8 @@ export type RdCutoverSummary = {
   pending: number;
   skipped: number;
   failed: Array<{ opportunityId: string; nome: string; error: string }>;
+  /** Negócios do mesmo cliente que o admin ainda não resolveu (ficaram sem converter). */
+  duplicates: number;
   remaining: number;
   finishedAt: string;
 };
@@ -1112,6 +1165,7 @@ export async function convertAllRdMigrations(
     pending: 0,
     skipped: 0,
     failed: [],
+    duplicates: 0,
     remaining: 0,
     finishedAt: "",
   };
@@ -1121,6 +1175,11 @@ export async function convertAllRdMigrations(
       break;
     }
     const ctx = queue[i];
+    if (ctx.duplicate) {
+      // Converter os dois criaria dois leads para o mesmo cliente: o admin escolhe antes.
+      summary.duplicates += 1;
+      continue;
+    }
     try {
       const result = await convertContext(supabase, ctx, shared, input.actor, { notify: false });
       if (result.outcome === "converted") {

@@ -31,16 +31,26 @@ import { formatDateTimeBr } from "@/lib/format-datetime";
 import type { RdMigrationQueue, RdMigrationQueueItem } from "@/lib/crm/rd-migration/service";
 import { cn } from "@/lib/utils";
 
-type StatusFilter = "todos" | RdMigrationDisplayStatus;
+type StatusFilter = "todos" | "duplicados" | RdMigrationDisplayStatus;
 
 const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
   { value: "todos", label: "Todos" },
   { value: "a_preencher", label: "A preencher" },
   { value: "pronto", label: "Prontos" },
+  { value: "duplicados", label: "Mesmo cliente" },
   { value: "pendente_crm", label: "No CRM com pendências" },
   { value: "concluida", label: "Concluídos" },
   { value: "fora", label: "Fora" },
 ];
+
+function duplicateTitle(item: RdMigrationQueueItem): string {
+  const d = item.duplicate;
+  if (!d) return "";
+  const others = d.others.map((o) => `${o.nome} (${o.stageLabel ?? "fora"})`).join("; ");
+  return `Mesmo cliente ${d.reason === "documento" ? "(CPF/CNPJ)" : "(nome)"} em: ${others}. ${
+    d.suggested ? "Sugestão: migrar este e tirar os outros." : "Sugestão: tirar este da migração."
+  }`;
+}
 
 const NO_OWNER = "__sem__";
 
@@ -67,6 +77,9 @@ function summaryText(summary: Record<string, unknown>): string | null {
   ];
   const failed = Array.isArray(summary.failed) ? summary.failed.length : 0;
   if (failed) parts.push(`${failed} com erro`);
+  if (typeof summary.duplicates === "number" && summary.duplicates > 0) {
+    parts.push(`${summary.duplicates} do mesmo cliente esperando o admin escolher`);
+  }
   if (typeof summary.remaining === "number" && summary.remaining > 0) parts.push(`${summary.remaining} ainda a converter`);
   return parts.join(" · ");
 }
@@ -81,14 +94,18 @@ export function RdMigrationQueueView({ queue, isAdmin }: { queue: RdMigrationQue
   const [confirm, setConfirm] = useState<CutoverAction | null>(null);
 
   const counts = useMemo(() => {
-    const out: Record<RdMigrationDisplayStatus, number> = {
+    const out: Record<Exclude<StatusFilter, "todos">, number> = {
       a_preencher: 0,
       pronto: 0,
+      duplicados: 0,
       pendente_crm: 0,
       concluida: 0,
       fora: 0,
     };
-    for (const item of queue.items) out[displayOf(item)] += 1;
+    for (const item of queue.items) {
+      out[displayOf(item)] += 1;
+      if (item.duplicate) out.duplicados += 1;
+    }
     return out;
   }, [queue.items]);
 
@@ -105,7 +122,13 @@ export function RdMigrationQueueView({ queue, isAdmin }: { queue: RdMigrationQue
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return queue.items
-      .filter((item) => statusFilter === "todos" || displayOf(item) === statusFilter)
+      .filter((item) =>
+        statusFilter === "todos"
+          ? true
+          : statusFilter === "duplicados"
+            ? Boolean(item.duplicate)
+            : displayOf(item) === statusFilter,
+      )
       .filter((item) =>
         ownerFilter === "todos"
           ? true
@@ -170,7 +193,11 @@ export function RdMigrationQueueView({ queue, isAdmin }: { queue: RdMigrationQue
     },
     convert_all: {
       title: "Converter os negócios do RD?",
-      body: `Os negócios em escopo viram leads do CRM e passam a andar aqui. ${counts.a_preencher} ainda têm campos a preencher: eles entram no CRM, mas não avançam até o responsável completar a migração.`,
+      body: `Os negócios em escopo viram leads do CRM e passam a andar aqui. ${counts.a_preencher} ainda têm campos a preencher: eles entram no CRM, mas não avançam até o responsável completar a migração.${
+        counts.duplicados > 0
+          ? ` Negócios do mesmo cliente que você ainda não resolveu (filtro "Mesmo cliente") ficam de fora até escolher qual migrar.`
+          : ""
+      }`,
       cta: "Converter agora",
     },
     rollback: {
@@ -392,7 +419,22 @@ export function RdMigrationQueueView({ queue, isAdmin }: { queue: RdMigrationQue
                       )}
                     </TableCell>
                     <TableCell>
-                      <RdMigrationStatusBadge status={displayOf(item)} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <RdMigrationStatusBadge status={displayOf(item)} />
+                        {item.duplicate ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold",
+                              item.duplicate.suggested
+                                ? "border-info-border bg-info-bg text-info-text"
+                                : "border-danger-border bg-danger-bg text-danger-text",
+                            )}
+                            title={duplicateTitle(item)}
+                          >
+                            {item.duplicate.suggested ? "Mesmo cliente · migrar este" : "Mesmo cliente"}
+                          </span>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="hidden text-[13px] tabular-nums sm:table-cell">{pendingLabel(item)}</TableCell>
                     <TableCell className="hidden text-[13px] tabular-nums text-muted-foreground xl:table-cell">

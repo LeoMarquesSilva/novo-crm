@@ -57,6 +57,7 @@ function detailFor(overrides: Partial<RdMigrationDetail> = {}): RdMigrationDetai
     schemaPending: false,
     frozen: false,
     users: [{ id: "u-ana", fullName: "Ana Paula Souza" }],
+    duplicate: null,
     ...overrides,
   };
 }
