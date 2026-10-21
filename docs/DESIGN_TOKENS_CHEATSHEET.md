@@ -26,6 +26,9 @@
 |---|---:|
 | `brand-navy` | `#16263B` |
 | `brand-navy-hover` | `#0F1D2D` |
+| `brand-gold` | `#D4B070` (só decorativo: fios, ícones, sobre navy) |
+| `brand-gold-text` | `#8A6A2F` (texto dourado sobre branco, ~5:1) |
+| `brand-cream` | `#FCF9F5` |
 | `interactive-50` | `#EFF6FF` |
 | `interactive-100` | `#DBEAFE` |
 | `interactive-300` | `#93C5FD` |

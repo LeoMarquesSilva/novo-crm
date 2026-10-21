@@ -67,6 +67,9 @@
   --color-neutral-900: var(--neutral-900);
   --color-brand-navy: var(--brand-navy);
   --color-brand-navy-hover: var(--brand-navy-hover);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-gold-text: var(--brand-gold-text);
+  --color-brand-cream: var(--brand-cream);
   --color-interactive-50: var(--interactive-50);
   --color-interactive-100: var(--interactive-100);
   --color-interactive-300: var(--interactive-300);
@@ -173,6 +176,11 @@
 
   --brand-navy: #16263b;
   --brand-navy-hover: #0f1d2d;
+  /* Dourado da fênix do logo: só decorativo (fios, ícones, fundo navy). Texto
+     dourado sobre branco usa --brand-gold-text (~5:1, AA). */
+  --brand-gold: #d4b070;
+  --brand-gold-text: #8a6a2f;
+  --brand-cream: #fcf9f5;
 
   --interactive-50: #eff6ff;
   --interactive-100: #dbeafe;

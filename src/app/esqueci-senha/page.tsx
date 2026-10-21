@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
+
 import { AuthPanel } from "@/components/auth/auth-panel";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
+
+export const metadata: Metadata = { title: "Esqueci minha senha · CRM Bismarchi | Pires" };
 
 export default async function ForgotPasswordPage({
   searchParams,
@@ -10,8 +14,8 @@ export default async function ForgotPasswordPage({
 
   return (
     <AuthPanel
-      title="Esqueci minha senha"
-      description="Informe o e-mail da sua conta. Se ele estiver cadastrado, enviamos um link para criar outra senha."
+      title="Esqueceu a senha?"
+      description="Informe o e-mail da sua conta. Enviamos um link para você criar uma nova senha."
     >
       <ForgotPasswordForm linkError={erro === "link"} />
     </AuthPanel>
