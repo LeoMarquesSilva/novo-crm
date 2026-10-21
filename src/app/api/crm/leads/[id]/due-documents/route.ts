@@ -2,33 +2,90 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { requireAuthApi } from "@/lib/auth/server";
 import { montarNomesArquivoDueUpload } from "@/lib/crm/due-document-filename";
+import { DUE_AREAS, DUE_AREA_IDS, type DueAreaId } from "@/lib/due-ppt/areas";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const BUCKET = "due-documents";
 
-const ALLOWED_TYPES = new Set([
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-]);
+type DocumentKind = "ppt_compilacao" | "planilha_area" | "logo_cliente";
 
-const MAX_BYTES = 52 * 1024 * 1024;
+const KINDS: Record<
+  DocumentKind,
+  { extensions: Record<string, string>; maxBytes: number; folder: string; label: string }
+> = {
+  ppt_compilacao: {
+    extensions: {
+      ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ".ppt": "application/vnd.ms-powerpoint",
+    },
+    maxBytes: 52 * 1024 * 1024,
+    folder: "",
+    label: "Apenas arquivos .ppt ou .pptx são aceitos.",
+  },
+  planilha_area: {
+    extensions: { ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    maxBytes: 25 * 1024 * 1024,
+    folder: "planilhas/",
+    label: "Envie a planilha em .xlsx (no Excel: Salvar como → Pasta de Trabalho do Excel).",
+  },
+  logo_cliente: {
+    extensions: { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg" },
+    maxBytes: 5 * 1024 * 1024,
+    folder: "logo/",
+    label: "O logo deve ser .png ou .jpg.",
+  },
+};
 
-function contentTypeForExtension(extensao: string, declaredType: string): string {
-  if (declaredType && ALLOWED_TYPES.has(declaredType)) return declaredType;
-  return extensao === ".pptx"
-    ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-    : "application/vnd.ms-powerpoint";
+const SELECT_COLUMNS =
+  "id, document_kind, area_key, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id";
+
+function parseKind(raw: unknown): DocumentKind | null {
+  if (raw == null || raw === "") return "ppt_compilacao";
+  return typeof raw === "string" && raw in KINDS ? (raw as DocumentKind) : null;
 }
 
-function validateFilename(nomeOriginalUpload: string): { extensao: string } | { error: string } {
-  if (!/\.(ppt|pptx)$/i.test(nomeOriginalUpload.trim())) {
-    return { error: "Apenas arquivos .ppt ou .pptx são aceitos." };
-  }
-  const { extensao } = montarNomesArquivoDueUpload(nomeOriginalUpload);
-  if (extensao !== ".ppt" && extensao !== ".pptx") {
-    return { error: "Apenas arquivos .ppt ou .pptx são aceitos." };
-  }
-  return { extensao };
+function parseArea(raw: unknown): DueAreaId | null {
+  return typeof raw === "string" && (DUE_AREA_IDS as readonly string[]).includes(raw) ? (raw as DueAreaId) : null;
+}
+
+function extensionFor(kind: DocumentKind, filename: string): string | null {
+  const m = /\.[A-Za-z0-9]+$/.exec(filename.trim());
+  const ext = m ? m[0].toLowerCase() : "";
+  return ext in KINDS[kind].extensions ? ext : null;
+}
+
+/** Erro de banco que indica a migration da apresentação automática ainda não aplicada. */
+function isMigrationPending(message: string | undefined, code?: string): boolean {
+  return (
+    code === "23514" ||
+    code === "42703" ||
+    /area_key|document_kind_check/.test(message ?? "")
+  );
+}
+
+type AuthOk = Extract<Awaited<ReturnType<typeof requireAuthApi>>, { ok: true }>;
+
+/**
+ * Comercial/admin enviam qualquer arquivo; o responsável pela área no levantamento
+ * pode enviar (e tirar) a planilha da própria área.
+ */
+async function canHandleArea(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  auth: AuthOk,
+  oportunidadeId: string,
+  kind: DocumentKind,
+  area: DueAreaId | null,
+): Promise<boolean> {
+  const role = String(auth.profile?.role ?? "");
+  if (role === "admin" || role === "comercial") return true;
+  if (kind !== "planilha_area" || !area || !auth.profile?.id) return false;
+  const { data } = await supabase
+    .from("due_area_tasks")
+    .select("area_key, responsavel_app_user_id")
+    .eq("oportunidade_id", oportunidadeId)
+    .eq("responsavel_app_user_id", auth.profile.id);
+  const crmKey = DUE_AREAS[area].crmAreaKey;
+  return (data ?? []).some((t) => String(t.area_key) === crmKey);
 }
 
 export async function GET(
@@ -38,7 +95,7 @@ export async function GET(
   try {
     const auth = await requireAuthApi();
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
+    if (!auth.profile) {
       return NextResponse.json({ ok: false, error: "Sem permissão." }, { status: 403 });
     }
 
@@ -54,16 +111,23 @@ export async function GET(
     if (opErr) throw opErr;
     if (!op) return NextResponse.json({ ok: false, error: "Negociação não encontrada." }, { status: 404 });
 
+    const role = String(auth.profile.role);
+    const isComercial = role === "admin" || role === "comercial";
+
     const docId = request.nextUrl.searchParams.get("documentId");
     if (docId) {
       const { data: doc, error: docErr } = await supabase
         .from("due_documents")
-        .select("id, storage_bucket, storage_path, oportunidade_id")
+        .select("*")
         .eq("id", docId)
         .eq("oportunidade_id", oportunidadeId)
         .maybeSingle();
       if (docErr) throw docErr;
       if (!doc) return NextResponse.json({ ok: false, error: "Documento não encontrado." }, { status: 404 });
+      const area = parseArea((doc as { area_key?: string | null }).area_key);
+      if (!isComercial && !(await canHandleArea(supabase, auth, oportunidadeId, "planilha_area", area))) {
+        return NextResponse.json({ ok: false, error: "Sem permissão." }, { status: 403 });
+      }
 
       const { data: signed, error: signErr } = await supabase.storage
         .from(doc.storage_bucket || BUCKET)
@@ -77,13 +141,24 @@ export async function GET(
       return NextResponse.json({ ok: true, signedUrl: signed.signedUrl });
     }
 
-    const { data: rows, error: listErr } = await supabase
+    if (!isComercial) {
+      return NextResponse.json({ ok: false, error: "Sem permissão." }, { status: 403 });
+    }
+    let { data: rows, error: listErr } = await supabase
       .from("due_documents")
-      .select(
-        "id, document_kind, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id",
-      )
+      .select(SELECT_COLUMNS)
       .eq("oportunidade_id", oportunidadeId)
       .order("uploaded_at", { ascending: false });
+    if (listErr && isMigrationPending(listErr.message, listErr.code)) {
+      // Sem a coluna area_key ainda: lista sem ela.
+      const fallback = await supabase
+        .from("due_documents")
+        .select("id, document_kind, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id")
+        .eq("oportunidade_id", oportunidadeId)
+        .order("uploaded_at", { ascending: false });
+      rows = (fallback.data ?? []).map((r) => ({ ...r, area_key: null }));
+      listErr = fallback.error;
+    }
     if (listErr) throw listErr;
 
     return NextResponse.json({ ok: true, documents: rows ?? [] });
@@ -100,6 +175,8 @@ export async function GET(
  * envia o arquivo direto pro Storage; esta rota só emite a URL assinada e, depois,
  * confirma o que realmente chegou lá (nunca confia em tamanho/tipo que o cliente
  * diga — relê do próprio Storage antes de gravar `due_documents`).
+ *
+ * `kind`: `ppt_compilacao` (padrão), `planilha_area` (+ `areaKey`) ou `logo_cliente`.
  */
 export async function POST(
   request: NextRequest,
@@ -108,11 +185,8 @@ export async function POST(
   try {
     const auth = await requireAuthApi();
     if (!auth.ok) return auth.response;
-    if (!auth.profile || !["admin", "comercial"].includes(String(auth.profile.role))) {
-      return NextResponse.json(
-        { ok: false, error: "Apenas comercial ou admin pode enviar arquivos." },
-        { status: 403 },
-      );
+    if (!auth.profile) {
+      return NextResponse.json({ ok: false, error: "Sem permissão." }, { status: 403 });
     }
 
     const { id: rawId } = await params;
@@ -135,24 +209,28 @@ export async function POST(
     }
     const body = (json ?? {}) as Record<string, unknown>;
     const action = typeof body.action === "string" ? body.action : "";
+    const kind = parseKind(body.kind);
+    if (!kind) return NextResponse.json({ ok: false, error: "Tipo de documento inválido." }, { status: 400 });
+    const area = kind === "planilha_area" ? parseArea(body.areaKey) : null;
+    if (kind === "planilha_area" && !area) {
+      return NextResponse.json({ ok: false, error: "Informe a área da planilha." }, { status: 400 });
+    }
+    if (!(await canHandleArea(supabase, auth, oportunidadeId, kind, area))) {
+      return NextResponse.json(
+        { ok: false, error: "Apenas comercial, admin ou o responsável da área pode enviar este arquivo." },
+        { status: 403 },
+      );
+    }
+    const spec = KINDS[kind];
 
     if (action === "create-upload-url") {
       const filename = typeof body.filename === "string" ? body.filename.trim() : "";
       if (!filename) {
         return NextResponse.json({ ok: false, error: "Informe o nome do arquivo." }, { status: 400 });
       }
-      const validated = validateFilename(filename);
-      if ("error" in validated) {
-        return NextResponse.json({ ok: false, error: validated.error }, { status: 422 });
-      }
-      const declaredType = typeof body.contentType === "string" ? body.contentType.trim() : "";
-      if (declaredType && !ALLOWED_TYPES.has(declaredType)) {
-        return NextResponse.json(
-          { ok: false, error: "Tipo de arquivo não suportado para DUE." },
-          { status: 422 },
-        );
-      }
-      const storagePath = `${oportunidadeId}/${randomUUID()}${validated.extensao}`;
+      const ext = extensionFor(kind, filename);
+      if (!ext) return NextResponse.json({ ok: false, error: spec.label }, { status: 422 });
+      const storagePath = `${oportunidadeId}/${spec.folder}${randomUUID()}${ext}`;
       const { data: signed, error: signErr } = await supabase.storage
         .from(BUCKET)
         .createSignedUploadUrl(storagePath);
@@ -167,7 +245,7 @@ export async function POST(
         uploadUrl: signed.signedUrl,
         token: signed.token,
         storagePath,
-        contentType: contentTypeForExtension(validated.extensao, declaredType),
+        contentType: spec.extensions[ext],
       });
     }
 
@@ -175,15 +253,15 @@ export async function POST(
       const storagePath = typeof body.storagePath === "string" ? body.storagePath.trim() : "";
       const originalFilename =
         typeof body.originalFilename === "string" ? body.originalFilename.trim() : "";
-      if (!storagePath || !storagePath.startsWith(`${oportunidadeId}/`)) {
+      if (!storagePath || !storagePath.startsWith(`${oportunidadeId}/${spec.folder}`)) {
         return NextResponse.json({ ok: false, error: "Caminho de upload inválido." }, { status: 400 });
       }
       if (!originalFilename) {
         return NextResponse.json({ ok: false, error: "Informe o nome do arquivo." }, { status: 400 });
       }
-      const validated = validateFilename(originalFilename);
-      if ("error" in validated) {
-        return NextResponse.json({ ok: false, error: validated.error }, { status: 422 });
+      const ext = extensionFor(kind, originalFilename);
+      if (!ext || !storagePath.toLowerCase().endsWith(ext)) {
+        return NextResponse.json({ ok: false, error: spec.label }, { status: 422 });
       }
 
       const { data: info, error: infoErr } = await supabase.storage.from(BUCKET).info(storagePath);
@@ -194,33 +272,45 @@ export async function POST(
         );
       }
       const byteSize = info.size ?? 0;
-      if (byteSize <= 0 || byteSize > MAX_BYTES) {
+      if (byteSize <= 0 || byteSize > spec.maxBytes) {
         await supabase.storage.from(BUCKET).remove([storagePath]);
-        return NextResponse.json({ ok: false, error: "Arquivo muito grande (máx. 52 MB)." }, { status: 422 });
+        return NextResponse.json(
+          { ok: false, error: `Arquivo muito grande (máx. ${Math.round(spec.maxBytes / 1024 / 1024)} MB).` },
+          { status: 422 },
+        );
       }
 
-      const { nomeExibicao } = montarNomesArquivoDueUpload(originalFilename);
-      const contentType = contentTypeForExtension(validated.extensao, info.contentType ?? "");
+      const nomeExibicao =
+        kind === "ppt_compilacao" ? montarNomesArquivoDueUpload(originalFilename).nomeExibicao : originalFilename.slice(0, 240);
 
       const { data: inserted, error: insErr } = await supabase
         .from("due_documents")
         .insert({
           oportunidade_id: oportunidadeId,
-          document_kind: "ppt_compilacao",
+          document_kind: kind,
+          ...(area ? { area_key: area } : {}),
           storage_bucket: BUCKET,
           storage_path: storagePath,
           original_filename: nomeExibicao,
-          content_type: contentType,
+          content_type: spec.extensions[ext],
           byte_size: byteSize,
           uploaded_by_app_user_id: auth.profile.id,
         })
-        .select(
-          "id, document_kind, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id",
-        )
+        .select(SELECT_COLUMNS)
         .single();
 
       if (insErr) {
         await supabase.storage.from(BUCKET).remove([storagePath]);
+        if (kind !== "ppt_compilacao" && isMigrationPending(insErr.message, insErr.code)) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "O banco ainda não tem a atualização da apresentação automática (migration 20261020120000). Peça ao admin para aplicá-la.",
+            },
+            { status: 409 },
+          );
+        }
         return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
       }
 
@@ -230,6 +320,51 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "Ação inválida." }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha no upload.";
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+/** Remove planilha de área ou logo (o PPT de compilação fica como histórico). */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const auth = await requireAuthApi();
+    if (!auth.ok) return auth.response;
+    if (!auth.profile) {
+      return NextResponse.json({ ok: false, error: "Sem permissão." }, { status: 403 });
+    }
+    const { id: rawId } = await params;
+    const oportunidadeId = decodeURIComponent(rawId);
+    const docId = request.nextUrl.searchParams.get("documentId") ?? "";
+    if (!docId) return NextResponse.json({ ok: false, error: "Informe o documento." }, { status: 400 });
+
+    const supabase = createSupabaseAdminClient();
+    const { data: doc, error: docErr } = await supabase
+      .from("due_documents")
+      .select("id, document_kind, area_key, storage_bucket, storage_path")
+      .eq("id", docId)
+      .eq("oportunidade_id", oportunidadeId)
+      .maybeSingle();
+    if (docErr) throw docErr;
+    if (!doc) return NextResponse.json({ ok: false, error: "Documento não encontrado." }, { status: 404 });
+    const kind = parseKind(doc.document_kind);
+    if (kind !== "planilha_area" && kind !== "logo_cliente") {
+      return NextResponse.json(
+        { ok: false, error: "Só planilhas e logo podem ser removidos aqui." },
+        { status: 422 },
+      );
+    }
+    if (!(await canHandleArea(supabase, auth, oportunidadeId, kind, parseArea(doc.area_key)))) {
+      return NextResponse.json({ ok: false, error: "Sem permissão." }, { status: 403 });
+    }
+    const { error: delErr } = await supabase.from("due_documents").delete().eq("id", doc.id);
+    if (delErr) throw delErr;
+    await supabase.storage.from(doc.storage_bucket || BUCKET).remove([doc.storage_path]);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha ao remover o arquivo.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

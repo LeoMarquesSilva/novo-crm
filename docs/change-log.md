@@ -2,6 +2,27 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-21 — Usuários: foto de quem ainda não tem login e casamento pelo login do ORQESTRAI
+
+- Colaborador do RH sem login aparecia só com as iniciais: a `official-photos-api` acha a pessoa pelo `app_users.id` vinculado, e quem não tem login não tem esse id. A tela de Usuários agora lê a view `official_system_photos` do ORQESTRAI e casa a foto pelo e-mail ou pelo local-part (`fetchOrqestraiPeopleIndex` em `src/lib/orqestrai/client.ts`, duas consultas em paralelo, prazo de 2,5 s). Usuário com login sem vínculo na API também usa essa foto. Ao conceder acesso, o card novo mantém a foto. Em 21/10, 59 dos 61 ativos ficam com foto (Fênix Agendador e Rafael Sampaio não têm foto no ORQESTRAI).
+- Samuel aparecia duas vezes (com acesso como `controladoria@bismarchipires.com.br` e "sem acesso" como `samuel@bpplaw.com.br` do RH). O casamento usuário ↔ colaborador agora tenta também o e-mail de login no ORQESTRAI (`hr_employees.user_id` → `official_system_photos.normalized_email`, no caso dele `controladoria@bpplaw.com.br`). O e-mail do RH tem prioridade; o de login só ocupa chave livre.
+- Sync de colaboradores: as variáveis `ORQESTRAI_SUPABASE_*` foram para a Vercel em 14/10 e o cron diário voltou a rodar. Em 21/10 o espelho tinha as mesmas 82 pessoas (61 ativas) de `hr_employees`.
+- Sem DDL. Validações: `npx tsc --noEmit`, `eslint` nos arquivos alterados.
+
+## 2026-10-20 — Apresentação automática da Due Diligence
+
+- O CRM monta o PPT da DUE no modelo do escritório a partir das planilhas das áreas: capa (razão social, CNPJ, empresas, logo), metodologia com as esferas certas, áreas envolvidas (cards com link), slides por área, conclusão recalculada e sócios. Áreas fora da due somem do arquivo.
+- Formatos por área: painel com gráficos, um slide por processo (automático até 5 processos ativos) e lista de processos. Reestruturação por formulário.
+- Regras de cálculo em `docs/DUE-APRESENTACAO-AUTOMATICA.md`; conferidas contra os PPTs entregues (Cível Sul Fluminense R$ 2.342.866,93; Tributário R$ 283.889.754,52; Trabalhista ALEA R$ 14.806.368,15; crédito ALEA R$ 116.108,20).
+- Planilha anexada na tarefa do levantamento; painel na ficha; card de modelos em `/crm/due-diligence`.
+- Modelo do CRM em `templates/due/MODELO-DUE-CRM.pptx`, gerado por `scripts/due-ppt/prepare-due-template.py`.
+- Migration `20261020120000_due_apresentacao_automatica.sql` (não aplicada).
+- Reestruturação: **Preencher a partir do PDF** lê edital do art. 52, §1º, relatório do AJ e plano com IA (`POST /api/crm/leads/[id]/due-apresentacao/reestruturacao-pdf`, PDF por URL assinada, apagado depois da leitura). A sugestão aparece em azul para revisão; só entra no rascunho ao aplicar, e dá para desfazer.
+- Trabalhista, regras confirmadas com o advogado da área: suspensos somam em "Ativos"; o gráfico de pedidos mostra os 10 de maior incidência (catálogo `PEDIDOS_TRABALHISTAS`, inclui vínculo de emprego), não mais 9 categorias fixas; verbas rescisórias contam também multa 477 e aviso prévio. Sedna: Ativos 18, verbas rescisórias 76.
+- Cível, quadro "Processos por região": até 4 tribunais com a UF ("SP · TJSP"); com 5 ou mais, os 3 maiores + "Outros". Corrigido o 2º item de "Sócio no polo passivo", que repetia o 1º. Ops novas `columns` e `fontScale` em `pptx/build.ts`. Precisa do modelo novo (`templates/due/MODELO-DUE-CRM.pptx`) como modelo ativo; com o modelo antigo o quadro continua "maior tribunal + Outros".
+
+Validações: `npx vitest run src/lib/due-ppt` (22 testes, inclui geração com o modelo do repositório), `npx tsc --noEmit`, eslint nos arquivos alterados; PPTs gerados com as planilhas reais abertos e renderizados no PowerPoint. Leitura do PDF: `npx vitest run src/lib/due-ppt src/components/crm/due-apresentacao` (50 testes; recorte, parse e mescla sem chamar a OpenAI), `npm run lint` sem erros; não testada com a OpenAI real.
+
 ## 2026-10-18 — Fechamento da competência do mês de início da vigência
 
 - A versão vale na competência quando algum dia do mês está na vigência. Uma vigência desde 18/10 fecha outubro, e a 1ª parcela do preço fechado entra no fechamento da competência dela. Antes, `findApplicableVersion`, `calculateMonthlyBilling` e o RPC `create_contract_closing_revision` exigiam `vigente_de ≤ dia 1`. A mesma regra vale para consumos, referência anual e projeção (`competency.ts`).

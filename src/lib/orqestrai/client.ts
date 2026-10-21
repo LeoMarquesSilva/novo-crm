@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createExternalServiceClient } from "@/lib/supabase/external-service-client";
+import { withVersion } from "@/lib/official-photos/overlay";
 
 /**
  * Client server-side para o banco do ORQESTRAI (projeto Supabase separado do
@@ -98,4 +99,73 @@ export async function getOrqestraiColaboradoresLocal(
     admissionDate: (row.admission_date as string | null) ?? null,
     terminationDate: (row.termination_date as string | null) ?? null,
   }));
+}
+
+/** Curto: roda no render da tela de Usuários; sem resposta, ficam as iniciais. */
+const PEOPLE_INDEX_TIMEOUT_MS = 2500;
+
+export type OrqestraiPeopleIndex = {
+  photoByEmail: Map<string, string>;
+  photoByLocalPart: Map<string, string>;
+  /** `hr_employees.id` → e-mail de login no ORQESTRAI (pode diferir do e-mail do RH). */
+  loginEmailByCollaboratorId: Map<string, string>;
+};
+
+/**
+ * Fotos oficiais e e-mail de login de cada colaborador, lidos ao vivo do
+ * ORQESTRAI (view `official_system_photos` + `hr_employees.user_id`) para a
+ * tela de Usuários:
+ * - foto de quem ainda não tem login no CRM — a `official-photos-api` só acha
+ *   a pessoa pelo `app_users.id` vinculado, então o "sem acesso" ficava só
+ *   com as iniciais. Indexada também pelo local-part, pra cobrir
+ *   @bpplaw.com.br vs @bismarchipires.com.br;
+ * - e-mail de login, pra casar quem entra no CRM com um e-mail diferente do
+ *   cadastro do RH (ex.: `controladoria@` no login, `samuel@` no RH).
+ * Duas consultas pequenas em paralelo. Nunca lança: sem env, timeout ou erro
+ * devolve o que conseguiu (ou índice vazio) e a tela casa só pelo e-mail do RH.
+ */
+export async function fetchOrqestraiPeopleIndex(): Promise<OrqestraiPeopleIndex> {
+  const index: OrqestraiPeopleIndex = {
+    photoByEmail: new Map(),
+    photoByLocalPart: new Map(),
+    loginEmailByCollaboratorId: new Map(),
+  };
+  const supabaseUrl = url();
+  const key = serviceRoleKey();
+  if (!supabaseUrl || !key) return index;
+
+  try {
+    const supabase = createExternalServiceClient(supabaseUrl, key, {
+      timeoutMs: PEOPLE_INDEX_TIMEOUT_MS,
+    });
+    const [photos, employees] = await Promise.all([
+      supabase
+        .from("official_system_photos")
+        .select("user_id, normalized_email, photo_url, source, version"),
+      supabase.from("hr_employees").select("id, user_id"),
+    ]);
+    if (photos.error || !photos.data) return index;
+
+    const loginEmailByUserId = new Map<string, string>();
+    for (const row of photos.data) {
+      const email = (row.normalized_email as string | null) ?? "";
+      if (!email) continue;
+      loginEmailByUserId.set(String(row.user_id), email);
+
+      const photoUrl = row.photo_url as string | null;
+      if (!photoUrl || row.source === "none") continue;
+      const versioned = withVersion(photoUrl, String(row.version));
+      index.photoByEmail.set(email, versioned);
+      const local = email.split("@")[0];
+      if (local && !index.photoByLocalPart.has(local)) index.photoByLocalPart.set(local, versioned);
+    }
+
+    for (const row of employees.data ?? []) {
+      const loginEmail = row.user_id ? loginEmailByUserId.get(String(row.user_id)) : undefined;
+      if (loginEmail) index.loginEmailByCollaboratorId.set(String(row.id), loginEmail);
+    }
+    return index;
+  } catch {
+    return index;
+  }
 }
