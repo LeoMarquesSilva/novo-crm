@@ -51,7 +51,9 @@ Componentes (`src/components/crm/`):
 
 ## Novo Lead (modal)
 
-`src/components/crm/new-lead-modal/` — `index.ts`, `modal-header.tsx`, `input-field.tsx`, `select-field.tsx`, `searchable-picker.tsx`, `section-card.tsx`, `sticky-footer.tsx`, `tag-selectable.tsx`
+`src/components/crm/new-lead-modal/` — `index.ts`, `modal-header.tsx`, `input-field.tsx`, `select-field.tsx`, `searchable-picker.tsx`, `section-card.tsx`, `sticky-footer.tsx`, `tag-selectable.tsx`, `wizard-header.tsx` (cabeçalho + stepper compacto do cadastro em etapas), `form-field.tsx` (label/ajuda/erro com associação acessível), `choice-card.tsx` (opção de rádio em cartão)
+
+Formulário: `src/components/crm/new-demand-form.tsx` (aberto pelo `Dialog` em `src/app/(crm)/crm/leads/page.tsx`). `ModalHeader`/`StickyFooter`/`SectionCard` (variante `card`) continuam em uso no `pipeline-board.tsx`.
 
 Relacionados: `lead-intake-empresa-block.tsx`, `lead-intake-types.ts`, `lead-add-empresa-button.tsx` (em `leads/[id]/`), `escopo-direcionamento-area-picker.tsx`
 

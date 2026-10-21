@@ -554,7 +554,7 @@ export default function LeadsPage() {
         <DialogContent
           hideCloseButton
           aria-describedby={undefined}
-          className="flex max-h-[90vh] w-full max-w-[min(100vw-1.5rem,1120px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(100vw-1.5rem,1120px)]"
+          className="flex h-dvh max-h-dvh w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[min(90dvh,760px)] sm:max-w-[min(100vw-2rem,1120px)] sm:border"
           {...dialogSelectOutsideHandlers()}
         >
           <DialogTitle className="sr-only">Cadastro de novo lead</DialogTitle>
