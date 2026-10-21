@@ -18,7 +18,9 @@ import { Label } from "@/components/ui/label";
 import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { EscopoDirecionamentoAreaPicker } from "@/components/crm/escopo-direcionamento-area-picker";
 import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PropostaOutrosContratantes } from "@/components/crm/proposta-outros-contratantes";
 import { maskDocument } from "@/lib/crm/br-document-mask";
+import { parseContratantesIndexes, trocarPrincipal } from "@/lib/crm/proposta-contratantes";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { PROPOSAL_SCOPE_OPTIONS } from "@/lib/crm/proposta-scope-options";
 import {
@@ -40,6 +42,8 @@ export type EmpresaIntakeRow = {
 export type PropostaEmpresasPayload = {
   primaryIndex: number;
   extras: Array<{ razao_social: string; documento: string }>;
+  /** Outras empresas do cadastro que assinam como contratantes (`proposta-contratantes`). */
+  contratantes?: number[];
 };
 
 function digitsOnly(s: string): string {
@@ -74,7 +78,8 @@ export function parsePropostaEmpresasJson(raw: string | undefined): PropostaEmpr
         });
       }
     }
-    return { primaryIndex, extras };
+    const contratantes = parseContratantesIndexes(o.contratantes);
+    return contratantes ? { primaryIndex, extras, contratantes } : { primaryIndex, extras };
   } catch {
     return { primaryIndex: 0, extras: [] };
   }
@@ -335,8 +340,7 @@ export function ConfeccaoReuniaoModalSection({
               value={primaryStr}
               disabled={disabled}
               onValueChange={(v) => {
-                const idx = Number(v);
-                setEmpresasPayload({ ...empresasPayload, primaryIndex: idx });
+                setEmpresasPayload(trocarPrincipal(empresasPayload, empresasIntake, Number(v)));
               }}
             >
               <SelectTrigger
@@ -357,6 +361,13 @@ export function ConfeccaoReuniaoModalSection({
             </Select>
           )}
         </div>
+
+        <PropostaOutrosContratantes
+          empresas={empresasIntake}
+          escolha={empresasPayload}
+          onChange={setEmpresasPayload}
+          disabled={disabled}
+        />
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -585,6 +596,14 @@ export function buildCpQualificacaoText(params: {
     if (em) {
       lines.push(
         `— Principal (cadastro): ${em.razao_social || "—"} (${em.tipo_documento} ${em.documento || "—"})`,
+      );
+    }
+  }
+
+  for (const em of empresasIntake) {
+    if (em.index !== primaryIdx && empresasPayload.contratantes?.includes(em.index)) {
+      lines.push(
+        `— Contratante (cadastro): ${em.razao_social || "—"} (${em.tipo_documento} ${em.documento || "—"})`,
       );
     }
   }

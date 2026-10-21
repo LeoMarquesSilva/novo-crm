@@ -127,6 +127,9 @@ import type {
   ContractScopeAdjustment,
 } from "@/lib/crm/contract-engine/types";
 import type { ProposalContractSnapshot, ScopeSubtypeLabels } from "@/lib/crm/contract-engine/proposal-snapshot";
+import { parsePropostaEmpresasJson } from "@/components/crm/confeccao-reuniao-modal-section";
+import { PropostaOutrosContratantes } from "@/components/crm/proposta-outros-contratantes";
+import { comContratantesEfetivos } from "@/lib/crm/proposta-contratantes";
 import {
   AlterarEscoposDialog,
   EscoposContratadosSection,
@@ -380,10 +383,14 @@ export function ContratoDocumentBuilder({
   appUsersByEmail?: Record<string, { avatarUrl: string | null; fullName: string }>;
 }) {
   const router = useRouter();
+  const crmActor = useCrmActor();
   const [contratoState, setContratoState] = useState<ContratoState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [syncingProposal, setSyncingProposal] = useState(false);
+  const [syncProposalError, setSyncProposalError] = useState<string | null>(null);
+  const [builderKey, setBuilderKey] = useState(0);
 
   const refreshState = useCallback(async () => {
     setLoading(true);
@@ -449,6 +456,50 @@ export function ContratoDocumentBuilder({
   const inheritedFields = lead.pipelineFields.filter((f) =>
     ["cp_cliente_cidade", "cp_cliente_uf", "cp_investimento_resumo"].includes(f.fieldCode),
   );
+  const canEditContract = crmActor ? canPerformLeadAction(crmActor, { action: "contract.edit" }) : false;
+  const showProposalChanged = Boolean(contratoState?.proposalChanged) && !contractSent && canEditContract;
+
+  // O contrato guarda uma cópia da proposta ao ser montado; refaz a cópia mantendo o que
+  // foi preenchido no objeto e as escolhas de escopo.
+  async function refazerPelaProposta() {
+    const res = await fetch(
+      `/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/initialize-from-proposal`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ force: true }) },
+    );
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (!res.ok || !json.ok) throw new Error(json.error ?? "Não foi possível atualizar o contrato.");
+    await refreshState();
+    // Remonta o montador: os rascunhos dele leem o estado novo (partes, cláusulas no plural).
+    setBuilderKey((key) => key + 1);
+  }
+
+  /** Partes do contrato: grava quem assina no lead e refaz o contrato com a escolha. */
+  async function salvarContratantes(empresasJson: string) {
+    const field = lead.pipelineFields.find((f) => f.fieldCode === "cp_proposta_empresas_json");
+    if (!field) throw new Error("O lead não tem a escolha de empresas da proposta.");
+    const res = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pipelineField: { fieldDefinitionId: field.definitionId, value: empresasJson } }),
+    });
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(json.error ?? "Não foi possível gravar os contratantes.");
+    }
+    await refazerPelaProposta();
+  }
+
+  async function atualizarPelaProposta() {
+    setSyncingProposal(true);
+    setSyncProposalError(null);
+    try {
+      await refazerPelaProposta();
+    } catch (e) {
+      setSyncProposalError(e instanceof Error ? e.message : "Não foi possível atualizar o contrato.");
+    } finally {
+      setSyncingProposal(false);
+    }
+  }
 
   function goToPendingItem(item: ContratoPendingField) {
     setBuilderOpen(true);
@@ -517,6 +568,33 @@ export function ContratoDocumentBuilder({
             sent={contractSent}
             signed={contractSigned}
           />
+        ) : null}
+
+        {showProposalChanged && !loading ? (
+          <div className="flex flex-col gap-3 rounded-(--radius-v2-xl) border border-warning-border bg-warning-bg p-4 text-warning-text sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 gap-2.5">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold">A proposta mudou depois que o contrato foi montado</p>
+                <p className="mt-0.5 text-xs leading-relaxed">
+                  Escopo, investimento ou contratantes estão diferentes. Atualize para o contrato usar a
+                  proposta atual; o que já foi preenchido no objeto é mantido.
+                </p>
+                {syncProposalError ? <p className="mt-1 text-xs font-medium">{syncProposalError}</p> : null}
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0 bg-white"
+              disabled={syncingProposal}
+              onClick={() => void atualizarPelaProposta()}
+            >
+              {syncingProposal ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+              Atualizar o contrato
+            </Button>
+          </div>
         ) : null}
 
         {/* Dados herdados */}
@@ -658,12 +736,14 @@ export function ContratoDocumentBuilder({
       {/* Dialog do builder */}
       {builderOpen && contratoState ? (
         <ContratoBuilderDialog
+          key={builderKey}
           lead={lead}
           propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
           contratoState={contratoState}
           open={builderOpen}
           onOpenChange={setBuilderOpen}
           onRefresh={refreshState}
+          onContratantesChange={!contractSent && canEditContract ? salvarContratantes : undefined}
         />
       ) : null}
     </section>
@@ -679,6 +759,7 @@ function ContratoBuilderDialog({
   open,
   onOpenChange,
   onRefresh,
+  onContratantesChange,
 }: {
   lead: LeadDetailData;
   propostaEmpresaPrincipalNome: string | null;
@@ -686,8 +767,29 @@ function ContratoBuilderDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onRefresh: () => Promise<void>;
+  /** Ausente depois do envio para assinatura ou sem permissão de editar o contrato. */
+  onContratantesChange?: (empresasJson: string) => Promise<void>;
 }) {
   const router = useRouter();
+  const [savingContratantes, setSavingContratantes] = useState(false);
+  const [contratantesError, setContratantesError] = useState<string | null>(null);
+  const empresasIntake = lead.empresasIntake ?? [];
+  const escolhaEmpresas = comContratantesEfetivos(
+    parsePropostaEmpresasJson(contratoState.snapshot.fieldByCode.cp_proposta_empresas_json ?? ""),
+    empresasIntake,
+  );
+
+  async function trocarContratantes(next: { primaryIndex: number }) {
+    if (!onContratantesChange) return;
+    setSavingContratantes(true);
+    setContratantesError(null);
+    try {
+      await onContratantesChange(JSON.stringify(next));
+    } catch (e) {
+      setContratantesError(e instanceof Error ? e.message : "Não foi possível mudar os contratantes.");
+      setSavingContratantes(false);
+    }
+  }
 
   // ── State ──────────────────────────────────────────────────────────────────
   const initDraft = () =>
@@ -1239,6 +1341,27 @@ function ContratoBuilderDialog({
                       Empresa não identificada. Verifique os dados da proposta.
                     </p>
                   )}
+                  <div className="mt-3">
+                    <PropostaOutrosContratantes
+                      empresas={empresasIntake}
+                      escolha={escolhaEmpresas}
+                      onChange={(next) => void trocarContratantes(next)}
+                      disabled={!onContratantesChange || isDirty || savingContratantes}
+                    />
+                    {onContratantesChange && isDirty && empresasIntake.length > 1 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Salve o contrato antes de mudar quem assina.
+                      </p>
+                    ) : null}
+                    {savingContratantes ? (
+                      <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="size-3 animate-spin" aria-hidden /> Atualizando o contrato…
+                      </p>
+                    ) : null}
+                    {contratantesError ? (
+                      <p className="mt-1 text-xs font-medium text-destructive">{contratantesError}</p>
+                    ) : null}
+                  </div>
                 </FormSection>
 
                 <div id="section-escopos" className="scroll-mt-16">

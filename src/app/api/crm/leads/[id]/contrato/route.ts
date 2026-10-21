@@ -209,9 +209,13 @@ export async function GET(
         engine: storedEngine.build,
         proposalSnapshot: storedEngine.snapshot,
         objectDraft,
+        // A cópia da proposta guardada no contrato (`createProposalContractSnapshot`) grava
+        // os campos sem espaços nas pontas.
         proposalChanged: Boolean(
           storedEngine.snapshot &&
-            storedEngine.snapshot.escopoJson !== String(fieldByCode.cp_escopo_detalhe_json ?? ""),
+            (storedEngine.snapshot.escopoJson !== String(fieldByCode.cp_escopo_detalhe_json ?? "").trim() ||
+              storedEngine.snapshot.propostaEmpresasJson !==
+                String(fieldByCode.cp_proposta_empresas_json ?? "").trim()),
         ),
       },
     });

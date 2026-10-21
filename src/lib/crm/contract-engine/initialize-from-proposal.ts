@@ -4,6 +4,7 @@ import { appendContractEngineEvent } from "./object-events";
 import {
   engineToDataJsonPatch,
   hasStructuredContractObject,
+  manualSelectedClauses,
   readObjectDraft,
   readStoredEngine,
 } from "./persist";
@@ -92,6 +93,7 @@ export async function initializeContractFromProposal(params: {
         ...draft,
         engineEvents: rebuilt.data.engineEvents,
       }),
+      clausulas_selecionadas: manualSelectedClauses(currentData),
     } as Record<string, Json>;
     if (!existing) {
       throw new Error("Rascunho do contrato não encontrado para migração do objeto.");
@@ -162,6 +164,8 @@ export async function initializeContractFromProposal(params: {
       ...existingDraft,
       engineEvents: build.data.engineEvents,
     }),
+    // Só a escolha manual fica: o retrato do motor de antes não pode virar cláusula extra.
+    clausulas_selecionadas: manualSelectedClauses(currentData),
   } as Record<string, Json>;
 
   const persist = existing

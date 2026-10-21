@@ -2,6 +2,13 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-21 — Contrato: todas as pessoas do lead como contratantes
+
+- Lead com mais de uma pessoa/empresa no cadastro: no avanço para a proposta as outras vêm marcadas como contratantes (`cp_proposta_empresas_json.contratantes`) e dá para desmarcar. Antes só a principal entrava; a 2ª pessoa precisava ser redigitada e, depois da proposta, não havia como incluí-la (achado no 2º teste ponta a ponta: Vinicius e André).
+- Correção depois: seção Cliente do editor da proposta e seção Partes do montador do contrato (até o envio). A aba Contrato avisa quando a proposta mudou e atualiza o contrato.
+- `initializeContractFromProposal` guarda só as cláusulas escolhidas à mão em `clausulas_selecionadas`.
+- Sem DDL. Validações: `npx vitest run` (1181 testes), `npx tsc --noEmit` sem erro em `src/`; conferido no CRM local com o lead do teste 2 (prévia com as duas pessoas e "CONTRATANTES").
+
 ## 2026-10-21 — Contrato: defeitos achados no 2º teste ponta a ponta
 
 - A aba Contrato devolvia 500 na primeira abertura. A tela pede o contrato duas vezes ao mesmo tempo, as duas tentam criar o rascunho e a segunda batia em `unique (oportunidade_id, template_id)` de `document_instances`. As quatro cópias de `ensureInstance` (rotas `document` e `contrato`, `contrato/generate-docx`, `generate-proposta-file`) viraram `ensureDocumentInstance` (`src/lib/crm/document-instance.ts`), que lê o rascunho da outra requisição quando a inserção dá 23505.

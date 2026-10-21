@@ -1,9 +1,34 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveContractingParties,
   resolveContractScopes,
   scopeSubtypeLabelKey,
   scopeSubtypeLabelsFromCatalog,
 } from "./proposal-snapshot";
+
+describe("partes do contrato com duas pessoas no cadastro", () => {
+  const empresasIntake = [
+    { index: 1, razao_social: "VINICIUS", tipo_documento: "CPF" as const, documento: "111.444.777-35" },
+    { index: 2, razao_social: "ANDRE", tipo_documento: "CPF" as const, documento: "123.456.789-09" },
+  ];
+  const address = { logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", uf: "", cep: "" };
+  const roles = (propostaEmpresasJson: string) =>
+    resolveContractingParties({ empresasIntake, propostaEmpresasJson, address }).map((p) => [p.razaoSocial, p.role]);
+
+  it("a lista de contratantes põe a 2ª pessoa no contrato", () => {
+    expect(roles(JSON.stringify({ primaryIndex: 1, extras: [], contratantes: [2] }))).toEqual([
+      ["VINICIUS", "contratante"],
+      ["ANDRE", "contratante"],
+    ]);
+  });
+
+  it("escolha antiga, sem a lista, mantém a regra anterior", () => {
+    expect(roles(JSON.stringify({ primaryIndex: 1, extras: [] }))).toEqual([
+      ["VINICIUS", "contratante"],
+      ["ANDRE", "relacionada"],
+    ]);
+  });
+});
 
 const AREA = "Recuperação de Créditos";
 const SUBTIPO = "recuperacao_de_credito_em_processos_de_recuperacao_judicial";

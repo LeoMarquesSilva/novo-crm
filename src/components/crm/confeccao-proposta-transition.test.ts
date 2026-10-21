@@ -6,6 +6,7 @@ import {
   buildTransitionFieldPayload,
   prepareConfeccaoFieldValues,
   visibleTransitionCustomFields,
+  withConfeccaoQualificacao,
 } from "./confeccao-proposta-transition";
 
 function def(field_code: string, extra: Partial<FieldDefinition> = {}): FieldDefinition {
@@ -86,5 +87,34 @@ describe("campos do modal Reunião → Confecção de Proposta", () => {
       cp_areas_objeto: ["Cível"],
       cp_proposta_empresas_json: JSON.stringify({ primaryIndex: 0, extras: [] }),
     });
+  });
+});
+
+describe("contratantes no avanço para a proposta", () => {
+  const empresasIntake = [
+    { index: 1, razao_social: "VINICIUS", tipo_documento: "CPF" as const, documento: "111.444.777-35" },
+    { index: 2, razao_social: "ANDRE", tipo_documento: "CPF" as const, documento: "123.456.789-09" },
+  ];
+
+  it("sem escolha, grava as outras pessoas do cadastro como contratantes e as cita na qualificação", () => {
+    const values = withConfeccaoQualificacao({
+      customValues: { cp_proposta_empresas_json: JSON.stringify({ primaryIndex: 1, extras: [] }) },
+      empresasIntake,
+    });
+    expect(JSON.parse(String(values.cp_proposta_empresas_json))).toEqual({
+      primaryIndex: 1,
+      extras: [],
+      contratantes: [2],
+    });
+    expect(values.cp_qualificacao).toContain("— Contratante (cadastro): ANDRE (CPF 123.456.789-09)");
+  });
+
+  it("respeita quem foi desmarcado", () => {
+    const values = withConfeccaoQualificacao({
+      customValues: { cp_proposta_empresas_json: JSON.stringify({ primaryIndex: 1, extras: [], contratantes: [] }) },
+      empresasIntake,
+    });
+    expect(JSON.parse(String(values.cp_proposta_empresas_json)).contratantes).toEqual([]);
+    expect(values.cp_qualificacao).not.toContain("ANDRE");
   });
 });
