@@ -48,6 +48,9 @@ function objectTemplate(
   };
 }
 
+const RECUPERACAO_RJ_ORIGEM =
+  "Extraído do contrato real assinado em 29/09/2026 (negócio RD 6abeb34a…, \"Objeto do Contrato [CC]\"), pedido do usuário em 21/10/2026: texto genérico mantido, dados do caso como variáveis (credores → [DA_CONTRATANTE]; empresa, processo e vara; pontos do parecer opcionais).";
+
 /**
  * Catálogo de redação do Objeto. Stable keys versionadas.
  * Textos jurídicos = pending_legal_review até validação humana.
@@ -358,6 +361,64 @@ export const CONTRACT_OBJECT_CATALOG: ContractObjectTemplate[] = [
     {
       order: 11,
       legalReviewNote: "Confirmado literalmente no padrão `contrato_honorarios_template_1.md`.",
+    },
+  ),
+
+  // ── Recuperação de Créditos — crédito em processo de recuperação judicial ─
+  objectTemplate(
+    "object.recuperacao_credito.rj",
+    "Objeto",
+    "paragraph",
+    "O presente Contrato tem por objeto a atuação estratégica e diligente com o objetivo de recuperar créditos, de qualquer natureza, em favor [DA_CONTRATANTE], relacionados ao processo de Recuperação Judicial de [EMPRESA_RECUPERANDA_RJ], autuado sob o nº [NUMERO_PROCESSO_RJ], em trâmite perante a [VARA_RJ]. A atuação abrangerá as etapas descritas a seguir.",
+    {
+      requiredPlaceholders: ["EMPRESA_RECUPERANDA_RJ", "NUMERO_PROCESSO_RJ", "VARA_RJ"],
+      order: 10,
+      legalReviewNote: RECUPERACAO_RJ_ORIGEM,
+    },
+  ),
+  objectTemplate(
+    "object.recuperacao_credito.rj.parecer",
+    "Etapa 1 — Parecer Estratégico Recuperacional",
+    "paragraph",
+    "Elaboração de parecer estratégico acerca dos caminhos jurídicos mais adequados à recuperação do crédito[PONTOS_PARECER_RJ_CLAUSE], além da negociação extrajudicial do crédito competente.",
+    {
+      optionalPlaceholders: ["PONTOS_PARECER_RJ_CLAUSE"],
+      order: 11,
+      legalReviewNote:
+        "No contrato de origem: \", especialmente quanto à viabilidade de pleitear a consolidação substancial, nos termos do art. 69-J da Lei nº 11.101/2005, bem como à possibilidade de aplicação e eficácia da cláusula contratual ipso facto\" — virou o campo opcional \"pontos do parecer\", porque depende do caso.",
+    },
+  ),
+  objectTemplate(
+    "object.recuperacao_credito.rj.medida",
+    "Etapa 2 — Propositura da Medida Competente",
+    "paragraph",
+    "Elaboração e protocolo da medida jurídica adequada à proteção e recuperação dos créditos [DA_CONTRATANTE] no processo de Recuperação Judicial, seja pela habilitação ou impugnação de crédito.",
+    { order: 12, legalReviewNote: RECUPERACAO_RJ_ORIGEM },
+  ),
+  objectTemplate(
+    "object.recuperacao_credito.rj.acompanhamento",
+    "Etapa 3 — Acompanhamento Processual",
+    "paragraph",
+    "Acompanhamento e atuação estratégica nos autos da recuperação judicial, mediante análise dos atos processuais e adoção das medidas necessárias à defesa dos interesses [DA_CONTRATANTE].",
+    { order: 13, legalReviewNote: RECUPERACAO_RJ_ORIGEM },
+  ),
+  objectTemplate(
+    "object.recuperacao_credito.rj.negociacao",
+    "Etapa 4 — Negociação Estratégica",
+    "paragraph",
+    "Condução de negociações estratégicas junto aos devedores, visando a construção de solução para a recuperação do crédito, inclusive mediante eventual acordo, sempre condicionado à aprovação prévia [DA_CONTRATANTE].",
+    { order: 14, legalReviewNote: RECUPERACAO_RJ_ORIGEM },
+  ),
+  objectTemplate(
+    "object.recuperacao_credito.rj.limitation",
+    "Limitações",
+    "limitation",
+    "A atuação restringe-se ao crédito existente [DA_CONTRATANTE] na Recuperação Judicial de [EMPRESA_RECUPERANDA_RJ], autuada sob o nº [NUMERO_PROCESSO_RJ].",
+    {
+      requiredPlaceholders: ["EMPRESA_RECUPERANDA_RJ", "NUMERO_PROCESSO_RJ"],
+      order: 15,
+      legalReviewNote:
+        "Do campo \"Limitação de processos\" do mesmo negócio: \"Atuação apenas perante o crédito existente pelos contratantes perante a Recuperação Judicial do Grupo …, autuado sob o n.º …\".",
     },
   ),
 ];

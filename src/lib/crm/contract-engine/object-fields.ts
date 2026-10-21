@@ -39,6 +39,14 @@ const FIELD_ALIASES: Record<string, string[]> = {
   // próprio — nunca reaproveita o valor do processo trabalhista sem querer.
   numero_processo_civel: ["numero_processo_civel", "NUMERO_PROCESSO_CIVEL", "cc_civel_numero_processo"],
   vara_tribunal_civel: ["vara_tribunal_civel", "VARA_TRIBUNAL_CIVEL", "cc_civel_vara_tribunal"],
+  // Recuperação de crédito em RJ: nomes dos campos que a proposta pede para esse subtipo.
+  empresa_recuperanda_rj: [
+    "empresa_recuperanda_rj",
+    "EMPRESA_RECUPERANDA_RJ",
+    "NOME DA EMPRESA EM RECUPERAÇÃO JUDICIAL",
+  ],
+  numero_processo_rj: ["numero_processo_rj", "NUMERO_PROCESSO_RJ", "NÚMERO DO PROCESSO"],
+  vara_rj: ["vara_rj", "VARA_RJ", "VARA/COMARCA/UF"],
   valor_causa: ["valor_causa", "VALOR_CAUSA", "VALOR DA CAUSA", "cc_valor_causa"],
   qtd_acoes: ["qtd_acoes", "QTD_ACOES", "QUANTIDADE_ACOES", "cc_qtd_acoes"],
   // Cada contexto de "N horas mensais" tem chave própria (não um "qtd_horas"
@@ -192,6 +200,9 @@ export function fieldValuesToPlaceholderMap(
           : ""
       }`
     : "";
+
+  const pontosParecerRj = map.pontos_parecer_rj || map.PONTOS_PARECER_RJ || "";
+  map.PONTOS_PARECER_RJ_CLAUSE = pontosParecerRj ? `, especialmente quanto ${pontosParecerRj}` : "";
 
   const qtdHorasTrabalhista = map.qtd_horas_trabalhista || map.QTD_HORAS_TRABALHISTA || "";
   const valorExcedenteConsultivoTrab =

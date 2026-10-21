@@ -2,6 +2,12 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-21 — Contrato: perfil de Recuperação de Crédito em Processos de Recuperação Judicial
+
+- O subtipo não tinha perfil contratual e o contrato travava no objeto (2º teste ponta a ponta). Perfil novo em `scope-profiles.ts` + blocos em `object-catalog.ts`, tirados do contrato real (negócio do RD de Vinicius e André, assinado em 29/09/2026): texto genérico fixo, dados do caso como variáveis — credores pela gramática da parte, empresa/processo/vara dos campos da proposta, pontos do parecer opcionais. Pendente de revisão jurídica, como os demais perfis.
+- Migrations `20261008183000`, `20261018120000`, `20261018130000` e `20261019120000` aplicadas no remoto em 21/10/2026 pelo SQL Editor (system-context atualizado).
+- Validações: `npx vitest run src/lib/crm/contract-engine` (84 testes), conferido no CRM local: objeto completo, Word v1 gerado sem duplicatas.
+
 ## 2026-10-21 — Contrato: todas as pessoas do lead como contratantes
 
 - Lead com mais de uma pessoa/empresa no cadastro: no avanço para a proposta as outras vêm marcadas como contratantes (`cp_proposta_empresas_json.contratantes`) e dá para desmarcar. Antes só a principal entrava; a 2ª pessoa precisava ser redigitada e, depois da proposta, não havia como incluí-la (achado no 2º teste ponta a ponta: Vinicius e André).
