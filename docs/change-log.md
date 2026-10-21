@@ -2,6 +2,13 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-21 — Usuários: foto de quem ainda não tem login e casamento pelo login do ORQESTRAI
+
+- Colaborador do RH sem login aparecia só com as iniciais: a `official-photos-api` acha a pessoa pelo `app_users.id` vinculado, e quem não tem login não tem esse id. A tela de Usuários agora lê a view `official_system_photos` do ORQESTRAI e casa a foto pelo e-mail ou pelo local-part (`fetchOrqestraiPeopleIndex` em `src/lib/orqestrai/client.ts`, duas consultas em paralelo, prazo de 2,5 s). Usuário com login sem vínculo na API também usa essa foto. Ao conceder acesso, o card novo mantém a foto. Em 21/10, 59 dos 61 ativos ficam com foto (Fênix Agendador e Rafael Sampaio não têm foto no ORQESTRAI).
+- Samuel aparecia duas vezes (com acesso como `controladoria@bismarchipires.com.br` e "sem acesso" como `samuel@bpplaw.com.br` do RH). O casamento usuário ↔ colaborador agora tenta também o e-mail de login no ORQESTRAI (`hr_employees.user_id` → `official_system_photos.normalized_email`, no caso dele `controladoria@bpplaw.com.br`). O e-mail do RH tem prioridade; o de login só ocupa chave livre.
+- Sync de colaboradores: as variáveis `ORQESTRAI_SUPABASE_*` foram para a Vercel em 14/10 e o cron diário voltou a rodar. Em 21/10 o espelho tinha as mesmas 82 pessoas (61 ativas) de `hr_employees`.
+- Sem DDL. Validações: `npx tsc --noEmit`, `eslint` nos arquivos alterados.
+
 ## 2026-10-20 — Apresentação automática da Due Diligence
 
 - O CRM monta o PPT da DUE no modelo do escritório a partir das planilhas das áreas: capa (razão social, CNPJ, empresas, logo), metodologia com as esferas certas, áreas envolvidas (cards com link), slides por área, conclusão recalculada e sócios. Áreas fora da due somem do arquivo.
