@@ -1,5 +1,5 @@
 import type { LeadIntakeEmpresaRow } from "@/app/(crm)/crm/leads/[id]/lead-intake-types";
-import { getSubtipoDef } from "@/data/proposta-tipos-catalog";
+import { getSubtipoDef, type PropostaTiposCatalog } from "@/data/proposta-tipos-catalog";
 import { getPrimarySumKeyForSubtipo } from "@/lib/crm/proposta-investimento-consolidado";
 import { parseEscopoJsonWithMeta } from "@/lib/crm/proposta-escopo-json";
 import { formatBrlComExtenso, parseAmount } from "./money";
@@ -57,14 +57,39 @@ export function createProposalContractSnapshot(input: {
   };
 }
 
-export function extractProposalScopes(escopoJson: string): ProposalScopeRef[] {
+/**
+ * Rótulos dos subtipos de escopo do catálogo do banco (`proposal_scope_subtypes`), por
+ * área/tipo/subtipo. O catálogo do código (`proposta-tipos-catalog`) não tem os subtipos
+ * criados depois no admin; sem o rótulo do banco, o nome sai da chave, sem acento.
+ */
+export type ScopeSubtypeLabels = Record<string, string>;
+
+export function scopeSubtypeLabelKey(areaLabel: string, tipoId: string, subtipoId: string): string {
+  return `${areaLabel}|${tipoId}|${subtipoId}`;
+}
+
+export function scopeSubtypeLabelsFromCatalog(catalog: PropostaTiposCatalog): ScopeSubtypeLabels {
+  const labels: ScopeSubtypeLabels = {};
+  for (const [areaLabel, tipos] of Object.entries(catalog)) {
+    for (const tipo of tipos ?? []) {
+      for (const subtipo of tipo.subtipos) {
+        labels[scopeSubtypeLabelKey(areaLabel, tipo.tipoId, subtipo.subtipoId)] = subtipo.label;
+      }
+    }
+  }
+  return labels;
+}
+
+export function extractProposalScopes(escopoJson: string, scopeLabels?: ScopeSubtypeLabels): ProposalScopeRef[] {
   const { escopo } = parseEscopoJsonWithMeta(escopoJson);
   const out: ProposalScopeRef[] = [];
   for (const [areaLabel, entries] of Object.entries(escopo)) {
     for (const entry of entries) {
       if (!entry.subtipoId?.trim()) continue;
       const profile = getScopeProfile(entry.subtipoId);
-      const catalogLabel = getSubtipoDef(areaLabel, entry.tipoId, entry.subtipoId)?.label;
+      const catalogLabel =
+        scopeLabels?.[scopeSubtypeLabelKey(areaLabel, entry.tipoId, entry.subtipoId)] ??
+        getSubtipoDef(areaLabel, entry.tipoId, entry.subtipoId)?.label;
       out.push({
         entryId: entry.id,
         areaLabel,
@@ -94,8 +119,8 @@ function humanizeScopeKey(raw: string): string {
     .join(" ");
 }
 
-export function resolveContractScopes(escopoJson: string): ContractScope[] {
-  return extractProposalScopes(escopoJson).map((ref) => {
+export function resolveContractScopes(escopoJson: string, scopeLabels?: ScopeSubtypeLabels): ContractScope[] {
+  return extractProposalScopes(escopoJson, scopeLabels).map((ref) => {
     const profile = getScopeProfile(ref.subtypeId) ?? null;
     return {
       ...ref,

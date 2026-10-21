@@ -10,6 +10,7 @@ import {
   resolveContractInvestment,
   resolveContractScopes,
   type ProposalContractSnapshot,
+  type ScopeSubtypeLabels,
 } from "./proposal-snapshot";
 import { mergeStartRules, mergeTermRules, renderStartText, renderTermText } from "./term";
 import type {
@@ -37,11 +38,13 @@ export function buildCanonicalContract(input: {
   engineEvents?: ContractEngineEvent[];
   /** Biblioteca de cláusulas carregada do banco (admin de cláusulas). */
   clauseLibrary?: Map<string, ContractClauseTemplate>;
+  /** Rótulos dos subtipos de escopo do catálogo do banco. */
+  scopeLabels?: ScopeSubtypeLabels;
 }): CanonicalContractBuildResult {
   const generatedAt = input.generatedAt ?? new Date();
   const firm = getContractedFirm();
   const scopes = applyDatabaseLinkedClauses(
-    applyScopeAdjustments(resolveContractScopes(input.snapshot.escopoJson), input.scopeAdjustment),
+    applyScopeAdjustments(resolveContractScopes(input.snapshot.escopoJson, input.scopeLabels), input.scopeAdjustment),
     input.clauseLibrary,
   );
   const investment = {
@@ -116,6 +119,7 @@ export function buildCanonicalContract(input: {
   const alignment = validateProposalContractAlignment({
     snapshot: input.snapshot,
     contract: data,
+    scopeLabels: input.scopeLabels,
   });
 
   return {

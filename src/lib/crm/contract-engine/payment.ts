@@ -206,7 +206,7 @@ function renderExito(item: ContractInvestmentItem): RenderedItem {
     const prazo = fragment(item.placeholders.PRAZOPAGAMENTO);
     const quando = !prazo
       ? ""
-      : /^(no|na|em|até|após|a partir|dentro|ao|à)\b/i.test(prazo)
+      : /^(no|na|em|até|após|a partir|dentro|ao|à)(?![\p{L}\p{N}])/iu.test(prazo)
         ? `, a serem pagos ${prazo}`
         : `, a serem pagos no prazo de ${prazo}`;
     return textOnly(
@@ -241,9 +241,10 @@ function renderManutencao(item: ContractInvestmentItem, items: ContractInvestmen
   if (item.amount == null) return textOnly("Honorários mensais de manutenção conforme condições da proposta.");
   const ref = describeReferencedItem(item.placeholders.ITEM, items, item);
   const cond = fragment(item.placeholders.CONDICAOFINAL);
+  // Fim de palavra em Unicode: `\b` não vê fronteira depois de letra acentuada ("até ").
   const ate = !cond
     ? ""
-    : /^(até|enquanto|durante|pelo|pela|por|conforme)\b/i.test(cond)
+    : /^(até|enquanto|durante|pelo|pela|por|conforme)(?![\p{L}\p{N}])/iu.test(cond)
       ? `, ${cond.charAt(0).toLowerCase()}${cond.slice(1)}`
       : `, até ${cond}`;
   const inicio = ref ? `Após a quitação ${ref}, será devido` : "Será devido";

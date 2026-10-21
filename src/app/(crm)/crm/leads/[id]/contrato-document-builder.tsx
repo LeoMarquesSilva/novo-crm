@@ -126,7 +126,7 @@ import type {
   ContractObjectOverride,
   ContractScopeAdjustment,
 } from "@/lib/crm/contract-engine/types";
-import type { ProposalContractSnapshot } from "@/lib/crm/contract-engine/proposal-snapshot";
+import type { ProposalContractSnapshot, ScopeSubtypeLabels } from "@/lib/crm/contract-engine/proposal-snapshot";
 import {
   AlterarEscoposDialog,
   EscoposContratadosSection,
@@ -228,6 +228,8 @@ type ContratoState = {
   availableClauses: ClauseTemplate[];
   /** Biblioteca de cláusulas ativa (banco > catálogo fixo) usada no preview ao vivo. */
   clauseLibrary?: ContractClauseTemplate[];
+  /** Rótulos dos subtipos de escopo do catálogo do banco. */
+  scopeLabels?: ScopeSubtypeLabels;
   selectedClauses: SelectedClause[];
   signaturePins: SignaturePin[];
   reviewTask: {
@@ -841,11 +843,13 @@ function ContratoBuilderDialog({
       explicitCompositionKey: initialObjectDraft.explicitCompositionKey,
       engineEvents,
       clauseLibrary,
+      scopeLabels: contratoState.scopeLabels,
     });
   }, [
     clauseLibrary,
     contratoState.engine,
     contratoState.proposalSnapshot,
+    contratoState.scopeLabels,
     contratoState.snapshot.fieldByCode,
     draftValues,
     engineEvents,
@@ -1502,7 +1506,7 @@ function ContratoBuilderDialog({
         onOpenChange={setAlterarEscoposOpen}
         scopes={
           contratoState.proposalSnapshot
-            ? resolveContractScopes(contratoState.proposalSnapshot.escopoJson)
+            ? resolveContractScopes(contratoState.proposalSnapshot.escopoJson, contratoState.scopeLabels)
             : (contratoState.engine?.data.scopes ?? [])
         }
         current={scopeAdjustment}

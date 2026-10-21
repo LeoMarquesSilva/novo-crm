@@ -2,6 +2,13 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-21 — Contrato: defeitos achados no 2º teste ponta a ponta
+
+- A aba Contrato devolvia 500 na primeira abertura. A tela pede o contrato duas vezes ao mesmo tempo, as duas tentam criar o rascunho e a segunda batia em `unique (oportunidade_id, template_id)` de `document_instances`. As quatro cópias de `ensureInstance` (rotas `document` e `contrato`, `contrato/generate-docx`, `generate-proposta-file`) viraram `ensureDocumentInstance` (`src/lib/crm/document-instance.ts`), que lê o rascunho da outra requisição quando a inserção dá 23505.
+- O subtipo de escopo sem perfil contratual aparecia sem acento no montador ("Recuperacao de Credito Em Processos…"). O motor procurava o nome no catálogo fixo do código, que não tem os subtipos criados no admin. Agora usa os nomes do catálogo do banco (`scopeSubtypeLabelsFromCatalog` sobre `loadProposalCatalog`), passados por `scopeLabels` ao `buildCanonicalContract`, nas rotas e no montador.
+- Manutenção saía "até até o encerramento…" quando a condição final já começava com "até". O `\b` do JavaScript não vê fim de palavra depois de letra acentuada; `renderManutencao` e o prazo do êxito valor fixo passaram a usar `(?![\p{L}\p{N}])` com a flag `u`.
+- Sem DDL. Validações: `npx vitest run` (1168 testes), `npx tsc --noEmit` sem erro em `src/`, eslint nos arquivos alterados; conferido no CRM local com o lead do teste 2.
+
 ## 2026-10-21 — Usuários: foto de quem ainda não tem login e casamento pelo login do ORQESTRAI
 
 - Colaborador do RH sem login aparecia só com as iniciais: a `official-photos-api` acha a pessoa pelo `app_users.id` vinculado, e quem não tem login não tem esse id. A tela de Usuários agora lê a view `official_system_photos` do ORQESTRAI e casa a foto pelo e-mail ou pelo local-part (`fetchOrqestraiPeopleIndex` em `src/lib/orqestrai/client.ts`, duas consultas em paralelo, prazo de 2,5 s). Usuário com login sem vínculo na API também usa essa foto. Ao conceder acesso, o card novo mantém a foto. Em 21/10, 59 dos 61 ativos ficam com foto (Fênix Agendador e Rafael Sampaio não têm foto no ORQESTRAI).

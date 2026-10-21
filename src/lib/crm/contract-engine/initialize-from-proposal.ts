@@ -7,7 +7,12 @@ import {
   readObjectDraft,
   readStoredEngine,
 } from "./persist";
-import { createProposalContractSnapshot } from "./proposal-snapshot";
+import {
+  createProposalContractSnapshot,
+  scopeSubtypeLabelsFromCatalog,
+  type ScopeSubtypeLabels,
+} from "./proposal-snapshot";
+import { loadProposalCatalog } from "@/lib/crm/proposal-catalog-db";
 import {
   buildContratoDocumentSnapshot,
   loadDefaultContratoTemplate,
@@ -27,6 +32,8 @@ export async function initializeContractFromProposal(params: {
   force?: boolean;
   /** Biblioteca de cláusulas já carregada pelo chamador (evita buscar 2x por request). */
   clauseLibrary?: Map<string, ContractClauseTemplate>;
+  /** Rótulos do catálogo de escopo do banco; sem eles, são carregados aqui. */
+  scopeLabels?: ScopeSubtypeLabels;
 }): Promise<{
   reused: boolean;
   build: CanonicalContractBuildResult;
@@ -34,6 +41,8 @@ export async function initializeContractFromProposal(params: {
   instance: Record<string, unknown>;
 }> {
   const { supabase, oportunidadeId, createdBy, force = false, clauseLibrary } = params;
+  const scopeLabels =
+    params.scopeLabels ?? scopeSubtypeLabelsFromCatalog((await loadProposalCatalog(supabase)).scope);
 
   const template = await loadDefaultContratoTemplate(supabase);
   if (!template) {
@@ -75,6 +84,7 @@ export async function initializeContractFromProposal(params: {
         payload: { migrated: true },
       }),
       clauseLibrary,
+      scopeLabels,
     });
     const nextJson = {
       ...currentData,
@@ -144,6 +154,7 @@ export async function initializeContractFromProposal(params: {
       payload: { source: "proposal" },
     }),
     clauseLibrary,
+    scopeLabels,
   });
   const nextJson = {
     ...currentData,

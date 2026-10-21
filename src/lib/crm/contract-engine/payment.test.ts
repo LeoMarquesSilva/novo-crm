@@ -216,6 +216,19 @@ describe("cláusula 3 — manutenção", () => {
     ).toEqual(["Será devido o valor mensal de R$ 1.500,00 (mil e quinhentos reais), a título de honorários de manutenção."]);
   });
 
+  it("condição final que já começa com \"até\" não repete a palavra", () => {
+    expect(
+      clause3([
+        {
+          ...MANUTENCAO_E2E,
+          placeholders: { VALORMANUTENCAO: "500,00", CONDICAOFINAL: "até o encerramento do processo de recuperação judicial" },
+        },
+      ]),
+    ).toEqual([
+      "Será devido o valor mensal de R$ 500,00 (quinhentos reais), a título de honorários de manutenção, até o encerramento do processo de recuperação judicial.",
+    ]);
+  });
+
   it("item que não existe no contrato cita a proposta", () => {
     expect(
       clause3([{ ...MANUTENCAO_E2E, placeholders: { ...MANUTENCAO_E2E.placeholders, ITEM: "3" } }])[0],
@@ -245,6 +258,20 @@ describe("cláusula 3 — êxito", () => {
       ]),
     ).toEqual([
       "Em caso de obtenção do resultado previsto, serão devidos honorários de êxito de R$ 30.000,00 (trinta mil reais), a serem pagos no prazo de 30 dias do trânsito em julgado.",
+    ]);
+  });
+
+  it("prazo que começa com \"após\" entra como está", () => {
+    expect(
+      clause3([
+        {
+          ...EXITO_E2E,
+          subtipoId: "exito_valor_fixo",
+          placeholders: { VALOREXITO: "30.000,00", PRAZOPAGAMENTO: "após o trânsito em julgado" },
+        },
+      ]),
+    ).toEqual([
+      "Em caso de obtenção do resultado previsto, serão devidos honorários de êxito de R$ 30.000,00 (trinta mil reais), a serem pagos após o trânsito em julgado.",
     ]);
   });
 

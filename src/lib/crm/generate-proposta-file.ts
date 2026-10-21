@@ -13,6 +13,7 @@ import { readModeloPropostaTemplateBuffer, renderCanonicalProposalDocx } from "@
 import { storeGeneratedDocument } from "@/lib/crm/generated-document-storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
+import { ensureDocumentInstance } from "@/lib/crm/document-instance";
 
 export type PropostaExportFormat = "docx" | "pdf";
 
@@ -27,38 +28,6 @@ export type GeneratePropostaFileResult =
       sourceDocxSha256: string;
     }
   | { ok: false; error: string; status: number; pending?: string[] };
-
-async function ensureInstance(params: {
-  supabase: ReturnType<typeof createSupabaseAdminClient>;
-  oportunidadeId: string;
-  templateId: string;
-  appUserId: string | null;
-}) {
-  const { supabase, oportunidadeId, templateId, appUserId } = params;
-  const { data: existing, error: existingErr } = await supabase
-    .from("document_instances")
-    .select("*")
-    .eq("oportunidade_id", oportunidadeId)
-    .eq("template_id", templateId)
-    .maybeSingle();
-  if (existingErr) throw existingErr;
-  if (existing) return existing;
-
-  const { data, error } = await supabase
-    .from("document_instances")
-    .insert({
-      oportunidade_id: oportunidadeId,
-      template_id: templateId,
-      status: "draft",
-      current_version: 0,
-      data_json: {},
-      created_by: appUserId,
-    })
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data;
-}
 
 export async function generatePropostaFile(params: {
   supabase: ReturnType<typeof createSupabaseAdminClient>;
@@ -109,7 +78,7 @@ export async function generatePropostaFile(params: {
   const sourceDocxSha256 = createHash("sha256").update(docxBytes).digest("hex");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
 
-  const instance = await ensureInstance({
+  const instance = await ensureDocumentInstance({
     supabase,
     oportunidadeId,
     templateId: template.id,
