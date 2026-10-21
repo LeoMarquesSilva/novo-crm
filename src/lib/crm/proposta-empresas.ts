@@ -4,6 +4,8 @@
  * migração do RD no servidor.
  */
 
+import { parseContratantesIndexes } from "@/lib/crm/proposta-contratantes";
+
 export type EmpresaIntakeRow = {
   index: number;
   razao_social: string;
@@ -14,6 +16,8 @@ export type EmpresaIntakeRow = {
 export type PropostaEmpresasPayload = {
   primaryIndex: number;
   extras: Array<{ razao_social: string; documento: string }>;
+  /** Outras empresas do cadastro que assinam como contratantes (`proposta-contratantes`). */
+  contratantes?: number[];
 };
 
 export function digitsOnly(s: string): string {
@@ -48,7 +52,8 @@ export function parsePropostaEmpresasJson(raw: string | undefined): PropostaEmpr
         });
       }
     }
-    return { primaryIndex, extras };
+    const contratantes = parseContratantesIndexes(o.contratantes);
+    return contratantes ? { primaryIndex, extras, contratantes } : { primaryIndex, extras };
   } catch {
     return { primaryIndex: 0, extras: [] };
   }
@@ -85,6 +90,14 @@ export function buildCpQualificacaoText(params: {
     if (em) {
       lines.push(
         `— Principal (cadastro): ${em.razao_social || "—"} (${em.tipo_documento} ${em.documento || "—"})`,
+      );
+    }
+  }
+
+  for (const em of empresasIntake) {
+    if (em.index !== primaryIdx && empresasPayload.contratantes?.includes(em.index)) {
+      lines.push(
+        `— Contratante (cadastro): ${em.razao_social || "—"} (${em.tipo_documento} ${em.documento || "—"})`,
       );
     }
   }

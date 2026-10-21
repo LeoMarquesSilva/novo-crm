@@ -46,6 +46,14 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import { parsePropostaEmpresasJson } from "@/components/crm/confeccao-reuniao-modal-section";
+import { PropostaOutrosContratantes } from "@/components/crm/proposta-outros-contratantes";
+import {
+  comContratantesEfetivos,
+  contarOutrosContratantes,
+  principalIndexDaEscolha,
+} from "@/lib/crm/proposta-contratantes";
+import type { LeadIntakeEmpresaRow } from "./lead-intake-types";
 import { GeneratedDocumentVersionList } from "@/components/crm/generated-document-version-list";
 import { ProposalDocxPreview } from "@/components/crm/proposal-docx-preview";
 import {
@@ -1230,6 +1238,7 @@ function PropostaBuilderDialog({
                           onChange={fieldChange}
                           disabled={busy}
                           propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
+                          empresasIntake={lead.empresasIntake ?? []}
                           embedded
                         />
                       ) : (
@@ -1659,6 +1668,7 @@ function BuilderSection({
   onChange,
   disabled,
   propostaEmpresaPrincipalNome,
+  empresasIntake = [],
   embedded = false,
 }: {
   meta: { title: string; description: string };
@@ -1667,6 +1677,8 @@ function BuilderSection({
   onChange: (code: string, value: string) => void;
   disabled?: boolean;
   propostaEmpresaPrincipalNome?: string | null;
+  /** Cadastro do lead: escolhe quem mais assina como contratante. */
+  empresasIntake?: LeadIntakeEmpresaRow[];
   embedded?: boolean;
 }) {
   if (fields.length === 0) return null;
@@ -1682,12 +1694,21 @@ function BuilderSection({
         {fields.map((field) => {
           if (field.fieldCode === "cp_qualificacao") return null;
           if (field.fieldCode === "cp_proposta_empresas_json") {
+            const value = draftValues[field.fieldCode] ?? field.value;
             return (
-              <ProposalCompanySummary
-                key={field.definitionId}
-                value={draftValues[field.fieldCode] ?? field.value}
-                empresaNome={propostaEmpresaPrincipalNome}
-              />
+              <div key={field.definitionId} className="space-y-3 sm:col-span-2">
+                <ProposalCompanySummary
+                  value={value}
+                  empresaNome={propostaEmpresaPrincipalNome}
+                  empresasIntake={empresasIntake}
+                />
+                <PropostaOutrosContratantes
+                  empresas={empresasIntake}
+                  escolha={comContratantesEfetivos(parsePropostaEmpresasJson(value), empresasIntake)}
+                  onChange={(next) => onChange(field.fieldCode, JSON.stringify(next))}
+                  disabled={disabled}
+                />
+              </div>
             );
           }
           return (
@@ -1894,31 +1915,19 @@ function PropFieldInput({
 
 // ─── ProposalCompanySummary ───────────────────────────────────────────────────
 
-function parseProposalCompanySelection(value: string): { primaryIndex: number | null; extrasCount: number } {
-  try {
-    const parsed = JSON.parse(value) as { primaryIndex?: unknown; extras?: unknown };
-    return {
-      primaryIndex:
-        typeof parsed.primaryIndex === "number" && Number.isFinite(parsed.primaryIndex)
-          ? parsed.primaryIndex
-          : null,
-      extrasCount: Array.isArray(parsed.extras) ? parsed.extras.length : 0,
-    };
-  } catch {
-    return { primaryIndex: null, extrasCount: 0 };
-  }
-}
-
 function ProposalCompanySummary({
   value,
   empresaNome,
+  empresasIntake,
 }: {
   value: string;
   empresaNome?: string | null;
+  empresasIntake: LeadIntakeEmpresaRow[];
 }) {
-  const selection = parseProposalCompanySelection(value);
-  const fallback =
-    selection.primaryIndex != null ? `Empresa/Pessoa ${selection.primaryIndex}` : "Empresa principal";
+  const escolha = parsePropostaEmpresasJson(value);
+  const principal = principalIndexDaEscolha(escolha, empresasIntake);
+  const fallback = principal > 0 ? `Empresa/Pessoa ${principal}` : "Empresa principal";
+  const outros = contarOutrosContratantes(escolha, empresasIntake);
 
   return (
     <div className="rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-4 sm:col-span-2">
@@ -1940,9 +1949,7 @@ function ProposalCompanySummary({
           </div>
         </div>
         <span className="shrink-0 rounded-(--radius-v2-full) border border-border bg-white px-2.5 py-1 text-v2-caption-medium text-text-secondary-v2">
-          {selection.extrasCount > 0
-            ? `${selection.extrasCount} ${selection.extrasCount === 1 ? "adicional" : "adicionais"}`
-            : "Sem adicionais"}
+          {outros > 0 ? `+${outros} ${outros === 1 ? "contratante" : "contratantes"}` : "Só a principal assina"}
         </span>
       </div>
     </div>

@@ -799,7 +799,13 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
         (u) => !u.hasAccess && (u.email ?? "").trim().toLowerCase() === emailNorm,
       );
       const merged: AppUser = placeholder
-        ? { ...user, department: placeholder.department, position: placeholder.position, orqestraiActive: placeholder.orqestraiActive }
+        ? {
+            ...user,
+            avatar_url: user.avatar_url ?? placeholder.avatar_url,
+            department: placeholder.department,
+            position: placeholder.position,
+            orqestraiActive: placeholder.orqestraiActive,
+          }
         : user;
       return [...withoutPlaceholder, merged].sort((a, b) => a.full_name.localeCompare(b.full_name));
     });

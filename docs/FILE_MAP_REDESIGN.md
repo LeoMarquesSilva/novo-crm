@@ -143,6 +143,7 @@ Componentes (`src/components/crm/`): `field-config-panel.tsx`, `clause-templates
 ## Notificações / Perfil / Login
 
 - Rota: `src/app/(crm)/crm/notifications/`, `src/app/(crm)/crm/perfil/`, `src/app/login/`
+- Telas de acesso: `src/app/{login,esqueci-senha,redefinir-senha,trocar-senha}/`, `src/app/auth/confirmar/`; moldura `src/components/auth/auth-panel.tsx`, formulários e peças em `src/components/auth/` (`password-input.tsx`, `password-requirements.tsx`, `auth-styles.ts`); imagens da marca em `public/brand/`
 
 ## Zona de regra de negócio — NÃO mexer sem necessidade explícita
 

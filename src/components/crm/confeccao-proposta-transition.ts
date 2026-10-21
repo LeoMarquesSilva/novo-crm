@@ -15,6 +15,7 @@ import {
 } from "@/lib/crm/proposta-empresas";
 import { PROPOSTA_TIPOS_CATALOG, type PropostaAreaKey } from "@/data/proposta-tipos-catalog";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
+import { comContratantesPadrao } from "@/lib/crm/proposta-contratantes";
 import { areaHasEscopoTipoFilled, extractTiposByAreaFromEscopoJson } from "@/lib/crm/proposta-escopo-direcionamento";
 
 type FieldValues = Record<string, string | string[] | undefined>;
@@ -165,13 +166,18 @@ export function withConfeccaoQualificacao(params: {
   empresasIntake: EmpresaIntakeRow[];
 }): FieldValues {
   const { customValues, empresasIntake } = params;
-  const empresasPayload = parsePropostaEmpresasJson(
-    typeof customValues.cp_proposta_empresas_json === "string"
-      ? customValues.cp_proposta_empresas_json
-      : "",
+  // Sem escolha explícita, as outras pessoas/empresas do cadastro entram como contratantes.
+  const empresasPayload = comContratantesPadrao(
+    parsePropostaEmpresasJson(
+      typeof customValues.cp_proposta_empresas_json === "string"
+        ? customValues.cp_proposta_empresas_json
+        : "",
+    ),
+    empresasIntake,
   );
   return {
     ...customValues,
+    cp_proposta_empresas_json: JSON.stringify(empresasPayload),
     cp_qualificacao: buildCpQualificacaoText({
       empresasIntake,
       empresasPayload,

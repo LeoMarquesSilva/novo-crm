@@ -4,10 +4,16 @@ import { appendContractEngineEvent } from "./object-events";
 import {
   engineToDataJsonPatch,
   hasStructuredContractObject,
+  manualSelectedClauses,
   readObjectDraft,
   readStoredEngine,
 } from "./persist";
-import { createProposalContractSnapshot } from "./proposal-snapshot";
+import {
+  createProposalContractSnapshot,
+  scopeSubtypeLabelsFromCatalog,
+  type ScopeSubtypeLabels,
+} from "./proposal-snapshot";
+import { loadProposalCatalog } from "@/lib/crm/proposal-catalog-db";
 import {
   buildContratoDocumentSnapshot,
   loadDefaultContratoTemplate,
@@ -27,6 +33,8 @@ export async function initializeContractFromProposal(params: {
   force?: boolean;
   /** Biblioteca de cláusulas já carregada pelo chamador (evita buscar 2x por request). */
   clauseLibrary?: Map<string, ContractClauseTemplate>;
+  /** Rótulos do catálogo de escopo do banco; sem eles, são carregados aqui. */
+  scopeLabels?: ScopeSubtypeLabels;
 }): Promise<{
   reused: boolean;
   build: CanonicalContractBuildResult;
@@ -34,6 +42,8 @@ export async function initializeContractFromProposal(params: {
   instance: Record<string, unknown>;
 }> {
   const { supabase, oportunidadeId, createdBy, force = false, clauseLibrary } = params;
+  const scopeLabels =
+    params.scopeLabels ?? scopeSubtypeLabelsFromCatalog((await loadProposalCatalog(supabase)).scope);
 
   const template = await loadDefaultContratoTemplate(supabase);
   if (!template) {
@@ -75,6 +85,7 @@ export async function initializeContractFromProposal(params: {
         payload: { migrated: true },
       }),
       clauseLibrary,
+      scopeLabels,
     });
     const nextJson = {
       ...currentData,
@@ -82,6 +93,7 @@ export async function initializeContractFromProposal(params: {
         ...draft,
         engineEvents: rebuilt.data.engineEvents,
       }),
+      clausulas_selecionadas: manualSelectedClauses(currentData),
     } as Record<string, Json>;
     if (!existing) {
       throw new Error("Rascunho do contrato não encontrado para migração do objeto.");
@@ -144,6 +156,7 @@ export async function initializeContractFromProposal(params: {
       payload: { source: "proposal" },
     }),
     clauseLibrary,
+    scopeLabels,
   });
   const nextJson = {
     ...currentData,
@@ -151,6 +164,8 @@ export async function initializeContractFromProposal(params: {
       ...existingDraft,
       engineEvents: build.data.engineEvents,
     }),
+    // Só a escolha manual fica: o retrato do motor de antes não pode virar cláusula extra.
+    clausulas_selecionadas: manualSelectedClauses(currentData),
   } as Record<string, Json>;
 
   const persist = existing

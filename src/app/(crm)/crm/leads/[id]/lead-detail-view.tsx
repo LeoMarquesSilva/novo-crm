@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ExternalLink,
   FileSignature,
+  FileSpreadsheet,
   FileText,
   Layers3,
   LinkIcon,
@@ -38,7 +39,8 @@ import {
   type LeadDetailTab,
 } from "@/lib/crm/lead-detail-tabs";
 import { isProposalDocumentAvailable } from "@/lib/crm/proposal-document-availability";
-import { uploadDuePpt } from "@/lib/crm/upload-due-ppt";
+import { uploadDueFile, uploadDuePpt } from "@/lib/crm/upload-due-ppt";
+import { DUE_AREAS, dueAreaFromCrmKey } from "@/lib/due-ppt/areas";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { leadTypeLabel } from "@/lib/crm/lead-type-label";
 import {
@@ -66,6 +68,7 @@ import { PropostaDocumentBuilder } from "./proposta-document-builder";
 import { ContratoDocumentBuilder } from "./contrato-document-builder";
 import { LeadNotesTab } from "./lead-notes-tab";
 import { LeadLifecycleTimelinePanel } from "@/components/crm/lead-lifecycle-timeline-panel";
+import { DueApresentacaoPanel } from "@/components/crm/due-apresentacao/due-apresentacao-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContractBillingOnboardingPanel } from "./contract-billing-onboarding-panel";
 
@@ -266,6 +269,9 @@ export function LeadDetailView({
             {lead.haveraDueDiligence ? (
               <TabsContent value="due" className="mt-4 space-y-5">
                 <DueAreaTasksCard lead={lead} viewer={viewer} onUpdated={() => router.refresh()} />
+                {viewer?.role === "admin" || viewer?.role === "comercial" ? (
+                  <DueApresentacaoPanel leadId={lead.id} etapa={lead.etapa} onGenerated={() => router.refresh()} />
+                ) : null}
                 <DueCompilacaoSection lead={lead} viewer={viewer} onUpdated={() => router.refresh()} />
                 <DueRevisaoSection lead={lead} viewer={viewer} onUpdated={() => router.refresh()} />
               </TabsContent>
@@ -1372,6 +1378,7 @@ function DueAreaTasksCard({
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [semDialogTaskId, setSemDialogTaskId] = useState<string | null>(null);
   const [semObs, setSemObs] = useState("");
+  const [planilhasAnexadas, setPlanilhasAnexadas] = useState<Record<string, string[]>>({});
   const total = lead.dueAreaTasks.length;
   const done = lead.dueAreaTasks.filter((task) =>
     isDueAreaTaskDelivered({
@@ -1408,6 +1415,22 @@ function DueAreaTasksCard({
     }
   }
 
+  /** A área anexa a planilha do levantamento; ela alimenta a apresentação automática. */
+  async function anexarPlanilha(task: LeadDetailData["dueAreaTasks"][number], file: File) {
+    const area = dueAreaFromCrmKey(task.areaKey);
+    if (!area) return;
+    setSavingTaskId(task.id);
+    try {
+      await uploadDueFile(lead.id, file, "planilha_area", area);
+      setPlanilhasAnexadas((cur) => ({ ...cur, [task.id]: [...(cur[task.id] ?? []), file.name] }));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Falha ao anexar a planilha.");
+      return;
+    } finally {
+      setSavingTaskId(null);
+    }
+  }
+
   async function confirmSemProcessos() {
     if (!semDialogTaskId) return;
     await patchTask(semDialogTaskId, {
@@ -1432,8 +1455,8 @@ function DueAreaTasksCard({
                   Levantamento de dados por área
                 </CardTitle>
                 <p className="mt-1 text-sm text-slate-500">
-                  As áreas confirmam a pasta Due Diligence ou registram que não há processos ativos. Ao concluir todas,
-                  o CRM move automaticamente para Compilação.
+                  As áreas anexam a planilha do levantamento (ou confirmam a pasta Due Diligence) ou registram que não
+                  há processos ativos. Ao concluir todas, o CRM move automaticamente para Compilação.
                 </p>
               </div>
               <Badge
@@ -1569,7 +1592,53 @@ function DueAreaTasksCard({
                           >
                             Sem processos ativos
                           </Button>
+                          {canUpdate && dueAreaFromCrmKey(task.areaKey) && DUE_AREAS[dueAreaFromCrmKey(task.areaKey)!].usaPlanilha ? (
+                            <label
+                              className={cn(
+                                "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-(--radius-v2-lg) border border-border px-3 text-xs font-semibold text-foreground hover:bg-muted",
+                                isSaving && "pointer-events-none opacity-60",
+                              )}
+                            >
+                              <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden />
+                              Anexar planilha (.xlsx)
+                              <input
+                                type="file"
+                                accept=".xlsx"
+                                className="sr-only"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  e.target.value = "";
+                                  if (f) void anexarPlanilha(task, f);
+                                }}
+                              />
+                            </label>
+                          ) : null}
                         </div>
+                        {planilhasAnexadas[task.id]?.length ? (
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                            <span className="font-semibold text-emerald-700">
+                              Planilha anexada: {planilhasAnexadas[task.id]!.join(", ")}
+                            </span>
+                            {task.status !== "disponibilizado" && canUpdate ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={isSaving}
+                                onClick={() =>
+                                  void patchTask(task.id, {
+                                    taskId: task.id,
+                                    status: "disponibilizado",
+                                    pastaDueConfirmada: true,
+                                  })
+                                }
+                              >
+                                Marcar levantamento como entregue
+                              </Button>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}

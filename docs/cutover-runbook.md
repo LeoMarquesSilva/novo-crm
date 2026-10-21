@@ -19,7 +19,7 @@ Executar a virada controlada do CRM legado para o novo CRM com janela curta de r
 - Aplicar correções e repetir reconciliação.
 
 ## Antes da virada: fila "Migrar do RD"
-- Aplicar no remoto a migration `supabase/migrations/20261019120000_rd_migracao.sql` (pedido explícito; sem ela a fila só mostra o RD).
+- Migration `supabase/migrations/20261019120000_rd_migracao.sql` aplicada no remoto em 21/10/2026 (SQL Editor, fora de `supabase_migrations`). Sem ela a fila só mostra o RD.
 - Abrir `/crm/migracao-rd` para o time: cada responsável (Solicitante do RD casado pelo e-mail) preenche, nos seus negócios, o que o CRM pede e o RD não tem. O admin atribui os negócios "sem responsável" e tira da fila os parados ("Fora da migração").
 - Piloto: "Converter agora" em um ou dois negócios e conferir ficha, kanban e próxima etapa no CRM.
 - Meta: zerar "A preencher". O que só se faz depois da virada (investimento da proposta pelo catálogo) aparece como pendência "depois da virada".
