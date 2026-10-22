@@ -2,6 +2,24 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-22 — 3º teste ponta a ponta (LE BLOG, com DUE): correções do funil inteiro
+
+- Contrato com duas contratantes saía "a CONTRATANTES prestará": cláusulas aceitam `{singular|plural}` (`resolvePartyAlternatives`), `[A_CONTRATANTE]` em início de frase sai com maiúscula e `[À_CONTRATANTE]` vira "à/às". Código corrigido; as cópias do banco mudam com a migration `20261022120000_contract_clause_party_grammar.sql` (aplicada no remoto em 22/10/2026 pela Management API, registrada em `schema_migrations`). Página de assinaturas lista cada contratante com o documento.
+- Contratante com endereço próprio (`cp_proposta_empresas_json.enderecos`, botão "Endereço próprio" com busca de CEP): entra na qualificação e nas partes do contrato. Antes todas herdavam a sede da principal.
+- Montador do contrato: o salvar parcial gravava o prazo e não criava a tarefa de revisão; agora decide a tarefa e confere o objeto antes de gravar.
+- DUE: aprovação por ciclo (`isDueReviewApprovedForCycle`) e ajuste leva áreas `pendente` ao novo ciclo; concluir ajustes aceita o PPT já anexado depois do pedido (a tela exigia reenviar); avanço para Revisão sem PPT bloqueia; planilhas com outros nomes de coluna, cliente como terceiro e só o ano de distribuição; área sem planilha sai da apresentação com aviso.
+- Transições: reunião e data de assinatura pré-preenchidas; avanço forçado pelo admin usa a data informada (`resolveManualSignedAt`).
+- Faturamento: `prazo_indeterminado` e dia de vencimento lidos do lead; componentes com nome legível; mensagens do fechamento em português; salvar e ativar na mesma tela não dá mais conflito de versão (`updated_at` relido depois do RPC); encerramento pede a data.
+- Cadastro: os demais contratantes entram no grupo ao concluir (`linkOtherContratantesToGroup`); consulta automatizada aceita CPF/CNPJ e acusa documento inválido.
+- Novo lead: Esc no seletor de indicador não fecha mais o diálogo; "Ainda sem local" grava "A definir" em todas as telas.
+- Validações: `npx vitest run` (1248 testes, mais `party-language.test.ts` e o caso da consulta automatizada), `npx tsc --noEmit` sem erro em `src/`, eslint nos arquivos alterados (só o aviso antigo de `<img>`); conferido no CRM local: data de encerramento, rótulo CPF/CNPJ e Esc no seletor de indicador.
+
+## 2026-10-22 — 3º teste ponta a ponta (LE BLOG, com DUE): nome de arquivo sem acento e perfil de Ajuizamento de Medida de Reestruturação
+
+- Proposta e contrato não gravavam para lead com acento no nome: o Supabase Storage passou a recusar letra acentuada na chave ("Invalid key: …CONFECÇÕES…"); em 02/09 "QUÍMICA" ainda passava. `sanitizeFilenamePart` tira o acento (NFD sem marcas) e só deixa ASCII seguro.
+- O subtipo "Ajuizamento de Medida de Reestruturação" não tinha perfil contratual e o contrato travava no objeto. Perfil novo em `scope-profiles.ts` reusando os blocos de Negociações Estratégicas, que batem com o contrato real do Grupo LE BLOG. Pendente de revisão jurídica.
+- Sem DDL. Validações: `npx vitest run src/lib/crm/contract-engine src/lib/crm/proposta-document-data.test.ts src/lib/crm/proposta-document-flow.test.ts "src/app/api/crm/leads/[id]/contrato"`; conferido no CRM local com o lead do teste 3 (proposta PDF e contrato Word gerados e gravados).
+
 ## 2026-10-21 — Contrato: perfil de Recuperação de Crédito em Processos de Recuperação Judicial
 
 - O subtipo não tinha perfil contratual e o contrato travava no objeto (2º teste ponta a ponta). Perfil novo em `scope-profiles.ts` + blocos em `object-catalog.ts`, tirados do contrato real (negócio do RD de Vinicius e André, assinado em 29/09/2026): texto genérico fixo, dados do caso como variáveis — credores pela gramática da parte, empresa/processo/vara dos campos da proposta, pontos do parecer opcionais. Pendente de revisão jurídica, como os demais perfis.

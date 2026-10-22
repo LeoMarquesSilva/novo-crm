@@ -130,7 +130,8 @@ interface PipelineBoardProps {
 }
 
 const MEETING_TIME_SUGGESTIONS = ["09:30", "11:30", "14:30", "16:30"];
-const MEETING_LOCATION_PENDING = "Não definido ainda";
+// Mesmo valor do Novo lead ("A definir"); antes cada tela gravava um texto para "ainda sem local".
+const MEETING_LOCATION_PENDING = "A definir";
 
 type TransitionModalState = {
   item: Oportunidade;

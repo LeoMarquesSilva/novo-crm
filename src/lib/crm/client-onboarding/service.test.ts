@@ -6,7 +6,7 @@ import { createSupabaseFake } from "@/test/supabase-fake";
 import { emptyClientOnboardingPayload, parseOpsChecklist } from "@/modules/crm/domain/client-onboarding";
 
 import type { OnboardingContext } from "./load-onboarding-context";
-import { concludeOnboarding, evaluateOnboardingAction, submitOnboarding } from "./service";
+import { concludeOnboarding, evaluateOnboardingAction, linkOtherContratantesToGroup, submitOnboarding } from "./service";
 
 vi.mock("@/lib/crm/notifications/crm-notify", () => ({ notifyAudience: vi.fn(async () => [{}]) }));
 vi.mock("@/lib/crm/record-lead-activity", () => ({ recordLeadActivityEvent: vi.fn() }));
@@ -136,5 +136,29 @@ describe("submitOnboarding / concludeOnboarding", () => {
       "conclude_client_onboarding_atomic",
       expect.objectContaining({ p_grupo_nome: "Grupo ACME", p_grupo_chave: "grupo acme" }),
     );
+  });
+});
+
+describe("linkOtherContratantesToGroup — outras contratantes no grupo (teste 3, 22/10/2026)", () => {
+  const endereco = { logradouro: "Av. dos Eucaliptos", numero: "550", complemento: "", bairro: "Indianópolis", cidade: "São Paulo", uf: "SP", cep: "04517-050" };
+  const parties = [
+    { id: "intake-1", razaoSocial: "LE BLOG", documento: "13.030.003/0001-10", documentoTipo: "CNPJ" as const, endereco, role: "contratante" as const, source: "intake" as const },
+    { id: "intake-2", razaoSocial: "PEC", documento: "48.030.003/0001-02", documentoTipo: "CNPJ" as const, endereco, role: "contratante" as const, source: "intake" as const },
+    { id: "intake-3", razaoSocial: "Só relacionada", documento: "111.444.777-35", documentoTipo: "CPF" as const, endereco, role: "relacionada" as const, source: "intake" as const },
+  ];
+
+  it("cria a outra contratante no grupo e ignora a principal e as só relacionadas", async () => {
+    const fake = createSupabaseFake({ tables: { clientes: { awaited: { data: [], error: null } } } });
+    const r = await linkOtherContratantesToGroup(fake.client as never, { parties, mainDocument: "13030003000110", grupoId: "g-1" });
+    expect(r).toEqual({ created: ["PEC"], linked: [], conflicts: [] });
+    const insert = fake.calls.find((c) => c.table === "clientes" && c.method === "insert");
+    expect(insert?.args[0]).toMatchObject({ razao_social: "PEC", documento: "48.030.003/0001-02", grupo_id: "g-1", cep: "04517050" });
+  });
+
+  it("cliente já em outro grupo não é movido", async () => {
+    const fake = createSupabaseFake({ tables: { clientes: { awaited: { data: [{ id: "c-9", grupo_id: "outro" }], error: null } } } });
+    const r = await linkOtherContratantesToGroup(fake.client as never, { parties, mainDocument: "13030003000110", grupoId: "g-1" });
+    expect(r.conflicts).toEqual(["PEC"]);
+    expect(fake.calls.some((c) => c.table === "clientes" && (c.method === "insert" || c.method === "update"))).toBe(false);
   });
 });

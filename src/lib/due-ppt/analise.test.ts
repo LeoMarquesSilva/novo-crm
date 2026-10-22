@@ -241,3 +241,14 @@ describe("Recuperação de crédito", () => {
     expect(a.top[0]!.processo).toBe("3");
   });
 });
+
+describe("Cível com cliente terceiro interessado", () => {
+  it("processo em que o cliente é terceiro não entra no passivo", () => {
+    const r = analisarCivel([
+      proc({ numero: "1", poloCliente: "TERCEIRO", valorCausa: 70605.76 }),
+      proc({ numero: "2", poloCliente: "PASSIVO", valorCausa: 1000 }),
+    ]);
+    expect(r.semPoloCliente).toBe(false);
+    expect(r.passivo).toBe(1000);
+  });
+});

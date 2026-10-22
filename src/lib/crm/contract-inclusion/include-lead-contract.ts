@@ -225,11 +225,15 @@ export async function includeLeadContract(
     fill("vigente_de", configuration.startsAt);
     fill("primeiro_vencimento", configuration.firstInvoiceAt);
     fill("indice_reajuste", configuration.adjustmentIndex);
-    fill("dia_vencimento", configuration.dueDay);
+    // Sem dia de vencimento no contrato, vale o dia do primeiro faturamento (18/08 → dia 18).
+    const firstInvoiceDay = configuration.firstInvoiceAt ? Number(configuration.firstInvoiceAt.slice(8, 10)) : null;
+    fill("dia_vencimento", configuration.dueDay ?? (firstInvoiceDay && firstInvoiceDay <= 31 ? firstInvoiceDay : null));
     fill("data_base_renovacao", configuration.renewalDate);
     fill("data_alerta_renovacao", configuration.renewalAlertDate);
     fill("cliente_id", configuration.clientId);
     if (configuration.firstInvoiceConditioned) header.primeiro_faturamento_condicionado = true;
+    // `prazo_indeterminado` nasce false no rascunho; o contrato do CRM e o PDF dizem se é indeterminado.
+    if (configuration.indefinite) header.prazo_indeterminado = true;
     if (!c.origem_importacao) header.origem_importacao = "lead";
     const { error: headerError } = await supabase.from("contratos").update(header as never).eq("id", id);
     if (headerError) throw headerError;

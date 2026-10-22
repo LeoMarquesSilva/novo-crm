@@ -34,6 +34,8 @@ export function ContractVersionsPanel({
   const [effectiveFrom, setEffectiveFrom] = useState(contract.renewalDate ?? "");
   const [addendumId, setAddendumId] = useState("");
   const [reason, setReason] = useState("");
+  // Término escolhido no encerramento (antes era sempre hoje: competências já vencidas continuavam faturáveis).
+  const [endedAt, setEndedAt] = useState(todayYmdBr);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const addendumLabels = useMemo(
@@ -178,6 +180,15 @@ export function ContractVersionsPanel({
               placeholder="Decisão auditável"
             />
           </label>
+          <label className="mt-3 block space-y-1.5 text-sm font-medium">
+            <span>Data de encerramento</span>
+            <DateInputBr
+              value={endedAt}
+              onChange={setEndedAt}
+              disabled={!canManage || busy}
+              className="!h-10 border-[#dfe5ee] bg-white shadow-sm"
+            />
+          </label>
           <div className="mt-3 grid grid-cols-3 gap-2">
             <Button
               variant="outline"
@@ -198,11 +209,11 @@ export function ContractVersionsPanel({
             <Button
               variant="destructive"
               size="sm"
-              disabled={!canManage || busy || !reason.trim()}
+              disabled={!canManage || busy || !reason.trim() || !endedAt}
               onClick={() =>
                 execute({
                   action: "end_contract",
-                  endedAt: todayYmdBr(),
+                  endedAt,
                   reason,
                 })
               }

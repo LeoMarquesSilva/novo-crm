@@ -441,7 +441,13 @@ export async function generateContratoDocxBuffer(
       rows: [
         new TableRow({
           children: [
-            sigCell(contratanteGrammar.noun),
+            sigCell(
+              contratanteGrammar.noun,
+              undefined,
+              (page.contratantesAssinatura ?? []).map((c) =>
+                [c.nome, c.documento ? `${c.documentoTipo} ${c.documento}` : ""].filter(Boolean).join(" · "),
+              ),
+            ),
             spacerCell,
             sigCell("CONTRATADA", "Bismarchi | Pires – Sociedade de Advogados", [
               "Gustavo Bismarchi Motta",

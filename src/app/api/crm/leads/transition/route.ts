@@ -29,6 +29,7 @@ import {
 } from "@/lib/crm/compute-transition-requirements";
 import { pipelineCodeForStage } from "@/lib/crm/pipeline-board-config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { saoPauloMidnightIso } from "@/lib/format-datetime";
 import type { Database } from "@/lib/supabase/database.types";
 import { syncPropostaEscopoSolicitacoesForOportunidade } from "@/lib/crm/proposta-escopo-solicitacoes";
 import {
@@ -103,6 +104,29 @@ function normalizeToken(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+/**
+ * Data da assinatura no override do admin: a informada no modal ("Data de Assinatura do Contrato"),
+ * sen\u00e3o a da finaliza\u00e7\u00e3o na D4Sign, sen\u00e3o agora. Sem isso o contrato ficava com a data do clique.
+ */
+async function resolveManualSignedAt(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  fieldValuesByCode: Record<string, string | string[]> | undefined,
+  documentUuid: string | null,
+): Promise<string | null> {
+  const raw = fieldValuesByCode?.data_assinatura_ca;
+  const typed = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
+  const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(typed);
+  const ymd = br ? `${br[3]}-${br[2]}-${br[1]}` : typed.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return saoPauloMidnightIso(ymd);
+  if (!documentUuid) return null;
+  const { data } = await supabase
+    .from("d4sign_documents")
+    .select("finalized_at")
+    .eq("uuid_doc", documentUuid)
+    .maybeSingle();
+  return (data?.finalized_at as string | null | undefined) ?? null;
 }
 
 export async function POST(request: Request) {
@@ -235,11 +259,13 @@ export async function POST(request: Request) {
     // Override do admin quando a assinatura já consta na D4Sign mas o lead não avançou
     // (webhook perdido): mesmo caminho da assinatura automática (venda fechada, pós-venda, avisos).
     if (currentStage === "contrato_enviado" && nextStage === "contrato_assinado") {
+      const documentUuid = (row.d4sign_document_uuid as string | null) ?? null;
       const completion = await completeSignedContract({
         supabase,
         opportunityId,
-        documentUuid: (row.d4sign_document_uuid as string | null) ?? null,
+        documentUuid,
         signers: row.d4sign_signers ?? null,
+        signedAt: await resolveManualSignedAt(supabase, fieldValuesByCode, documentUuid),
         source: "manual",
         actorAppUserId: auth.profile.id,
         leadName: (row.solicitante_nome as string | null) ?? null,

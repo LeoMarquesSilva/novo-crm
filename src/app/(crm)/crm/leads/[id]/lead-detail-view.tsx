@@ -725,6 +725,19 @@ function DueCompilacaoSection({
   const adjustmentTasks = lead.dueAreaReviewTasks.filter((task) => task.status === "ajustes_solicitados");
   const pendingAdjustmentTasks = adjustmentTasks.filter((task) => !task.adjustmentCompletedAt);
   const completedAdjustmentCount = adjustmentTasks.length - pendingAdjustmentTasks.length;
+  // Mesma regra da rota: PPT anexado depois do pedido de ajuste mais antigo das áreas marcadas já vale como evidência
+  // (ex.: a apresentação gerada de novo pelo CRM); antes a tela exigia reenviar o arquivo.
+  const selectedRequestedAt = adjustmentTasks
+    .filter((task) => selectedAdjustmentTaskIds.includes(task.id))
+    .map((task) => Date.parse(task.adjustmentsRequestedAt ?? task.respondedAt ?? ""))
+    .filter((value) => Number.isFinite(value));
+  const minRequestedAt = selectedRequestedAt.length > 0 ? Math.min(...selectedRequestedAt) : null;
+  const attachedPptAfterRequest =
+    minRequestedAt == null
+      ? null
+      : (pptDocs
+          .filter((doc) => Date.parse(doc.uploadedAt) >= minRequestedAt)
+          .sort((a, b) => Date.parse(b.uploadedAt) - Date.parse(a.uploadedAt))[0] ?? null);
 
   if (!lead.haveraDueDiligence || lead.etapa !== "compilacao") return null;
 
@@ -801,7 +814,7 @@ function DueCompilacaoSection({
       setAdjustmentModalError("Selecione ao menos uma área para concluir os ajustes.");
       return;
     }
-    if (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile) {
+    if (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile && !attachedPptAfterRequest) {
       setAdjustmentModalError("Selecione um arquivo PPT novo para concluir.");
       return;
     }
@@ -1078,7 +1091,9 @@ function DueCompilacaoSection({
                     }}
                   />
                   <p className="text-xs text-slate-500">
-                    Envie um .ppt ou .pptx atualizado após a solicitação de ajustes.
+                    {attachedPptAfterRequest
+                      ? `Já vale o PPT anexado depois do pedido: ${attachedPptAfterRequest.originalFilename} (${formatDateTimeBr(attachedPptAfterRequest.uploadedAt)}). Envie outro só para substituí-lo.`
+                      : "Envie um .ppt ou .pptx atualizado após a solicitação de ajustes."}
                   </p>
                 </div>
               ) : (
@@ -1128,7 +1143,7 @@ function DueCompilacaoSection({
               disabled={
                 concludingAdjustments ||
                 selectedAdjustmentTaskIds.length < 1 ||
-                (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile) ||
+                (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile && !attachedPptAfterRequest) ||
                 (adjustmentEvidenceKind === "link" && !adjustmentEvidenceLink.trim())
               }
               onClick={() => void concludeSelectedAdjustments()}

@@ -17,6 +17,7 @@ import {
   type OpsChecklist,
 } from "@/modules/crm/domain/client-onboarding";
 
+import type { ContractingParty } from "@/lib/crm/contract-engine/types";
 import { isMissingTableError, type OnboardingContext } from "./load-onboarding-context";
 
 export type OnboardingAction = "edit_draft" | "submit" | "review" | "return" | "conclude";
@@ -360,6 +361,64 @@ export async function findCarteiraMatches(
   return match;
 }
 
+type OtherContratantesResult = { created: string[]; linked: string[]; conflicts: string[] };
+
+/**
+ * Demais contratantes do contrato (além do cliente principal) entram no mesmo grupo: as já
+ * cadastradas sem grupo são vinculadas, as novas são criadas; quem está em outro grupo fica
+ * de fora (vai no histórico para Operações Legais conferir).
+ */
+export async function linkOtherContratantesToGroup(
+  supabase: SupabaseClient,
+  input: { parties: ContractingParty[]; mainDocument: string; grupoId: string },
+): Promise<OtherContratantesResult> {
+  const result: OtherContratantesResult = { created: [], linked: [], conflicts: [] };
+  const mainDoc = onlyDigits(input.mainDocument);
+  const seen = new Set<string>([mainDoc]);
+  for (const party of input.parties) {
+    const doc = onlyDigits(party.documento);
+    if (party.role !== "contratante" || seen.has(doc) || (doc.length !== 11 && doc.length !== 14)) continue;
+    seen.add(doc);
+    const nome = party.razaoSocial.trim() || party.documento;
+    const { data: existing, error: findError } = await supabase
+      .from("clientes")
+      .select("id, grupo_id")
+      .in("documento", [...new Set([party.documento.trim(), doc])])
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (findError) throw findError;
+    const found = existing?.[0] as { id: string; grupo_id: string | null } | undefined;
+    if (found) {
+      if (found.grupo_id && found.grupo_id !== input.grupoId) {
+        result.conflicts.push(nome);
+        continue;
+      }
+      if (!found.grupo_id) {
+        const { error } = await supabase.from("clientes").update({ grupo_id: input.grupoId }).eq("id", found.id);
+        if (error) throw error;
+      }
+      result.linked.push(nome);
+      continue;
+    }
+    const e = party.endereco;
+    const { error: insertError } = await supabase.from("clientes").insert({
+      razao_social: nome,
+      documento: party.documento.trim(),
+      logradouro: e.logradouro || null,
+      numero: e.numero || null,
+      complemento: e.complemento || null,
+      bairro: e.bairro || null,
+      cidade: e.cidade || null,
+      uf: e.uf || null,
+      cep: onlyDigits(e.cep) || null,
+      grupo_id: input.grupoId,
+    });
+    if (insertError) throw insertError;
+    result.created.push(nome);
+  }
+  return result;
+}
+
 /**
  * Conclui o cadastro: cria/vincula grupo, cliente e contatos, liga lead e contrato e move
  * para Inclusão no Faturamento (aviso ao Financeiro).
@@ -443,6 +502,18 @@ export async function concludeOnboarding(
   }
   const row = data as { transition_id: string; cliente_id: string; grupo_id: string; contract_id: string };
 
+  // As outras contratantes do contrato (ex.: PEC ao lado da LE BLOG) também viram clientes do grupo.
+  let otherContratantes: OtherContratantesResult = { created: [], linked: [], conflicts: [] };
+  try {
+    otherContratantes = await linkOtherContratantesToGroup(supabase, {
+      parties: ctx.contractParties ?? [],
+      mainDocument: cadastro.documento,
+      grupoId: row.grupo_id,
+    });
+  } catch (linkError) {
+    logServerError("onboarding/conclude/other-contratantes", linkError, { opportunityId: ctx.opportunity.id });
+  }
+
   // Origem comercial no grupo (colunas de migrations que podem não estar aplicadas).
   const { data: intake } = await supabase
     .from("lead_intakes")
@@ -468,7 +539,17 @@ export async function concludeOnboarding(
     oportunidadeId: ctx.opportunity.id,
     kind: "cadastro_cliente_concluido",
     title: "Cadastro do cliente concluído",
-    detail: `Grupo: ${checklist.grupoNome || "existente"} · VIOS: ${checklist.viosReferencia}`,
+    detail: [
+      `Grupo: ${checklist.grupoNome || "existente"} · VIOS: ${checklist.viosReferencia}`,
+      otherContratantes.created.length + otherContratantes.linked.length > 0
+        ? `Outras contratantes no grupo: ${[...otherContratantes.created, ...otherContratantes.linked].join(", ")}`
+        : "",
+      otherContratantes.conflicts.length > 0
+        ? `Já em outro grupo (não vinculadas): ${otherContratantes.conflicts.join(", ")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
     etapa: "inclusao_faturamento",
     actorAppUserId: actor.appUserId,
     sourceId: `onboarding-conclude:${row.transition_id}`,

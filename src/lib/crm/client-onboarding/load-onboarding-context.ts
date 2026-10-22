@@ -4,7 +4,7 @@ import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
 import { loadRdMigrationLeadState, rdMigrationBlocksAdvance } from "@/lib/crm/rd-migration/state";
 import { parseAmount } from "@/lib/crm/contract-engine/money";
 import { resolveContractingParties } from "@/lib/crm/contract-engine/proposal-snapshot";
-import type { ContractingPartyAddress } from "@/lib/crm/contract-engine/types";
+import type { ContractingParty, ContractingPartyAddress } from "@/lib/crm/contract-engine/types";
 import { parseEmpresasIntakeFromRecord } from "@/lib/crm/parse-lead-intake-empresas";
 import { loadDefaultContratoTemplate, loadPipelineFieldByCode } from "@/lib/crm/proposta-document-data";
 import { parseEscopoJsonWithMeta } from "@/lib/crm/proposta-escopo-json";
@@ -59,6 +59,8 @@ export type OnboardingContext = {
   row: OnboardingRow | null;
   payload: ClientOnboardingPayload;
   checklist: OpsChecklist;
+  /** Partes do contrato pelo cadastro do lead e a escolha da proposta (todas as contratantes). */
+  contractParties?: ContractingParty[];
 };
 
 export function isMissingTableError(error: { code?: string } | null | undefined): boolean {
@@ -204,6 +206,7 @@ export async function loadOnboardingContext(
   });
 
   return {
+    contractParties: intakeParties,
     opportunity: {
       id: String(o.id),
       etapa: o.etapa as OpportunityStage,

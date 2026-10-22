@@ -39,6 +39,7 @@ export const SCOPE_IDS = {
   contratual: "consultivo_revisao_e_elaboracao_de_contratos",
   tributario: "contencioso_execucoes_fiscais",
   reestruturacaoNegociacoes: "negociacoes_estrategicas",
+  reestruturacaoAjuizamento: "ajuizamento_de_medida_de_reestruturacao",
   societarioDiagnostico: "diagnostico_estruturacao_e_protecao_patrimonial",
   recuperacaoCreditoRj: "recuperacao_de_credito_em_processos_de_recuperacao_judicial",
 } as const;
@@ -256,14 +257,14 @@ export const CONTRACT_CLAUSE_CATALOG: ContractClauseTemplate[] = [
   clause(
     "obligation_contracted_base",
     "Obrigações da Contratada",
-    "A Contratada prestará os Serviços com zelo profissional, observando o Estatuto da Advocacia e o Código de Ética, e manterá a Contratante informada sobre atos relevantes da execução contratual.",
+    "A Contratada prestará os Serviços com zelo profissional, observando o Estatuto da Advocacia e o Código de Ética, e manterá [A_CONTRATANTE] {informada|informadas} sobre atos relevantes da execução contratual.",
     "contracted_obligation",
     { category: "PADRÃO BP", sortOrder: 230, isRequired: true },
   ),
   clause(
     "obligation_contracting_base",
     "Obrigações da Contratante",
-    "[A_CONTRATANTE] prestará as informações e documentos necessários à execução dos Serviços, efetuará os pagamentos nas datas pactuadas e indicará interlocutor para as comunicações do Contrato.",
+    "[A_CONTRATANTE] {prestará|prestarão} as informações e documentos necessários à execução dos Serviços, {efetuará|efetuarão} os pagamentos nas datas pactuadas e {indicará|indicarão} interlocutor para as comunicações do Contrato.",
     "contracting_obligation",
     {
       category: "PADRÃO BP",
@@ -275,7 +276,7 @@ export const CONTRACT_CLAUSE_CATALOG: ContractClauseTemplate[] = [
   clause(
     "expense_km",
     "Despesas",
-    "A remuneração avençada não abrange despesas extraordinárias necessárias à execução dos Serviços (custas, taxas, cópias, cartórios, viagens, hospedagens e demais encargos). Tais despesas serão reembolsadas mediante comprovação, previamente autorizadas por e-mail. Os custos suportados pelos prepostos da Contratada em diligências com uso de veículo próprio, incluindo alimentação, serão discriminados em relatório de despesas enviado quinzenalmente, contendo data, quilometragem, pedágios, alimentação, profissional responsável e trabalho realizado. Fica estabelecido o valor de R$ 2,00 (dois reais) por quilômetro rodado, medido pela distância entre a sede/filial da Contratada e o destino da diligência via Google Maps/Waze, reajustável consensualmente conforme a tabela de preço dos combustíveis. Diligências a mais de 150 (cento e cinquenta) quilômetros da sede/filial da Contratada poderão ser realizadas por correspondentes, com honorários custeados pela Contratante nos mesmos moldes.",
+    "A remuneração avençada não abrange despesas extraordinárias necessárias à execução dos Serviços (custas, taxas, cópias, cartórios, viagens, hospedagens e demais encargos). Tais despesas serão reembolsadas mediante comprovação, previamente autorizadas por e-mail. Os custos suportados pelos prepostos da Contratada em diligências com uso de veículo próprio, incluindo alimentação, serão discriminados em relatório de despesas enviado quinzenalmente, contendo data, quilometragem, pedágios, alimentação, profissional responsável e trabalho realizado. Fica estabelecido o valor de R$ 2,00 (dois reais) por quilômetro rodado, medido pela distância entre a sede/filial da Contratada e o destino da diligência via Google Maps/Waze, reajustável consensualmente conforme a tabela de preço dos combustíveis. Diligências a mais de 150 (cento e cinquenta) quilômetros da sede/filial da Contratada poderão ser realizadas por correspondentes, com honorários custeados [PELA_CONTRATANTE] nos mesmos moldes.",
     "expense",
     {
       category: "PADRÃO BP",

@@ -867,7 +867,7 @@ export function ContractSetupWizard({
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <p>
                 Você alterou sugestões de identificação/vigência vindas de{" "}
-                {identityChanges.map(([, field]) => sourceLabels[field.source]).join(", ")}.
+                {[...new Set(identityChanges.map(([, field]) => sourceLabels[field.source]))].join(", ")}.
               </p>
             </div>
             <label className="mt-3 flex items-center gap-2 text-sm">

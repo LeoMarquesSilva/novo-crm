@@ -235,12 +235,13 @@ export async function PATCH(
         return NextResponse.json({ ok: false, error: trErr.message }, { status: 500 });
       }
 
+      // O novo ciclo revisa quem pediu ajuste e quem ainda não respondeu; quem aprovou continua aprovado.
       const { data: adjustedAreasRows, error: adjustedAreasError } = await supabase
         .from("due_area_review_tasks")
         .select("area_key")
         .eq("oportunidade_id", opportunityId)
         .eq("revision_cycle", cycle)
-        .eq("status", "ajustes_solicitados");
+        .in("status", ["ajustes_solicitados", "pendente"]);
       if (adjustedAreasError) {
         return NextResponse.json({ ok: false, error: adjustedAreasError.message }, { status: 500 });
       }

@@ -12,15 +12,68 @@ export type EmpresaCadastroRef = {
   documento: string;
 };
 
+export type EnderecoContratante = {
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+};
+
 export type EscolhaEmpresasProposta = {
   primaryIndex: number;
   extras: Array<{ razao_social: string; documento: string }>;
   contratantes?: number[];
+  /**
+   * Endereço próprio de outra contratante do cadastro, pelo índice (Empresa/Pessoa 2 → "2").
+   * Sem endereço próprio, a qualificação usa o endereço do cliente (o da principal).
+   */
+  enderecos?: Record<string, EnderecoContratante>;
 };
 
 export function parseContratantesIndexes(value: unknown): number[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return [...new Set(value.filter((v): v is number => Number.isInteger(v) && v > 0))].sort((a, b) => a - b);
+}
+
+const ENDERECO_KEYS: Array<keyof EnderecoContratante> = ["cep", "logradouro", "numero", "complemento", "bairro", "cidade", "uf"];
+
+export function enderecoContratanteVazio(): EnderecoContratante {
+  return { cep: "", logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", uf: "" };
+}
+
+/** Endereço com rua e cidade: o mínimo para entrar na qualificação. */
+export function enderecoContratantePreenchido(e: EnderecoContratante | undefined): e is EnderecoContratante {
+  return Boolean(e && e.logradouro.trim() && e.cidade.trim());
+}
+
+export function parseEnderecosContratantes(value: unknown): Record<string, EnderecoContratante> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const out: Record<string, EnderecoContratante> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!/^\d+$/.test(key) || !raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const endereco = enderecoContratanteVazio();
+    for (const k of ENDERECO_KEYS) endereco[k] = typeof r[k] === "string" ? (r[k] as string).trim() : "";
+    if (enderecoContratantePreenchido(endereco)) out[key] = endereco;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Grava ou remove (endereço `null`) o endereço próprio de uma contratante do cadastro. */
+export function definirEnderecoContratante<T extends EscolhaEmpresasProposta>(
+  escolha: T,
+  index: number,
+  endereco: EnderecoContratante | null,
+): T {
+  const enderecos = { ...(escolha.enderecos ?? {}) };
+  if (endereco && enderecoContratantePreenchido(endereco)) enderecos[String(index)] = endereco;
+  else delete enderecos[String(index)];
+  const resto: T = { ...escolha };
+  delete resto.enderecos;
+  return (Object.keys(enderecos).length > 0 ? { ...resto, enderecos } : resto) as T;
 }
 
 export function principalIndexDaEscolha(escolha: EscolhaEmpresasProposta, empresas: EmpresaCadastroRef[]): number {

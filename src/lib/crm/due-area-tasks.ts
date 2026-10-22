@@ -4,6 +4,7 @@ import { actorFromAppUserRow, type InAppNotificationActor } from "@/lib/crm/in-a
 import {
   getDueAreaTaskStatus,
   isDueAreaTaskDelivered,
+  isDueReviewApprovedForCycle,
   type DueAreaTaskStatus,
 } from "@/lib/crm/due-area-task-status";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
@@ -611,11 +612,9 @@ export async function allDueReviewTasksApprovedForCycle(
 ): Promise<boolean> {
   const { data } = await supabase
     .from("due_area_review_tasks")
-    .select("status")
-    .eq("oportunidade_id", oportunidadeId)
-    .eq("revision_cycle", revisionCycle);
-  if (!data?.length) return false;
-  return data.every((r) => r.status === "ok");
+    .select("area_key, status, revision_cycle")
+    .eq("oportunidade_id", oportunidadeId);
+  return isDueReviewApprovedForCycle(data ?? [], revisionCycle);
 }
 
 export async function notifyDueReviewAreas(

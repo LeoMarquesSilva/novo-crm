@@ -316,6 +316,18 @@ function proposalAreas(raw: unknown): Array<ContractPrefillSuggestion<ContractPr
   });
 }
 
+/** Nome do componente na memória do fechamento (antes saía o código do subtipo, ex. "mensal_mais_exito"). */
+const COMPONENT_DESCRIPTIONS: Partial<Record<BillingComponentKind, string>> = {
+  mensal_fixo: "Honorários mensais",
+  mensal_escalonado: "Honorários mensais escalonados",
+  mensal_condicionado: "Honorários mensais condicionados",
+  mensal_preco_fechado: "Preço fechado",
+  spot: "Honorários (parcela única)",
+  manutencao: "Honorários de manutenção",
+  exito_percentual: "Honorários de êxito",
+  exito_valor_fixo: "Honorários de êxito",
+};
+
 function investmentComponents(
   investment: PropostaInvestimentoEntry,
   key: string,
@@ -394,7 +406,10 @@ function investmentComponents(
       pushSuccessPercent();
       break;
   }
-  return result;
+  return result.map((component) => ({
+    ...component,
+    description: COMPONENT_DESCRIPTIONS[component.kind] ?? component.description,
+  }));
 }
 
 /** SPOT e preço fechado são a mesma cobrança (valor fechado): não duplicar entre as fontes. */

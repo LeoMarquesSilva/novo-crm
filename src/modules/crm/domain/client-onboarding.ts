@@ -160,6 +160,12 @@ export function listMissingOnboardingFields(payload: ClientOnboardingPayload): s
   for (const [i, socio] of cadastro.socios.entries()) {
     if (!socio.nome) missing.push(`Nome do sócio ${i + 1}`);
   }
+  // Consulta automatizada: empresas e, como no processo do RD, também sócios (CPF).
+  for (const [i, empresa] of cadastro.empresasConsulta.entries()) {
+    if (empresa.documento && !isValidDocument(empresa.documento)) {
+      missing.push(`CPF/CNPJ da consulta automatizada ${i + 1} (inválido)`);
+    }
+  }
 
   if (!financeiro.faturamento.razaoSocial) missing.push("Razão social para faturamento");
   if (!isValidDocument(financeiro.faturamento.documento)) missing.push("CPF/CNPJ para faturamento");

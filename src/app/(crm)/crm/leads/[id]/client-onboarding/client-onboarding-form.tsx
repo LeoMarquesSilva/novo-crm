@@ -261,7 +261,7 @@ export function ClientOnboardingForm({
 
       <Section
         title="Empresas para a consulta automatizada"
-        description="Nomes e CNPJs de todas as empresas do cliente que entram no monitoramento."
+        description="Nomes e CPF/CNPJ de todas as empresas (e pessoas) do cliente que entram no monitoramento."
       >
         <div className="space-y-2">
           <SourceChip source={src["cadastro.empresasConsulta"]} />
@@ -276,8 +276,8 @@ export function ClientOnboardingForm({
               />
               <Input
                 value={empresa.documento}
-                placeholder="CNPJ"
-                aria-label={`CNPJ da empresa ${index + 1}`}
+                placeholder="CPF ou CNPJ"
+                aria-label={`CPF/CNPJ da empresa ${index + 1}`}
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.cadastro.empresasConsulta[index]!.documento = e.target.value))}
               />

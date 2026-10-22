@@ -29,10 +29,25 @@ export function contractPartyGrammar(contratanteCount: number): PartyGrammar {
   };
 }
 
+/** `{prestará|prestarão}` → forma do singular ou do plural (verbos e pronomes que concordam com a contratante). */
+export function resolvePartyAlternatives(text: string, plural: boolean): string {
+  return text.replace(/\{([^{}|]+)\|([^{}|]+)\}/g, (_, singular: string, pluralForm: string) =>
+    plural ? pluralForm : singular,
+  );
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 export function applyPartyPlaceholders(text: string, grammar: PartyGrammar): string {
-  return text
+  const crase = grammar.plural ? "às CONTRATANTES" : "à CONTRATANTE";
+  return resolvePartyAlternatives(text, grammar.plural)
+    // No começo da frase o artigo vai em maiúscula ("As CONTRATANTES prestarão…").
+    .replace(/(^|[.!?:]\s+)\[A_CONTRATANTE\]/g, (_, before: string) => `${before}${capitalize(grammar.articleNoun)}`)
     .replaceAll("[CONTRATANTE_NOUN]", grammar.noun)
     .replaceAll("[A_CONTRATANTE]", grammar.articleNoun)
+    .replaceAll("[À_CONTRATANTE]", crase)
     .replaceAll("[DA_CONTRATANTE]", grammar.of)
     .replaceAll("[PELA_CONTRATANTE]", grammar.by);
 }

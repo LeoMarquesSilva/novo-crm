@@ -48,6 +48,18 @@ describe("client onboarding", () => {
     expect(listMissingOnboardingFields(p)).toEqual(["Condição do primeiro faturamento"]);
   });
 
+  it("consulta automatizada aceita CPF ou CNPJ e aponta documento inválido", () => {
+    const p = complete();
+    p.cadastro.empresasConsulta = [
+      { razaoSocial: "ACME S.A.", documento: "12.345.678/0001-90" },
+      { razaoSocial: "Sócio", documento: "123.456.789-09" },
+      { razaoSocial: "Sem documento", documento: "" },
+    ];
+    expect(listMissingOnboardingFields(p)).toEqual([]);
+    p.cadastro.empresasConsulta[1]!.documento = "123.456";
+    expect(listMissingOnboardingFields(p)).toEqual(["CPF/CNPJ da consulta automatizada 2 (inválido)"]);
+  });
+
   it("rateio precisa somar 100%", () => {
     const p = complete();
     p.financeiro.rateioPorArea = [

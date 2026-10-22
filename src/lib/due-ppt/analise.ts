@@ -62,7 +62,13 @@ export function limitarGrupos(gs: Agrupado[], max: number, rotuloOutros = "Outra
 }
 
 function ano(p: Processo): number | null {
-  return p.dataDistribuicao ? Number(p.dataDistribuicao.slice(0, 4)) : null;
+  return p.dataDistribuicao ? Number(p.dataDistribuicao.slice(0, 4)) : (p.anoDistribuicao ?? null);
+}
+
+/** Data usada no tempo de tramitação; planilha só com o ano conta do meio daquele ano. */
+function inicioTramitacao(p: Processo): string | null {
+  if (p.dataDistribuicao) return p.dataDistribuicao;
+  return p.anoDistribuicao ? `${p.anoDistribuicao}-07-01` : null;
 }
 
 /** "BUSCA E APREENSÃO EM ALIENAÇÃO FIDUCIÁRIA" → "busca e apreensão em alienação fiduciária". */
@@ -568,8 +574,9 @@ export function analisarRecCred(processos: Processo[], hoje: Date): AnaliseRecCr
   const tempo = FAIXAS_TEMPO.map(() => 0);
   const idades: number[] = [];
   for (const p of ativos) {
-    if (!p.dataDistribuicao) continue;
-    const anosTram = (hoje.getTime() - new Date(`${p.dataDistribuicao}T00:00:00Z`).getTime()) / (365.25 * 86400000);
+    const inicio = inicioTramitacao(p);
+    if (!inicio) continue;
+    const anosTram = (hoje.getTime() - new Date(`${inicio}T00:00:00Z`).getTime()) / (365.25 * 86400000);
     if (!Number.isFinite(anosTram) || anosTram < 0) continue;
     idades.push(anosTram);
     const i = FAIXAS_TEMPO.findIndex((f) => anosTram <= f.max);

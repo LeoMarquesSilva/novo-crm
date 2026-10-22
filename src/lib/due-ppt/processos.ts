@@ -13,11 +13,13 @@ export type Processo = {
   classe: string;
   poloAtivo: string;
   poloPassivo: string;
-  /** Polo em que o cliente diligenciado está (ATIVO/PASSIVO), quando a planilha informa. */
-  poloCliente: "ATIVO" | "PASSIVO" | null;
+  /** Polo em que o cliente diligenciado está (ATIVO/PASSIVO/TERCEIRO), quando a planilha informa. */
+  poloCliente: "ATIVO" | "PASSIVO" | "TERCEIRO" | null;
   socioPoloPassivo: "SIM" | "NAO" | null;
   /** yyyy-mm-dd */
   dataDistribuicao: string | null;
+  /** Ano da distribuição quando a planilha só traz o ano (coluna "ANO"). */
+  anoDistribuicao?: number | null;
   comarca: string;
   vara: string;
   tribunal: string;
@@ -58,15 +60,16 @@ type Campo = keyof Processo;
 
 const ALIASES: Array<[Campo, string[]]> = [
   ["numero", ["numero do processo", "numero processo", "n do processo", "no do processo", "processo", "numero"]],
-  ["situacao", ["situacao", "status processo", "status do processo", "situacao do processo", "status"]],
-  ["fase", ["fase", "fase processual"]],
+  ["situacao", ["situacao", "status processo", "status do processo", "situacao do processo", "situacao processual", "status"]],
+  ["fase", ["fase", "fase processual", "fase do processo"]],
   ["classe", ["classe", "tipo de acao", "tipo da acao", "classe processual", "tipo"]],
-  ["poloAtivo", ["partes polo ativo", "polo ativo", "parte ativa", "autor", "reclamante", "exequente", "credor"]],
-  ["poloPassivo", ["partes polo passivo", "polo passivo", "parte passiva", "reu", "reclamada", "reclamadas", "executado"]],
-  ["poloCliente", ["polo do cliente"]],
-  ["socioPoloPassivo", ["socio no polo passivo", "socio no polo passivo?"]],
+  ["poloAtivo", ["partes polo ativo", "polo ativo", "polo ativo principal", "parte ativa", "autor", "reclamante", "exequente", "credor"]],
+  ["poloPassivo", ["partes polo passivo", "polo passivo", "polo passivo principal", "parte passiva", "reu", "reclamada", "reclamadas", "executado"]],
+  ["poloCliente", ["polo do cliente", "polo cliente"]],
+  ["socioPoloPassivo", ["socio no polo passivo", "socio no polo passivo?", "socio polo passivo"]],
   ["dataDistribuicao", ["data da distribuicao", "data distribuicao", "data de distribuicao", "distribuicao", "data do ajuizamento", "ajuizamento"]],
-  ["comarca", ["comarca"]],
+  ["anoDistribuicao", ["ano", "ano da distribuicao", "ano de distribuicao", "ano do ajuizamento"]],
+  ["comarca", ["comarca", "foro"]],
   ["vara", ["vara", "orgao julgador"]],
   ["tribunal", ["tribunal"]],
   ["instancia", ["instancia", "grau"]],
@@ -138,6 +141,11 @@ export function parseData(v: CellValue): string | null {
   return null;
 }
 
+function parseAno(v: CellValue): number | null {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").trim());
+  return Number.isInteger(n) && n >= 1900 && n <= 2100 ? n : null;
+}
+
 function texto(v: CellValue): string {
   if (v == null) return "";
   const s = String(v).trim();
@@ -186,9 +194,10 @@ function lerProcessos(sheet: SheetData): { processos: Processo[]; colunas: strin
       classe: texto(get(row, "classe")),
       poloAtivo: texto(get(row, "poloAtivo")),
       poloPassivo: texto(get(row, "poloPassivo")),
-      poloCliente: polo.startsWith("pass") ? "PASSIVO" : polo.startsWith("ativ") ? "ATIVO" : null,
+      poloCliente: polo.startsWith("pass") ? "PASSIVO" : polo.startsWith("ativ") ? "ATIVO" : polo.startsWith("terc") ? "TERCEIRO" : null,
       socioPoloPassivo: socio == null ? null : socio ? "SIM" : "NAO",
       dataDistribuicao: parseData(get(row, "dataDistribuicao")),
+      anoDistribuicao: parseAno(get(row, "anoDistribuicao")),
       comarca: texto(get(row, "comarca")),
       vara: texto(get(row, "vara")),
       tribunal: texto(get(row, "tribunal")),

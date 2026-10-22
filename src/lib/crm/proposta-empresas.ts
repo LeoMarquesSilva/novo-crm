@@ -4,7 +4,12 @@
  * migração do RD no servidor.
  */
 
-import { parseContratantesIndexes } from "@/lib/crm/proposta-contratantes";
+import {
+  enderecoContratantePreenchido,
+  parseContratantesIndexes,
+  parseEnderecosContratantes,
+  type EnderecoContratante,
+} from "@/lib/crm/proposta-contratantes";
 
 export type EmpresaIntakeRow = {
   index: number;
@@ -18,6 +23,8 @@ export type PropostaEmpresasPayload = {
   extras: Array<{ razao_social: string; documento: string }>;
   /** Outras empresas do cadastro que assinam como contratantes (`proposta-contratantes`). */
   contratantes?: number[];
+  /** Endereço próprio de cada outra contratante, pelo índice do cadastro. */
+  enderecos?: Record<string, EnderecoContratante>;
 };
 
 export function digitsOnly(s: string): string {
@@ -53,7 +60,13 @@ export function parsePropostaEmpresasJson(raw: string | undefined): PropostaEmpr
       }
     }
     const contratantes = parseContratantesIndexes(o.contratantes);
-    return contratantes ? { primaryIndex, extras, contratantes } : { primaryIndex, extras };
+    const enderecos = parseEnderecosContratantes(o.enderecos);
+    return {
+      primaryIndex,
+      extras,
+      ...(contratantes ? { contratantes } : {}),
+      ...(enderecos ? { enderecos } : {}),
+    };
   } catch {
     return { primaryIndex: 0, extras: [] };
   }
@@ -99,6 +112,12 @@ export function buildCpQualificacaoText(params: {
       lines.push(
         `— Contratante (cadastro): ${em.razao_social || "—"} (${em.tipo_documento} ${em.documento || "—"})`,
       );
+      const proprio = empresasPayload.enderecos?.[String(em.index)];
+      if (enderecoContratantePreenchido(proprio)) {
+        lines.push(
+          `  Endereço: ${formatCepDisplay(proprio.cep)} — ${proprio.logradouro}, Nº ${proprio.numero || "—"}${proprio.complemento ? `, ${proprio.complemento}` : ""} — ${proprio.bairro || "—"} — ${proprio.cidade}/${(proprio.uf || "—").toUpperCase()}`,
+        );
+      }
     }
   }
 

@@ -347,7 +347,10 @@ export function DueApresentacaoPanel({
   }
 
   const logoDoc = docs.find((d) => d.document_kind === "logo_cliente");
-  const incluidas = DUE_AREA_IDS.filter((id) => draft.areas[id]?.incluir);
+  // Área marcada sem planilha não entra no PPT (o aviso sai em "Antes de gerar").
+  const incluidas = DUE_AREA_IDS.filter(
+    (id) => draft.areas[id]?.incluir && (id === "reestruturacao" || areasDados.some((a) => a.id === id)),
+  );
   const podeAnexar = ["compilacao", "revisao"].includes(etapa);
 
   return (

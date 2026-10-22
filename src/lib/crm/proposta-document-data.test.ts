@@ -10,13 +10,14 @@ describe("proposta document data", () => {
     expect(sanitizeFilenamePart('ACME: "Teste"/Contrato?')).toBe("ACME TesteContrato");
   });
 
-  it("remove o que o Supabase Storage recusa na chave e mantém acentos", () => {
+  it("remove o que o Supabase Storage recusa na chave, inclusive acentos", () => {
     expect(sanitizeFilenamePart("TESTE E2E [RD] - RENATO MAROTTA STAREK")).toBe(
       "TESTE E2E RD - RENATO MAROTTA STAREK",
     );
-    expect(sanitizeFilenamePart("Construção & Cia. #1 {50%} – São João")).toBe("Construção & Cia. 1 50 São João");
-    // Acento decomposto (NFD) vira a letra acentuada.
-    expect(sanitizeFilenamePart("Joa\u0303o")).toBe("João");
+    expect(sanitizeFilenamePart("Construção & Cia. #1 {50%} – São João")).toBe("Construcao & Cia. 1 50 Sao Joao");
+    expect(sanitizeFilenamePart("[TESTE E2E 3] LE BLOG CONFECÇÕES LTDA")).toBe("TESTE E2E 3 LE BLOG CONFECCOES LTDA");
+    // Acento decomposto (NFD) também sai.
+    expect(sanitizeFilenamePart("Joa\u0303o")).toBe("Joao");
     expect(sanitizeFilenamePart("[]{}")).toBe("lead");
   });
 
