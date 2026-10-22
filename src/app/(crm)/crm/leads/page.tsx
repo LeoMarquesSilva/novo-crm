@@ -281,6 +281,8 @@ export default function LeadsPage() {
       }, 900);
     };
 
+    // Sem `d4sign_documents`: o card lê assinatura de `oportunidades` (webhook e
+    // sync gravam nas duas), e o sync D4Sign regravava o cofre a cada rodada.
     const channel = supabase
       .channel("crm-pipeline-oportunidades")
       .on(
@@ -301,11 +303,6 @@ export default function LeadsPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "contract_review_tasks" },
-        scheduleRefresh,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "d4sign_documents" },
         scheduleRefresh,
       )
       .subscribe((status, err) => {

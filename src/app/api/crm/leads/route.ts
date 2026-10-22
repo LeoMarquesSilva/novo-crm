@@ -229,17 +229,27 @@ function mapOpportunity(row: {
 }
 
 /**
- * Último snapshot RD de cada oportunidade. Lê a view `rd_deal_reconciliacao_resumo`
- * (custom fields só com rótulo e valor: ~2 MB em vez de 16 MB); sem a view aplicada,
- * cai na tabela inteira.
+ * Views do snapshot RD, da mais enxuta para a maior. `rd_deal_reconciliacao_kanban` traz só o
+ * que esta rota lê do deal (~0,3 MB); `rd_deal_reconciliacao_resumo`, o deal com os custom
+ * fields reduzidos (~3 MB). View ainda não aplicada → a próxima; nenhuma → a tabela (~18 MB).
  */
+const RD_RECONCILIATION_VIEWS = [
+  "rd_deal_reconciliacao_kanban",
+  "rd_deal_reconciliacao_resumo",
+] as const;
+
+/** Último snapshot RD de cada oportunidade (o kanban relê a cada evento do Realtime). */
 async function selectRdReconciliation(supabase: ReturnType<typeof createSupabaseAdminClient>) {
-  const slim = await supabase
-    .from("rd_deal_reconciliacao_resumo")
-    .select("oportunidade_id, detalhes, reconciled_at")
-    .not("oportunidade_id", "is", null)
-    .order("reconciled_at", { ascending: false });
-  if (!slim.error || (slim.error.code !== "PGRST205" && slim.error.code !== "42P01")) return slim;
+  for (const view of RD_RECONCILIATION_VIEWS) {
+    const result = await supabase
+      .from(view)
+      .select("oportunidade_id, detalhes, reconciled_at")
+      .not("oportunidade_id", "is", null)
+      .order("reconciled_at", { ascending: false });
+    if (!result.error || (result.error.code !== "PGRST205" && result.error.code !== "42P01")) {
+      return result;
+    }
+  }
   return supabase
     .from("rd_deal_reconciliacao")
     .select("oportunidade_id, detalhes, reconciled_at")

@@ -3893,6 +3893,15 @@ export type Database = {
       }
     }
     Views: {
+      rd_deal_reconciliacao_kanban: {
+        Row: {
+          detalhes: Json | null
+          id: string | null
+          oportunidade_id: string | null
+          reconciled_at: string | null
+        }
+        Relationships: []
+      }
       rd_deal_reconciliacao_resumo: {
         Row: {
           detalhes: Json | null
