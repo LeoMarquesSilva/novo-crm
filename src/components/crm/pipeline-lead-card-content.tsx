@@ -261,7 +261,8 @@ export function PipelineLeadCardContent({
     (item.etapa === "contrato_enviado" || item.etapa === "contrato_assinado");
   const showContractSentOnlySummary =
     showContractSentSummary && !contractSigners?.length;
-  const showBadgesRow = situacaoComercial !== "em_andamento" || Boolean(item.origemRd);
+  const showBadgesRow =
+    situacaoComercial !== "em_andamento" || Boolean(item.origemRd) || Boolean(item.rdMigracaoPendente);
   const perdidaTooltip = item.motivoPerda?.trim()
     ? `Negociação marcada como perdida. Motivo: ${item.motivoPerda.trim()}`
     : "Negociação marcada como perdida";
@@ -293,6 +294,14 @@ export function PipelineLeadCardContent({
               title="Negociação sincronizada do RD Station CRM (ver API v1 em developers.rdstation.com)"
             >
               RD Station
+            </span>
+          ) : null}
+          {item.rdMigracaoPendente ? (
+            <span
+              className="inline-flex items-center rounded-full border border-warning-border bg-warning-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-warning-text"
+              title="Veio do RD na virada e ainda tem campos a preencher em Migrar do RD. Não avança até completar."
+            >
+              Migrar do RD
             </span>
           ) : null}
         </div>

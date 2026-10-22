@@ -35,6 +35,7 @@ export async function POST(request: Request) {
         importedDeals: result.importedDeals,
         importedLeads: result.importedLeads,
         skipped: result.skipped,
+        frozen: result.frozen ?? false,
         failed: result.failed,
         year,
       },

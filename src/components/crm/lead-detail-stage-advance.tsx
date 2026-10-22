@@ -84,6 +84,7 @@ function actionLabel(href: string, kind?: StageActionKind): string {
   if (href.includes("tab=proposal")) return "Abrir proposta";
   if (href.includes("tab=signature")) return "Abrir assinatura";
   if (href.includes("tab=contract")) return "Abrir contrato";
+  if (href.startsWith("/crm/migracao-rd")) return "Completar migração";
   return "Resolver pendência";
 }
 

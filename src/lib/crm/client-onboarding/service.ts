@@ -5,6 +5,7 @@ import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
 import { onEnteredInclusaoFaturamento } from "@/lib/crm/post-sale/on-enter-inclusao-faturamento";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { normalizeGroupKey } from "@/lib/crm/normalize-document";
+import { RD_MIGRATION_PENDING_MESSAGE } from "@/lib/crm/rd-migration/state";
 import { logServerError, PublicError } from "@/lib/http/api-errors";
 import type { Json } from "@/lib/supabase/database.types";
 import {
@@ -38,6 +39,9 @@ export function evaluateOnboardingAction(
 ): PolicyDecision {
   if (ctx.isRdLead) {
     return { allowed: false, code: "forbidden", reason: "Lead do RD é só leitura no CRM." };
+  }
+  if (ctx.rdMigrationPending && action !== "edit_draft") {
+    return { allowed: false, code: "forbidden", reason: RD_MIGRATION_PENDING_MESSAGE };
   }
   const stage = ctx.opportunity.etapa;
   const lead = leadOwnership(ctx);

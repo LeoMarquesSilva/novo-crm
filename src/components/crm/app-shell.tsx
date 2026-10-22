@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowRightLeft,
   BookOpenText,
   BookText,
   BriefcaseBusiness,
@@ -75,6 +76,12 @@ const mainItems: SidebarItem[] = [
     label: "Leads",
     description: "Pipeline e oportunidades",
     icon: BriefcaseBusiness,
+  },
+  {
+    href: "/crm/migracao-rd",
+    label: "Migrar do RD",
+    description: "Negócios do RD para a virada",
+    icon: ArrowRightLeft,
   },
   {
     href: "/crm/due-diligence",

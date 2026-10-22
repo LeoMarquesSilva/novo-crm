@@ -198,6 +198,13 @@ function emptyTransitionModal(
 
 type BoardError = { message: string; actionHref?: string; actionLabel?: string };
 
+/** Rótulo do botão do aviso de bloqueio; sem rótulo próprio, o diálogo mostra "Configurar contrato". */
+function blockerActionLabel(href: string, kind?: StageActionKind): string | undefined {
+  if (kind) return STAGE_ACTION_LABELS[kind];
+  if (href.startsWith("/crm/migracao-rd")) return "Completar migração";
+  return undefined;
+}
+
 type PendingBoardMove = {
   itemId: string;
   sourceStage: OpportunityStage;
@@ -649,7 +656,15 @@ export function PipelineBoard({
         if (!res.ok || data.ok === false) {
           revertPendingMove();
           setTransitionModal(null);
-          setBoardError({ message: data.error ?? "Não foi possível validar a transição." });
+          setBoardError({
+            message: data.error ?? "Não foi possível validar a transição.",
+            ...(data.transitionBlocker?.actionHref
+              ? {
+                  actionHref: data.transitionBlocker.actionHref,
+                  actionLabel: blockerActionLabel(data.transitionBlocker.actionHref, data.transitionBlocker.actionKind),
+                }
+              : {}),
+          });
           return;
         }
 
@@ -663,9 +678,7 @@ export function PipelineBoard({
           setBoardError({
             message: data.transitionBlocker.message,
             actionHref: data.transitionBlocker.actionHref,
-            ...(data.transitionBlocker.actionKind
-              ? { actionLabel: STAGE_ACTION_LABELS[data.transitionBlocker.actionKind] }
-              : {}),
+            actionLabel: blockerActionLabel(data.transitionBlocker.actionHref, data.transitionBlocker.actionKind),
           });
           return;
         }
@@ -720,7 +733,7 @@ export function PipelineBoard({
         setBoardError({
           message: e instanceof Error ? e.message : "Falha ao validar a etapa.",
           ...(e instanceof TransitionRequestError && e.actionHref
-            ? { actionHref: e.actionHref }
+            ? { actionHref: e.actionHref, actionLabel: blockerActionLabel(e.actionHref) }
             : {}),
         });
       }

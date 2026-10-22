@@ -17,6 +17,7 @@ import {
 } from "@/lib/crm/pipeline-field-values";
 import { formatMaybeDateLikeBr } from "@/lib/format-datetime";
 import { resolvePipelineEtapaFromDbAndRd } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
+import { loadRdMigrationLeadState, rdMigrationBlocksAdvance } from "@/lib/crm/rd-migration/state";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
@@ -45,6 +46,10 @@ export interface LeadDetailData extends Oportunidade {
   solicitanteEmail: string | null;
   rdDealId: string | null;
   rdDealUrl: string | null;
+  /** Convertido do RD na virada (`oportunidades.rd_migrado_em`): anda no CRM. */
+  rdMigradoEm: string | null;
+  /** Convertido com a migração incompleta: não avança até completar em "Migrar do RD". */
+  rdMigracaoPendente: boolean;
   isSystemCreated: boolean;
   /** Dados do formulário de nova demanda (`lead_intakes`). */
   intakeFields: Array<{
@@ -314,6 +319,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
     { data: escopoDefRows, error: escopoDefErr },
     { data: docRows, error: docErr },
     { data: revRows, error: revErr },
+    rdMigration,
   ] = await Promise.all([
     supabase
       .from("rd_deal_reconciliacao")
@@ -364,6 +370,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
           .eq("revision_cycle", dueRevisionCycle)
           .order("area_key", { ascending: true })
       : Promise.resolve({ data: null, error: null }),
+    loadRdMigrationLeadState(supabase, id),
   ]);
 
   if (reconciliationError) throw reconciliationError;
@@ -385,11 +392,10 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       ? data.encerramento
       : undefined;
 
-  const etapa = resolvePipelineEtapaFromDbAndRd(
-    data.etapa,
-    Boolean(reconciliation?.detalhes),
-    reconciliation?.detalhes,
-  );
+  // Convertido na virada: a etapa é a do CRM.
+  const etapa = rdMigration.migradoEm
+    ? data.etapa
+    : resolvePipelineEtapaFromDbAndRd(data.etapa, Boolean(reconciliation?.detalhes), reconciliation?.detalhes);
 
   const solicitanteEmail =
     data.solicitante_email != null && String(data.solicitante_email).trim() !== ""
@@ -819,6 +825,8 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
     ...(encerramento ? { encerramento } : {}),
     rdDealId,
     rdDealUrl,
+    rdMigradoEm: rdMigration.migradoEm,
+    rdMigracaoPendente: rdMigrationBlocksAdvance(rdMigration),
     isSystemCreated: Boolean(intake),
     intakeFields,
     empresasIntake,

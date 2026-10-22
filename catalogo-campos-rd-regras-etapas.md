@@ -401,3 +401,16 @@ As linhas nessas etapas podem ser ignoradas no endpoint de validacao:
 2. Abrir `/crm/leads/[id]`: cartao Cadastro inicial com empresas e areas.
 3. Arrastar no pipeline para etapa com campos dinamicos: modal coerente; confirmar etapa sem 422 indevido.
 4. Admin: tentar criar campo com label semanticamente igual a um existente (ex.: mesma frase com/sem acento): deve bloquear duplicata.
+
+---
+
+## 10) Migração da virada (19/10/2026)
+
+Os negócios em andamento passam a andar no CRM no dia da virada. A tela **Migrar do RD** (`/crm/migracao-rd`) usa este catálogo para pré-preencher o formulário de cada negócio: os rótulos lidos estão em `RD_LABELS` (`src/lib/crm/rd-migration/prefill.ts`) e a regra do que falta por etapa em `src/lib/crm/rd-migration/requirements.ts`. Resumo:
+
+- [CADASTRO DO LEAD] → `lead_intakes` (o CRM pede também Plataforma para Lead Digital, área do cross selling e decisor, que o RD não tem).
+- [CP] → `field_values` `cp_*`; o endereço do RD é texto livre e só CEP/UF saem dele (CEP, logradouro e número são separados no CRM); escopo e investimento são escolhidos pelo catálogo do CRM.
+- Link da Proposta [CP] e Link Contrato [CE] valem como evidência das etapas já passadas (sem gerar proposta/contrato de novo); Contrato Enviado pede o documento da D4Sign.
+- [CA] Data de assinatura → rascunho do contrato no CRM.
+- [CADASTRO] e [FINANCEIRO] → cadastro do cliente do pós-venda (`lead_client_onboarding.payload`); rateio pela porcentagem do [CC] ou, sem ela, pelos valores R$ do [FINANCEIRO] convertidos em %.
+

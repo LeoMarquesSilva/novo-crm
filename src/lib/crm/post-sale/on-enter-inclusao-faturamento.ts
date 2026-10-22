@@ -10,7 +10,12 @@ import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
  */
 export async function onEnteredInclusaoFaturamento(
   supabase: SupabaseClient,
-  input: { opportunityId: string; leadName?: string | null },
+  input: {
+    opportunityId: string;
+    leadName?: string | null;
+    /** `false` só abre o alerta (ex.: conversão em lote da virada do RD, sem um aviso por lead). */
+    notify?: boolean;
+  },
 ): Promise<void> {
   const { data: contract } = await supabase
     .from("contratos")
@@ -44,6 +49,7 @@ export async function onEnteredInclusaoFaturamento(
     { onConflict: "idempotency_key", ignoreDuplicates: true },
   );
 
+  if (input.notify === false) return;
   const leadName = input.leadName?.trim() || row.titulo || "Contrato";
   await notifyAudience(
     supabase,
