@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   canAccessPartnerSignatures,
   classifyPartnerDoc,
+  clientFromDocumentName,
   countPartnerTabs,
   dateFromDocumentName,
   daysSince,
+  documentDisplayName,
   partnerDocTab,
   resolvePartnerEmail,
   signerIsPending,
@@ -197,5 +199,46 @@ describe("datas do documento", () => {
 
     const none = classifyPartnerDoc(row({ signers: [{ email: G, signed: "0" }] }), partners)!;
     expect(none.waitingSince).toBeNull();
+  });
+});
+
+describe("nome do documento e cliente", () => {
+  it("tira a extensão que a D4Sign grava sem o ponto", () => {
+    expect(documentDisplayName("2025 10 15 CONTRATO DE HONORARIOS LUCIANO pdf")).toBe(
+      "2025 10 15 CONTRATO DE HONORARIOS LUCIANO",
+    );
+    expect(documentDisplayName("Contrato teste.pdf")).toBe("Contrato teste");
+    expect(documentDisplayName("Aditivo DOCX")).toBe("Aditivo");
+    expect(documentDisplayName("Proposta pdfx")).toBe("Proposta pdfx");
+    expect(documentDisplayName("  ")).toBeNull();
+    expect(documentDisplayName(null)).toBeNull();
+  });
+
+  it("lê o cliente de \"contrato de honorários <cliente>\"", () => {
+    expect(clientFromDocumentName("2026 01 13 CONTRATO DE HONORARIOS ANDREIA AMBONATTI pdf")).toBe(
+      "ANDREIA AMBONATTI",
+    );
+    expect(clientFromDocumentName("CONTRATO DE HONORÁRIOS - NIGRO ALUMÍNIO.pdf")).toBe("NIGRO ALUMÍNIO");
+    expect(clientFromDocumentName("2025 09 24 DISTRATO FLEET pdf")).toBeNull();
+    expect(clientFromDocumentName(null)).toBeNull();
+  });
+
+  it("cliente: oportunidade → pasta → nome do arquivo → signatário que não é sócio nem testemunha", () => {
+    const signers = [
+      { email: G, signed: "0" },
+      { email: "testemunha@x.com", name: "Testemunha", act: "5", signed: "0" },
+      { email: "cliente@x.com", name: "Andreia Ambonatti", act: "1", signed: "0" },
+    ];
+    const base = { name_document: "Contrato X pdf", signers };
+    expect(classifyPartnerDoc(row({ ...base, client_name: "LE BLOG", folder_name: "Pasta" }), partners)!.clientName).toBe(
+      "LE BLOG",
+    );
+    expect(classifyPartnerDoc(row({ ...base, folder_name: "Pasta" }), partners)!.clientName).toBe("Pasta");
+    expect(
+      classifyPartnerDoc(row({ ...base, name_document: "CONTRATO DE HONORARIOS ANDREIA pdf" }), partners)!.clientName,
+    ).toBe("ANDREIA");
+    expect(classifyPartnerDoc(row(base), partners)!.clientName).toBe("Andreia Ambonatti");
+    expect(classifyPartnerDoc(row(base), partners)!.name).toBe("Contrato X");
+    expect(classifyPartnerDoc(row({ signers: [{ email: G, signed: "0" }] }), partners)!.clientName).toBeNull();
   });
 });

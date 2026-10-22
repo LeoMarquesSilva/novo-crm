@@ -15,44 +15,56 @@ type OppRow = {
   updated_at: string;
 };
 
+/** O PostgREST devolve no máximo 1000 linhas por consulta; lê página a página até acabar. */
+const PAGE_SIZE = 1000;
+
+async function selectAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < PAGE_SIZE) return rows;
+  }
+}
+
 /**
  * Um captador por grupo: o lead mais recente entre os clientes do grupo.
  * Reusa `lead_intakes.solicitante_nome` e `oportunidades.solicitante_email`.
+ * As três leituras saem juntas (uma ida ao banco) em vez de buscar os leads por lotes de clientes.
  */
 export async function loadCaptadoresByGrupo(
   supabase: SupabaseClient<Database>,
 ): Promise<Map<string, GrupoCaptador>> {
   const byGrupo = new Map<string, GrupoCaptador>();
-  const [{ data: clientes, error: clientesError }, { data: intakes, error: intakesError }] =
-    await Promise.all([
-      supabase.from("clientes").select("id, grupo_id").not("grupo_id", "is", null),
-      supabase.from("lead_intakes").select("oportunidade_id, solicitante_nome"),
-    ]);
-  if (clientesError) throw clientesError;
-  if (intakesError) throw intakesError;
+  const [clientes, intakes, opps] = await Promise.all([
+    selectAllPages((from, to) =>
+      supabase.from("clientes").select("id, grupo_id").not("grupo_id", "is", null).order("id").range(from, to),
+    ),
+    selectAllPages((from, to) =>
+      supabase.from("lead_intakes").select("oportunidade_id, solicitante_nome").order("oportunidade_id").range(from, to),
+    ),
+    selectAllPages<OppRow>((from, to) =>
+      supabase
+        .from("oportunidades")
+        .select("id, cliente_id, solicitante_email, updated_at")
+        .not("cliente_id", "is", null)
+        .order("id")
+        .range(from, to),
+    ),
+  ]);
 
   const grupoByCliente = new Map<string, string>();
-  for (const cliente of clientes ?? []) {
+  for (const cliente of clientes) {
     if (cliente.grupo_id) grupoByCliente.set(cliente.id, cliente.grupo_id);
   }
   if (grupoByCliente.size === 0) return byGrupo;
 
   const nomeByOpp = new Map<string, string | null>();
-  for (const intake of intakes ?? []) {
+  for (const intake of intakes) {
     nomeByOpp.set(intake.oportunidade_id, intake.solicitante_nome);
-  }
-
-  const clienteIds = [...grupoByCliente.keys()];
-  const opps: OppRow[] = [];
-  const chunk = 200;
-  for (let index = 0; index < clienteIds.length; index += chunk) {
-    const slice = clienteIds.slice(index, index + chunk);
-    const { data, error } = await supabase
-      .from("oportunidades")
-      .select("id, cliente_id, solicitante_email, updated_at")
-      .in("cliente_id", slice);
-    if (error) throw error;
-    opps.push(...((data ?? []) as OppRow[]));
   }
 
   const latest = new Map<string, { updatedAt: string; captador: GrupoCaptador }>();

@@ -4,8 +4,10 @@ import { buildDueWhatsappMessage } from "@/modules/crm/application/services/buil
 import {
   buildEscopoPedidoValues,
   buildLevantamentoConcluidoValues,
+  buildRevisaoAjusteAdicionalValues,
   buildRevisaoInicioValues,
   buildRevisaoResultadoValues,
+  decideAjusteAdicional,
   decideReviewCycleResult,
   formatPrazoWhatsapp,
   type ReviewRow,
@@ -212,5 +214,83 @@ describe("novo lead com DUE", () => {
     } as never);
     expect(text).toContain("*Due Diligence:* Sim\n\n_Esta mensagem foi gerada automaticamente");
     expect(text).toContain("- *Prazo de Entrega:* 26/10/2026 às 18:00");
+  });
+});
+
+describe("revisão: ajuste pedido depois da mensagem do ciclo", () => {
+  const rows: ReviewRow[] = [
+    { area_key: "Cível", status: "ajustes_solicitados", revision_cycle: 1, observacao_ajustes: "Valor zerado." },
+    {
+      area_key: "Recuperação de Créditos",
+      status: "ajustes_solicitados",
+      revision_cycle: 1,
+      observacao_ajustes: "Faltou um processo.",
+      respondido_por: "Renato Vallim",
+    },
+    { area_key: "Trabalhista", status: "ok", revision_cycle: 1 },
+  ];
+  const sentCycleText = render(
+    "due_revisao_ajustes",
+    buildRevisaoResultadoValues({
+      cliente: "ACME",
+      ciclo: 1,
+      result: {
+        kind: "ajustes",
+        ajustes: [rows[0]!],
+        aprovadas: [],
+        pendentes: ["Recuperação de Créditos", "Trabalhista"],
+      },
+      link: LINK,
+    }),
+  );
+
+  it("área que pediu ajuste depois da mensagem gera o complemento", () => {
+    const row = decideAjusteAdicional(rows, 1, { areaKey: "Recuperação de Créditos", sentCycleText });
+    expect(row?.area_key).toBe("Recuperação de Créditos");
+    const text = render(
+      "due_revisao_ajuste_adicional",
+      buildRevisaoAjusteAdicionalValues({ cliente: "ACME", ciclo: 1, row: row!, link: LINK }),
+    );
+    expect(text).toBe(
+      [
+        "*Mais um ajuste na revisão da DUE*",
+        "*Cliente:* ACME",
+        "*Ciclo:* 1",
+        "",
+        "*Recuperação de Créditos:* Faltou um processo.",
+        "*Pedido por:* Renato Vallim",
+        "",
+        "Inclua este ajuste na mesma correção da compilação.",
+        LINK,
+      ].join("\n"),
+    );
+  });
+
+  it("área que já estava nos ajustes da mensagem não repete", () => {
+    expect(decideAjusteAdicional(rows, 1, { areaKey: "Cível", sentCycleText })).toBeNull();
+  });
+
+  it("aprovação depois da mensagem não manda nada", () => {
+    expect(decideAjusteAdicional(rows, 1, { areaKey: "Trabalhista", sentCycleText })).toBeNull();
+  });
+
+  it("resposta de outro ciclo não conta", () => {
+    expect(decideAjusteAdicional(rows, 2, { areaKey: "Recuperação de Créditos", sentCycleText })).toBeNull();
+  });
+
+  it("sem observação nem nome: a linha fala do ajuste e o \"Pedido por\" some", () => {
+    const text = render(
+      "due_revisao_ajuste_adicional",
+      buildRevisaoAjusteAdicionalValues({
+        cliente: "ACME",
+        ciclo: 2,
+        row: { area_key: "Cível", status: "ajustes_solicitados", revision_cycle: 2 },
+        link: "/crm/leads/1",
+      }),
+    );
+    expect(text).toContain("*Ciclo:* 2 (depois dos ajustes)");
+    expect(text).toContain("*Cível:* ajuste pedido (sem observação)");
+    expect(text).not.toContain("Pedido por");
+    expect(text).not.toContain("/crm/leads/1");
   });
 });

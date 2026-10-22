@@ -12,12 +12,19 @@ import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
 import {
   buildLevantamentoConcluidoValues,
+  buildRevisaoAjusteAdicionalValues,
   buildRevisaoInicioValues,
   buildRevisaoResultadoValues,
+  decideAjusteAdicional,
   decideReviewCycleResult,
   type RevisorDaArea,
 } from "@/lib/crm/whatsapp/due-messages";
-import { claimWhatsappSend, markWhatsappSendFailed } from "@/lib/crm/whatsapp/send-log";
+import {
+  claimWhatsappSend,
+  findWhatsappSend,
+  markWhatsappSendFailed,
+  withOneWhatsappRetry,
+} from "@/lib/crm/whatsapp/send-log";
 import { buildWhatsappMessage } from "@/lib/crm/whatsapp/template-store";
 import { dueAreaFromCrmKey } from "@/lib/due-ppt/areas";
 import { selectInChunks } from "@/lib/supabase/select-in-chunks";
@@ -237,7 +244,7 @@ async function sendDueWhatsappText(supabase: SupabaseClient, text: string): Prom
       process.env.EVOLUTION_API_KEY ?? "",
       process.env.EVOLUTION_INSTANCE ?? process.env.EVOLUTION_INSTANCE_NAME ?? "BP",
     );
-    await connector.sendText({ destination: config.destination, text });
+    await withOneWhatsappRetry(() => connector.sendText({ destination: config.destination, text }));
     return true;
   } catch {
     return false;
@@ -933,10 +940,12 @@ export async function notifyDueReviewResponseToCompilationOwner(
 /**
  * WhatsApp da DUE com o resultado do ciclo de revisão, uma vez por ciclo: quando um pedido de ajuste devolve
  * a DUE para Compilação ou quando todas as áreas do ciclo responderam. Aprovação no meio do ciclo não manda nada.
+ * Depois que a mensagem do ciclo saiu, uma área que pede ajuste (`areaKey`) gera um complemento curto; se a
+ * mensagem do ciclo falhou, a próxima resposta tenta de novo, já com o estado atual.
  */
 export async function notifyDueReviewCycleResultWhatsapp(
   supabase: SupabaseClient,
-  input: { oportunidadeId: string; revisionCycle: number; returnedToCompilacao: boolean },
+  input: { oportunidadeId: string; revisionCycle: number; returnedToCompilacao: boolean; areaKey?: string | null },
 ): Promise<{ sent: boolean }> {
   const [{ data: op }, { data: rows }] = await Promise.all([
     supabase.from("oportunidades").select("solicitante_nome").eq("id", input.oportunidadeId).maybeSingle(),
@@ -957,21 +966,54 @@ export async function notifyDueReviewCycleResultWhatsapp(
     for (const user of users ?? []) nameById.set(String(user.id), String(user.full_name ?? ""));
   }
 
-  const result = decideReviewCycleResult(
-    rows.map((row) => ({
-      area_key: row.area_key,
-      status: row.status,
-      revision_cycle: row.revision_cycle,
-      observacao_ajustes: row.observacao_ajustes,
-      respondido_por: row.responded_by_app_user_id ? nameById.get(String(row.responded_by_app_user_id)) ?? null : null,
-    })),
-    input.revisionCycle,
-    { returnedToCompilacao: input.returnedToCompilacao },
-  );
-  if (!result) return { sent: false };
-
+  const reviewRows = rows.map((row) => ({
+    area_key: row.area_key,
+    status: row.status,
+    revision_cycle: row.revision_cycle,
+    observacao_ajustes: row.observacao_ajustes,
+    respondido_por: row.responded_by_app_user_id ? nameById.get(String(row.responded_by_app_user_id)) ?? null : null,
+  }));
   const leadPath = `/crm/leads/${input.oportunidadeId}`;
   const appUrl = getPublicAppUrl();
+  const link = appUrl ? `${appUrl}${leadPath}` : leadPath;
+  const resultSourceId = `due-revisao-resultado:${input.revisionCycle}`;
+  const previous = await findWhatsappSend(supabase, { oportunidadeId: input.oportunidadeId, sourceId: resultSourceId });
+
+  if (previous && !previous.failed) {
+    // A mensagem do ciclo já saiu: só um complemento quando uma área pede ajuste depois dela.
+    const ajuste = input.areaKey
+      ? decideAjusteAdicional(reviewRows, input.revisionCycle, {
+          areaKey: input.areaKey,
+          sentCycleText: previous.text,
+        })
+      : null;
+    if (!ajuste) return { sent: false };
+    const text = await buildWhatsappMessage(
+      supabase,
+      "due_revisao_ajuste_adicional",
+      buildRevisaoAjusteAdicionalValues({
+        cliente: String(op.solicitante_nome ?? ""),
+        ciclo: input.revisionCycle,
+        row: ajuste,
+        link,
+      }),
+    );
+    if (!text) return { sent: false };
+    const sent = await sendDueWhatsappOnce(supabase, {
+      oportunidadeId: input.oportunidadeId,
+      sourceId: `due-revisao-ajuste-adicional:${input.revisionCycle}:${input.areaKey}`,
+      title: `WhatsApp: mais um ajuste na revisão da DUE (ciclo ${input.revisionCycle}, ${input.areaKey})`,
+      text,
+    });
+    return { sent };
+  }
+
+  // Primeira mensagem do ciclo, ou nova tentativa da que falhou (se ela foi tentada, o ciclo já tinha terminado).
+  const result = decideReviewCycleResult(reviewRows, input.revisionCycle, {
+    returnedToCompilacao: input.returnedToCompilacao || previous !== null,
+  });
+  if (!result) return { sent: false };
+
   const text = await buildWhatsappMessage(
     supabase,
     result.kind === "aprovada" ? "due_revisao_aprovada" : "due_revisao_ajustes",
@@ -979,13 +1021,13 @@ export async function notifyDueReviewCycleResultWhatsapp(
       cliente: String(op.solicitante_nome ?? ""),
       ciclo: input.revisionCycle,
       result,
-      link: appUrl ? `${appUrl}${leadPath}` : leadPath,
+      link,
     }),
   );
   if (!text) return { sent: false };
   const sent = await sendDueWhatsappOnce(supabase, {
     oportunidadeId: input.oportunidadeId,
-    sourceId: `due-revisao-resultado:${input.revisionCycle}`,
+    sourceId: resultSourceId,
     title:
       result.kind === "aprovada"
         ? `WhatsApp: DUE aprovada (ciclo ${input.revisionCycle})`

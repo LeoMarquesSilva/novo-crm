@@ -185,11 +185,13 @@ export async function PATCH(
     originadoPor,
   });
   notificationError = notifyResult.error;
-  // WhatsApp só com o resultado do ciclo (ajuste que devolveu para Compilação, ou todas as áreas responderam).
+  // WhatsApp só com o resultado do ciclo (ajuste que devolveu para Compilação, ou todas as áreas responderam),
+  // e um complemento quando esta área pede ajuste depois que a mensagem do ciclo já saiu.
   const cycleResult = await notifyDueReviewCycleResultWhatsapp(supabase, {
     oportunidadeId: opportunityId,
     revisionCycle: Number(task.revision_cycle),
     returnedToCompilacao: autoMovedToCompilacao,
+    areaKey: String(task.area_key ?? ""),
   });
   whatsappSentAt = cycleResult.sent ? now : null;
 

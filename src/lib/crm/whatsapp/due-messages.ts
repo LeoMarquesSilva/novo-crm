@@ -164,6 +164,40 @@ export function buildRevisaoResultadoValues(input: {
   };
 }
 
+// ─── Revisão: ajuste pedido depois da mensagem do ciclo ───────────────────────
+
+/**
+ * A mensagem do ciclo já saiu e uma área pediu ajuste depois dela (antes não saía nada). Devolve a linha da
+ * área quando o complemento deve sair: pediu ajuste neste ciclo e não está entre os ajustes da mensagem
+ * enviada (que lista cada um como `• Área: …`).
+ */
+export function decideAjusteAdicional(
+  rows: ReviewRow[],
+  cycle: number,
+  input: { areaKey: string; sentCycleText: string },
+): ReviewRow | null {
+  const row = rows.find((r) => cycleOf(r) === cycle && String(r.area_key ?? "") === input.areaKey);
+  if (!row || row.status !== "ajustes_solicitados") return null;
+  if (input.sentCycleText.includes(`• ${input.areaKey}:`)) return null;
+  return row;
+}
+
+export function buildRevisaoAjusteAdicionalValues(input: {
+  cliente: string;
+  ciclo: number;
+  row: ReviewRow;
+  link: string;
+}): WhatsappTemplateValues {
+  return {
+    cliente: input.cliente,
+    ciclo: cicloLabel(input.ciclo),
+    area: String(input.row.area_key ?? ""),
+    observacao: input.row.observacao_ajustes?.trim() || "ajuste pedido (sem observação)",
+    respondido_por: input.row.respondido_por ?? "",
+    link: whatsappLink(input.link),
+  };
+}
+
 // ─── Escopo da proposta ───────────────────────────────────────────────────────
 
 export type EscopoPedidoArea = { area: string; gestores: string[] };

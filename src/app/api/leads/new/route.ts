@@ -6,7 +6,10 @@ import type { Database } from "@/lib/supabase/database.types";
 import { buildDueSharePointAgendamentoFields } from "@/modules/crm/application/services/build-due-sharepoint-agendamento-fields";
 import { buildDueWhatsappValues } from "@/modules/crm/application/services/build-due-whatsapp-message";
 import { buildWhatsappMessage } from "@/lib/crm/whatsapp/template-store";
-import { newLeadPayloadSchema } from "@/modules/crm/application/services/new-lead-payload";
+import {
+  invalidCompanyDocumentMessage,
+  newLeadPayloadSchema,
+} from "@/modules/crm/application/services/new-lead-payload";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
 import { sendLeadNotificationEmail } from "@/modules/crm/application/services/send-lead-notification-email";
@@ -58,6 +61,11 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     );
+  }
+
+  const documentoInvalido = invalidCompanyDocumentMessage(parsed.data.empresas);
+  if (documentoInvalido) {
+    return NextResponse.json({ ok: false, error: documentoInvalido }, { status: 400 });
   }
 
   try {

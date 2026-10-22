@@ -247,7 +247,11 @@ export function PartnerSignaturesBoard({
                     {doc.name ?? "Documento sem nome"}
                   </p>
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                    {doc.clientName ? <span className="font-medium text-foreground/80">{doc.clientName}</span> : null}
+                    {doc.clientName ? (
+                      <span className="font-medium text-foreground/80">{doc.clientName}</span>
+                    ) : (
+                      <span className="italic">Cliente não identificado</span>
+                    )}
                     {doc.area ? <span>· {doc.area}</span> : null}
                     {doc.createdAt ? (
                       <span>· enviado em {fmtDate(doc.createdAt)}</span>

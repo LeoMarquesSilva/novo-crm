@@ -17,6 +17,7 @@ import {
   listBlockingCustomFields,
   mapDbFieldToDefinition,
   mergeFieldValuesFromDb,
+  stageUsesTransitionFields,
   valueJsonToFormValue,
   type PipelineCode,
 } from "@/lib/crm/compute-transition-requirements";
@@ -161,9 +162,7 @@ export async function GET(request: NextRequest) {
             .eq("oportunidade_id", opportunityId)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-      // Pós-venda usa o cadastro do cliente e a inclusão no faturamento (telas próprias),
-      // não campos configuráveis no modal de transição.
-      pipeline === "pos_venda"
+      !stageUsesTransitionFields(pipeline as PipelineCode, nextStage)
         ? Promise.resolve({ data: [], error: null })
         : supabase
             .from("field_definitions")

@@ -38,6 +38,7 @@ import type { D4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { d4signDocumentOpenPath } from "@/lib/d4sign/portal-url";
 import { D4SIGN_HOURLY_LIMIT } from "@/lib/d4sign/api-usage";
 import {
+  documentDisplayName,
   parseSigners,
   signerIsPending,
   type D4SignSignerInfo,
@@ -931,9 +932,7 @@ export function D4SignDashboard({
         className="grid grid-cols-1 gap-3 px-5 py-3.5 transition-colors hover:bg-neutral-50 sm:grid-cols-[2fr_1.4fr_1fr_auto] sm:items-start sm:gap-4">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">
-            {doc.name_document
-              ? doc.name_document.replace(/\.docx?$/i, "")
-              : <span className="italic text-warning-text">Sem nome</span>}
+            {documentDisplayName(doc.name_document) ?? <span className="italic text-warning-text">Sem nome</span>}
           </p>
           <p className="font-mono text-[10px] text-muted-foreground" title={doc.uuid_doc}>
             {doc.uuid_doc.slice(0, 18)}…
@@ -1225,8 +1224,8 @@ export function D4SignDashboard({
                         <ExternalLink className="size-3 opacity-0 transition-opacity group-hover:opacity-60" />
                       </Link>
                     ) : <span className="text-sm font-semibold text-muted-foreground">—</span>}
-                    {row.name_document ? (
-                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{row.name_document.replace(/\.docx?$/i, "")}</p>
+                    {documentDisplayName(row.name_document) ? (
+                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{documentDisplayName(row.name_document)}</p>
                     ) : (
                       <p className="mt-0.5 font-mono text-[10px] text-muted-foreground" title={row.uuid_doc}>{row.uuid_doc.slice(0, 18)}…</p>
                     )}

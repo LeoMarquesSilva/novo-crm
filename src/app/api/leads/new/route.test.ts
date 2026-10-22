@@ -36,7 +36,7 @@ describe("POST /api/leads/new — campos sem coluna no banco", () => {
     email: "contato@cliente.com.br",
     cadastrado_por: "comercial@bp.com.br",
     due_diligence: "Nao",
-    empresas: [{ tipo_documento: "CNPJ", razao_social: "ACME Ltda", documento: "12.345.678/0001-90" }],
+    empresas: [{ tipo_documento: "CNPJ", razao_social: "ACME Ltda", documento: "11.222.333/0001-81" }],
     areas_analise: ["Cível"],
     local_reuniao: "Online",
     tipo_de_lead: "Lead Digital",
@@ -91,5 +91,28 @@ describe("POST /api/leads/new — campos sem coluna no banco", () => {
     expect(res.status).toBe(201);
     expect((await res.json()).warning).toBeNull();
     expect(fake.calls.some((c) => c.table === "lead_intakes" && c.method === "update")).toBe(false);
+  });
+
+  it("recusa CPF/CNPJ com dígito errado e diz qual empresa, sem gravar nada", async () => {
+    mockCrmSession({ role: "comercial" });
+    const fake = setupDb();
+    const res = await POST(
+      new Request("http://localhost/api/leads/new", {
+        method: "POST",
+        body: JSON.stringify(
+          payload({
+            empresas: [
+              { tipo_documento: "CNPJ", razao_social: "ACME Ltda", documento: "11.222.333/0001-81" },
+              { tipo_documento: "CNPJ", razao_social: "LE BLOG LTDA", documento: "13.030.003/0001-11" },
+            ],
+          }),
+        ),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { ok: boolean; error: string };
+    expect(json.ok).toBe(false);
+    expect(json.error).toContain('CNPJ inválido em "LE BLOG LTDA"');
+    expect(fake.calls).toHaveLength(0);
   });
 });

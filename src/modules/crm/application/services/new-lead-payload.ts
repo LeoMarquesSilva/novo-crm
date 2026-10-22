@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
+import { isValidCnpj, isValidCpf } from "@/lib/crm/rd-migration/documents";
 
 /** Mesmas opções que `cp_areas_objeto` e `PROPOSAL_SCOPE_OPTIONS` (`crm-areas.ts`). */
 export const leadAreas = CRM_PRACTICE_AREAS;
@@ -149,3 +150,18 @@ export const newLeadPayloadSchema = z
   });
 
 export type NewLeadPayload = z.infer<typeof newLeadPayloadSchema>;
+
+/**
+ * Primeira empresa com CPF/CNPJ cujo dígito verificador não confere: mensagem para a tela, ou `null`.
+ * A tela do Novo Lead já confere; a API confere de novo para quem chama direto.
+ */
+export function invalidCompanyDocumentMessage(empresas: NewLeadPayload["empresas"]): string | null {
+  for (const [index, empresa] of empresas.entries()) {
+    const valid =
+      empresa.tipo_documento === "CPF" ? isValidCpf(empresa.documento) : isValidCnpj(empresa.documento);
+    if (valid) continue;
+    const nome = empresa.razao_social.trim() || `item ${index + 1}`;
+    return `${empresa.tipo_documento} inválido em "${nome}" (${empresa.documento.trim()}): o dígito verificador não confere. Confira os números.`;
+  }
+  return null;
+}

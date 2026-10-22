@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appUserAreaCandidatesForScopeKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import type { InAppNotificationActor } from "@/lib/crm/in-app-notification-meta";
+import { IntegrationError } from "@/lib/http/api-errors";
 import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 import { applyWhatsappRedirect } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { buildEscopoPedidoValues, type EscopoPedidoArea } from "@/lib/crm/whatsapp/due-messages";
-import { claimWhatsappSend, markWhatsappSendFailed } from "@/lib/crm/whatsapp/send-log";
+import { claimWhatsappSend, markWhatsappSendFailed, withOneWhatsappRetry } from "@/lib/crm/whatsapp/send-log";
 import { buildWhatsappMessage } from "@/lib/crm/whatsapp/template-store";
 
 type SolicitacaoRow = {
@@ -48,12 +49,18 @@ async function sendEvolutionGroupText(text: string): Promise<boolean> {
   if (!base || !apiKey || !instance || !groupJid) return false;
   const url = `${base}/message/sendText/${encodeURIComponent(instance)}`;
   const message = applyWhatsappRedirect(groupJid, text);
-  const res = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { apikey: apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ number: message.destination, text: message.text }),
+  // 5xx da Evolution ou queda de rede: uma nova tentativa imediata.
+  return withOneWhatsappRetry(async () => {
+    const res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { apikey: apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ number: message.destination, text: message.text }),
+    });
+    if (res.status >= 500) {
+      throw new IntegrationError("evolution", "Evolution API indisponível.", `HTTP ${res.status}`, res.status);
+    }
+    return res.ok;
   });
-  return res.ok;
 }
 
 /**

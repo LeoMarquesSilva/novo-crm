@@ -834,7 +834,8 @@ Consumo **manual** (`contrato_consumos_mensais`). Sem import automático de time
 | `GET/POST .../closings` | lista / prepara competência | view / `prepare_closing` |
 | `GET/PATCH .../closings/:closingId` | resolve blocker, aprova, corrige, VIOS | conforme action |
 | `GET/PUT .../consumptions` | substitui consumos da competência | `prepare_closing` na escrita |
-| `GET/PATCH .../renewals/:alertId` | tarefa de renovação | `manage_renewal` |
+| `GET /api/crm/contracts/renewals` | tarefas de renovação dos contratos ativos, numa consulta | view |
+| `PATCH .../renewals/:alertId` | salva / conclui tarefa de renovação | `manage_renewal` |
 | `POST .../versions` | clona rascunho; suspende / retoma / encerra | `configure` / `manage_renewal` |
 
 UI: `/crm/contratos` (`ContractsHub` — Carteira, Fechamentos, Renovações, Indicadores, Assinaturas D4Sign) e `/crm/contratos/[id]` (`ContractDetailShell`, setup em etapas). `/crm/contratos/simulacao` é um **roteiro estático** de setup (IDs de teste), não um simulador de cálculo.

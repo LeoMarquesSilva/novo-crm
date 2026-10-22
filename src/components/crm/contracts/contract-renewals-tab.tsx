@@ -59,16 +59,13 @@ export function ContractRenewalsTab({
   async function load() {
     setLoading(true); setError(null);
     try {
-      const active = portfolio.filter((item) => item.lifecycle !== "encerrado" && item.lifecycle !== "suspenso");
-      const results = await Promise.all(active.map(async (item) => {
-        const response = await fetch(`/api/crm/contracts/${item.id}/renewals/open`, { cache: "no-store" });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error ?? "Falha ao carregar renovações.");
-        return { alerts: body.alerts as RenewalAlert[], users: body.users as RenewalUser[] };
-      }));
-      const loaded = results.flatMap((result) => result.alerts).sort((a, b) => String(a.data_base).localeCompare(String(b.data_base)));
+      // Uma requisição para a carteira toda (só contratos ativos têm renovação).
+      const response = await fetch("/api/crm/contracts/renewals", { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "Falha ao carregar renovações.");
+      const loaded = (body.alerts as RenewalAlert[]).sort((a, b) => String(a.data_base).localeCompare(String(b.data_base)));
       setAlerts(loaded);
-      setUsers(results[0]?.users ?? []);
+      setUsers(body.users as RenewalUser[]);
       setDrafts(Object.fromEntries(loaded.map((alert) => [alert.id, draftFromAlert(alert)])));
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha ao carregar renovações."); }
     finally { setLoading(false); }

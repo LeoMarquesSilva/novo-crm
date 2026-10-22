@@ -25,6 +25,7 @@ import {
   mapDbFieldToDefinition,
   mergeFieldValuesFromDb,
   mergeMeetingValues,
+  stageUsesTransitionFields,
   valueJsonToFormValue,
 } from "@/lib/crm/compute-transition-requirements";
 import { pipelineCodeForStage } from "@/lib/crm/pipeline-board-config";
@@ -521,9 +522,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Pós-venda usa o cadastro do cliente e a inclusão no faturamento, não campos do modal.
     const { data: defRows, error: defErr } =
-      pipeline === "pos_venda"
+      !stageUsesTransitionFields(pipeline, nextStage)
         ? { data: [] as Database["public"]["Tables"]["field_definitions"]["Row"][], error: null }
         : await supabase
             .from("field_definitions")
