@@ -3,6 +3,8 @@ import { stageActionHref } from "@/lib/crm/stage-actions";
 import type { StageActionKind } from "@/modules/crm/domain/stage-transition-rules";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
+import { stageIndex } from "@/lib/crm/rd-migration/scope";
+import { isMissingRdMigrationSchema } from "@/lib/crm/rd-migration/state";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -21,7 +23,8 @@ export type WorkflowEvidenceBlocker = {
     | "contract_review_required"
     | "d4sign_send_required"
     | "d4sign_finalization_required"
-    | "use_dedicated_action";
+    | "use_dedicated_action"
+    | "rd_migration_pending";
   message: string;
   actionHref: string;
   /** Ação da tela que substitui o arrasto (abre diálogo/aba em vez de só avisar). */
@@ -52,11 +55,12 @@ const EMPTY_EVIDENCE: WorkflowTransitionEvidence = {
   d4SignDocumentFinalized: false,
 };
 
-export async function hasStoredGeneratedDocument(
+/** Versão gerada mais recente cujo arquivo ainda existe no storage (ou `null`). */
+export async function findLatestStoredGeneratedDocumentVersion(
   supabase: SupabaseAdminClient,
   oportunidadeId: string,
   documentType: "proposta" | "contrato",
-): Promise<boolean> {
+): Promise<{ id: string; generatedFilePath: string } | null> {
   const { data: templates, error: templatesError } = await supabase
     .from("document_templates")
     .select("id")
@@ -64,7 +68,7 @@ export async function hasStoredGeneratedDocument(
   if (templatesError) throw templatesError;
 
   const templateIds = (templates ?? []).map((row) => row.id);
-  if (templateIds.length === 0) return false;
+  if (templateIds.length === 0) return null;
 
   const { data: instances, error: instancesError } = await supabase
     .from("document_instances")
@@ -74,11 +78,11 @@ export async function hasStoredGeneratedDocument(
   if (instancesError) throw instancesError;
 
   const instanceIds = (instances ?? []).map((row) => row.id);
-  if (instanceIds.length === 0) return false;
+  if (instanceIds.length === 0) return null;
 
   const { data: versions, error: versionsError } = await supabase
     .from("document_versions")
-    .select("generated_file_path, generated_at")
+    .select("id, generated_file_path, generated_at")
     .in("instance_id", instanceIds)
     .not("generated_file_path", "is", null)
     .order("generated_at", { ascending: false })
@@ -88,11 +92,19 @@ export async function hasStoredGeneratedDocument(
   for (const version of versions ?? []) {
     const path = version.generated_file_path?.trim();
     if (path && (await generatedDocumentObjectExists(supabase, path))) {
-      return true;
+      return { id: version.id, generatedFilePath: path };
     }
   }
 
-  return false;
+  return null;
+}
+
+export async function hasStoredGeneratedDocument(
+  supabase: SupabaseAdminClient,
+  oportunidadeId: string,
+  documentType: "proposta" | "contrato",
+): Promise<boolean> {
+  return (await findLatestStoredGeneratedDocumentVersion(supabase, oportunidadeId, documentType)) !== null;
 }
 
 function isCanceledD4SignDocument(row: {
@@ -203,6 +215,27 @@ export function buildWorkflowEvidenceBlocker(
   return null;
 }
 
+/**
+ * Lead do RD convertido na virada já em Contrato Elaborado ou depois: a revisão do Societário foi
+ * feita no processo do RD (o link do contrato no SharePoint é a evidência, decisão de 19/10/2026).
+ */
+async function migratedWithRdContractReview(
+  supabase: SupabaseAdminClient,
+  oportunidadeId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("rd_migracoes")
+    .select("etapa_destino")
+    .eq("oportunidade_id", oportunidadeId)
+    .maybeSingle();
+  if (error) {
+    if (isMissingRdMigrationSchema(error)) return false;
+    throw error;
+  }
+  const stage = (data as { etapa_destino?: OpportunityStage | null } | null)?.etapa_destino;
+  return Boolean(stage) && stageIndex(stage as OpportunityStage) >= stageIndex("contrato_elaborado");
+}
+
 export async function loadWorkflowEvidenceBlocker(params: {
   supabase: SupabaseAdminClient;
   oportunidadeId: string;
@@ -239,7 +272,8 @@ export async function loadWorkflowEvidenceBlocker(params: {
       .maybeSingle();
     if (reviewError) throw reviewError;
     evidence.contractReviewApproved =
-      reviewTask?.status === "concluido" && Boolean(reviewTask.concluido_em);
+      (reviewTask?.status === "concluido" && Boolean(reviewTask.concluido_em)) ||
+      (await migratedWithRdContractReview(supabase, oportunidadeId));
   }
 
   if (

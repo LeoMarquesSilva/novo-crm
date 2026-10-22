@@ -14,6 +14,8 @@ import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-prin
 import { applyInheritedContractAreaToggles } from "@/lib/crm/contract-engine/inherit-areas";
 import { buildCanonicalContract } from "@/lib/crm/contract-engine/build-canonical";
 import { initializeContractFromProposal } from "@/lib/crm/contract-engine/initialize-from-proposal";
+import { scopeSubtypeLabelsFromCatalog } from "@/lib/crm/contract-engine/proposal-snapshot";
+import { loadProposalCatalog } from "@/lib/crm/proposal-catalog-db";
 import {
   buildClauseLibrary,
   CLAUSE_LIBRARY_SELECT,
@@ -27,6 +29,7 @@ import {
 } from "@/lib/crm/contract-engine/persist";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
+import { ensureDocumentInstance } from "@/lib/crm/document-instance";
 
 const patchSchema = z.object({
   templateId: z.string().uuid().optional(),
@@ -34,38 +37,6 @@ const patchSchema = z.object({
   data: z.record(z.string(), z.unknown()).optional(),
   expectedUpdatedAt: z.string().optional(),
 });
-
-async function ensureInstance(params: {
-  supabase: ReturnType<typeof createSupabaseAdminClient>;
-  oportunidadeId: string;
-  templateId: string;
-  appUserId: string | null;
-}) {
-  const { supabase, oportunidadeId, templateId, appUserId } = params;
-  const { data: existing, error: existingErr } = await supabase
-    .from("document_instances")
-    .select("*")
-    .eq("oportunidade_id", oportunidadeId)
-    .eq("template_id", templateId)
-    .maybeSingle();
-  if (existingErr) throw existingErr;
-  if (existing) return existing;
-
-  const { data, error } = await supabase
-    .from("document_instances")
-    .insert({
-      oportunidade_id: oportunidadeId,
-      template_id: templateId,
-      status: "draft",
-      current_version: 0,
-      data_json: {},
-      created_by: appUserId,
-    })
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data;
-}
 
 export async function GET(
   _request: NextRequest,
@@ -106,8 +77,9 @@ export async function GET(
     if (clauseRowsErr) throw clauseRowsErr;
     const clausulaRows = (clauseRows ?? []) as ClauseLibraryRow[];
     const clauseLibrary = buildClauseLibrary(clausulaRows);
+    const scopeLabels = scopeSubtypeLabelsFromCatalog((await loadProposalCatalog(supabase)).scope);
 
-    let instance = await ensureInstance({
+    let instance = await ensureDocumentInstance({
       supabase,
       oportunidadeId,
       templateId: defaultTemplate.id,
@@ -125,6 +97,7 @@ export async function GET(
         oportunidadeId,
         createdBy: auth.profile?.id ?? null,
         clauseLibrary,
+        scopeLabels,
       });
       instance = initialized.instance as typeof instance;
     }
@@ -229,15 +202,20 @@ export async function GET(
         ccFieldDefs,
         availableClauses: clausulaRows,
         clauseLibrary: [...clauseLibrary.values()],
+        scopeLabels,
         selectedClauses: rawSelected,
         signaturePins: rawPins,
         reviewTask: reviewTask ?? null,
         engine: storedEngine.build,
         proposalSnapshot: storedEngine.snapshot,
         objectDraft,
+        // A cópia da proposta guardada no contrato (`createProposalContractSnapshot`) grava
+        // os campos sem espaços nas pontas.
         proposalChanged: Boolean(
           storedEngine.snapshot &&
-            storedEngine.snapshot.escopoJson !== String(fieldByCode.cp_escopo_detalhe_json ?? ""),
+            (storedEngine.snapshot.escopoJson !== String(fieldByCode.cp_escopo_detalhe_json ?? "").trim() ||
+              storedEngine.snapshot.propostaEmpresasJson !==
+                String(fieldByCode.cp_proposta_empresas_json ?? "").trim()),
         ),
       },
     });
@@ -266,7 +244,7 @@ export async function PATCH(
       : await loadDefaultContratoTemplate(supabase);
     if (!template) return NextResponse.json({ ok: false, error: "Modelo não encontrado." }, { status: 404 });
 
-    const instance = await ensureInstance({
+    const instance = await ensureDocumentInstance({
       supabase,
       oportunidadeId,
       templateId: template.id,
@@ -304,6 +282,7 @@ export async function PATCH(
         .eq("is_active", true);
       if (clauseRowsErr) throw clauseRowsErr;
       const clauseLibrary = buildClauseLibrary((clauseRows ?? []) as ClauseLibraryRow[]);
+      const scopeLabels = scopeSubtypeLabelsFromCatalog((await loadProposalCatalog(supabase)).scope);
       const rebuilt = buildCanonicalContract({
         snapshot: stored.snapshot,
         fieldByCode: Object.fromEntries(
@@ -315,6 +294,7 @@ export async function PATCH(
         explicitCompositionKey: draft.explicitCompositionKey,
         engineEvents: draft.engineEvents,
         clauseLibrary,
+        scopeLabels,
       });
       const rebuiltPatch = engineToDataJsonPatch(rebuilt, stored.snapshot, draft);
       // `rebuiltPatch.clausulas_selecionadas` é um retrato das cláusulas que o

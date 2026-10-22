@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  daysBetweenYmd,
   formatDateYmdBr,
   formatMaybeDateLikeBr,
   normalizeTimeToHm,
   parseBrDateDigitsToYmd,
+  parseDateOnlyInput,
+  saoPauloDateYmd,
+  saoPauloMidnightIso,
 } from "./format-datetime";
 
 describe("formatDateYmdBr", () => {
@@ -13,6 +17,30 @@ describe("formatDateYmdBr", () => {
 
   it("uses date part of ISO string", () => {
     expect(formatDateYmdBr("2026-04-15T00:00:00.000Z")).toBe("15/04/2026");
+  });
+});
+
+describe("datas sem hora em São Paulo", () => {
+  it("lê yyyy-mm-dd, dd/mm/aaaa e ISO, recusando data impossível", () => {
+    expect(parseDateOnlyInput("2026-10-20")).toBe("2026-10-20");
+    expect(parseDateOnlyInput("20/10/2026")).toBe("2026-10-20");
+    expect(parseDateOnlyInput("2026-10-20T03:00:00+00:00")).toBe("2026-10-20");
+    expect(parseDateOnlyInput("31/02/2026")).toBeNull();
+    expect(parseDateOnlyInput("amanhã")).toBeNull();
+  });
+
+  it("grava a meia-noite de São Paulo, que continua no mesmo dia no Brasil", () => {
+    const iso = saoPauloMidnightIso("2026-10-20");
+    expect(iso).toBe("2026-10-20T03:00:00.000Z");
+    expect(saoPauloDateYmd(new Date(iso))).toBe("2026-10-20");
+    // T00:00Z (gravação antiga) cai no dia anterior em São Paulo.
+    expect(saoPauloDateYmd(new Date("2026-10-20T00:00:00Z"))).toBe("2026-10-19");
+  });
+
+  it("conta dias corridos entre datas civis", () => {
+    expect(daysBetweenYmd("2026-10-18", "2026-10-20")).toBe(2);
+    expect(daysBetweenYmd("2026-10-21", "2026-10-20")).toBe(-1);
+    expect(daysBetweenYmd("2026-10-20", "x")).toBeNull();
   });
 });
 

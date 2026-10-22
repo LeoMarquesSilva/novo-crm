@@ -1,3 +1,4 @@
+import type { StartMonthBilling } from "./competency";
 import type { MoneyCents } from "./money";
 import type { VariableUsageSnapshot } from "./variable-usage-projection";
 
@@ -45,6 +46,8 @@ type RecurringComponent = ComponentBase & {
 
 type InstallmentComponent = ComponentBase & {
   kind: "mensal_preco_fechado";
+  /** Preço total contratado (soma das parcelas); a cobrança mensal segue as parcelas. */
+  amountCents?: MoneyCents;
   installments: BillingInstallment[];
 };
 
@@ -108,6 +111,8 @@ export type BillingInstallment = {
   number: number;
   competency: string;
   amountCents: MoneyCents;
+  /** Vencimento (AAAA-MM-DD); sem ele, vale o 1º dia da competência. */
+  dueDate?: string;
 };
 
 export type ContractConsumption = {
@@ -159,6 +164,8 @@ export type ContractVersionSnapshot = {
   id: string;
   effectiveFrom: string;
   effectiveTo: string | null;
+  /** Mensalidade fixa que começa depois do dia 1; sem resposta vale `mes_seguinte` (ver `competency.ts`). */
+  startMonthBilling?: StartMonthBilling | null;
   components: BillingComponent[];
   areaAllocations: AreaAllocationRule[];
   partnerShares: PartnerShareRule[];

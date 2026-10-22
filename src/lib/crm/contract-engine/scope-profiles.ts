@@ -118,6 +118,41 @@ const CIVEL_FIELDS: ContractRequiredField[] = [
   },
 ];
 
+/**
+ * Crédito em processo de recuperação judicial. Empresa, processo e vara vêm da proposta
+ * (o subtipo já pede esses três dados); os pontos do parecer são opcionais e dependem do caso.
+ */
+const RECUPERACAO_RJ_FIELDS: ContractRequiredField[] = [
+  {
+    key: "empresa_recuperanda_rj",
+    label: "Empresa em recuperação judicial",
+    type: "text",
+    required: true,
+    sourceHints: ["proposal", "manual"],
+  },
+  {
+    key: "numero_processo_rj",
+    label: "Número do processo da recuperação judicial",
+    type: "text",
+    required: true,
+    sourceHints: ["proposal", "manual"],
+  },
+  {
+    key: "vara_rj",
+    label: "Vara / comarca da recuperação judicial",
+    type: "text",
+    required: true,
+    sourceHints: ["proposal", "manual"],
+  },
+  {
+    key: "pontos_parecer_rj",
+    label: "Parecer: pontos específicos (completa \"especialmente quanto…\")",
+    type: "text",
+    required: false,
+    sourceHints: ["manual"],
+  },
+];
+
 export const CONTRACT_SCOPE_PROFILES: ContractScopeProfile[] = [
   {
     scopeSubtypeId: SCOPE_IDS.auditoria,
@@ -444,6 +479,38 @@ export const CONTRACT_SCOPE_PROFILES: ContractScopeProfile[] = [
     objectClauseKeys: ["object_societario_contratual"],
     scopeClauseKeys: [],
     limitationClauseKeys: ["limitation_societario_contratual"],
+    exclusionClauseKeys: [],
+    natureClauseKeys: [],
+    contractedObligationKeys: [],
+    contractingObligationKeys: [],
+    defaultTermRule: { kind: "indefinite" },
+    defaultStartRule: { kind: "on_signature" },
+    active: true,
+    status: "pending_legal_review",
+  },
+  {
+    scopeSubtypeId: SCOPE_IDS.recuperacaoCreditoRj,
+    label: "Recuperação de Crédito em Processos de Recuperação Judicial",
+    instrumentType: "Contrato de Prestação de Serviços Advocatícios",
+    areaSortOrder: 40,
+    typeSortOrder: 10,
+    subtypeSortOrder: 10,
+    objectDefinition: {
+      mode: "simple",
+      objectBlockKeys: [
+        "object.recuperacao_credito.rj",
+        "object.recuperacao_credito.rj.parecer",
+        "object.recuperacao_credito.rj.medida",
+        "object.recuperacao_credito.rj.acompanhamento",
+        "object.recuperacao_credito.rj.negociacao",
+        "object.recuperacao_credito.rj.limitation",
+      ],
+      objectGroupKey: "recuperacao_credito",
+    },
+    requiredContractFields: RECUPERACAO_RJ_FIELDS,
+    objectClauseKeys: [],
+    scopeClauseKeys: [],
+    limitationClauseKeys: [],
     exclusionClauseKeys: [],
     natureClauseKeys: [],
     contractedObligationKeys: [],

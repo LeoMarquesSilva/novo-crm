@@ -21,6 +21,12 @@ import {
   type PipelineCode,
 } from "@/lib/crm/compute-transition-requirements";
 import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
+import {
+  loadRdMigrationLeadState,
+  rdMigrationBlocksAdvance,
+  rdMigrationLeadHref,
+  RD_MIGRATION_PENDING_MESSAGE,
+} from "@/lib/crm/rd-migration/state";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 import {
   buildContractTransitionBlocker,
@@ -192,10 +198,28 @@ export async function GET(request: NextRequest) {
     }
 
     if (reconRow) {
-      return NextResponse.json(
-        { ok: false, error: RD_KANBAN_VIEW_ONLY_MESSAGE },
-        { status: 403 },
-      );
+      // Convertido na virada: anda no CRM, desde que a migração esteja completa.
+      const migrationState = await loadRdMigrationLeadState(supabase, opportunityId);
+      if (!migrationState.migradoEm) {
+        return NextResponse.json(
+          { ok: false, error: RD_KANBAN_VIEW_ONLY_MESSAGE },
+          { status: 403 },
+        );
+      }
+      if (rdMigrationBlocksAdvance(migrationState)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: RD_MIGRATION_PENDING_MESSAGE,
+            transitionBlocker: {
+              code: "rd_migration_pending",
+              message: RD_MIGRATION_PENDING_MESSAGE,
+              actionHref: rdMigrationLeadHref(opportunityId),
+            },
+          },
+          { status: 422 },
+        );
+      }
     }
 
     const stageDecision = evaluateLeadAction(auth.actor, {

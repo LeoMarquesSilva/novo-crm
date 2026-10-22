@@ -79,6 +79,13 @@ describe("buildPropostaPdf", () => {
     expect(texts[2]).toContain("R$ 12.700,00");
   });
 
+  it("gera proposta leve o bastante para anexar em e-mail", async () => {
+    // As imagens de página inteira do modelo vão em JPEG (scripts/prepare-proposta-pdf-assets.py);
+    // sem compressão cada proposta saía com ~12,8 MB.
+    const bytes = await buildPropostaPdf(canonical());
+    expect(bytes.byteLength).toBeLessThan(4_000_000);
+  });
+
   it("escreve cliente em caixa alta, remetente e data na capa com acentos", async () => {
     const [capa] = await pageTexts(await buildPropostaPdf(canonical()));
     expect(capa).toContain("INDÚSTRIA AÇUCAREIRA SÃO JOÃO LTDA.");

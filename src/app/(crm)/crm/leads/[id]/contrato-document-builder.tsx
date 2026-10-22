@@ -66,6 +66,13 @@ import {
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import {
+  daysBetweenYmd,
+  formatDateYmdBr,
+  formatMaybeDateLikeBr,
+  parseDateOnlyInput,
+  saoPauloDateYmd,
+} from "@/lib/format-datetime";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { evaluateCondition, type FieldCondition } from "@/lib/crm/field-condition";
 import { usePaginatedBlocks, type PreviewBlock } from "@/lib/crm/document-pagination";
@@ -83,6 +90,7 @@ import {
   SIGNATURE_PAGE_LAST,
 } from "@/lib/crm/contrato-signature-pins";
 import type { LeadDetailData } from "./page";
+import { HonorariosDaPropostaPanel, type IgnoredCommercialField } from "./contrato-honorarios-panel";
 import {
   ClienteCadastroApplyDialog,
   clienteCadastroPromptWasDeclined,
@@ -102,8 +110,10 @@ import {
   mergeInheritedContractAreaToggles,
 } from "@/lib/crm/contract-engine/inherit-areas";
 import { buildCanonicalContract } from "@/lib/crm/contract-engine/build-canonical";
+import { describeTermRule } from "@/lib/crm/contract-engine/term";
 import { SECTION_ORDER } from "@/lib/crm/contract-engine/clause-engine";
 import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
+import { investmentItemHasValue } from "@/lib/crm/contract-engine/payment";
 import { applyObjectOverride } from "@/lib/crm/contract-engine/object-engine";
 import { appendContractEngineEvent } from "@/lib/crm/contract-engine/object-events";
 import { resolveContractScopes } from "@/lib/crm/contract-engine/proposal-snapshot";
@@ -116,7 +126,10 @@ import type {
   ContractObjectOverride,
   ContractScopeAdjustment,
 } from "@/lib/crm/contract-engine/types";
-import type { ProposalContractSnapshot } from "@/lib/crm/contract-engine/proposal-snapshot";
+import type { ProposalContractSnapshot, ScopeSubtypeLabels } from "@/lib/crm/contract-engine/proposal-snapshot";
+import { parsePropostaEmpresasJson } from "@/components/crm/confeccao-reuniao-modal-section";
+import { PropostaOutrosContratantes } from "@/components/crm/proposta-outros-contratantes";
+import { comContratantesEfetivos } from "@/lib/crm/proposta-contratantes";
 import {
   AlterarEscoposDialog,
   EscoposContratadosSection,
@@ -218,6 +231,8 @@ type ContratoState = {
   availableClauses: ClauseTemplate[];
   /** Biblioteca de cláusulas ativa (banco > catálogo fixo) usada no preview ao vivo. */
   clauseLibrary?: ContractClauseTemplate[];
+  /** Rótulos dos subtipos de escopo do catálogo do banco. */
+  scopeLabels?: ScopeSubtypeLabels;
   selectedClauses: SelectedClause[];
   signaturePins: SignaturePin[];
   reviewTask: {
@@ -368,10 +383,14 @@ export function ContratoDocumentBuilder({
   appUsersByEmail?: Record<string, { avatarUrl: string | null; fullName: string }>;
 }) {
   const router = useRouter();
+  const crmActor = useCrmActor();
   const [contratoState, setContratoState] = useState<ContratoState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [syncingProposal, setSyncingProposal] = useState(false);
+  const [syncProposalError, setSyncProposalError] = useState<string | null>(null);
+  const [builderKey, setBuilderKey] = useState(0);
 
   const refreshState = useCallback(async () => {
     setLoading(true);
@@ -437,6 +456,50 @@ export function ContratoDocumentBuilder({
   const inheritedFields = lead.pipelineFields.filter((f) =>
     ["cp_cliente_cidade", "cp_cliente_uf", "cp_investimento_resumo"].includes(f.fieldCode),
   );
+  const canEditContract = crmActor ? canPerformLeadAction(crmActor, { action: "contract.edit" }) : false;
+  const showProposalChanged = Boolean(contratoState?.proposalChanged) && !contractSent && canEditContract;
+
+  // O contrato guarda uma cópia da proposta ao ser montado; refaz a cópia mantendo o que
+  // foi preenchido no objeto e as escolhas de escopo.
+  async function refazerPelaProposta() {
+    const res = await fetch(
+      `/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/initialize-from-proposal`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ force: true }) },
+    );
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (!res.ok || !json.ok) throw new Error(json.error ?? "Não foi possível atualizar o contrato.");
+    await refreshState();
+    // Remonta o montador: os rascunhos dele leem o estado novo (partes, cláusulas no plural).
+    setBuilderKey((key) => key + 1);
+  }
+
+  /** Partes do contrato: grava quem assina no lead e refaz o contrato com a escolha. */
+  async function salvarContratantes(empresasJson: string) {
+    const field = lead.pipelineFields.find((f) => f.fieldCode === "cp_proposta_empresas_json");
+    if (!field) throw new Error("O lead não tem a escolha de empresas da proposta.");
+    const res = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pipelineField: { fieldDefinitionId: field.definitionId, value: empresasJson } }),
+    });
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(json.error ?? "Não foi possível gravar os contratantes.");
+    }
+    await refazerPelaProposta();
+  }
+
+  async function atualizarPelaProposta() {
+    setSyncingProposal(true);
+    setSyncProposalError(null);
+    try {
+      await refazerPelaProposta();
+    } catch (e) {
+      setSyncProposalError(e instanceof Error ? e.message : "Não foi possível atualizar o contrato.");
+    } finally {
+      setSyncingProposal(false);
+    }
+  }
 
   function goToPendingItem(item: ContratoPendingField) {
     setBuilderOpen(true);
@@ -505,6 +568,33 @@ export function ContratoDocumentBuilder({
             sent={contractSent}
             signed={contractSigned}
           />
+        ) : null}
+
+        {showProposalChanged && !loading ? (
+          <div className="flex flex-col gap-3 rounded-(--radius-v2-xl) border border-warning-border bg-warning-bg p-4 text-warning-text sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 gap-2.5">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold">A proposta mudou depois que o contrato foi montado</p>
+                <p className="mt-0.5 text-xs leading-relaxed">
+                  Escopo, investimento ou contratantes estão diferentes. Atualize para o contrato usar a
+                  proposta atual; o que já foi preenchido no objeto é mantido.
+                </p>
+                {syncProposalError ? <p className="mt-1 text-xs font-medium">{syncProposalError}</p> : null}
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0 bg-white"
+              disabled={syncingProposal}
+              onClick={() => void atualizarPelaProposta()}
+            >
+              {syncingProposal ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+              Atualizar o contrato
+            </Button>
+          </div>
         ) : null}
 
         {/* Dados herdados */}
@@ -646,12 +736,14 @@ export function ContratoDocumentBuilder({
       {/* Dialog do builder */}
       {builderOpen && contratoState ? (
         <ContratoBuilderDialog
+          key={builderKey}
           lead={lead}
           propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
           contratoState={contratoState}
           open={builderOpen}
           onOpenChange={setBuilderOpen}
           onRefresh={refreshState}
+          onContratantesChange={!contractSent && canEditContract ? salvarContratantes : undefined}
         />
       ) : null}
     </section>
@@ -667,6 +759,7 @@ function ContratoBuilderDialog({
   open,
   onOpenChange,
   onRefresh,
+  onContratantesChange,
 }: {
   lead: LeadDetailData;
   propostaEmpresaPrincipalNome: string | null;
@@ -674,8 +767,29 @@ function ContratoBuilderDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onRefresh: () => Promise<void>;
+  /** Ausente depois do envio para assinatura ou sem permissão de editar o contrato. */
+  onContratantesChange?: (empresasJson: string) => Promise<void>;
 }) {
   const router = useRouter();
+  const [savingContratantes, setSavingContratantes] = useState(false);
+  const [contratantesError, setContratantesError] = useState<string | null>(null);
+  const empresasIntake = lead.empresasIntake ?? [];
+  const escolhaEmpresas = comContratantesEfetivos(
+    parsePropostaEmpresasJson(contratoState.snapshot.fieldByCode.cp_proposta_empresas_json ?? ""),
+    empresasIntake,
+  );
+
+  async function trocarContratantes(next: { primaryIndex: number }) {
+    if (!onContratantesChange) return;
+    setSavingContratantes(true);
+    setContratantesError(null);
+    try {
+      await onContratantesChange(JSON.stringify(next));
+    } catch (e) {
+      setContratantesError(e instanceof Error ? e.message : "Não foi possível mudar os contratantes.");
+      setSavingContratantes(false);
+    }
+  }
 
   // ── State ──────────────────────────────────────────────────────────────────
   const initDraft = () =>
@@ -686,6 +800,10 @@ function ContratoBuilderDialog({
 
   const [draftValues, setDraftValues] = useState<Record<string, string>>(initDraft);
   const [savedValues, setSavedValues] = useState<Record<string, string>>(initDraft);
+  /** Valor de cada campo `cc_*` como está no banco (sem os herdados que só a tela aplica). */
+  const [persistedFieldValues, setPersistedFieldValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(contratoState.ccFieldDefs.map((f) => [f.fieldCode, f.value])),
+  );
   // Sem seletor visível: "modelo" não afeta o conteúdo gerado (o Word é montado
   // programaticamente a partir dos dados, não de um arquivo de template — os 4
   // arquivos que essas linhas antigas apontavam nem existem mais no repo). Mantém
@@ -827,11 +945,13 @@ function ContratoBuilderDialog({
       explicitCompositionKey: initialObjectDraft.explicitCompositionKey,
       engineEvents,
       clauseLibrary,
+      scopeLabels: contratoState.scopeLabels,
     });
   }, [
     clauseLibrary,
     contratoState.engine,
     contratoState.proposalSnapshot,
+    contratoState.scopeLabels,
     contratoState.snapshot.fieldByCode,
     draftValues,
     engineEvents,
@@ -918,7 +1038,19 @@ function ContratoBuilderDialog({
   const scopesComplete = Boolean(
     liveBuild && liveBuild.data.scopes.length > 0 && liveBuild.data.scopes.every((s) => !s.missingProfile),
   );
-  const valsComplete = Boolean(draftValues.cc_tipo_pagamento?.trim());
+  const valsComplete =
+    Boolean(draftValues.cc_tipo_pagamento?.trim()) &&
+    (!liveBuild || liveBuild.data.investment.items.some(investmentItemHasValue));
+  // Com o motor ativo a cláusula de honorários vem da proposta; texto digitado nos
+  // campos antigos (valores, % de êxito) é listado no painel como "não entra".
+  const ignoredCommercialFields: IgnoredCommercialField[] = liveBuild
+    ? (["cc_valores", "cc_exito_percentual"] as const).flatMap((code) => {
+        const value = draftValues[code]?.trim();
+        if (!value) return [];
+        const def = fieldByCode[code];
+        return [{ code, label: def ? userFacingFieldLabel(def.label, def.fieldCode) : code, value }];
+      })
+    : [];
   const prazComplete = Boolean(draftValues.cc_prazo_revisao?.trim());
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -928,20 +1060,36 @@ function ContratoBuilderDialog({
   }
 
   async function persistAllFields() {
-    const fieldDefs = contratoState.ccFieldDefs;
-    const patches = fieldDefs.map((f) =>
-      fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pipelineField: {
-            fieldDefinitionId: f.definitionId,
-            value: draftValues[f.fieldCode] ?? "",
-          },
-        }),
+    // Só os campos que mudaram desde a última gravação: antes ia um PATCH por campo a cada
+    // Salvar (~18), lento e com um "Campo atualizado" no histórico até para campo vazio.
+    const changedFields = contratoState.ccFieldDefs.filter(
+      (f) => (draftValues[f.fieldCode] ?? "").trim() !== (persistedFieldValues[f.fieldCode] ?? "").trim(),
+    );
+    const failures = await Promise.all(
+      changedFields.map(async (f) => {
+        const res = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pipelineField: {
+              fieldDefinitionId: f.definitionId,
+              value: draftValues[f.fieldCode] ?? "",
+            },
+          }),
+        });
+        if (res.ok) return null;
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        return `${f.label}: ${json.error ?? "não foi salvo"}`;
       }),
     );
-    await Promise.all(patches);
+    const failed = failures.filter((message): message is string => Boolean(message));
+    if (failed.length > 0) {
+      throw new Error(`Não foi possível salvar ${failed.join("; ")}.`);
+    }
+    setPersistedFieldValues((prev) => ({
+      ...prev,
+      ...Object.fromEntries(changedFields.map((f) => [f.fieldCode, draftValues[f.fieldCode] ?? ""])),
+    }));
     const completedFields = Object.entries(objectFields).filter(
       ([key, value]) => value.trim() && !String(savedObjectFields[key] ?? "").trim(),
     );
@@ -1193,6 +1341,27 @@ function ContratoBuilderDialog({
                       Empresa não identificada. Verifique os dados da proposta.
                     </p>
                   )}
+                  <div className="mt-3">
+                    <PropostaOutrosContratantes
+                      empresas={empresasIntake}
+                      escolha={escolhaEmpresas}
+                      onChange={(next) => void trocarContratantes(next)}
+                      disabled={!onContratantesChange || isDirty || savingContratantes}
+                    />
+                    {onContratantesChange && isDirty && empresasIntake.length > 1 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Salve o contrato antes de mudar quem assina.
+                      </p>
+                    ) : null}
+                    {savingContratantes ? (
+                      <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="size-3 animate-spin" aria-hidden /> Atualizando o contrato…
+                      </p>
+                    ) : null}
+                    {contratantesError ? (
+                      <p className="mt-1 text-xs font-medium text-destructive">{contratantesError}</p>
+                    ) : null}
+                  </div>
                 </FormSection>
 
                 <div id="section-escopos" className="scroll-mt-16">
@@ -1252,37 +1421,57 @@ function ContratoBuilderDialog({
                   title="Condições Comerciais"
                   isComplete={valsComplete}
                 >
+                  {liveBuild ? (
+                    <HonorariosDaPropostaPanel
+                      payment={liveBuild.data.payment}
+                      investment={liveBuild.data.investment}
+                      ignoredFields={ignoredCommercialFields}
+                      onClearField={(code) => fieldChange(code, "")}
+                      disabled={saving || generating}
+                    />
+                  ) : null}
                   {(SECTION_VALORES as readonly string[]).map((code) => {
                     if (!isVisible(code)) return null;
+                    // Motor ativo: valores e vencimentos saem do investimento da proposta.
+                    if (liveBuild && code === "cc_valores") return null;
                     const f = fieldByCode[code];
                     if (!f) return null;
                     // cc_valores é obrigatório sempre que há forma de pagamento definida e
                     // ela não é "Êxito" puro (mesma regra de listContratoPendingFields) —
                     // is_required no banco é false porque a obrigatoriedade é condicional,
                     // então o asterisco precisa desse override pontual pra não ficar errado.
+                    // Só vale sem o motor (com ele o campo nem aparece).
                     const requiredOverride =
                       code === "cc_valores"
                         ? Boolean(draftValues.cc_tipo_pagamento?.trim()) &&
                           draftValues.cc_tipo_pagamento?.trim() !== "Êxito"
                         : undefined;
                     return (
-                      <CcFieldInput
-                        key={code}
-                        field={f}
-                        value={draftValues[code] ?? ""}
-                        onChange={(v) => fieldChange(code, v)}
-                        disabled={saving || generating}
-                        requiredOverride={requiredOverride}
-                      />
+                      <div key={code} className="space-y-1">
+                        <CcFieldInput
+                          field={f}
+                          value={draftValues[code] ?? ""}
+                          onChange={(v) => fieldChange(code, v)}
+                          disabled={saving || generating}
+                          requiredOverride={requiredOverride}
+                        />
+                        {liveBuild && code === "cc_tipo_pagamento" ? (
+                          <p className="text-xs text-muted-foreground">
+                            Classificação interna do honorário; não muda o texto do contrato.
+                          </p>
+                        ) : null}
+                      </div>
                     );
                   })}
-                  <InclusionToggleCard
-                    item={EXITO_CONFIG}
-                    fieldByCode={fieldByCode}
-                    draftValues={draftValues}
-                    onChange={fieldChange}
-                    disabled={saving || generating}
-                  />
+                  {liveBuild ? null : (
+                    <InclusionToggleCard
+                      item={EXITO_CONFIG}
+                      fieldByCode={fieldByCode}
+                      draftValues={draftValues}
+                      onChange={fieldChange}
+                      disabled={saving || generating}
+                    />
+                  )}
                 </FormSection>
 
                 {/* Seção 5: Vigência e início */}
@@ -1291,9 +1480,7 @@ function ContratoBuilderDialog({
                     <div className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3 text-xs text-foreground">
                       <p>
                         <span className="font-bold">Vigência: </span>
-                        {liveBuild.data.term.kind === "indefinite"
-                          ? "Prazo indeterminado"
-                          : liveBuild.data.term.estimateLabel || liveBuild.data.term.kind}
+                        {describeTermRule(liveBuild.data.term)}
                       </p>
                       <p className="mt-1">
                         <span className="font-bold">Início: </span>
@@ -1301,7 +1488,7 @@ function ContratoBuilderDialog({
                           ? "Na assinatura"
                           : liveBuild.data.startRule.kind === "on_first_payment"
                             ? "No primeiro pagamento"
-                            : liveBuild.data.startRule.date || "Data definida"}
+                            : formatMaybeDateLikeBr(liveBuild.data.startRule.date ?? "") || "Data definida"}
                       </p>
                       <p className="mt-1 text-[10px] text-muted-foreground">Resolvida pelo perfil contratual ✓</p>
                     </div>
@@ -1327,7 +1514,10 @@ function ContratoBuilderDialog({
                           <strong>Ao salvar</strong>, a área{" "}
                           <span className="font-semibold">Societário e Contratos</span> será notificada
                           para revisar este contrato até{" "}
-                          <strong>{draftValues.cc_prazo_revisao}</strong>.
+                          <strong>
+                            {formatDateYmdBr(draftValues.cc_prazo_revisao) || draftValues.cc_prazo_revisao}
+                          </strong>
+                          .
                         </p>
                       </div>
                     </div>
@@ -1439,7 +1629,7 @@ function ContratoBuilderDialog({
         onOpenChange={setAlterarEscoposOpen}
         scopes={
           contratoState.proposalSnapshot
-            ? resolveContractScopes(contratoState.proposalSnapshot.escopoJson)
+            ? resolveContractScopes(contratoState.proposalSnapshot.escopoJson, contratoState.scopeLabels)
             : (contratoState.engine?.data.scopes ?? [])
         }
         current={scopeAdjustment}
@@ -1982,16 +2172,11 @@ function ReviewTaskCard({
       })
     : false;
   const cfg = REVIEW_STATUS_CFG[reviewTask.status];
-  const prazoDate = reviewTask.prazo_revisao
-    ? new Date(reviewTask.prazo_revisao)
-    : null;
-  const prazoStr = prazoDate
-    ? prazoDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
-    : null;
-  const hoje = new Date();
-  const diasRestantes = prazoDate
-    ? Math.ceil((prazoDate.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
-    : null;
+  // Prazo é data sem hora: a parte `yyyy-mm-dd` do ISO é o dia escolhido (meia-noite de
+  // São Paulo; registros antigos têm T00:00Z). Converter para Date desloca um dia.
+  const prazoYmd = parseDateOnlyInput(reviewTask.prazo_revisao);
+  const prazoStr = prazoYmd ? formatDateYmdBr(prazoYmd) : null;
+  const diasRestantes = prazoYmd ? daysBetweenYmd(saoPauloDateYmd(), prazoYmd) : null;
   const atrasado = diasRestantes !== null && diasRestantes < 0 && reviewTask.status !== "concluido";
 
   async function updateStatus(status: ReviewTask["status"]) {

@@ -177,7 +177,7 @@ async function patchPipelineFieldValue(
   /** `maybeSingle()` falha se existirem linhas duplicadas em `field_values` para o mesmo campo. */
   const { data: existingRows, error: exErr } = await supabase
     .from("field_values")
-    .select("id")
+    .select("id, value_json")
     .eq("entity_name", "oportunidade")
     .eq("entity_record_id", oportunidadeId)
     .eq("field_definition_id", payload.fieldDefinitionId)
@@ -185,7 +185,10 @@ async function patchPipelineFieldValue(
     .limit(1);
 
   if (exErr) return { ok: false, error: exErr.message };
-  const existing = existingRows?.[0];
+  const existing = existingRows?.[0] as { id?: string; value_json?: unknown } | undefined;
+
+  // Valor igual ao gravado (inclusive vazio → vazio): nada a gravar nem a registrar no histórico.
+  if (sameFieldValue(existing?.value_json, valueJson)) return { ok: true };
 
   const now = new Date().toISOString();
   const fieldLabel = userFacingFieldLabel(
@@ -271,6 +274,13 @@ async function patchPipelineFieldValue(
   });
 
   return { ok: true };
+}
+
+/** Compara dois `value_json` como a ficha os mostra; ausente, vazio e lista vazia são o mesmo valor. */
+export function sameFieldValue(a: unknown, b: unknown): boolean {
+  const normalize = (value: unknown) =>
+    Array.isArray(value) && value.length === 0 ? "" : valueJsonToDisplayString(value).trim();
+  return normalize(a) === normalize(b);
 }
 
 async function patchRdFieldOverride(

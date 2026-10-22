@@ -159,6 +159,8 @@ function mapOpportunity(row: {
   solicitanteUsuarioNome: string | null;
   solicitanteUsuarioAvatarUrl: string | null;
   origemRd: boolean;
+  rdMigrado: boolean;
+  rdMigracaoPendente: boolean;
   rdDealAtualizadoEm: string | null;
   motivoPerda: string | null;
   dueAreaTasksSummary?: DueAreaTaskSummary | null;
@@ -190,6 +192,8 @@ function mapOpportunity(row: {
     solicitanteRd: row.solicitanteRd,
     diasNaEtapa,
     origemRd: row.origemRd,
+    ...(row.rdMigrado ? { rdMigrado: true } : {}),
+    ...(row.rdMigracaoPendente ? { rdMigracaoPendente: true } : {}),
     rdDealAtualizadoEm: row.rdDealAtualizadoEm,
     motivoPerda: row.motivoPerda,
     rdOwnerEmail: row.rdOwnerEmail,
@@ -226,6 +230,15 @@ function mapOpportunity(row: {
     propostaEscopoSummary: row.propostaEscopoSummary ?? null,
     propostaEscopoBreakdown: row.propostaEscopoBreakdown ?? null,
   };
+}
+
+/** Leads do RD convertidos com a migração incompleta (sem a migration da fila: nenhum). */
+async function selectRdMigrationPendingIds(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+): Promise<Set<string>> {
+  const { data, error } = await supabase.from("rd_migracoes").select("oportunidade_id").eq("status", "convertida");
+  if (error) return new Set();
+  return new Set((data ?? []).map((r) => String(r.oportunidade_id)));
 }
 
 /**
@@ -268,6 +281,7 @@ export async function GET() {
       { data: usersRows, error: usersError },
       authUsersResult,
       { data: reconciliationRows, error: reconciliationError },
+      rdMigrationPendingIds,
     ] = await Promise.all([
       supabase
         .from("oportunidades")
@@ -278,6 +292,7 @@ export async function GET() {
       supabase.from("app_users").select("id, full_name, auth_user_id, avatar_url"),
       supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
       selectRdReconciliation(supabase),
+      selectRdMigrationPendingIds(supabase),
     ]);
 
     if (opportunitiesError) {
@@ -393,7 +408,9 @@ export async function GET() {
     }
 
     const opportunities = (opportunitiesRows ?? []).map((row) => {
-      const origemRd = reconciliationByOpportunity.has(row.id);
+      // Convertido na virada: anda no CRM como lead nativo (a etapa é a do CRM, não a do RD).
+      const rdMigrado = Boolean((row as { rd_migrado_em?: string | null }).rd_migrado_em);
+      const origemRd = reconciliationByOpportunity.has(row.id) && !rdMigrado;
       const reconciliationDetails = reconciliationByOpportunity.get(row.id);
       const rdDealAtualizadoEm = getRdDealUpdatedAtIso(reconciliationDetails);
       const motivoPerda = getRdDealLostReason(reconciliationDetails);
@@ -425,11 +442,9 @@ export async function GET() {
         usersByEmail,
       });
 
-      const etapa = resolvePipelineEtapaFromDbAndRd(
-        row.etapa,
-        origemRd,
-        reconciliationDetails,
-      );
+      const etapa = rdMigrado
+        ? row.etapa
+        : resolvePipelineEtapaFromDbAndRd(row.etapa, origemRd, reconciliationDetails);
 
       return mapOpportunity({
         ...row,
@@ -444,6 +459,8 @@ export async function GET() {
           solicitanteDisplay.nome === "—" ? null : solicitanteDisplay.nome,
         solicitanteUsuarioAvatarUrl: solicitanteDisplay.avatarUrl,
         origemRd,
+        rdMigrado,
+        rdMigracaoPendente: rdMigrado && rdMigrationPendingIds.has(row.id),
         rdDealAtualizadoEm,
         motivoPerda,
       });

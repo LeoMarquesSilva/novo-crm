@@ -150,6 +150,8 @@ export default function LeadsPage() {
   const canCreateLead = crmActor ? canPerformLeadAction(crmActor, { action: "lead.create" }) : false;
   const router = useRouter();
   const [isCadastroOpen, setIsCadastroOpen] = useState(false);
+  /** Aviso do cadastro (lead criado, mas algo não gravou): o diálogo fecha, o aviso fica. */
+  const [createWarning, setCreateWarning] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [pinnedLeadId, setPinnedLeadId] = useState<string | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<string>("todos");
@@ -506,6 +508,24 @@ export default function LeadsPage() {
           {loadError && opportunities.length > 0 ? (
             <p className="mt-2 text-sm font-medium text-red-600">{loadError}</p>
           ) : null}
+          {createWarning ? (
+            <div
+              role="status"
+              className="mt-2 flex items-start gap-2 rounded-(--radius-v2-md) border border-warning-border bg-warning-bg px-3 py-2 text-sm text-warning-text"
+            >
+              <p className="min-w-0 flex-1">
+                <span className="font-semibold">Lead cadastrado com aviso: </span>
+                {createWarning}
+              </p>
+              <button
+                type="button"
+                onClick={() => setCreateWarning(null)}
+                className="shrink-0 rounded-(--radius-v2-sm) px-1.5 text-xs font-semibold underline-offset-2 hover:underline"
+              >
+                Fechar
+              </button>
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2 md:p-3">
           {loading ? (
@@ -557,8 +577,9 @@ export default function LeadsPage() {
           <DialogTitle className="sr-only">Cadastro de novo lead</DialogTitle>
           <NewDemandForm
             onRequestClose={() => setIsCadastroOpen(false)}
-            onSuccess={() => {
+            onSuccess={({ warning }) => {
               setIsCadastroOpen(false);
+              setCreateWarning(warning);
               void refreshLeadsSilently();
             }}
           />

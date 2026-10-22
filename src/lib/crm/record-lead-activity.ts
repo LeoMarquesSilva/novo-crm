@@ -24,7 +24,9 @@ export type LeadActivityKind =
   | "cadastro_cliente_devolvido"
   | "cadastro_cliente_concluido"
   | "contrato_incluido_gestao"
-  | "contrato_ativado";
+  | "contrato_ativado"
+  | "rd_migrado"
+  | "rd_migracao_concluida";
 
 export async function recordLeadActivityEvent(
   supabase: SupabaseClient,

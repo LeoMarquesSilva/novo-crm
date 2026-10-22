@@ -62,13 +62,16 @@ describe("completeSignedContract", () => {
     const kinds = vi.mocked(recordLeadActivityEvent).mock.calls.map((c) => c[1].kind);
     expect(kinds).toEqual(["contrato_assinado", "etapa_alterada", "venda_fechada", "etapa_alterada"]);
     const [, audience, content] = vi.mocked(notifyAudience).mock.calls[0]!;
-    expect(audience).toMatchObject({
+    // Venda fechada vai para quem age no pós-venda: equipe do lead, sócios, Financeiro e Ops Legais.
+    expect(audience).toEqual({
       leadTeamOf: leadId,
       firmPartners: true,
-      roles: ["admin", "comercial", "financeiro"],
+      roles: ["financeiro"],
       modules: ["operacoes_legais"],
     });
     expect(content).toMatchObject({ tipo: "venda_fechada", idempotencyKey: `venda-fechada:${leadId}` });
+    // Preencher o cadastro é tarefa do responsável do lead, não da equipe inteira.
+    expect(vi.mocked(notifyAudience).mock.calls[1]?.[1]).toEqual({ leadOwnerOf: leadId });
     expect(vi.mocked(notifyAudience).mock.calls[1]?.[2]).toMatchObject({ tipo: "cadastro_cliente_solicitado" });
   });
 

@@ -40,6 +40,7 @@ export const SCOPE_IDS = {
   tributario: "contencioso_execucoes_fiscais",
   reestruturacaoNegociacoes: "negociacoes_estrategicas",
   societarioDiagnostico: "diagnostico_estruturacao_e_protecao_patrimonial",
+  recuperacaoCreditoRj: "recuperacao_de_credito_em_processos_de_recuperacao_judicial",
 } as const;
 
 export const CONTRACT_CLAUSE_CATALOG: ContractClauseTemplate[] = [

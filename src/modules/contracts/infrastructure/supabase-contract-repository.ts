@@ -10,7 +10,9 @@ import {
   type ContractConfigurationWrite,
   type ContractVersionConfigurationContext,
 } from "../application/services/save-contract-configuration";
+import { isMonthlyFeeStartingMidMonth } from "../domain/competency";
 import type { ContractValidationIssue } from "../domain/contract-validation";
+import { loadStartMonthBilling } from "./start-month-billing";
 
 const knownCodes = [
   "CONTRACT_NOT_FOUND",
@@ -131,7 +133,7 @@ export class SupabaseContractRepository implements ContractConfigurationReposito
 
   async activateVersionAtomic(input: ActivateContractVersionInput): Promise<ActivateContractVersionResult> {
     const supabase = createSupabaseAdminClient();
-    const [{ data: contract }, { data: version }, { count: responsibleCount }, { count: componentCount }] = await Promise.all([
+    const [{ data: contract }, { data: version }, { count: responsibleCount }, { data: componentRows }, startMonthBilling] = await Promise.all([
       supabase
         .from("contratos")
         .select("cliente_id, vigente_de, primeiro_vencimento, primeiro_faturamento_condicionado")
@@ -149,9 +151,11 @@ export class SupabaseContractRepository implements ContractConfigurationReposito
         .eq("contrato_id", input.contractId),
       supabase
         .from("contrato_componentes_cobranca")
-        .select("id", { count: "exact", head: true })
+        .select("tipo, periodo_inicio")
         .eq("versao_id", input.versionId),
+      loadStartMonthBilling(supabase, input.versionId),
     ]);
+    const componentCount = componentRows?.length ?? 0;
     const issues: ContractValidationIssue[] = [];
     if (!contract?.cliente_id) {
       issues.push({ code: "client_required", path: "clientId", severity: "error", message: "Informe o cliente do contrato." });
@@ -189,6 +193,20 @@ export class SupabaseContractRepository implements ContractConfigurationReposito
         path: "version.components",
         severity: "error",
         message: "Informe ao menos um componente de cobrança.",
+      });
+    }
+    // Sem a coluna (migration pendente) a escolha não é gravada; não dá para exigir.
+    if (
+      startMonthBilling.stored &&
+      !startMonthBilling.value &&
+      (componentRows ?? []).some((row) =>
+        isMonthlyFeeStartingMidMonth({ kind: row.tipo, effectiveFrom: row.periodo_inicio ?? version?.vigente_de ?? null }))
+    ) {
+      issues.push({
+        code: "start_month_billing_required",
+        path: "version.startMonthBilling",
+        severity: "error",
+        message: "Escolha como cobrar a mensalidade que começa no meio do mês (etapa Identificação e vigência).",
       });
     }
     if (issues.length) {

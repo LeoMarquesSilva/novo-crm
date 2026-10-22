@@ -55,7 +55,7 @@ export const DEFAULT_DUE_HTML_TEMPLATE = `<div style="font-family:Arial,sans-ser
   <div style="text-align:center;margin:30px 0 15px;">
     <p style="margin-bottom:15px;font-weight:bold;color:${C.dark};">Ações Rápidas</p>
     <a href="https://apps.powerapps.com/play/e/default-5411b7aa-53ee-4f05-bb25-dfca7a522fc2/a/eb58d0a1-df95-4e3d-887c-e35455aea134?tenantId=5411b7aa-53ee-4f05-bb25-dfca7a522fc2&amp;source=portal&amp;screenColor=rgba%2827%2c%2041%2c%2056%2c%201%29" target="_blank" style="display:inline-block;margin:5px;padding:10px 15px;background-color:${C.gold};color:${C.dark};text-decoration:none;border-radius:4px;font-size:14px;font-weight:bold;">Solicitar Abertura de Pasta</a>
-    <a href="https://crm.rdstation.com/app/deals/pipeline" target="_blank" style="display:inline-block;margin:5px;padding:10px 15px;background-color:${C.dark};color:${C.bg};text-decoration:none;border-radius:4px;font-size:14px;font-weight:bold;">RD STATION CRM</a>
+    <a href="{{link_lead}}" target="_blank" style="display:inline-block;margin:5px;padding:10px 15px;background-color:${C.dark};color:${C.bg};text-decoration:none;border-radius:4px;font-size:14px;font-weight:bold;">Abrir lead no CRM</a>
   </div>
   <div style="background-color:${C.dark};color:${C.bg};padding:15px;text-align:center;font-size:12px;">
     <p style="margin:0;">Este e-mail foi gerado automaticamente pelo sistema de Gestão de Leads do Bismarchi | Pires</p>
@@ -107,7 +107,7 @@ export const DEFAULT_SEM_DUE_HTML_TEMPLATE = `<div style="font-family:Arial,sans
     </div>
   </div>
   <div style="text-align:center;margin:30px 0 15px;">
-    <a href="https://crm.rdstation.com/app/deals/pipeline" target="_blank" style="display:inline-block;margin:5px;padding:10px 15px;background-color:${C.gold};color:${C.dark};text-decoration:none;border-radius:4px;font-size:14px;font-weight:bold;">Preencher Campos para Confecção de Proposta</a>
+    <a href="{{link_lead}}" target="_blank" style="display:inline-block;margin:5px;padding:10px 15px;background-color:${C.gold};color:${C.dark};text-decoration:none;border-radius:4px;font-size:14px;font-weight:bold;">Preencher Campos para Confecção de Proposta</a>
   </div>
   <div style="background-color:${C.dark};color:${C.bg};padding:15px;text-align:center;font-size:12px;">
     <p style="margin:0;">Este e-mail foi gerado automaticamente pelo sistema de Gestão de Leads do Bismarchi | Pires</p>

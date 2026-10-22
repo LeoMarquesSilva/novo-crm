@@ -501,10 +501,13 @@ export type Database = {
       }
       contract_review_tasks: {
         Row: {
+          approved_by: string | null
           assigned_to: string | null
           concluido_em: string | null
           created_at: string
           created_by: string | null
+          document_hash: string | null
+          document_version_id: string | null
           id: string
           notificado_em: string | null
           observacao: string | null
@@ -514,10 +517,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved_by?: string | null
           assigned_to?: string | null
           concluido_em?: string | null
           created_at?: string
           created_by?: string | null
+          document_hash?: string | null
+          document_version_id?: string | null
           id?: string
           notificado_em?: string | null
           observacao?: string | null
@@ -527,10 +533,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved_by?: string | null
           assigned_to?: string | null
           concluido_em?: string | null
           created_at?: string
           created_by?: string | null
+          document_hash?: string | null
+          document_version_id?: string | null
           id?: string
           notificado_em?: string | null
           observacao?: string | null
@@ -1379,6 +1388,7 @@ export type Database = {
           ativada_em: string | null
           ativada_por: string | null
           atualizado_por: string | null
+          cobranca_mes_inicio: string | null
           contrato_id: string
           created_at: string
           criado_por: string | null
@@ -1396,6 +1406,7 @@ export type Database = {
           ativada_em?: string | null
           ativada_por?: string | null
           atualizado_por?: string | null
+          cobranca_mes_inicio?: string | null
           contrato_id: string
           created_at?: string
           criado_por?: string | null
@@ -1413,6 +1424,7 @@ export type Database = {
           ativada_em?: string | null
           ativada_por?: string | null
           atualizado_por?: string | null
+          cobranca_mes_inicio?: string | null
           contrato_id?: string
           created_at?: string
           criado_por?: string | null
@@ -3088,6 +3100,7 @@ export type Database = {
           tipo: Database["public"]["Enums"]["demand_type"]
           updated_at: string
           venda_fechada_em: string | null
+          rd_migrado_em: string | null
         }
         Insert: {
           cliente_id?: string | null
@@ -3114,6 +3127,7 @@ export type Database = {
           tipo: Database["public"]["Enums"]["demand_type"]
           updated_at?: string
           venda_fechada_em?: string | null
+          rd_migrado_em?: string | null
         }
         Update: {
           cliente_id?: string | null
@@ -3140,6 +3154,7 @@ export type Database = {
           tipo?: Database["public"]["Enums"]["demand_type"]
           updated_at?: string
           venda_fechada_em?: string | null
+          rd_migrado_em?: string | null
         }
         Relationships: [
           {
@@ -3466,6 +3481,101 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rd_migracoes: {
+        Row: {
+          atualizado_por: string | null
+          concluida_em: string | null
+          concluida_por: string | null
+          convertida_em: string | null
+          convertida_por: string | null
+          created_at: string
+          etapa_destino: Database["public"]["Enums"]["opportunity_stage"] | null
+          etapa_rd: string | null
+          motivo_fora: string | null
+          oportunidade_id: string
+          payload: Json
+          rd_deal_id: string
+          responsavel_app_user_id: string | null
+          schema_version: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          atualizado_por?: string | null
+          concluida_em?: string | null
+          concluida_por?: string | null
+          convertida_em?: string | null
+          convertida_por?: string | null
+          created_at?: string
+          etapa_destino?: Database["public"]["Enums"]["opportunity_stage"] | null
+          etapa_rd?: string | null
+          motivo_fora?: string | null
+          oportunidade_id: string
+          payload?: Json
+          rd_deal_id: string
+          responsavel_app_user_id?: string | null
+          schema_version?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          atualizado_por?: string | null
+          concluida_em?: string | null
+          concluida_por?: string | null
+          convertida_em?: string | null
+          convertida_por?: string | null
+          created_at?: string
+          etapa_destino?: Database["public"]["Enums"]["opportunity_stage"] | null
+          etapa_rd?: string | null
+          motivo_fora?: string | null
+          oportunidade_id?: string
+          payload?: Json
+          rd_deal_id?: string
+          responsavel_app_user_id?: string | null
+          schema_version?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rd_migracoes_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: true
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rd_virada: {
+        Row: {
+          congelado_em: string | null
+          congelado_por: string | null
+          convertido_em: string | null
+          convertido_por: string | null
+          id: number
+          ultimo_resumo: Json
+          updated_at: string
+        }
+        Insert: {
+          congelado_em?: string | null
+          congelado_por?: string | null
+          convertido_em?: string | null
+          convertido_por?: string | null
+          id?: number
+          ultimo_resumo?: Json
+          updated_at?: string
+        }
+        Update: {
+          congelado_em?: string | null
+          congelado_por?: string | null
+          convertido_em?: string | null
+          convertido_por?: string | null
+          id?: number
+          ultimo_resumo?: Json
+          updated_at?: string
+        }
+        Relationships: []
       }
       scope_import_batches: {
         Row: {

@@ -19,6 +19,20 @@ export const CONTRACT_ENGINE_JSON_KEYS = {
   compositionKey: "explicit_composition_key",
 } as const;
 
+/**
+ * Cláusulas extras escolhidas à mão na barra lateral (`clausulas_selecionadas` sem `origin`).
+ * As que têm `origin` são o retrato das cláusulas do motor gravado por `engineToDataJsonPatch`;
+ * elas não são escolha de ninguém e, se a proposta mudar, viram cópia velha no contrato.
+ */
+export function manualSelectedClauses(dataJson: Record<string, unknown>): Json[] {
+  const raw = dataJson.clausulas_selecionadas;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (item): item is Json =>
+      Boolean(item) && typeof item === "object" && !Array.isArray(item) && !("origin" in item),
+  );
+}
+
 export type ContractObjectDraft = {
   objectFieldValues: Record<string, string>;
   objectOverrides: ContractObjectOverride[];
