@@ -1,14 +1,17 @@
 "use client";
 
+import { useState } from "react";
+
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 import {
   basisPointsToMaskedPercent,
+  basisPointsToPercentText,
   centsToMaskedBrl,
-  maskPercentFromInput,
   maskedBrlToCents,
-  maskedPercentToBasisPoints,
+  percentTextToBasisPoints,
+  sanitizePercentTyping,
 } from "./contract-setup-form-helpers";
 import { maskBrlCurrencyFromInput } from "@/lib/crm/proposta-valor-brl-extenso";
 
@@ -60,7 +63,10 @@ type PercentProps = {
   id?: string;
 };
 
-/** Campo percentual com máscara (`15,00%`), valor em basis points. */
+/**
+ * Campo percentual, valor em basis points. Digita-se o próprio percentual (`5` = 5%,
+ * `12,5` = 12,5%); fora do foco mostra `15,00%`.
+ */
 export function ContractPercentInput({
   basisPoints,
   onBasisPointsChange,
@@ -69,21 +75,27 @@ export function ContractPercentInput({
   placeholder = "0,00%",
   id,
 }: PercentProps) {
+  // Texto em edição: "12," ainda não é número, então não dá para derivar do valor salvo.
+  const [draft, setDraft] = useState<string | null>(null);
   return (
     <Input
       id={id}
       disabled={disabled}
-      value={basisPointsToMaskedPercent(basisPoints)}
+      value={draft ?? basisPointsToMaskedPercent(basisPoints)}
+      onFocus={() => setDraft(basisPointsToPercentText(basisPoints))}
+      onBlur={() => setDraft(null)}
       onChange={(event) => {
-        const masked = maskPercentFromInput(event.target.value);
-        onBasisPointsChange(masked ? maskedPercentToBasisPoints(masked) : null);
+        const text = sanitizePercentTyping(event.target.value);
+        if (text === null) return;
+        setDraft(text);
+        onBasisPointsChange(percentTextToBasisPoints(text));
       }}
       className={cn(
         "h-10 border-[#dfe5ee] bg-white font-mono tabular-nums tracking-tight shadow-sm",
         className,
       )}
       placeholder={placeholder}
-      inputMode="numeric"
+      inputMode="decimal"
       autoComplete="off"
       spellCheck={false}
     />

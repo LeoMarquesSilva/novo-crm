@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
+import { authErrorClass, authPrimaryButtonClass } from "@/components/auth/auth-styles";
+import { PasswordInput } from "@/components/auth/password-input";
+import { PasswordRequirements, passwordMeetsRules } from "@/components/auth/password-requirements";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
@@ -17,6 +19,10 @@ export function ChangePasswordForm() {
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    if (!passwordMeetsRules(password)) {
+      setError("A nova senha ainda não atende a todos os requisitos.");
+      return;
+    }
     if (password !== confirm) {
       setError("A confirmação não confere com a nova senha.");
       return;
@@ -49,56 +55,46 @@ export function ChangePasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5" noValidate>
+    <form method="post" onSubmit={onSubmit} className="space-y-5" noValidate>
       <div className="space-y-2">
         <Label htmlFor="password">Nova senha</Label>
-        <div className="relative">
-          <Lock
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={12}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="h-11 pl-10"
-          />
-        </div>
+        <PasswordInput
+          id="password"
+          name="password"
+          autoComplete="new-password"
+          autoFocus
+          required
+          minLength={12}
+          value={password}
+          onValueChange={setPassword}
+          aria-describedby="password-rules"
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="confirm">Confirmar nova senha</Label>
-        <Input
+        <PasswordInput
           id="confirm"
           name="confirm"
-          type="password"
           autoComplete="new-password"
           required
           minLength={12}
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          className="h-11"
+          onValueChange={setConfirm}
         />
       </div>
-      <p className="text-v2-body-sm text-muted-foreground">
-        Mínimo de 12 caracteres, com letra maiúscula, letra minúscula e número. A senha temporária não pode ser reutilizada.
-      </p>
+      <div id="password-rules" className="space-y-2">
+        <PasswordRequirements password={password} confirm={confirm} />
+        <p className="text-v2-caption text-muted-foreground">A senha temporária não pode ser reutilizada.</p>
+      </div>
       {error ? (
-        <p
-          className="rounded-(--radius-v2-md) border border-destructive/35 bg-destructive/10 px-3 py-2 text-v2-body-sm text-destructive"
-          role="alert"
-        >
+        <p className={authErrorClass} role="alert">
           {error}
         </p>
       ) : null}
-      <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
+      <Button type="submit" disabled={loading} size="lg" className={authPrimaryButtonClass}>
         {loading ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             Salvando…
           </>
         ) : (

@@ -7,8 +7,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { motion } from "framer-motion";
 import {
+  ArrowLeft,
+  ArrowRight,
   BadgePercent,
   Building2,
   CalendarClock,
@@ -16,6 +17,7 @@ import {
   BriefcaseBusiness,
   Gavel,
   Handshake,
+  Info,
   Landmark,
   MonitorUp,
   RefreshCcw,
@@ -52,21 +54,24 @@ import { Button } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { TimeInputBr } from "@/components/ui/time-input-br";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { formatDateYmdBr } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import {
+  ChoiceCard,
   ClientPickerField,
-  InputField,
-  ModalHeader,
+  describedBy,
+  FieldError,
+  FormField,
+  IndicatorPickerField,
+  newLeadFieldIds,
   newLeadModalFieldClass,
+  normalizeSearch,
   SectionCard,
-  SelectField,
-  StickyFooter,
   TagSelectable,
   UserPickerField,
+  WizardHeader,
 } from "@/components/crm/new-lead-modal";
 import {
   ClienteDocumentoMatchPanel,
@@ -76,7 +81,8 @@ import type { ClienteCadastroRow } from "@/lib/crm/cliente-cadastro-cp-fields";
 import type { ClienteContratoResumo } from "@/lib/crm/lookup-cliente-by-document";
 
 interface NewDemandFormProps {
-  onSuccess?: () => void;
+  /** `warning`: lead criado, mas algo não foi gravado/enviado (a tela precisa mostrar). */
+  onSuccess?: (result: { oportunidadeId: string | null; warning: string | null }) => void;
   onRequestClose?: () => void;
 }
 
@@ -121,6 +127,14 @@ const INDICATION_TYPE_SELECT_ITEMS: Record<string, string> = Object.fromEntries(
   indicationTypes.map((t) => [t, t]),
 );
 
+const PLATFORM_SELECT_ITEMS: Record<string, string> = Object.fromEntries(
+  leadDigitalPlatforms.map((item) => [item, item]),
+);
+
+const AREA_SELECT_ITEMS: Record<string, string> = Object.fromEntries(
+  leadAreas.map((item) => [item, item]),
+);
+
 const LEAD_TYPE_HELP: Record<(typeof leadTypes)[number], string> = {
   Indicacao:
     "Lead vindo de recomendação direta de cliente, parceiro, consultor ou relacionamento.",
@@ -131,7 +145,25 @@ const LEAD_TYPE_HELP: Record<(typeof leadTypes)[number], string> = {
   "Lead Passiva":
     "Lead que chegou espontaneamente sem prospecção ativa nem campanha dedicada.",
   "Cross Selling":
-    "Lead de expansao sobre cliente ja ativo, aproveitando relacionamento existente para nova oportunidade.",
+    "Lead de expansão sobre cliente já ativo, aproveitando o relacionamento existente para uma nova oportunidade.",
+};
+
+/** Resumo curto de cada origem, mostrado no cartão de escolha. */
+const LEAD_TYPE_HINT: Record<(typeof leadTypes)[number], string> = {
+  Indicacao: "Recomendação de cliente ou parceiro",
+  "Lead Ativa": "Prospectado pelo time comercial",
+  "Lead Digital": "Site, redes sociais ou campanhas",
+  "Lead Passiva": "Chegou de forma espontânea",
+  "Cross Selling": "Nova área para cliente ativo",
+};
+
+/** Título do bloco de dados que cada origem abre logo abaixo da escolha. */
+const LEAD_TYPE_DETAIL_TITLE: Record<(typeof leadTypes)[number], string> = {
+  Indicacao: "Dados da indicação",
+  "Lead Ativa": "Lead ativa",
+  "Lead Digital": "Canal digital",
+  "Lead Passiva": "Lead passiva",
+  "Cross Selling": "Cliente e nova área",
 };
 
 const LEAD_TYPE_ICONS: Record<
@@ -143,42 +175,6 @@ const LEAD_TYPE_ICONS: Record<
   "Lead Digital": MonitorUp,
   "Lead Passiva": BriefcaseBusiness,
   "Cross Selling": RefreshCcw,
-};
-
-const LEAD_TYPE_TONES: Record<
-  (typeof leadTypes)[number],
-  { card: string; icon: string; badge: string; accent: string }
-> = {
-  Indicacao: {
-    card: "border-warning-border bg-warning-bg",
-    icon: "border-warning-border bg-white text-warning-text",
-    badge: "border-warning-border bg-warning-bg text-warning-text",
-    accent: "bg-warning-text",
-  },
-  "Lead Ativa": {
-    card: "border-info-border bg-info-bg",
-    icon: "border-info-border bg-white text-info-text",
-    badge: "border-info-border bg-info-bg text-info-text",
-    accent: "bg-info-text",
-  },
-  "Lead Digital": {
-    card: "border-violet-border bg-violet-bg",
-    icon: "border-violet-border bg-white text-violet-text",
-    badge: "border-violet-border bg-violet-bg text-violet-text",
-    accent: "bg-violet-text",
-  },
-  "Lead Passiva": {
-    card: "border-neutral-200 bg-neutral-50",
-    icon: "border-neutral-200 bg-white text-foreground",
-    badge: "border-neutral-200 bg-neutral-100 text-foreground",
-    accent: "bg-neutral-400",
-  },
-  "Cross Selling": {
-    card: "border-success-border bg-success-bg",
-    icon: "border-success-border bg-white text-success-text",
-    badge: "border-success-border bg-success-bg text-success-text",
-    accent: "bg-success-text",
-  },
 };
 
 const AREA_ICONS: Record<
@@ -197,39 +193,37 @@ const DUE_TIME_SUGGESTIONS = ["09:00", "11:00", "14:00", "16:00"];
 const MEETING_TIME_SUGGESTIONS = ["09:30", "11:30", "14:30", "16:30"];
 const MEETING_LOCATION_PENDING = "A definir";
 const WIZARD_STEPS = [
-  {
-    id: "origem",
-    label: "Origem",
-    description: "Origem do lead e contexto comercial.",
-  },
-  {
-    id: "solicitante",
-    label: "Captador",
-    description: "Quem captou e quem cadastra.",
-  },
-  {
-    id: "empresas",
-    label: "Empresas",
-    description: "Entidades vinculadas ao lead.",
-  },
-  {
-    id: "areas",
-    label: "Áreas",
-    description: "Encaminhamento operacional.",
-  },
-  {
-    id: "agenda",
-    label: "Agenda",
-    description: "Due diligence e reunião.",
-  },
-  {
-    id: "revisao",
-    label: "Revisão",
-    description: "Conferência antes de salvar.",
-  },
+  { id: "origem", label: "Origem" },
+  { id: "solicitante", label: "Captador" },
+  { id: "empresas", label: "Empresas" },
+  { id: "areas", label: "Áreas" },
+  { id: "agenda", label: "Agenda" },
+  { id: "revisao", label: "Revisão" },
 ] as const;
 
 type WizardStepId = (typeof WIZARD_STEPS)[number]["id"];
+
+/** Pendência de uma etapa: a mensagem de validação e o campo a que ela se refere. */
+interface WizardStepIssue {
+  field: string;
+  message: string;
+}
+
+const STEP_HEADING_ID = "new-lead-step-heading";
+
+/** Foca o controle do campo (ou o primeiro focável dentro do bloco) e o traz à vista. */
+function focusNewLeadField(field: string) {
+  const target = document.getElementById(field === "step-heading" ? STEP_HEADING_ID : newLeadFieldIds(field).id);
+  if (!target) return;
+  const focusable = target.matches("input, button, select, textarea, [tabindex]")
+    ? target
+    : target.querySelector<HTMLElement>(
+        'input:not([type="hidden"]):not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+  (focusable ?? target).focus({ preventScroll: true });
+  // Campo com erro vai ao centro para a mensagem logo abaixo dele também ficar visível.
+  (focusable ?? target).scrollIntoView({ block: field === "step-heading" ? "nearest" : "center" });
+}
 
 function initialsFromName(name: string | null | undefined) {
   const parts = name?.trim().split(/\s+/).filter(Boolean) ?? [];
@@ -246,33 +240,29 @@ function CurrentUserSummary({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Cadastro realizado por
-          </p>
-        </div>
-        <div className="rounded-full border border-border bg-white px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+    <div className="min-w-0 space-y-1.5">
+      <div className="flex min-h-5 items-center justify-between gap-2">
+        <p className="text-v2-body-sm font-semibold text-foreground">Cadastro realizado por</p>
+        <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-v2-caption text-muted-foreground">
           Automático
-        </div>
+        </span>
       </div>
 
       {loading ? (
-        <div className="h-14 animate-pulse rounded-(--radius-v2-md) bg-neutral-100" />
+        <div className="h-[58px] animate-pulse rounded-(--radius-v2-md) bg-neutral-100" />
       ) : user ? (
-        <div className="flex items-center gap-3 rounded-(--radius-v2-md) border border-border bg-white px-3 py-3">
-          <Avatar className="h-10 w-10 border border-border">
-            <AvatarImage src={user.avatarUrl} alt={user.name} />
+        <div className="flex items-center gap-3 rounded-(--radius-v2-md) border border-border bg-surface-subtle px-3 py-2.5">
+          <Avatar className="h-9 w-9 border border-border">
+            <AvatarImage src={user.avatarUrl} alt="" />
             <AvatarFallback>{initialsFromName(user.name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-foreground">{user.name}</p>
-            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+            <p className="truncate text-v2-body-sm font-semibold text-foreground">{user.name}</p>
+            <p className="truncate text-v2-caption text-muted-foreground">{user.email}</p>
           </div>
         </div>
       ) : (
-        <div className="rounded-(--radius-v2-md) border border-warning-border bg-warning-bg px-3 py-3 text-sm text-warning-text">
+        <div className="rounded-(--radius-v2-md) border border-warning-border bg-warning-bg px-3 py-2.5 text-v2-body-sm text-warning-text">
           Não foi possível identificar o usuário logado para preencher este campo.
         </div>
       )}
@@ -311,15 +301,39 @@ function ReviewItem({
   label,
   value,
   className,
+  onEdit,
 }: {
   label: string;
   value: string;
   className?: string;
+  /** Volta para a etapa onde o dado é preenchido. */
+  onEdit?: () => void;
 }) {
   return (
-    <div className={cn("rounded-(--radius-v2-xl) border border-border bg-white px-4 py-3", className)}>
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-semibold leading-relaxed text-foreground">{value || "Não informado"}</p>
+    <div
+      className={cn(
+        "flex items-start justify-between gap-3 border-b border-border py-3",
+        className,
+      )}
+    >
+      <div className="min-w-0">
+        <dt className="text-v2-caption text-muted-foreground">{label}</dt>
+        <dd className="mt-0.5 text-v2-body-sm-medium break-words text-foreground">
+          {value || "Não informado"}
+        </dd>
+      </div>
+      {onEdit ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onEdit}
+          aria-label={`Alterar ${label.toLowerCase()}`}
+          className="h-7 shrink-0 px-2 text-xs font-semibold text-primary hover:text-interactive-700"
+        >
+          Alterar
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -362,7 +376,6 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [nomeIndicacaoNew, setNomeIndicacaoNew] = useState("");
   const [nomeIndicacaoColaboradorId, setNomeIndicacaoColaboradorId] = useState("");
   const [tipoIndicacaoOpen, setTipoIndicacaoOpen] = useState(false);
-  const [nomeIndicacaoOpen, setNomeIndicacaoOpen] = useState(false);
   const [companyTypeOpenIndex, setCompanyTypeOpenIndex] = useState<number | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [clienteLookupLoading, setClienteLookupLoading] = useState(false);
@@ -371,6 +384,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [matchedContratos, setMatchedContratos] = useState<ClienteContratoResumo[]>([]);
   const [relacaoContrato, setRelacaoContrato] = useState<RelacaoContratoChoice | null>(null);
   const [contratoBaseId, setContratoBaseId] = useState("");
+  /** Etapa em que o usuário tentou avançar com pendência: a partir daí os erros aparecem nos campos. */
+  const [validatedStep, setValidatedStep] = useState<WizardStepId | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ field: string; nonce: number } | null>(null);
 
   const isCrossSelling = tipoLead === "Cross Selling";
   const isLeadDigital = tipoLead === "Lead Digital";
@@ -426,46 +442,6 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const hasDueDiligencePlan = dueDiligence === "Nao" || Boolean(prazoDue && horarioDue);
   const hasMeetingPlan =
     Boolean(localReuniao.trim()) && (dueDiligence === "Nao" || Boolean(dataReuniao));
-  const journeySteps = useMemo(
-    () => [
-      {
-        label: "Origem qualificada",
-        description: "Origem do lead e contexto comercial definidos.",
-        done: hasLeadOrigin,
-      },
-      {
-        label: "Captador identificado",
-        description: "Captador e responsável pelo cadastro conferidos.",
-        done: Boolean(solicitanteUser && currentUser?.email),
-      },
-      {
-        label: "Empresa mapeada",
-        description: "Razão social/nome e documento preenchidos.",
-        done: hasValidCompanies,
-      },
-      {
-        label: "Áreas selecionadas",
-        description: "Encaminhamento operacional definido.",
-        done: hasAreasSelected,
-      },
-      {
-        label: "Agenda preparada",
-        description: "Due diligence e reunião alinhadas ao fluxo.",
-        done: hasDueDiligencePlan && hasMeetingPlan,
-      },
-    ],
-    [
-      currentUser?.email,
-      hasAreasSelected,
-      hasDueDiligencePlan,
-      hasLeadOrigin,
-      hasMeetingPlan,
-      hasValidCompanies,
-      solicitanteUser,
-    ],
-  );
-  const completedJourneySteps = journeySteps.filter((step) => step.done).length;
-  const journeyCompletion = Math.round((completedJourneySteps / journeySteps.length) * 100);
   const activeWizardStep = WIZARD_STEPS[currentStepIndex] ?? WIZARD_STEPS[0];
   const activeWizardStepId = activeWizardStep.id;
   const isReviewStep = activeWizardStepId === "revisao";
@@ -498,18 +474,13 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       available: index <= currentStepIndex || done || index === currentStepIndex + 1,
     };
   });
-  const nomeIndicacaoItems = useMemo(() => {
-    const items: Record<string, string> = {
-      __new__: "Não encontrei na base (cadastrar novo)",
-    };
-    for (const name of approvedIndicators) {
-      items[name] = name;
-    }
-    return items;
-  }, [approvedIndicators]);
-
-  const nomeIndicacaoSelectValue =
-    nomeIndicacaoMode === "new" ? "__new__" : nomeIndicacaoExisting || null;
+  // Orientação (não bloqueia) para o nome novo: pedir sobrenome e evitar duplicar a base.
+  const nomeIndicacaoNovo = nomeIndicacaoNew.trim();
+  const nomeIndicacaoNovoSemSobrenome =
+    nomeIndicacaoNovo.length > 0 && nomeIndicacaoNovo.split(/\s+/).length < 2;
+  const nomeIndicacaoNovoNaBase = nomeIndicacaoNovo
+    ? approvedIndicators.find((name) => normalizeSearch(name) === normalizeSearch(nomeIndicacaoNovo))
+    : undefined;
 
   useEffect(() => {
     if (!currentUser?.id || solicitanteUserId || systemUsers.length === 0) return;
@@ -617,6 +588,12 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     if (!error && !warning && !success) return;
     feedbackRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [error, warning, success]);
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    const frame = requestAnimationFrame(() => focusNewLeadField(focusRequest.field));
+    return () => cancelAnimationFrame(frame);
+  }, [focusRequest]);
 
   useEffect(() => {
     if (!isCrossSelling) {
@@ -750,9 +727,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setNomeIndicacaoExisting("");
     setNomeIndicacaoNew("");
     setTipoIndicacaoOpen(false);
-    setNomeIndicacaoOpen(false);
     setCompanyTypeOpenIndex(null);
     setCurrentStepIndex(0);
+    setValidatedStep(null);
     setClienteLookupLoading(false);
     setMatchedCliente(null);
     setMatchedBy(null);
@@ -806,42 +783,57 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     });
   }
 
-  function getWizardStepError(stepId: WizardStepId) {
+  function getWizardStepIssue(stepId: WizardStepId): WizardStepIssue | null {
+    const issue = (field: string, message: string): WizardStepIssue => ({ field, message });
+
     if (stepId === "origem") {
-      if (tipoLead === "Indicacao" && !tipoIndicacao) return "Selecione o tipo de indicação.";
+      if (tipoLead === "Indicacao" && !tipoIndicacao) {
+        return issue("tipoIndicacao", "Selecione o tipo de indicação.");
+      }
       if (tipoLead === "Indicacao" && nomeIndicacaoMode === "existing" && !nomeIndicacaoExisting) {
-        return "Selecione o nome da indicação ou cadastre um novo.";
+        return issue("nomeIndicacao", "Selecione o nome da indicação ou cadastre um novo.");
       }
       if (tipoLead === "Indicacao" && nomeIndicacaoMode === "new" && !nomeIndicacaoNew.trim()) {
-        return "Informe o nome da indicação para aprovação.";
+        return issue("nomeIndicacaoNew", "Informe o nome da indicação para aprovação.");
       }
       if (
         tipoLead === "Indicacao" &&
         nomeIndicacaoMode === "colaborador" &&
         !nomeIndicacaoColaboradorId
       ) {
-        return "Selecione o colaborador que fez a indicação.";
+        return issue("colaboradorIndicacao", "Selecione o colaborador que fez a indicação.");
       }
-      if (isLeadDigital && !plataforma) return "Selecione a plataforma.";
+      if (isLeadDigital && !plataforma) return issue("plataforma", "Selecione a plataforma.");
       if (isCrossSelling && !aditivoClientId) {
-        return "Selecione um cliente existente para o fluxo de cross selling.";
+        return issue("crossCliente", "Selecione um cliente existente para o fluxo de cross selling.");
       }
-      if (isCrossSelling && !areaCrossSelling) return "Selecione a área do cross selling.";
+      if (isCrossSelling && !areaCrossSelling) {
+        return issue("crossArea", "Selecione a área do cross selling.");
+      }
       return null;
     }
 
     if (stepId === "solicitante") {
-      if (!currentUser?.email) return "Não foi possível identificar o usuário logado.";
-      if (!solicitanteUser) return "Selecione o captador do lead.";
+      if (!currentUser?.email) {
+        return issue("cadastradoPor", "Não foi possível identificar o usuário logado.");
+      }
+      if (!solicitanteUser) return issue("captador", "Selecione o captador do lead.");
       return null;
     }
 
     if (stepId === "empresas") {
-      if (empresas.some((item) => !item.razao_social.trim() || !item.documento.trim())) {
-        return "Preencha razão social/nome e CPF/CNPJ de todos os itens.";
+      const incompleteIndex = empresas.findIndex(
+        (item) => !item.razao_social.trim() || !item.documento.trim(),
+      );
+      if (incompleteIndex >= 0) {
+        const part = empresas[incompleteIndex]!.razao_social.trim() ? "documento" : "razao";
+        return issue(
+          `empresa-${incompleteIndex}-${part}`,
+          "Preencha razão social/nome e CPF/CNPJ de todos os itens.",
+        );
       }
       if (!isCrossSelling && matchedCliente && !relacaoContrato) {
-        return "Informe se a demanda é contrato novo ou aditivo.";
+        return issue("relacaoContrato", "Informe se a demanda é contrato novo ou aditivo.");
       }
       if (
         !isCrossSelling &&
@@ -849,68 +841,91 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
         relacaoContrato === "aditivo" &&
         !contratoBaseId
       ) {
-        return "Selecione o contrato base para o aditivo.";
+        return issue("relacaoContrato", "Selecione o contrato base para o aditivo.");
       }
       return null;
     }
 
     if (stepId === "areas") {
-      if (!hasAreasSelected) return "Selecione ao menos uma área de análise.";
+      if (!hasAreasSelected) return issue("areas", "Selecione ao menos uma área de análise.");
       return null;
     }
 
     if (stepId === "agenda") {
       if (dueDiligence === "Sim" && (!prazoDue || !horarioDue)) {
-        return "Informe prazo e horário da due diligence.";
+        return issue(prazoDue ? "horarioDue" : "prazoDue", "Informe prazo e horário da due diligence.");
       }
-      if (!localReuniao.trim()) return "Informe o local da reunião ou marque como a definir.";
+      if (!localReuniao.trim()) {
+        return issue("localReuniao", "Informe o local da reunião ou marque como a definir.");
+      }
       if (dueDiligence === "Sim" && !dataReuniao) {
-        return "Informe a data da reunião para due diligence.";
+        return issue("dataReuniao", "Informe a data da reunião para due diligence.");
       }
       if (dueDiligence === "Sim" && reuniaoMinDate && dataReuniao < reuniaoMinDate) {
-        return "Data da reunião deve respeitar ao menos 1 dia útil após o prazo da base.";
+        return issue(
+          "dataReuniao",
+          "Data da reunião deve respeitar ao menos 1 dia útil após o prazo da base.",
+        );
       }
       return null;
     }
 
-    return validateBeforeConfirm() ? null : "Revise as pendências antes de salvar.";
+    return validateBeforeConfirm()
+      ? null
+      : issue("revisao", "Revise as pendências antes de salvar.");
+  }
+
+  function requestFocus(field: string) {
+    setFocusRequest({ field, nonce: Date.now() });
+  }
+
+  /** Mostra os erros da etapa nos próprios campos e leva o foco ao primeiro pendente. */
+  function showStepIssue(stepId: WizardStepId, issue: WizardStepIssue) {
+    setValidatedStep(stepId);
+    setError(null);
+    requestFocus(issue.field);
   }
 
   function selectWizardStep(stepId: WizardStepId) {
     const nextIndex = WIZARD_STEPS.findIndex((step) => step.id === stepId);
-    if (nextIndex < 0) return;
-    if (nextIndex <= currentStepIndex) {
+    if (nextIndex < 0 || nextIndex === currentStepIndex) return;
+    if (nextIndex < currentStepIndex) {
       setCurrentStepIndex(nextIndex);
       setError(null);
+      requestFocus("step-heading");
       return;
     }
 
     for (let index = 0; index < nextIndex; index += 1) {
-      const issue = getWizardStepError(WIZARD_STEPS[index]!.id);
+      const pendingStepId = WIZARD_STEPS[index]!.id;
+      const issue = getWizardStepIssue(pendingStepId);
       if (issue) {
         setCurrentStepIndex(index);
-        setError(issue);
+        showStepIssue(pendingStepId, issue);
         return;
       }
     }
     setCurrentStepIndex(nextIndex);
     setError(null);
+    requestFocus("step-heading");
   }
 
   function goToNextWizardStep() {
-    const issue = getWizardStepError(activeWizardStepId);
+    const issue = getWizardStepIssue(activeWizardStepId);
     if (issue) {
-      setError(issue);
+      showStepIssue(activeWizardStepId, issue);
       setWarning(null);
       return;
     }
     setError(null);
     setCurrentStepIndex((prev) => Math.min(prev + 1, WIZARD_STEPS.length - 1));
+    requestFocus("step-heading");
   }
 
   function goToPreviousWizardStep() {
     setError(null);
     setCurrentStepIndex((prev) => Math.max(prev - 1, 0));
+    requestFocus("step-heading");
   }
 
   function validateBeforeConfirm() {
@@ -1059,7 +1074,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     type ApiResult = {
       ok?: boolean;
       error?: string;
-      warning?: string;
+      warning?: string | null;
+      data?: { oportunidade_id?: string };
       details?: unknown;
     };
 
@@ -1112,7 +1128,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       setSuccess("Novo lead cadastrado com sucesso.");
       resetForm();
       finishSaving();
-      onSuccess?.();
+      onSuccess?.({
+        oportunidadeId: result.data?.oportunidade_id ?? null,
+        warning: result.warning ?? null,
+      });
     } catch {
       setError("Erro de rede ao salvar lead.");
       finishSaving();
@@ -1120,7 +1139,6 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   }
 
   const SelectedLeadIcon = LEAD_TYPE_ICONS[tipoLead];
-  const selectedLeadTone = LEAD_TYPE_TONES[tipoLead];
   const indicationDisplay =
     tipoLead === "Indicacao"
       ? nomeIndicacaoMode === "existing"
@@ -1130,28 +1148,41 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
           : nomeIndicacaoNew.trim() || "Não informado"
       : "Não aplicável";
   const selectedClient = clients.find((client) => client.id === aditivoClientId);
+  const originHasFields = tipoLead === "Indicacao" || isLeadDigital || isCrossSelling;
+  const pendingSteps = wizardStepStatus.filter((step) => step.id !== "revisao" && !step.done);
+
+  /** Erros só aparecem depois de uma tentativa de avançar e somem assim que o campo é corrigido. */
+  const showStepErrors = validatedStep === activeWizardStepId && !isReviewStep;
+  const liveIssue = showStepErrors ? getWizardStepIssue(activeWizardStepId) : null;
+
+  function fieldError(field: string) {
+    return liveIssue?.field === field ? liveIssue.message : null;
+  }
+
+  /** Props do `FormField`: label associado, ajuda e erro do campo. */
+  function formFieldProps(field: string) {
+    const ids = newLeadFieldIds(field);
+    return { htmlFor: ids.id, hintId: ids.hintId, errorId: ids.errorId, error: fieldError(field) };
+  }
+
+  /** Props do controle: id, `aria-invalid` e `aria-describedby` (erro ou ajuda). */
+  function controlProps(field: string, options?: { hasHint?: boolean; invalid?: boolean }) {
+    const ids = newLeadFieldIds(field);
+    const message = fieldError(field);
+    return {
+      id: ids.id,
+      "aria-invalid": Boolean(message) || Boolean(options?.invalid) || undefined,
+      "aria-describedby": describedBy(message ? ids.errorId : options?.hasHint && ids.hintId),
+    };
+  }
 
   return (
-    <motion.div
+    <div
       ref={modalPortalRef}
-      initial={{ opacity: 0, y: 12, scale: 0.985 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.22, ease: "easeOut" }}
-      className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-surface-subtle"
+      className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-white"
     >
-      <ModalHeader
-        badge="NOVO LEAD"
-        title="Abertura comercial guiada"
-        subtitle="Siga a jornada: qualifique a origem, identifique o captador, mapeie empresas, selecione áreas e prepare a agenda."
-        onRequestClose={onRequestClose}
-        pills={[
-          {
-            label: "Etapa",
-            value: `${currentStepIndex + 1}/${WIZARD_STEPS.length}`,
-          },
-          { label: "Origem", value: leadTypeLabel(tipoLead) },
-          { label: "Progresso", value: `${journeyCompletion}%` },
-        ]}
+      <WizardHeader
+        title="Novo lead"
         steps={wizardStepStatus.map((step) => ({
           id: step.id,
           label: step.label,
@@ -1160,12 +1191,13 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
           available: step.available,
         }))}
         onSelectStep={(stepId) => selectWizardStep(stepId as WizardStepId)}
+        onRequestClose={onRequestClose}
+        closeLabel="Fechar cadastro"
       />
 
-      <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
-        <div className="mx-auto max-w-[1040px] pr-0.5">
-          <div className="space-y-5">
-          <div ref={feedbackRef} className="space-y-3 scroll-mt-4">
+      <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[1040px] px-4 py-5 sm:px-6">
+          <div ref={feedbackRef} className="mb-5 space-y-3 scroll-mt-4 empty:hidden">
             {error ? (
               <Alert variant="destructive">
                 <AlertTitle>Erro no cadastro</AlertTitle>
@@ -1186,128 +1218,65 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             ) : null}
           </div>
 
-          <div className="rounded-(--radius-v2-xl) border border-border bg-white px-4 py-4 sm:px-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-interactive-700">
-                  Etapa {currentStepIndex + 1} de {WIZARD_STEPS.length}
-                </p>
-                <h3 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
-                  {activeWizardStep.label}
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">{activeWizardStep.description}</p>
-              </div>
-              <div className="grid grid-cols-6 gap-1 md:min-w-[260px]">
-                {WIZARD_STEPS.map((step, index) => (
-                  <button
-                    key={step.id}
-                    type="button"
-                    onClick={() => selectWizardStep(step.id)}
-                    className={cn(
-                      "h-2 rounded-full transition-colors",
-                      index <= currentStepIndex ? "bg-interactive-600" : "bg-neutral-200",
-                    )}
-                    aria-label={`Ir para etapa ${step.label}`}
+          {activeWizardStepId === "origem" ? (
+            <SectionCard
+              variant="plain"
+              headingId={STEP_HEADING_ID}
+              icon={Handshake}
+              title="Origem do lead"
+              subtitle="Como o lead chegou ao escritório. Cada origem pede dados próprios, logo abaixo da escolha."
+            >
+              <div
+                role="radiogroup"
+                aria-labelledby={STEP_HEADING_ID}
+                className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-5"
+              >
+                {leadTypes.map((item) => (
+                  <ChoiceCard
+                    key={item}
+                    name="new-lead-origem"
+                    value={item}
+                    checked={tipoLead === item}
+                    onChange={() => {
+                      setTipoLead(item);
+                      // Outra origem abre outros campos: não herdar os erros da tentativa anterior.
+                      setValidatedStep(null);
+                      if (item !== "Lead Digital") setPlataforma("");
+                      if (item !== "Cross Selling") setAreaCrossSelling("");
+                    }}
+                    icon={LEAD_TYPE_ICONS[item]}
+                    title={leadTypeLabel(item)}
+                    description={LEAD_TYPE_HINT[item]}
                   />
                 ))}
               </div>
-            </div>
-          </div>
-
-          {activeWizardStepId === "origem" ? (
-          <SectionCard
-            icon={Handshake}
-            title="Origem do Lead"
-            subtitle="Este é o primeiro passo: a escolha aqui abre os campos certos e reduz retrabalho."
-          >
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium text-foreground">Origem do Lead *</Label>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {leadTypes.map((item) => {
-                      const active = tipoLead === item;
-                      const Icon = LEAD_TYPE_ICONS[item];
-                      return (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => {
-                            setTipoLead(item);
-                            if (item !== "Lead Digital") setPlataforma("");
-                            if (item !== "Cross Selling") setAreaCrossSelling("");
-                          }}
-                          className={cn(
-                            "rounded-(--radius-v2-xl) border px-3 py-2.5 text-left transition-colors duration-150",
-                            active
-                              ? "border-interactive-300 bg-interactive-50"
-                              : "border-border bg-white hover:border-border-strong hover:bg-surface-hover",
-                          )}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <span
-                              className={cn(
-                                "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors duration-180",
-                                active
-                                  ? "border-interactive-300 bg-white text-interactive-700"
-                                  : "border-border bg-surface-subtle text-muted-foreground",
-                              )}
-                            >
-                              <Icon className="h-4 w-4" />
-                            </span>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-foreground">{leadTypeLabel(item)}</p>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
 
               <div
-                className={cn(
-                  "relative overflow-hidden rounded-(--radius-v2-xl) border p-4 sm:p-5",
-                  selectedLeadTone.card,
-                )}
+                role="group"
+                aria-labelledby="new-lead-origem-detalhes"
+                className="rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-4 sm:p-5"
               >
-                <div
-                  className={cn(
-                    "absolute inset-x-0 top-0 h-1",
-                    selectedLeadTone.accent,
-                  )}
-                />
-                <div className="mb-4 flex items-start gap-3">
+                <div className="flex items-start gap-3">
                   <span
-                    className={cn(
-                      "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-(--radius-v2-lg) border",
-                      selectedLeadTone.icon,
-                    )}
+                    aria-hidden
+                    className="inline-flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) border border-border bg-white text-interactive-700"
                   >
-                    <SelectedLeadIcon className="h-[18px] w-[18px]" />
+                    <SelectedLeadIcon className="size-4" />
                   </span>
                   <div className="min-w-0">
                     <p
-                      className={cn(
-                        "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]",
-                        selectedLeadTone.badge,
-                      )}
+                      id="new-lead-origem-detalhes"
+                      className="text-v2-body-md font-semibold text-foreground"
                     >
-                      Fluxo selecionado
+                      {LEAD_TYPE_DETAIL_TITLE[tipoLead]}
                     </p>
-                    <p className="mt-2 text-lg font-extrabold tracking-[-0.03em] text-foreground">
-                      {leadTypeLabel(tipoLead)}
-                    </p>
-                    <p className="mt-1 text-sm font-normal leading-relaxed text-muted-foreground">
-                      {LEAD_TYPE_HELP[tipoLead]}
-                    </p>
+                    <p className="text-v2-body-sm text-muted-foreground">{LEAD_TYPE_HELP[tipoLead]}</p>
                   </div>
                 </div>
 
                 {tipoLead === "Indicacao" ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <SelectField label="Tipo de Indicação *" className="min-w-0">
+                  <div key="indicacao" className="mt-4 grid gap-4 md:grid-cols-2">
+                    <FormField label="Tipo de indicação" {...formFieldProps("tipoIndicacao")}>
                       <Select
                         open={tipoIndicacaoOpen}
                         onOpenChange={setTipoIndicacaoOpen}
@@ -1326,6 +1295,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         }}
                       >
                         <SelectTrigger
+                          {...controlProps("tipoIndicacao")}
                           className={cn(
                             newLeadModalFieldClass,
                             "h-10 w-full justify-between font-normal whitespace-normal",
@@ -1345,125 +1315,165 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                           ))}
                         </CrmSelectContent>
                       </Select>
-                    </SelectField>
+                    </FormField>
 
                     {isIndicacaoColaborador ? (
-                      <UserPickerField
-                        label="Colaborador que indicou *"
-                        placeholder={
-                          loadingFormOptions ? "Carregando colaboradores..." : "Selecione o colaborador"
-                        }
-                        options={orqestraiCollaborators}
-                        value={nomeIndicacaoColaboradorId}
-                        onChange={setNomeIndicacaoColaboradorId}
-                        disabled={loadingFormOptions}
-                      />
+                      <FormField
+                        label="Colaborador que indicou"
+                        {...formFieldProps("colaboradorIndicacao")}
+                      >
+                        <UserPickerField
+                          {...controlProps("colaboradorIndicacao")}
+                          placeholder={
+                            loadingFormOptions
+                              ? "Carregando colaboradores..."
+                              : "Selecione o colaborador"
+                          }
+                          options={orqestraiCollaborators}
+                          value={nomeIndicacaoColaboradorId}
+                          onChange={setNomeIndicacaoColaboradorId}
+                          disabled={loadingFormOptions}
+                        />
+                      </FormField>
                     ) : (
-                    <SelectField label="Nome da Indicação *" className="min-w-0">
-                      <Select
-                        open={nomeIndicacaoOpen}
-                        onOpenChange={setNomeIndicacaoOpen}
-                        modal={false}
-                        items={nomeIndicacaoItems}
-                        value={nomeIndicacaoSelectValue}
-                        onValueChange={(value) => {
-                          if (value === "__new__") {
+                      <FormField
+                        label="Nome da indicação"
+                        hint={
+                          approvedIndicators.length > 0
+                            ? `Pesquise entre os ${approvedIndicators.length} nomes aprovados.`
+                            : "Pesquise na base de indicadores aprovados."
+                        }
+                        {...formFieldProps("nomeIndicacao")}
+                      >
+                        <IndicatorPickerField
+                          {...controlProps("nomeIndicacao", { hasHint: true })}
+                          placeholder={
+                            loadingFormOptions ? "Carregando a base..." : "Pesquisar na base aprovada"
+                          }
+                          options={approvedIndicators}
+                          value={nomeIndicacaoExisting}
+                          isNew={nomeIndicacaoMode === "new"}
+                          disabled={loadingFormOptions}
+                          onChange={(name) => {
+                            setNomeIndicacaoMode("existing");
+                            setNomeIndicacaoExisting(name);
+                            setNomeIndicacaoNew("");
+                          }}
+                          onRegisterNew={(typedName) => {
                             setNomeIndicacaoMode("new");
                             setNomeIndicacaoExisting("");
-                            return;
-                          }
-                          setNomeIndicacaoMode("existing");
-                          setNomeIndicacaoExisting(value ?? "");
-                          setNomeIndicacaoNew("");
-                        }}
+                            if (typedName) setNomeIndicacaoNew(typedName);
+                            requestFocus("nomeIndicacaoNew");
+                          }}
+                        />
+                      </FormField>
+                    )}
+
+                    {!isIndicacaoColaborador && nomeIndicacaoMode === "new" ? (
+                      <FormField
+                        label="Nome e sobrenome de quem indicou"
+                        hintTone={
+                          nomeIndicacaoNovoNaBase ? "info" : nomeIndicacaoNovoSemSobrenome ? "warning" : "muted"
+                        }
+                        hint={
+                          nomeIndicacaoNovoNaBase ? (
+                            <>
+                              Este nome já está na base aprovada.{" "}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNomeIndicacaoMode("existing");
+                                  setNomeIndicacaoExisting(nomeIndicacaoNovoNaBase);
+                                  setNomeIndicacaoNew("");
+                                  requestFocus("nomeIndicacao");
+                                }}
+                                className="rounded-sm font-semibold underline underline-offset-2 outline-none hover:text-interactive-700 focus-visible:ring-3 focus-visible:ring-ring/20"
+                              >
+                                Usar “{nomeIndicacaoNovoNaBase}”
+                              </button>
+                            </>
+                          ) : nomeIndicacaoNovoSemSobrenome ? (
+                            "Parece só o primeiro nome. Inclua o sobrenome para não confundir com outra pessoa na aprovação."
+                          ) : (
+                            "Escreva o nome completo, com sobrenome. Ele passa pela aprovação da administração antes de entrar na base."
+                          )
+                        }
+                        className="md:col-span-2"
+                        {...formFieldProps("nomeIndicacaoNew")}
+                      >
+                        <Input
+                          {...controlProps("nomeIndicacaoNew", { hasHint: true })}
+                          value={nomeIndicacaoNew}
+                          onChange={(e) => setNomeIndicacaoNew(e.target.value)}
+                          placeholder="Ex.: Maria Souza Lima"
+                          autoComplete="off"
+                          autoCapitalize="words"
+                          className={newLeadModalFieldClass}
+                        />
+                      </FormField>
+                    ) : null}
+                  </div>
+                ) : isLeadDigital ? (
+                  <div key="digital" className="mt-4 grid gap-4 md:grid-cols-2">
+                    <FormField label="Plataforma" {...formFieldProps("plataforma")}>
+                      <Select
+                        modal={false}
+                        items={PLATFORM_SELECT_ITEMS}
+                        value={plataforma}
+                        onValueChange={(value) => setPlataforma(value ?? "")}
                       >
                         <SelectTrigger
+                          {...controlProps("plataforma")}
                           className={cn(
                             newLeadModalFieldClass,
-                            "h-10 w-full justify-between font-normal whitespace-normal",
+                            "h-10 w-full justify-between font-normal",
                           )}
                         >
                           <CrmSelectValue
-                            value={nomeIndicacaoSelectValue}
-                            labels={nomeIndicacaoItems}
-                            placeholder="Selecione na base aprovada"
+                            value={plataforma}
+                            labels={PLATFORM_SELECT_ITEMS}
+                            placeholder="Selecione"
                           />
                         </SelectTrigger>
-                        <CrmSelectContent inModal className="max-h-[min(280px,50dvh)]">
-                          {approvedIndicators.map((name) => (
-                            <CrmSelectItem key={name} value={name}>
-                              {name}
+                        <CrmSelectContent inModal>
+                          {leadDigitalPlatforms.map((item) => (
+                            <CrmSelectItem key={item} value={item}>
+                              {item}
                             </CrmSelectItem>
                           ))}
-                          <CrmSelectItem value="__new__">
-                            Não encontrei na base (cadastrar novo)
-                          </CrmSelectItem>
                         </CrmSelectContent>
                       </Select>
-
-                      {nomeIndicacaoMode === "new" ? (
-                        <Input
-                          value={nomeIndicacaoNew}
-                          onChange={(e) => setNomeIndicacaoNew(e.target.value)}
-                          placeholder="Nome para enviar à aprovação no admin"
-                          className={cn(newLeadModalFieldClass, "mt-2")}
-                        />
-                      ) : null}
-                    </SelectField>
-                    )}
+                    </FormField>
                   </div>
-                ) : isLeadDigital ? (
-                  <SelectField label="Plataforma *" className="min-w-0">
-                    <Select
-                      modal={false}
-                      items={Object.fromEntries(leadDigitalPlatforms.map((item) => [item, item]))}
-                      value={plataforma}
-                      onValueChange={(value) => setPlataforma(value ?? "")}
-                    >
-                      <SelectTrigger
-                        className={cn(
-                          newLeadModalFieldClass,
-                          "h-10 w-full justify-between font-normal",
-                        )}
-                      >
-                        <CrmSelectValue
-                          value={plataforma}
-                          labels={Object.fromEntries(leadDigitalPlatforms.map((item) => [item, item]))}
-                          placeholder="Selecione"
-                        />
-                      </SelectTrigger>
-                      <CrmSelectContent inModal>
-                        {leadDigitalPlatforms.map((item) => (
-                          <CrmSelectItem key={item} value={item}>
-                            {item}
-                          </CrmSelectItem>
-                        ))}
-                      </CrmSelectContent>
-                    </Select>
-                  </SelectField>
                 ) : isCrossSelling ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <ClientPickerField
-                      label="Cliente existente *"
-                      placeholder={
-                        loadingClients
-                          ? "Carregando clientes..."
-                          : "Selecione um cliente para cross selling"
-                      }
-                      options={clients}
-                      value={aditivoClientId}
-                      onChange={(id) => handleAditivoClientChange(id)}
-                      disabled={loadingClients}
-                      helperText="Ao selecionar um cliente, a razão social e o CNPJ da primeira empresa serão preenchidos automaticamente."
-                    />
-                    <SelectField label="Área *" className="min-w-0">
+                  <div key="cross-selling" className="mt-4 grid gap-4 md:grid-cols-2">
+                    <FormField
+                      label="Cliente existente"
+                      hint="A razão social e o documento da primeira empresa vêm deste cliente."
+                      {...formFieldProps("crossCliente")}
+                    >
+                      <ClientPickerField
+                        {...controlProps("crossCliente", { hasHint: true })}
+                        placeholder={
+                          loadingClients
+                            ? "Carregando clientes..."
+                            : "Selecione um cliente para cross selling"
+                        }
+                        options={clients}
+                        value={aditivoClientId}
+                        onChange={(id) => handleAditivoClientChange(id)}
+                        disabled={loadingClients}
+                      />
+                    </FormField>
+                    <FormField label="Área" {...formFieldProps("crossArea")}>
                       <Select
                         modal={false}
-                        items={Object.fromEntries(leadAreas.map((item) => [item, item]))}
+                        items={AREA_SELECT_ITEMS}
                         value={areaCrossSelling}
                         onValueChange={(value) => setAreaCrossSelling(value ?? "")}
                       >
                         <SelectTrigger
+                          {...controlProps("crossArea")}
                           className={cn(
                             newLeadModalFieldClass,
                             "h-10 w-full justify-between font-normal",
@@ -1471,7 +1481,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         >
                           <CrmSelectValue
                             value={areaCrossSelling}
-                            labels={Object.fromEntries(leadAreas.map((item) => [item, item]))}
+                            labels={AREA_SELECT_ITEMS}
                             placeholder="Selecione"
                           />
                         </SelectTrigger>
@@ -1483,322 +1493,394 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                           ))}
                         </CrmSelectContent>
                       </Select>
-                    </SelectField>
+                    </FormField>
                   </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-border bg-surface-subtle px-3 py-3 text-sm text-muted-foreground">
-                    Sem campos extras para este tipo de lead. Você pode seguir para os
-                    dados do captador.
-                  </div>
-                )}
+                ) : null}
+
+                {!originHasFields ? (
+                  <p className="mt-3 flex items-start gap-2 border-t border-border pt-3 text-v2-body-sm text-muted-foreground">
+                    <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+                    Esta origem não pede dados adicionais. Continue para o captador.
+                  </p>
+                ) : null}
               </div>
-            </div>
-          </SectionCard>
+            </SectionCard>
           ) : null}
 
           {activeWizardStepId === "solicitante" ? (
-          <SectionCard
-            icon={UserCircle2}
-            title="Captador e cadastro"
-            subtitle="Defina quem captou o lead e confira quem está registrando esta jornada."
-          >
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-              <UserPickerField
-                label="Captador *"
-                placeholder={
-                  loadingFormOptions ? "Carregando usuários..." : "Selecione o captador"
-                }
-                options={systemUsers}
-                value={solicitanteUserId}
-                onChange={setSolicitanteUserId}
-                disabled={loadingFormOptions}
-              />
+            <SectionCard
+              variant="plain"
+              headingId={STEP_HEADING_ID}
+              icon={UserCircle2}
+              title="Captador e cadastro"
+              subtitle="Quem captou o lead e quem está registrando este cadastro."
+            >
+              <div className="grid items-start gap-4 md:grid-cols-2">
+                <FormField label="Captador" {...formFieldProps("captador")}>
+                  <UserPickerField
+                    {...controlProps("captador")}
+                    placeholder={
+                      loadingFormOptions ? "Carregando usuários..." : "Selecione o captador"
+                    }
+                    options={systemUsers}
+                    value={solicitanteUserId}
+                    onChange={setSolicitanteUserId}
+                    disabled={loadingFormOptions}
+                  />
+                </FormField>
 
-              <CurrentUserSummary user={currentUser} loading={loadingFormOptions} />
-            </div>
-          </SectionCard>
+                <div id={newLeadFieldIds("cadastradoPor").id} className="space-y-1.5">
+                  <CurrentUserSummary user={currentUser} loading={loadingFormOptions} />
+                  {fieldError("cadastradoPor") ? (
+                    <FieldError id={newLeadFieldIds("cadastradoPor").errorId}>
+                      {fieldError("cadastradoPor")}
+                    </FieldError>
+                  ) : null}
+                </div>
+              </div>
+            </SectionCard>
           ) : null}
 
           {activeWizardStepId === "empresas" ? (
-          <SectionCard
-            icon={Building2}
-            title="Dados da Empresa/Pessoa"
-            subtitle="Informe a entidade principal do lead. Para Cross Selling, esses dados vêm do cliente escolhido no fluxo selecionado."
-          >
-            {isCrossSelling ? (
-              <div className="rounded-(--radius-v2-xl) border border-success-border bg-success-bg px-4 py-3 text-sm text-success-text">
-                Cross Selling usa o cliente selecionado no bloco de origem e preenche a
-                primeira empresa automaticamente.
-              </div>
-            ) : null}
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Decisor</Label>
-              <Input
-                value={decisor}
-                onChange={(event) => setDecisor(event.target.value)}
-                placeholder="Nome do decisor na empresa"
-                className={newLeadModalFieldClass}
-              />
-            </div>
-
-            <div className="space-y-3">
-              {empresas.map((company, index) => (
-                <div
-                  key={`company-${index}`}
-                  className="rounded-(--radius-v2-xl) border border-border bg-white p-4"
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        Empresa/Pessoa {index + 1}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Dados usados na abertura e na ficha do lead.
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={empresas.length === 1}
-                      onClick={() => removeCompany(index)}
-                      title="Remover"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-[1fr_140px_1fr]">
-                    <InputField label="Razão Social / Nome Completo *" className="min-w-0">
-                      <Input
-                        value={company.razao_social}
-                        onChange={(e) =>
-                          updateCompany(index, {
-                            razao_social: e.target.value.toUpperCase(),
-                          })
-                        }
-                        placeholder="NOME DA EMPRESA/PESSOA"
-                        className={newLeadModalFieldClass}
-                      />
-                    </InputField>
-
-                    <SelectField label="Tipo">
-                      <Select
-                        open={companyTypeOpenIndex === index}
-                        onOpenChange={(open) =>
-                          setCompanyTypeOpenIndex(open ? index : null)
-                        }
-                        modal={false}
-                        items={DOCUMENTO_TIPO_ITEMS}
-                        value={company.tipo_documento}
-                        onValueChange={(value) => {
-                          if (value === "CPF" || value === "CNPJ") {
-                            updateCompany(index, { tipo_documento: value }, true);
-                          }
-                        }}
-                      >
-                        <SelectTrigger
-                          className={cn(
-                            newLeadModalFieldClass,
-                            "h-10 w-full min-w-0 justify-between font-normal",
-                          )}
-                        >
-                          <CrmSelectValue
-                            value={company.tipo_documento}
-                            labels={DOCUMENTO_TIPO_ITEMS}
-                          />
-                        </SelectTrigger>
-                        <CrmSelectContent inModal className="max-h-[min(280px,50dvh)]">
-                          <CrmSelectItem value="CPF">CPF</CrmSelectItem>
-                          <CrmSelectItem value="CNPJ">CNPJ</CrmSelectItem>
-                        </CrmSelectContent>
-                      </Select>
-                    </SelectField>
-
-                    <InputField label="CPF ou CNPJ *">
-                      <Input
-                        value={company.documento}
-                        onChange={(e) =>
-                          updateCompany(index, {
-                            documento: maskDocument(e.target.value, company.tipo_documento),
-                          })
-                        }
-                        placeholder={
-                          company.tipo_documento === "CPF"
-                            ? "000.000.000-00"
-                            : "00.000.000/0000-00"
-                        }
-                        className={newLeadModalFieldClass}
-                      />
-                    </InputField>
-                  </div>
-
-                  {index === 0 && !isCrossSelling ? (
-                    <ClienteDocumentoMatchPanel
-                      className="mt-3"
-                      loading={clienteLookupLoading}
-                      cliente={matchedCliente}
-                      matchedBy={matchedBy}
-                      contratos={matchedContratos}
-                      relacaoContrato={relacaoContrato}
-                      onRelacaoChange={(value) => {
-                        setRelacaoContrato(value);
-                        if (value !== "aditivo") setContratoBaseId("");
-                      }}
-                      contratoBaseId={contratoBaseId}
-                      onContratoBaseChange={setContratoBaseId}
-                    />
-                  ) : null}
-                </div>
-              ))}
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addCompany}
-              className="border-border bg-white text-foreground hover:bg-surface-hover"
+            <SectionCard
+              variant="plain"
+              headingId={STEP_HEADING_ID}
+              icon={Building2}
+              title="Empresas e pessoas"
+              subtitle="Quem é o cliente em potencial. O documento da primeira empresa é consultado na base de clientes."
             >
-              <Plus className="mr-1.5 h-4 w-4" />
-              Adicionar Empresa/Pessoa
-            </Button>
-          </SectionCard>
+              {isCrossSelling ? (
+                <p className="flex items-start gap-2 rounded-(--radius-v2-lg) border border-info-border bg-info-bg px-3 py-2.5 text-v2-body-sm text-info-text">
+                  <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  Cross Selling usa o cliente escolhido na origem e preenche a primeira empresa
+                  automaticamente.
+                </p>
+              ) : null}
+
+              <FormField
+                label="Decisor"
+                optional
+                className="md:max-w-md"
+                {...formFieldProps("decisor")}
+              >
+                <Input
+                  {...controlProps("decisor")}
+                  value={decisor}
+                  onChange={(event) => setDecisor(event.target.value)}
+                  placeholder="Nome do decisor na empresa"
+                  className={newLeadModalFieldClass}
+                />
+              </FormField>
+
+              <div className="space-y-3">
+                {empresas.map((company, index) => {
+                  const razaoIds = newLeadFieldIds(`empresa-${index}-razao`);
+                  const tipoIds = newLeadFieldIds(`empresa-${index}-tipo`);
+                  const documentoIds = newLeadFieldIds(`empresa-${index}-documento`);
+                  const razaoError =
+                    showStepErrors && !company.razao_social.trim()
+                      ? "Informe a razão social ou o nome."
+                      : null;
+                  const documentoError =
+                    showStepErrors && !company.documento.trim() ? "Informe o CPF ou o CNPJ." : null;
+
+                  return (
+                    <div
+                      key={`company-${index}`}
+                      className="rounded-(--radius-v2-xl) border border-border p-4"
+                    >
+                      <div className="mb-3 flex min-h-8 items-center justify-between gap-3">
+                        <p className="text-v2-body-sm font-semibold text-foreground">
+                          Empresa/Pessoa {index + 1}
+                        </p>
+                        {empresas.length > 1 ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => removeCompany(index)}
+                            aria-label={`Remover empresa/pessoa ${index + 1}`}
+                            className="text-muted-foreground hover:text-danger-text"
+                          >
+                            <Trash2 aria-hidden />
+                          </Button>
+                        ) : null}
+                      </div>
+
+                      <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-4 md:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)]">
+                        <FormField
+                          label="Razão social / nome completo"
+                          htmlFor={razaoIds.id}
+                          errorId={razaoIds.errorId}
+                          error={razaoError}
+                          className="col-span-2 md:col-span-1"
+                        >
+                          <Input
+                            id={razaoIds.id}
+                            aria-invalid={Boolean(razaoError) || undefined}
+                            aria-describedby={describedBy(razaoError && razaoIds.errorId)}
+                            value={company.razao_social}
+                            onChange={(e) =>
+                              updateCompany(index, {
+                                razao_social: e.target.value.toUpperCase(),
+                              })
+                            }
+                            placeholder="NOME DA EMPRESA/PESSOA"
+                            className={newLeadModalFieldClass}
+                          />
+                        </FormField>
+
+                        <FormField label="Tipo" htmlFor={tipoIds.id}>
+                          <Select
+                            open={companyTypeOpenIndex === index}
+                            onOpenChange={(open) =>
+                              setCompanyTypeOpenIndex(open ? index : null)
+                            }
+                            modal={false}
+                            items={DOCUMENTO_TIPO_ITEMS}
+                            value={company.tipo_documento}
+                            onValueChange={(value) => {
+                              if (value === "CPF" || value === "CNPJ") {
+                                updateCompany(index, { tipo_documento: value }, true);
+                              }
+                            }}
+                          >
+                            <SelectTrigger
+                              id={tipoIds.id}
+                              className={cn(
+                                newLeadModalFieldClass,
+                                "h-10 w-full min-w-0 justify-between font-normal",
+                              )}
+                            >
+                              <CrmSelectValue
+                                value={company.tipo_documento}
+                                labels={DOCUMENTO_TIPO_ITEMS}
+                              />
+                            </SelectTrigger>
+                            <CrmSelectContent inModal className="max-h-[min(280px,50dvh)]">
+                              <CrmSelectItem value="CPF">CPF</CrmSelectItem>
+                              <CrmSelectItem value="CNPJ">CNPJ</CrmSelectItem>
+                            </CrmSelectContent>
+                          </Select>
+                        </FormField>
+
+                        <FormField
+                          label={company.tipo_documento === "CPF" ? "CPF" : "CNPJ"}
+                          htmlFor={documentoIds.id}
+                          errorId={documentoIds.errorId}
+                          error={documentoError}
+                        >
+                          <Input
+                            id={documentoIds.id}
+                            inputMode="numeric"
+                            aria-invalid={Boolean(documentoError) || undefined}
+                            aria-describedby={describedBy(documentoError && documentoIds.errorId)}
+                            value={company.documento}
+                            onChange={(e) =>
+                              updateCompany(index, {
+                                documento: maskDocument(e.target.value, company.tipo_documento),
+                              })
+                            }
+                            placeholder={
+                              company.tipo_documento === "CPF"
+                                ? "000.000.000-00"
+                                : "00.000.000/0000-00"
+                            }
+                            className={cn(newLeadModalFieldClass, "tabular-nums")}
+                          />
+                        </FormField>
+                      </div>
+
+                      {index === 0 && !isCrossSelling ? (
+                        <div id={newLeadFieldIds("relacaoContrato").id}>
+                          <ClienteDocumentoMatchPanel
+                            className="mt-3"
+                            loading={clienteLookupLoading}
+                            cliente={matchedCliente}
+                            matchedBy={matchedBy}
+                            contratos={matchedContratos}
+                            relacaoContrato={relacaoContrato}
+                            onRelacaoChange={(value) => {
+                              setRelacaoContrato(value);
+                              if (value !== "aditivo") setContratoBaseId("");
+                            }}
+                            contratoBaseId={contratoBaseId}
+                            onContratoBaseChange={setContratoBaseId}
+                          />
+                          {fieldError("relacaoContrato") ? (
+                            <div className="mt-1.5">
+                              <FieldError id={newLeadFieldIds("relacaoContrato").errorId}>
+                                {fieldError("relacaoContrato")}
+                              </FieldError>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Button type="button" variant="outline" size="sm" onClick={addCompany}>
+                <Plus aria-hidden />
+                Adicionar empresa/pessoa
+              </Button>
+            </SectionCard>
           ) : null}
 
           {activeWizardStepId === "areas" ? (
-          <SectionCard
-            icon={SearchCheck}
-            title="Áreas de análise"
-            subtitle="Selecione ao menos uma área para encaminhamento e visão operacional."
-          >
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {leadAreas.map((area) => {
-                const Icon = AREA_ICONS[area] ?? Scale;
-                const checked = areasAnalise.includes(area);
-                return (
-                  <TagSelectable
-                    key={area}
-                    checked={checked}
-                    onToggle={() => toggleArea(area)}
-                    icon={Icon}
-                  >
-                    {area}
-                  </TagSelectable>
-                );
-              })}
-            </div>
-            {!hasAreasSelected ? (
-              <p className="text-xs text-red-500">Selecione ao menos uma área.</p>
-            ) : null}
-          </SectionCard>
+            <SectionCard
+              variant="plain"
+              headingId={STEP_HEADING_ID}
+              icon={SearchCheck}
+              title="Áreas de análise"
+              subtitle="Selecione uma ou mais áreas para o encaminhamento do lead."
+            >
+              <div
+                id={newLeadFieldIds("areas").id}
+                role="group"
+                aria-labelledby={STEP_HEADING_ID}
+                aria-describedby={describedBy(
+                  fieldError("areas") && newLeadFieldIds("areas").errorId,
+                )}
+                className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+              >
+                {leadAreas.map((area) => {
+                  const Icon = AREA_ICONS[area] ?? Scale;
+                  const checked = areasAnalise.includes(area);
+                  return (
+                    <TagSelectable
+                      key={area}
+                      checked={checked}
+                      onToggle={() => toggleArea(area)}
+                      icon={Icon}
+                    >
+                      {area}
+                    </TagSelectable>
+                  );
+                })}
+              </div>
+              {fieldError("areas") ? (
+                <FieldError id={newLeadFieldIds("areas").errorId}>{fieldError("areas")}</FieldError>
+              ) : (
+                <p className="text-v2-caption text-muted-foreground tabular-nums">
+                  {areasAnalise.length === 0
+                    ? "Nenhuma área selecionada."
+                    : areasAnalise.length === 1
+                      ? "1 área selecionada."
+                      : `${areasAnalise.length} áreas selecionadas.`}
+                </p>
+              )}
+            </SectionCard>
           ) : null}
 
           {activeWizardStepId === "agenda" ? (
-          <div className="grid gap-4 xl:grid-cols-2">
-            <SectionCard
-              icon={ShieldCheck}
-              title="Due Diligence"
-              subtitle="Defina obrigatoriedade, prazo e horário de entrega."
-            >
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium text-foreground">
-                    Haverá Due Diligence? *
-                  </Label>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <SectionCard
+                variant="plain"
+                headingId={STEP_HEADING_ID}
+                icon={ShieldCheck}
+                title="Due diligence"
+                subtitle="Se haverá levantamento da base e quando ele deve ser entregue."
+              >
+                <fieldset>
+                  <legend className="mb-1.5 text-v2-body-sm font-semibold text-foreground">
+                    Haverá due diligence?
+                  </legend>
                   <div className="flex flex-wrap gap-2">
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-lg) border border-border bg-white px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:border-border-strong has-[:checked]:border-interactive-300 has-[:checked]:bg-interactive-50">
-                      <input
-                        type="radio"
-                        name="due_diligence"
-                        checked={dueDiligence === "Sim"}
-                        onChange={() => setDueDiligence("Sim")}
-                        className="size-4 accent-interactive-600"
-                      />
-                      Sim
-                    </label>
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-lg) border border-border bg-white px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:border-border-strong has-[:checked]:border-interactive-300 has-[:checked]:bg-interactive-50">
-                      <input
-                        type="radio"
-                        name="due_diligence"
-                        checked={dueDiligence === "Nao"}
-                        onChange={() => setDueDiligence("Nao")}
-                        className="size-4 accent-interactive-600"
-                      />
-                      Não
-                    </label>
+                    {(["Sim", "Nao"] as const).map((option) => (
+                      <label
+                        key={option}
+                        className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-(--radius-v2-lg) border border-border bg-white px-4 text-v2-body-md font-medium text-foreground transition-colors duration-150 hover:border-border-strong has-[:checked]:border-primary has-[:checked]:bg-interactive-50 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/20"
+                      >
+                        <input
+                          type="radio"
+                          name="due_diligence"
+                          checked={dueDiligence === option}
+                          onChange={() => setDueDiligence(option)}
+                          className="size-4 accent-interactive-600 outline-none"
+                        />
+                        {option === "Sim" ? "Sim" : "Não"}
+                      </label>
+                    ))}
                   </div>
-                </div>
+                </fieldset>
 
                 {dueDiligence === "Sim" ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium text-foreground">
-                        Prazo de entrega do levantamento da base *
-                      </Label>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField label="Prazo de entrega da base" {...formFieldProps("prazoDue")}>
                       <DateInputBr
+                        {...controlProps("prazoDue", { invalid: showStepErrors && !prazoDue })}
                         value={prazoDue}
                         onChange={setPrazoDue}
                         className={newLeadModalFieldClass}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium text-foreground">
-                        Horário de entrega do levantamento da base *
-                      </Label>
+                    </FormField>
+                    <FormField label="Horário de entrega da base" {...formFieldProps("horarioDue")}>
                       <TimeInputBr
+                        {...controlProps("horarioDue", { invalid: showStepErrors && !horarioDue })}
                         value={horarioDue}
                         onChange={setHorarioDue}
                         step={300}
                         suggestions={DUE_TIME_SUGGESTIONS}
                         className={cn(newLeadModalFieldClass, "font-mono")}
                       />
-                    </div>
+                    </FormField>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-border bg-surface-subtle px-3 py-3 text-sm text-muted-foreground">
-                    Sem due diligence, o lead pode seguir para reunião diretamente.
-                  </div>
+                  <p className="flex items-start gap-2 text-v2-body-sm text-muted-foreground">
+                    <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+                    Sem due diligence, o lead segue direto para a reunião.
+                  </p>
                 )}
-              </div>
-            </SectionCard>
+              </SectionCard>
 
-            <SectionCard
-              icon={CalendarClock}
-              title="Reunião"
-              subtitle="Quando houver due diligence, a data deve respeitar o próximo dia útil."
-            >
-              <div className="grid gap-3">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label className="text-xs font-medium text-foreground">
-                      Local da Reunião *
-                    </Label>
+              <SectionCard
+                variant="plain"
+                icon={CalendarClock}
+                title="Reunião"
+                subtitle="Com due diligence, a reunião precisa ser ao menos 1 dia útil depois do prazo da base."
+                className="border-t border-border pt-6 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6"
+              >
+                <FormField
+                  label="Local da reunião"
+                  {...formFieldProps("localReuniao")}
+                  labelAction={
                     <Button
                       type="button"
-                      size="sm"
-                      variant="outline"
+                      size="xs"
+                      variant="ghost"
                       onClick={() => setLocalReuniao(MEETING_LOCATION_PENDING)}
-                      className="h-7 border-border bg-white px-2.5 text-[11px] font-medium text-muted-foreground shadow-none hover:border-interactive-300 hover:bg-interactive-50 hover:text-interactive-700"
+                      className="text-primary hover:text-interactive-700"
                     >
                       Ainda sem local
                     </Button>
-                  </div>
+                  }
+                >
                   <Input
+                    {...controlProps("localReuniao")}
                     value={localReuniao}
                     onChange={(e) => setLocalReuniao(e.target.value)}
                     placeholder={`Ex.: Matriz São Paulo ou ${MEETING_LOCATION_PENDING}`}
                     className={newLeadModalFieldClass}
                   />
-                </div>
+                </FormField>
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium text-foreground">
-                      Data da Reunião {dueDiligence === "Sim" ? "*" : ""}
-                    </Label>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    label="Data da reunião"
+                    optional={dueDiligence !== "Sim"}
+                    hint={
+                      dueDiligence === "Sim" && reuniaoMinDate
+                        ? `Mínimo permitido: ${formatDateYmdBr(reuniaoMinDate)}`
+                        : undefined
+                    }
+                    {...formFieldProps("dataReuniao")}
+                  >
                     <DateInputBr
+                      {...controlProps("dataReuniao", {
+                        hasHint: dueDiligence === "Sim" && Boolean(reuniaoMinDate),
+                      })}
                       value={dataReuniao}
                       onChange={setDataReuniao}
                       minYmd={
@@ -1806,65 +1888,105 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       }
                       className={newLeadModalFieldClass}
                     />
-                    {dueDiligence === "Sim" && reuniaoMinDate ? (
-                      <p className="text-[11px] text-muted-foreground">
-                        Mínimo permitido: {formatDateYmdBr(reuniaoMinDate)}
-                      </p>
-                    ) : null}
-                  </div>
+                  </FormField>
 
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium text-foreground">
-                      Horário da Reunião
-                    </Label>
+                  <FormField label="Horário da reunião" optional {...formFieldProps("horarioReuniao")}>
                     <TimeInputBr
+                      {...controlProps("horarioReuniao")}
                       value={horarioReuniao}
                       onChange={setHorarioReuniao}
                       step={300}
                       suggestions={MEETING_TIME_SUGGESTIONS}
                       className={cn(newLeadModalFieldClass, "font-mono")}
                     />
-                  </div>
+                  </FormField>
                 </div>
-              </div>
-            </SectionCard>
-          </div>
+              </SectionCard>
+            </div>
           ) : null}
 
           {activeWizardStepId === "revisao" ? (
             <SectionCard
+              variant="plain"
+              headingId={STEP_HEADING_ID}
               icon={CheckCircle2}
-              title="Revisão final"
-              subtitle="Confira o resumo antes de criar o lead e disparar os próximos fluxos."
+              title="Revisão"
+              subtitle="Confira os dados antes de criar o lead. Use Alterar para voltar à etapa."
             >
-              <div className="grid gap-3 md:grid-cols-2">
-                <ReviewItem label="Origem do Lead" value={leadTypeLabel(tipoLead)} />
+              {pendingSteps.length > 0 ? (
+                <div className="rounded-(--radius-v2-lg) border border-warning-border bg-warning-bg px-3 py-2.5 text-v2-body-sm text-warning-text">
+                  <p className="font-semibold">Ainda há etapas pendentes</p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                    Complete antes de criar o lead:
+                    {pendingSteps.map((step, index) => (
+                      <span key={step.id}>
+                        <button
+                          type="button"
+                          onClick={() => selectWizardStep(step.id)}
+                          className="rounded-sm font-semibold underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/20"
+                        >
+                          {step.label}
+                        </button>
+                        {index < pendingSteps.length - 1 ? "," : ""}
+                      </span>
+                    ))}
+                  </p>
+                </div>
+              ) : canSubmitLead ? (
+                <p className="flex items-center gap-2 rounded-(--radius-v2-lg) border border-success-border bg-success-bg px-3 py-2.5 text-v2-body-sm text-success-text">
+                  <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+                  Tudo pronto para criar o lead com o seu usuário.
+                </p>
+              ) : null}
+
+              <dl className="grid gap-x-8 md:grid-cols-2">
                 <ReviewItem
-                  label="Origem"
+                  label="Origem do lead"
+                  value={leadTypeLabel(tipoLead)}
+                  onEdit={() => selectWizardStep("origem")}
+                />
+                <ReviewItem
+                  label="Dados da origem"
                   value={
                     tipoLead === "Indicacao"
                       ? `${tipoIndicacao || "Sem tipo"} · ${indicationDisplay}`
                       : isLeadDigital
                         ? plataforma || "Plataforma não selecionada"
                         : isCrossSelling
-                        ? `${selectedClient?.razao_social ?? "Cliente não selecionado"} · ${areaCrossSelling || "Área não selecionada"}`
-                        : "Sem campos extras"
+                          ? `${selectedClient?.razao_social ?? "Cliente não selecionado"} · ${areaCrossSelling || "Área não selecionada"}`
+                          : "Sem dados adicionais"
                   }
+                  onEdit={() => selectWizardStep("origem")}
                 />
-                <ReviewItem label="Captador" value={solicitanteUser?.name ?? "Não selecionado"} />
-                <ReviewItem label="Decisor" value={decisor.trim() || "Não informado"} />
-                <ReviewItem label="Cadastrado por" value={currentUser?.name ?? currentUser?.email ?? "Não identificado"} />
+                <ReviewItem
+                  label="Captador"
+                  value={solicitanteUser?.name ?? "Não selecionado"}
+                  onEdit={() => selectWizardStep("solicitante")}
+                />
+                <ReviewItem
+                  label="Cadastrado por"
+                  value={currentUser?.name ?? currentUser?.email ?? "Não identificado"}
+                />
                 <ReviewItem
                   label="Empresas/Pessoas"
                   value={empresas
-                    .map((empresa) => `${empresa.razao_social || "Sem nome"} (${empresa.documento || "sem documento"})`)
+                    .map(
+                      (empresa) =>
+                        `${empresa.razao_social || "Sem nome"} (${empresa.documento || "sem documento"})`,
+                    )
                     .join(" · ")}
+                  onEdit={() => selectWizardStep("empresas")}
                   className="md:col-span-2"
+                />
+                <ReviewItem
+                  label="Decisor"
+                  value={decisor.trim() || "Não informado"}
+                  onEdit={() => selectWizardStep("empresas")}
                 />
                 <ReviewItem
                   label="Áreas"
                   value={areasAnalise.length ? areasAnalise.join(", ") : "Nenhuma área selecionada"}
-                  className="md:col-span-2"
+                  onEdit={() => selectWizardStep("areas")}
                 />
                 <ReviewItem
                   label="Due diligence"
@@ -1873,6 +1995,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       ? `Sim · ${prazoDue ? formatDateYmdBr(prazoDue) : "sem prazo"} ${horarioDue || ""}`
                       : "Não"
                   }
+                  onEdit={() => selectWizardStep("agenda")}
                 />
                 <ReviewItem
                   label="Reunião"
@@ -1883,87 +2006,67 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                   ]
                     .filter(Boolean)
                     .join(" · ")}
+                  onEdit={() => selectWizardStep("agenda")}
                 />
-              </div>
-
-              {!canSubmitLead ? (
-                <div className="rounded-(--radius-v2-xl) border border-warning-border bg-warning-bg px-4 py-3 text-sm text-warning-text">
-                  Ainda há pendências em etapas anteriores. Use Voltar ou clique na etapa marcada para corrigir antes de salvar.
-                </div>
-              ) : (
-                <div className="rounded-(--radius-v2-xl) border border-success-border bg-success-bg px-4 py-3 text-sm text-success-text">
-                  Tudo pronto para abrir o lead com seu usuário autenticado.
-                </div>
-              )}
+              </dl>
             </SectionCard>
           ) : null}
-          </div>
         </div>
       </div>
 
-      <StickyFooter
-        left={
-          <div className="space-y-0.5">
-            <p className="text-sm font-semibold text-foreground">
-              {isReviewStep
-                ? canSubmitLead
-                  ? "Pronto para abrir o lead"
-                  : "Revise as pendências antes de enviar"
-                : `Etapa atual: ${activeWizardStep.label}`}
-            </p>
-            <p className="text-xs font-normal text-muted-foreground">
-              {completedJourneySteps}/{journeySteps.length} etapas concluídas. Avance uma tela por vez para manter o cadastro organizado.
-            </p>
-          </div>
-        }
-        actions={
-          <>
-            {onRequestClose ? (
+      <footer className="shrink-0 border-t border-border bg-white px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-2">
+          {onRequestClose ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="hidden sm:inline-flex"
+              disabled={isSaving}
+              onClick={onRequestClose}
+            >
+              Cancelar
+            </Button>
+          ) : null}
+          <div className="ml-auto flex w-full items-center gap-2 sm:w-auto">
+            {currentStepIndex > 0 ? (
               <Button
                 type="button"
                 variant="outline"
-                className="w-full sm:w-auto"
+                className="flex-1 sm:flex-none"
                 disabled={isSaving}
-                onClick={onRequestClose}
+                onClick={goToPreviousWizardStep}
               >
-                Cancelar
+                <ArrowLeft data-icon="inline-start" aria-hidden />
+                Voltar
               </Button>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full sm:w-auto"
-              disabled={isSaving || currentStepIndex === 0}
-              onClick={goToPreviousWizardStep}
-            >
-              Voltar
-            </Button>
             {!isReviewStep ? (
               <Button
                 type="button"
-                className="w-full sm:w-auto"
+                className="flex-1 sm:flex-none"
                 disabled={isSaving}
                 onClick={goToNextWizardStep}
               >
                 Continuar
+                <ArrowRight data-icon="inline-end" aria-hidden />
               </Button>
             ) : (
-            <Button
-              type="button"
-              className="w-full sm:w-auto"
-              disabled={!canSubmitLead}
-              onClick={() => {
-                if (validateBeforeConfirm()) {
-                  setConfirmOpen(true);
-                }
-              }}
-            >
-              {isSaving ? "Salvando..." : canSubmitLead ? "Salvar novo lead" : "Complete os dados"}
-            </Button>
+              <Button
+                type="button"
+                className="flex-1 sm:flex-none"
+                disabled={!canSubmitLead}
+                onClick={() => {
+                  if (validateBeforeConfirm()) {
+                    setConfirmOpen(true);
+                  }
+                }}
+              >
+                {isSaving ? "Salvando..." : canSubmitLead ? "Criar lead" : "Complete os dados"}
+              </Button>
             )}
-          </>
-        }
-      />
+          </div>
+        </div>
+      </footer>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent className="max-w-md">
@@ -1996,6 +2099,6 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </motion.div>
+    </div>
   );
 }

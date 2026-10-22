@@ -1,14 +1,16 @@
+import { investmentItemHasValue } from "./payment";
 import { extractProposalScopes } from "./proposal-snapshot";
-import type { ProposalContractSnapshot } from "./proposal-snapshot";
+import type { ProposalContractSnapshot, ScopeSubtypeLabels } from "./proposal-snapshot";
 import type { CanonicalContractData, ProposalContractAlignment } from "./types";
 
 export function validateProposalContractAlignment(params: {
   snapshot: ProposalContractSnapshot;
   contract: CanonicalContractData;
+  scopeLabels?: ScopeSubtypeLabels;
 }): ProposalContractAlignment {
   const blockers: ProposalContractAlignment["blockers"] = [];
   const warnings: ProposalContractAlignment["warnings"] = [];
-  const proposalScopes = extractProposalScopes(params.snapshot.escopoJson);
+  const proposalScopes = extractProposalScopes(params.snapshot.escopoJson, params.scopeLabels);
   const contractIds = new Set(params.contract.scopes.map((s) => s.subtypeId));
   const proposalIds = new Set(proposalScopes.map((s) => s.subtypeId));
 
@@ -101,7 +103,7 @@ export function validateProposalContractAlignment(params: {
     }
   }
 
-  if (params.contract.investment.totalAmount == null) {
+  if (!params.contract.investment.items.some(investmentItemHasValue)) {
     warnings.push({
       code: "investment_missing",
       message: "O investimento estruturado da proposta não pôde ser resolvido.",

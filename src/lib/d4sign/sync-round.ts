@@ -8,7 +8,8 @@
  * pelo layout do CRM quando a última rodada tem mais de
  * `SYNC_ROUND_MIN_INTERVAL_MS` — o agendamento do GitHub atrasa ou pula
  * execuções. A marca da última rodada fica em `d4sign_api_usage`
- * (`cursor/sync-round`, `http_status` nulo, fora da cota).
+ * (`cursor/sync-round`, `http_status` nulo, fora da cota); com uma rodada
+ * marcada há menos de `SYNC_ROUND_MIN_INTERVAL_MS`, a nova não roda (`claimRound`).
  */
 import { getD4SignQuotaStatus } from "@/lib/d4sign/api-usage";
 import { getD4SignEnv } from "@/lib/d4sign/env";
@@ -60,19 +61,54 @@ async function lastRoundAt(): Promise<number | null> {
   return data?.created_at ? new Date(data.created_at).getTime() : null;
 }
 
-async function markRound(trigger: string): Promise<void> {
+/**
+ * Grava a marca da rodada e confere se ela é a primeira do intervalo. Ler a última
+ * marca e depois gravar não é atômico: páginas abertas juntas viam a rodada velha e
+ * rodavam todas (46 de 228 numa semana começaram a menos de 5s da anterior). Cada
+ * uma grava a sua; só segue a de menor `id` no intervalo, e as outras apagam a própria.
+ */
+async function claimRound(trigger: string): Promise<boolean> {
   const supabase = createSupabaseAdminClient();
-  await supabase.from("d4sign_api_usage").insert({
-    endpoint: SYNC_ROUND_ENDPOINT,
-    method: "GET",
-    source: trigger,
-    http_status: null,
-  });
+  const { data: mine, error } = await supabase
+    .from("d4sign_api_usage")
+    .insert({
+      endpoint: SYNC_ROUND_ENDPOINT,
+      method: "GET",
+      source: trigger,
+      http_status: null,
+    })
+    .select("id, created_at")
+    .single();
+  if (error) throw error;
+
+  const since = new Date(new Date(mine.created_at).getTime() - SYNC_ROUND_MIN_INTERVAL_MS);
+  const { data: first, error: firstError } = await supabase
+    .from("d4sign_api_usage")
+    .select("id")
+    .eq("endpoint", SYNC_ROUND_ENDPOINT)
+    .gt("created_at", since.toISOString())
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (firstError) throw firstError;
+  if (first?.id === mine.id) return true;
+
+  await supabase.from("d4sign_api_usage").delete().eq("id", mine.id);
+  return false;
 }
 
 export async function runD4SignSyncRound(trigger: string) {
   const deadline = Date.now() + SYNC_ROUND_BUDGET_MS;
-  await markRound(trigger);
+  if (!(await claimRound(trigger))) {
+    return {
+      ok: true,
+      skipped: true,
+      rateLimited: false,
+      reason: "Outra rodada do sync D4Sign começou há menos de 4 minutos.",
+      triggeredAt: new Date().toISOString(),
+      trigger,
+    };
+  }
   // Uma vez só (marcado em cursor/webhook-v2): eventos em tempo real do cofre.
   const webhook = await ensureSafeWebhookV2();
 

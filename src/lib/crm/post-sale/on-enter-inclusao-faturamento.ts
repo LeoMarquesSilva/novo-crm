@@ -10,7 +10,12 @@ import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
  */
 export async function onEnteredInclusaoFaturamento(
   supabase: SupabaseClient,
-  input: { opportunityId: string; leadName?: string | null },
+  input: {
+    opportunityId: string;
+    leadName?: string | null;
+    /** `false` só abre o alerta (ex.: conversão em lote da virada do RD, sem um aviso por lead). */
+    notify?: boolean;
+  },
 ): Promise<void> {
   const { data: contract } = await supabase
     .from("contratos")
@@ -44,6 +49,7 @@ export async function onEnteredInclusaoFaturamento(
     { onConflict: "idempotency_key", ignoreDuplicates: true },
   );
 
+  if (input.notify === false) return;
   const leadName = input.leadName?.trim() || row.titulo || "Contrato";
   await notifyAudience(
     supabase,
@@ -58,4 +64,29 @@ export async function onEnteredInclusaoFaturamento(
       extra: { oportunidade_id: input.opportunityId, contrato_id: row.id },
     },
   );
+}
+
+/**
+ * Contrato ativado = implantação concluída: fecha o alerta `contrato_implantacao_pendente`
+ * que a entrada em Inclusão no Faturamento abriu (e o job diário reabriria enquanto o lead
+ * estivesse nessa etapa).
+ */
+export async function resolveContractSetupAlert(
+  supabase: SupabaseClient,
+  input: { contractId: string; actorAppUserId: string; now?: string },
+): Promise<void> {
+  const now = input.now ?? new Date().toISOString();
+  const { error } = await supabase
+    .from("contrato_alertas")
+    .update({
+      status: "resolvido",
+      resolvido_em: now,
+      resolvido_por: input.actorAppUserId,
+      resolucao: JSON.stringify({ conclusion: "Contrato ativado no gerenciamento de contratos." }),
+      updated_at: now,
+    })
+    .eq("contrato_id", input.contractId)
+    .eq("tipo", "contrato_implantacao_pendente")
+    .neq("status", "resolvido");
+  if (error) throw error;
 }

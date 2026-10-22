@@ -55,8 +55,12 @@ export interface Oportunidade {
    * demais usam `oportunidades.updated_at` no CRM (ver docs RD: oportunidade / deal).
    */
   diasNaEtapa?: number | null;
-  /** Há reconciliação com oportunidade no RD Station CRM (import/webhook). */
+  /** Há reconciliação com oportunidade no RD Station CRM (import/webhook) e o lead ainda é só leitura. */
   origemRd?: boolean;
+  /** Veio do RD e foi convertido na virada: anda no CRM (`oportunidades.rd_migrado_em`). */
+  rdMigrado?: boolean;
+  /** Convertido com a migração incompleta: não avança até completar em "Migrar do RD". */
+  rdMigracaoPendente?: boolean;
   /** `deal.updated_at` retornado pelo RD no último sync (ISO), quando existir. */
   rdDealAtualizadoEm?: string | null;
   /** E-mail do responsável no RD (campo "Cadastro realizado por"). */

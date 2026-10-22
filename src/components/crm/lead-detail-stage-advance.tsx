@@ -6,6 +6,20 @@ import { AlertCircle, ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 import {
+  buildTransitionFieldPayload,
+  isReuniaoConfeccaoTransition,
+  prepareConfeccaoFieldValues,
+  REUNIAO_CONFECCAO_HIDDEN_FROM_GENERIC,
+  REUNIAO_CONFECCAO_MANAGED_CODES,
+  validateReuniaoConfeccaoValues,
+  visibleTransitionCustomFields,
+  withConfeccaoQualificacao,
+} from "@/components/crm/confeccao-proposta-transition";
+import {
+  ConfeccaoReuniaoModalSection,
+  type EmpresaIntakeRow,
+} from "@/components/crm/confeccao-reuniao-modal-section";
+import {
   DynamicField,
   type FieldDefinition,
 } from "@/components/crm/dynamic-form";
@@ -31,6 +45,7 @@ import type { LeadLifecycleTimeline } from "@/lib/crm/lead-lifecycle-timeline";
 import { pipelineCodeForStage } from "@/lib/crm/pipeline-board-config";
 import { STAGE_ACTION_LABELS } from "@/lib/crm/stage-actions";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
 import { cn } from "@/lib/utils";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
@@ -39,7 +54,12 @@ import type { StageActionKind } from "@/modules/crm/domain/stage-transition-rule
 type FieldValue = string | string[] | undefined;
 
 type TransitionRequirements = {
+  /** Etapa do lead quando o modal abriu: o rascunho só vale enquanto ela não mudar. */
+  fromStage: OpportunityStage;
   nextStage: OpportunityStage;
+  /** Reunião → Confecção de Proposta: bloco dedicado (empresas, endereço, áreas, escopo). */
+  reuniaoConfeccao: boolean;
+  empresasIntake: EmpresaIntakeRow[];
   customFields: FieldDefinition[];
   fieldValues: Record<string, FieldValue>;
   warnings: string[];
@@ -64,6 +84,7 @@ function actionLabel(href: string, kind?: StageActionKind): string {
   if (href.includes("tab=proposal")) return "Abrir proposta";
   if (href.includes("tab=signature")) return "Abrir assinatura";
   if (href.includes("tab=contract")) return "Abrir contrato";
+  if (href.startsWith("/crm/migracao-rd")) return "Completar migração";
   return "Resolver pendência";
 }
 
@@ -99,10 +120,26 @@ export function LeadDetailStageAdvance({
   const [error, setError] = useState<string | null>(null);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
 
-  const requestAdvance = async (targetStage: OpportunityStage) => {
+  const requestAdvance = async (
+    targetStage: OpportunityStage,
+    options: { discardDraft?: boolean } = {},
+  ) => {
     // Contrato Elaborado → Enviado: a etapa muda pelo envio para assinatura.
     if (currentStage === "contrato_elaborado" && targetStage === "contrato_enviado") {
       setSendDialogOpen(true);
+      return;
+    }
+    // Fechar o modal não descarta o que foi digitado: reabrir para a mesma etapa
+    // devolve o rascunho em vez de buscar os requisitos de novo.
+    if (
+      !options.discardDraft &&
+      requirements &&
+      requirements.fromStage === currentStage &&
+      requirements.nextStage === targetStage
+    ) {
+      setError(null);
+      setBlocker(null);
+      setOpen(true);
       return;
     }
     setOpen(true);
@@ -133,7 +170,7 @@ export function LeadDetailStageAdvance({
           data_reuniao?: string;
           horario_reuniao?: string;
         } | null;
-        empresasIntake?: Array<{ index: number }>;
+        empresasIntake?: EmpresaIntakeRow[];
         customFields?: FieldDefinition[];
         fieldValues?: Record<string, FieldValue>;
         warnings?: string[];
@@ -156,19 +193,21 @@ export function LeadDetailStageAdvance({
         return;
       }
 
-      const fieldValues = { ...(payload.fieldValues ?? {}) };
-      if (
-        !fieldValues.cp_proposta_empresas_json &&
-        (payload.empresasIntake?.length ?? 0) > 0
-      ) {
-        fieldValues.cp_proposta_empresas_json = JSON.stringify({
-          primaryIndex: payload.empresasIntake![0]!.index,
-          extras: [],
-        });
-      }
+      const empresasIntake = Array.isArray(payload.empresasIntake) ? payload.empresasIntake : [];
+      const fieldValues = prepareConfeccaoFieldValues({
+        fieldValues: payload.fieldValues ?? {},
+        empresasIntake,
+      });
 
       setRequirements({
+        fromStage: currentStage,
         nextStage: targetStage,
+        reuniaoConfeccao: isReuniaoConfeccaoTransition({
+          sourceStage: currentStage,
+          nextStage: targetStage,
+          pipeline: pipelineCodeForStage(targetStage),
+        }),
+        empresasIntake,
         customFields: payload.customFields ?? [],
         fieldValues,
         warnings: payload.warnings ?? [],
@@ -193,6 +232,20 @@ export function LeadDetailStageAdvance({
       setLoading(false);
     }
   };
+
+  const updateFieldValue = (code: string, value: string | string[]) =>
+    setRequirements((current) =>
+      current
+        ? { ...current, fieldValues: { ...current.fieldValues, [code]: value } }
+        : current,
+    );
+
+  const visibleCustomFields = requirements
+    ? visibleTransitionCustomFields(requirements.customFields, requirements.fieldValues, {
+        nextStage: requirements.nextStage,
+        reuniaoConfeccao: requirements.reuniaoConfeccao,
+      })
+    : [];
 
   const submit = async () => {
     if (!requirements || submitting) return;
@@ -220,14 +273,37 @@ export function LeadDetailStageAdvance({
       return;
     }
 
-    const blocking = listBlockingCustomFields(
-      requirements.customFields,
-      requirements.fieldValues,
-    );
+    let values = requirements.fieldValues;
+    if (requirements.reuniaoConfeccao) {
+      const sectionError = validateReuniaoConfeccaoValues({
+        customValues: requirements.fieldValues,
+        empresasIntake: requirements.empresasIntake,
+      });
+      if (sectionError) {
+        setError(sectionError);
+        return;
+      }
+      values = withConfeccaoQualificacao({
+        customValues: requirements.fieldValues,
+        empresasIntake: requirements.empresasIntake,
+      });
+    }
+
+    let blocking =
+      requirements.nextStage === "confeccao_contrato"
+        ? []
+        : listBlockingCustomFields(requirements.customFields, values);
+    if (requirements.reuniaoConfeccao) {
+      blocking = blocking.filter(
+        (field) =>
+          !REUNIAO_CONFECCAO_HIDDEN_FROM_GENERIC.has(field.field_code) &&
+          !REUNIAO_CONFECCAO_MANAGED_CODES.has(field.field_code),
+      );
+    }
     if (blocking.length > 0) {
       setError(
         `Preencha os campos obrigatórios: ${blocking
-          .map((field) => field.label)
+          .map((field) => userFacingFieldLabel(field.label, field.field_code))
           .join(", ")}.`,
       );
       return;
@@ -236,15 +312,14 @@ export function LeadDetailStageAdvance({
     setSubmitting(true);
     setError(null);
     try {
-      const fieldValuesByCode: Record<string, string | string[]> = {};
-      for (const field of requirements.customFields) {
-        const value = requirements.fieldValues[field.field_code];
-        if (Array.isArray(value) && value.length > 0) {
-          fieldValuesByCode[field.field_code] = value;
-        } else if (typeof value === "string" && value.trim()) {
-          fieldValuesByCode[field.field_code] = value.trim();
-        }
-      }
+      const fieldValuesByCode = buildTransitionFieldPayload({
+        visibleFields: visibleTransitionCustomFields(requirements.customFields, values, {
+          nextStage: requirements.nextStage,
+          reuniaoConfeccao: requirements.reuniaoConfeccao,
+        }),
+        values,
+        reuniaoConfeccao: requirements.reuniaoConfeccao,
+      });
 
       const response = await fetch("/api/crm/leads/transition", {
         method: "POST",
@@ -322,7 +397,12 @@ export function LeadDetailStageAdvance({
         }}
       >
         <DialogContent
-          className="max-h-[min(90dvh,760px)] max-w-xl overflow-y-auto"
+          className={cn(
+            "max-h-[min(90dvh,760px)] overflow-y-auto",
+            requirements?.reuniaoConfeccao && !blocker
+              ? "max-h-[min(90dvh,860px)] w-full max-w-[min(100vw-1.5rem,880px)] sm:max-w-[min(100vw-1.5rem,880px)]"
+              : "max-w-xl",
+          )}
           onPointerDownOutside={(event) => {
             if (isInteractionFromBaseUiSelectLayer(event)) event.preventDefault();
           }}
@@ -334,7 +414,7 @@ export function LeadDetailStageAdvance({
             <DialogTitle>Avançar etapa</DialogTitle>
             <DialogDescription>
               {nextStage
-                ? `Confirme a mudança de ${OPPORTUNITY_STAGE_LABELS[currentStage]} para ${OPPORTUNITY_STAGE_LABELS[nextStage]}.`
+                ? `Confirme a mudança de ${OPPORTUNITY_STAGE_LABELS[currentStage]} para ${OPPORTUNITY_STAGE_LABELS[nextStage]}. Fechar guarda o que você preencheu até avançar.`
                 : "Não há uma próxima etapa disponível."}
             </DialogDescription>
           </DialogHeader>
@@ -454,38 +534,38 @@ export function LeadDetailStageAdvance({
                 </div>
               ) : null}
 
-              {requirements.customFields.length > 0 ? (
+              {requirements.reuniaoConfeccao ? (
+                <ConfeccaoReuniaoModalSection
+                  gestorField={requirements.customFields.find(
+                    (field) => field.field_code === "cp_gestor_contrato" && field.is_active !== false,
+                  )}
+                  empresasIntake={requirements.empresasIntake}
+                  customValues={requirements.fieldValues}
+                  disabled={submitting}
+                  onFieldChange={updateFieldValue}
+                />
+              ) : null}
+
+              {visibleCustomFields.length > 0 ? (
                 <div className="space-y-3 rounded-(--radius-v2-xl) border border-border p-4">
                   <p className="text-sm font-semibold text-foreground">
-                    Campos da próxima etapa
+                    {requirements.reuniaoConfeccao ? "Campos adicionais da etapa" : "Campos da próxima etapa"}
                   </p>
-                  {requirements.customFields.map((field) => (
+                  {visibleCustomFields.map((field) => (
                     <div key={field.field_code} className="space-y-1.5">
                       <Label htmlFor={field.field_code}>
-                        {field.label}
+                        {userFacingFieldLabel(field.label, field.field_code)}
                         {field.is_required ? " *" : ""}
                       </Label>
                       <DynamicField
                         field={field}
                         value={requirements.fieldValues[field.field_code]}
-                        onChange={(code, value) =>
-                          setRequirements((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  fieldValues: {
-                                    ...current.fieldValues,
-                                    [code]: value,
-                                  },
-                                }
-                              : current,
-                          )
-                        }
+                        onChange={updateFieldValue}
                       />
                     </div>
                   ))}
                 </div>
-              ) : (
+              ) : requirements.reuniaoConfeccao ? null : (
                 <p className="rounded-(--radius-v2-xl) border border-success-border bg-success-bg p-4 text-sm text-success-text">
                   Todos os requisitos estão atendidos. Confirme para avançar.
                 </p>
@@ -509,13 +589,24 @@ export function LeadDetailStageAdvance({
                 {actionLabel(blocker.actionHref, blocker.actionKind)}
               </Link>
             ) : null}
+            {requirements && !blocker && !loading && nextStage ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mr-auto"
+                disabled={submitting}
+                onClick={() => void requestAdvance(nextStage, { discardDraft: true })}
+              >
+                Recomeçar
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
               disabled={submitting}
               onClick={() => setOpen(false)}
             >
-              Cancelar
+              Fechar
             </Button>
             {requirements && !blocker ? (
               <Button

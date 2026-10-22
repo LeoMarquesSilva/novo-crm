@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, rgb, type Color, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, PDFString, rgb, type Color, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
 import {
   PROPOSTA_INVESTIMENTO_HEADING,
   stripInvestimentoSectionHeading,
@@ -61,6 +61,31 @@ const CAPA = {
   metaSize: 12,
 };
 const VIGENCIA = { x: 210.8, baseline: 221.52, size: 12, maxWidth: 176 };
+
+/** Área clicável sobre um ícone do modelo: [esquerda, base, direita, topo], origem embaixo, em pt. */
+type PageLink = { rect: [number, number, number, number]; url: string };
+
+const BP_INSTAGRAM = "https://www.instagram.com/bismarchipires/";
+
+/** Ícones Instagram / LinkedIn do rodapé da capa (vetoriais, ~16 pt): caixa do desenho + 2 pt de folga. */
+const CAPA_LINKS: PageLink[] = [
+  { rect: [86.04, 122.4, 106.39, 142.75], url: BP_INSTAGRAM },
+  { rect: [108.14, 123.23, 127.16, 142.17], url: "https://www.linkedin.com/company/bismarchipires/" },
+];
+
+/** Ícones LinkedIn / Instagram / e-mail sob a foto: caixa de cada círculo medida na imagem do modelo. */
+const CV_LINKS: Record<"gustavo" | "ricardo", PageLink[]> = {
+  gustavo: [
+    { rect: [97.6, 438.69, 126.04, 467.12], url: "https://www.linkedin.com/in/gustavo-bismarchi/" },
+    { rect: [139.45, 438.69, 167.89, 467.12], url: BP_INSTAGRAM },
+    { rect: [181.29, 438.69, 209.73, 467.12], url: "mailto:gustavo@bismarchipires.com.br" },
+  ],
+  ricardo: [
+    { rect: [96.06, 438.49, 124.84, 467.28], url: "https://www.linkedin.com/in/ricardoviscardipires/" },
+    { rect: [138.25, 438.49, 167.04, 467.28], url: "https://www.instagram.com/ricardoviscardipires/" },
+    { rect: [180.45, 438.49, 209.23, 467.28], url: "mailto:ricardo@bismarchipires.com.br" },
+  ],
+};
 
 /** Margens do Word (pgMar 1417/1701 twips) e ritmo do estilo BPScopeBody (TNR 12, linha 278/240, depois 8 pt). */
 const BODY = {
@@ -280,6 +305,18 @@ function drawVigencia(page: PDFPage, data: CanonicalProposalData, font: PDFFont)
   page.drawText(text, { x: VIGENCIA.x, y: page.getHeight() - VIGENCIA.baseline, size, font, color: BLACK });
 }
 
+function addLinks(doc: PDFDocument, page: PDFPage, links: PageLink[]) {
+  for (const link of links) {
+    page.node.addAnnot(doc.context.register(doc.context.obj({
+      Type: "Annot",
+      Subtype: "Link",
+      Rect: link.rect,
+      Border: [0, 0, 0],
+      A: { Type: "Action", S: "URI", URI: PDFString.of(link.url) },
+    })));
+  }
+}
+
 /**
  * Proposta em PDF montada direto do modelo BP: capa, institucional, páginas de conteúdo no timbrado
  * (escopo por área + investimento), CV Gustavo, CV Ricardo, assinaturas com vigência e contracapa.
@@ -301,10 +338,13 @@ export async function buildPropostaPdf(data: CanonicalProposalData, assets: Prop
 
   out.addPage(capa);
   drawCapa(capa, data, { garamond, montserrat, montserratBold });
+  addLinks(out, capa, CAPA_LINKS);
   out.addPage(institucional);
   layoutContentPages(out, timbrado, buildContentBlocks(data, { regular: serif, bold: serifBold }), { regular: serif });
   out.addPage(cvGustavo);
+  addLinks(out, cvGustavo, CV_LINKS.gustavo);
   out.addPage(cvRicardo);
+  addLinks(out, cvRicardo, CV_LINKS.ricardo);
   out.addPage(assinaturas);
   drawVigencia(assinaturas, data, sans);
   out.addPage(contracapa);

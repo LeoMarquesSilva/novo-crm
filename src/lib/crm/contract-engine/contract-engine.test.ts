@@ -216,7 +216,7 @@ describe("investimento", () => {
         },
       }),
     });
-    expect(parcelado.data.payment.clauseText).toMatch(/4 parcelas/);
+    expect(parcelado.data.payment.clauseText).toMatch(/quatro parcelas mensais e sucessivas de R\$ 5\.000,00/);
     expect(parcelado.data.payment.arithmeticOk).toBe(true);
 
     const entrada = buildCanonicalContract({

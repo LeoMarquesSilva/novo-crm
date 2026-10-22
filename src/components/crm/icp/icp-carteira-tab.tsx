@@ -2,12 +2,15 @@
 
 /** Aba Carteira: faixas de honorário, distribuição da receita, tamanhos de cliente e áreas. */
 import { useMemo, useRef, useState } from "react";
-import { ChartColumn, ChartPie, CircleDollarSign, Clock, Crosshair, DoorOpen, Layers, Lightbulb } from "lucide-react";
+import { ChartColumn, ChartPie, CircleDollarSign, Clock, Crosshair, DoorOpen, Layers, Lightbulb, Timer } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { HONORARIOS_MENSAIS } from "@/modules/icp/domain/plano-contas";
 import {
   EMPLOYEE_BANDS,
+  planSummary,
   rankedGroups,
+  revenuePerHour,
   sizeBuckets,
   type IcpData,
   type IcpGroupRow,
@@ -18,9 +21,10 @@ import {
 import { IcpAreaBadge, IcpAreaBadgeSpacer } from "./icp-area-icon";
 import { PlanLegend, PlanMixBar, PlanoContasPanel } from "./icp-plano-contas-panel";
 import { EMPLOYEE_BAND_TONE, INFO, SRC, TIER_TONE, overdueTone } from "./icp-content";
-import { countOf, decimal, excludedRevenueNote, money, pct, ratio } from "./icp-format";
-import { BarRow, Callout, Kpi, KpiGroup, LabelWithInfo, Panel, ShareBar } from "./icp-primitives";
+import { countOf, decimal, excludedRevenueNote, money, moneyOrDash, pct, ratio } from "./icp-format";
+import { BarRow, Callout, Kpi, KpiGroup, Panel, ShareBar } from "./icp-primitives";
 import { BucketListPanel, SizeCardsPanel, type IcpBucketView } from "./icp-size-panels";
+import { SortableHead, nextSort, sortRows, type SortState } from "./icp-sort";
 
 export function CarteiraTab({ data }: { data: IcpData }) {
   const [area, setArea] = useState<string | null>(null);
@@ -33,6 +37,8 @@ export function CarteiraTab({ data }: { data: IcpData }) {
   const revenueWithHours = withHours.reduce((acc, g) => acc + g.revenue12m, 0);
   const costWithHours = withHours.reduce((acc, g) => acc + g.deliveryCost, 0);
   const officeMargin = revenueWithHours > 0 ? (revenueWithHours - costWithHours) / revenueWithHours : null;
+  const hoursWithRevenue = withHours.reduce((acc, g) => acc + g.hours12m, 0);
+  const officeRevenuePerHour = revenuePerHour(data.groups.map((g) => ({ revenue: g.revenue12m, hours: g.hours12m })));
   const overdue = data.groups.reduce((acc, g) => acc + g.overdue, 0);
 
   function seeClients(key: IcpSizeBucketKey) {
@@ -42,7 +48,7 @@ export function CarteiraTab({ data }: { data: IcpData }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <KpiGroup label="Indicadores da carteira">
+      <KpiGroup label="Indicadores da carteira" className="xl:grid-cols-5">
         <Kpi
           icon={CircleDollarSign}
           label="Receita em 12 meses"
@@ -70,6 +76,14 @@ export function CarteiraTab({ data }: { data: IcpData }) {
           hint={`${withHours.length} grupos com horas apontadas`}
           source={SRC.custoPessoal}
           info={INFO.margemEscritorio}
+        />
+        <Kpi
+          icon={Timer}
+          label="Receita média por hora"
+          value={moneyOrDash(officeRevenuePerHour)}
+          hint={`média do escritório: ${withHours.length} grupos, ${Math.round(hoursWithRevenue).toLocaleString("pt-BR")} h lançadas`}
+          source={SRC.timesheet}
+          info={INFO.receitaHoraEscritorio}
         />
         <Kpi
           icon={Clock}
@@ -151,43 +165,100 @@ function EmployeeBandLegend() {
 
 const headClass = "text-xs font-medium text-muted-foreground";
 
+type TierSortKey = "faixa" | "receita" | "porte" | "ticket" | "areas" | "pastas" | "receitaHora" | "tipo" | "atraso";
+
+const avgFolders = (groups: IcpGroupRow[]) =>
+  groups.length ? groups.reduce((acc, g) => acc + g.activeFolders, 0) / groups.length : null;
+
+const decimalOrDash = (value: number | null) => (value == null ? "—" : decimal(value));
+
+/** Parte da receita paga como HONORÁRIOS MENSAIS (ordena a coluna Tipo de contrato). */
+function mensaisShare(groups: IcpGroupRow[]): number {
+  return planSummary(groups).rows.find((r) => r.plan === HONORARIOS_MENSAIS)?.revenueShare ?? 0;
+}
+
+const groupHours = (groups: IcpGroupRow[]) => groups.map((g) => ({ revenue: g.revenue12m, hours: g.hours12m }));
+
+function OverdueCell({ value }: { value: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={cn("w-10 text-right tabular-nums", value >= 0.5 && "font-semibold text-danger-text")}>{pct(value)}</span>
+      <div className="h-1.5 w-12 overflow-hidden rounded-full bg-neutral-100">
+        <div
+          className={cn("h-full rounded-full", overdueTone(value))}
+          style={{ width: `${Math.min(100, Math.max(3, value * 100))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function TierPanel({ data }: { data: IcpData }) {
+  const [sort, setSort] = useState<SortState<TierSortKey>>({ key: "faixa", desc: false });
+  const onSort = (key: TierSortKey) => setSort((s) => nextSort(s, key));
+  const groupsOf = (key: IcpTierKey) => data.groups.filter((g) => g.tier === key);
+  const tiers = sortRows(data.tiers, sort, (t, key) => {
+    const groups = groupsOf(t.key);
+    if (key === "faixa") return t.key;
+    if (key === "receita") return t.revenueShare;
+    if (key === "porte") return groups.length ? groups.filter((g) => g.employeeBand).length / groups.length : null;
+    if (key === "ticket") return t.avgMonthly;
+    if (key === "areas") return t.avgAreas;
+    if (key === "pastas") return avgFolders(groups);
+    if (key === "receitaHora") return revenuePerHour(groupHours(groups));
+    if (key === "tipo") return mensaisShare(groups);
+    return t.overdueRatio;
+  });
+
+  const all = data.groups;
+  const officeOverdue = all.reduce((acc, g) => acc + g.overdue, 0);
+  const officeRevenuePerHour = revenuePerHour(groupHours(all));
+
   return (
     <Panel
       icon={Crosshair}
       title="Faixas da carteira"
       description="Quantos grupos há em cada faixa de honorários e quanto da receita eles geram"
       info={INFO.faixa}
-      sources={[SRC.honorarios, SRC.departamento, SRC.atraso]}
+      sources={[SRC.honorarios, SRC.timesheet, SRC.departamento, SRC.atraso]}
     >
-      <Table className="min-w-[700px]">
+      <Table className="min-w-[900px]">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={headClass}>
-              <LabelWithInfo label="Faixa" info={INFO.faixa} />
-            </TableHead>
-            <TableHead className={cn(headClass, "w-[30%]")}>
-              <LabelWithInfo label="Grupos e receita" info={INFO.participacao} />
-            </TableHead>
-            <TableHead className={headClass}>
-              <LabelWithInfo label="Porte" info={INFO.porteFaixa} />
-            </TableHead>
-            <TableHead className={cn(headClass, "text-right")}>
-              <LabelWithInfo label="Ticket/mês" info={INFO.ticket} className="justify-end" />
-            </TableHead>
-            <TableHead className={cn(headClass, "text-right")}>
-              <LabelWithInfo label="Áreas" info={INFO.areasPorCliente} className="justify-end" />
-            </TableHead>
-            <TableHead className={headClass}>
-              <LabelWithInfo label="Tipo de contrato" info={INFO.tipoContrato} />
-            </TableHead>
-            <TableHead className={headClass}>
-              <LabelWithInfo label="Atraso" info={INFO.atrasoReceita} />
-            </TableHead>
+            <SortableHead label="Faixa" sortKey="faixa" sort={sort} onSort={onSort} info={INFO.faixa} />
+            <SortableHead
+              label="Grupos e receita"
+              sortKey="receita"
+              sort={sort}
+              onSort={onSort}
+              info={INFO.participacao}
+              className="w-[26%]"
+            />
+            <SortableHead label="Porte" sortKey="porte" sort={sort} onSort={onSort} info={INFO.porteFaixa} />
+            <SortableHead label="Ticket/mês" sortKey="ticket" sort={sort} onSort={onSort} info={INFO.ticket} align="right" />
+            <SortableHead label="Áreas" sortKey="areas" sort={sort} onSort={onSort} info={INFO.areasPorCliente} align="right" />
+            <SortableHead
+              label="Pastas ativas"
+              sortKey="pastas"
+              sort={sort}
+              onSort={onSort}
+              info={INFO.pastasAtivasFaixa}
+              align="right"
+            />
+            <SortableHead
+              label="Receita média/hora"
+              sortKey="receitaHora"
+              sort={sort}
+              onSort={onSort}
+              info={INFO.receitaHora}
+              align="right"
+            />
+            <SortableHead label="Tipo de contrato" sortKey="tipo" sort={sort} onSort={onSort} info={INFO.tipoContratoOrdem} />
+            <SortableHead label="Atraso" sortKey="atraso" sort={sort} onSort={onSort} info={INFO.atrasoReceita} />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.tiers.map((t) => (
+          {tiers.map((t) => (
             <TableRow key={t.key} className="hover:bg-transparent">
               <TableCell className="py-3">
                 <div className="flex items-center gap-2.5">
@@ -216,29 +287,46 @@ function TierPanel({ data }: { data: IcpData }) {
               </TableCell>
               <TableCell className="py-3 text-right tabular-nums">{money(t.avgMonthly)}</TableCell>
               <TableCell className="py-3 text-right tabular-nums">{decimal(t.avgAreas)}</TableCell>
+              <TableCell className="py-3 text-right tabular-nums">
+                {decimalOrDash(avgFolders(groupsOf(t.key)))}
+              </TableCell>
+              <TableCell className="py-3 text-right tabular-nums">
+                {moneyOrDash(revenuePerHour(groupHours(groupsOf(t.key))))}
+              </TableCell>
               <TableCell className="w-[16%] py-3">
-                <PlanMixBar groups={data.groups.filter((g) => g.tier === t.key)} />
+                <PlanMixBar groups={groupsOf(t.key)} />
               </TableCell>
               <TableCell className="py-3">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "w-10 text-right tabular-nums",
-                      t.overdueRatio >= 0.5 && "font-semibold text-danger-text",
-                    )}
-                  >
-                    {pct(t.overdueRatio)}
-                  </span>
-                  <div className="h-1.5 w-12 overflow-hidden rounded-full bg-neutral-100">
-                    <div
-                      className={cn("h-full rounded-full", overdueTone(t.overdueRatio))}
-                      style={{ width: `${Math.min(100, Math.max(3, t.overdueRatio * 100))}%` }}
-                    />
-                  </div>
-                </div>
+                <OverdueCell value={t.overdueRatio} />
               </TableCell>
             </TableRow>
           ))}
+          <TableRow className="border-t-2 border-border bg-surface-subtle hover:bg-surface-subtle">
+            <TableCell className="py-3">
+              <p className="font-semibold text-foreground">Escritório todo</p>
+              <p className="text-xs text-muted-foreground">média de todas as faixas</p>
+            </TableCell>
+            <TableCell className="py-3 text-xs text-muted-foreground">
+              {data.totals.payingGroups} grupos · {money(data.totals.revenue12m)}
+            </TableCell>
+            <TableCell className="py-3">
+              <EmployeeMixBar groups={all} />
+            </TableCell>
+            <TableCell className="py-3 text-right font-semibold tabular-nums">
+              {money(data.totals.payingGroups ? data.totals.revenue12m / data.totals.payingGroups / 12 : 0)}
+            </TableCell>
+            <TableCell className="py-3 text-right font-semibold tabular-nums">
+              {decimal(all.length ? all.reduce((acc, g) => acc + g.areas.length, 0) / all.length : 0)}
+            </TableCell>
+            <TableCell className="py-3 text-right font-semibold tabular-nums">{decimalOrDash(avgFolders(all))}</TableCell>
+            <TableCell className="py-3 text-right font-semibold tabular-nums">{moneyOrDash(officeRevenuePerHour)}</TableCell>
+            <TableCell className="py-3">
+              <PlanMixBar groups={all} />
+            </TableCell>
+            <TableCell className="py-3">
+              <OverdueCell value={ratio(officeOverdue, data.totals.revenue12m) ?? 0} />
+            </TableCell>
+          </TableRow>
         </TableBody>
       </Table>
       <div className="mt-3 space-y-1.5">

@@ -501,10 +501,13 @@ export type Database = {
       }
       contract_review_tasks: {
         Row: {
+          approved_by: string | null
           assigned_to: string | null
           concluido_em: string | null
           created_at: string
           created_by: string | null
+          document_hash: string | null
+          document_version_id: string | null
           id: string
           notificado_em: string | null
           observacao: string | null
@@ -514,10 +517,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved_by?: string | null
           assigned_to?: string | null
           concluido_em?: string | null
           created_at?: string
           created_by?: string | null
+          document_hash?: string | null
+          document_version_id?: string | null
           id?: string
           notificado_em?: string | null
           observacao?: string | null
@@ -527,10 +533,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved_by?: string | null
           assigned_to?: string | null
           concluido_em?: string | null
           created_at?: string
           created_by?: string | null
+          document_hash?: string | null
+          document_version_id?: string | null
           id?: string
           notificado_em?: string | null
           observacao?: string | null
@@ -1379,6 +1388,7 @@ export type Database = {
           ativada_em: string | null
           ativada_por: string | null
           atualizado_por: string | null
+          cobranca_mes_inicio: string | null
           contrato_id: string
           created_at: string
           criado_por: string | null
@@ -1396,6 +1406,7 @@ export type Database = {
           ativada_em?: string | null
           ativada_por?: string | null
           atualizado_por?: string | null
+          cobranca_mes_inicio?: string | null
           contrato_id: string
           created_at?: string
           criado_por?: string | null
@@ -1413,6 +1424,7 @@ export type Database = {
           ativada_em?: string | null
           ativada_por?: string | null
           atualizado_por?: string | null
+          cobranca_mes_inicio?: string | null
           contrato_id?: string
           created_at?: string
           criado_por?: string | null
@@ -2033,8 +2045,95 @@ export type Database = {
           },
         ]
       }
+      due_apresentacoes: {
+        Row: {
+          atualizado_em: string
+          atualizado_por_app_user_id: string | null
+          dados: Json
+          gerado_documento_id: string | null
+          gerado_em: string | null
+          gerado_por_app_user_id: string | null
+          oportunidade_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          atualizado_por_app_user_id?: string | null
+          dados?: Json
+          gerado_documento_id?: string | null
+          gerado_em?: string | null
+          gerado_por_app_user_id?: string | null
+          oportunidade_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          atualizado_por_app_user_id?: string | null
+          dados?: Json
+          gerado_documento_id?: string | null
+          gerado_em?: string | null
+          gerado_por_app_user_id?: string | null
+          oportunidade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "due_apresentacoes_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: true
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "due_apresentacoes_gerado_documento_id_fkey"
+            columns: ["gerado_documento_id"]
+            isOneToOne: false
+            referencedRelation: "due_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      due_modelos_apresentacao: {
+        Row: {
+          ativo: boolean
+          byte_size: number | null
+          enviado_em: string
+          enviado_por_app_user_id: string | null
+          id: string
+          nome_arquivo: string
+          observacao: string | null
+          storage_path: string
+        }
+        Insert: {
+          ativo?: boolean
+          byte_size?: number | null
+          enviado_em?: string
+          enviado_por_app_user_id?: string | null
+          id?: string
+          nome_arquivo: string
+          observacao?: string | null
+          storage_path: string
+        }
+        Update: {
+          ativo?: boolean
+          byte_size?: number | null
+          enviado_em?: string
+          enviado_por_app_user_id?: string | null
+          id?: string
+          nome_arquivo?: string
+          observacao?: string | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "due_modelos_apresentacao_enviado_por_app_user_id_fkey"
+            columns: ["enviado_por_app_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       due_documents: {
         Row: {
+          area_key: string | null
           byte_size: number | null
           content_type: string | null
           document_kind: string
@@ -2047,6 +2146,7 @@ export type Database = {
           uploaded_by_app_user_id: string | null
         }
         Insert: {
+          area_key?: string | null
           byte_size?: number | null
           content_type?: string | null
           document_kind?: string
@@ -2059,6 +2159,7 @@ export type Database = {
           uploaded_by_app_user_id?: string | null
         }
         Update: {
+          area_key?: string | null
           byte_size?: number | null
           content_type?: string | null
           document_kind?: string
@@ -2999,6 +3100,7 @@ export type Database = {
           tipo: Database["public"]["Enums"]["demand_type"]
           updated_at: string
           venda_fechada_em: string | null
+          rd_migrado_em: string | null
         }
         Insert: {
           cliente_id?: string | null
@@ -3025,6 +3127,7 @@ export type Database = {
           tipo: Database["public"]["Enums"]["demand_type"]
           updated_at?: string
           venda_fechada_em?: string | null
+          rd_migrado_em?: string | null
         }
         Update: {
           cliente_id?: string | null
@@ -3051,6 +3154,7 @@ export type Database = {
           tipo?: Database["public"]["Enums"]["demand_type"]
           updated_at?: string
           venda_fechada_em?: string | null
+          rd_migrado_em?: string | null
         }
         Relationships: [
           {
@@ -3377,6 +3481,101 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rd_migracoes: {
+        Row: {
+          atualizado_por: string | null
+          concluida_em: string | null
+          concluida_por: string | null
+          convertida_em: string | null
+          convertida_por: string | null
+          created_at: string
+          etapa_destino: Database["public"]["Enums"]["opportunity_stage"] | null
+          etapa_rd: string | null
+          motivo_fora: string | null
+          oportunidade_id: string
+          payload: Json
+          rd_deal_id: string
+          responsavel_app_user_id: string | null
+          schema_version: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          atualizado_por?: string | null
+          concluida_em?: string | null
+          concluida_por?: string | null
+          convertida_em?: string | null
+          convertida_por?: string | null
+          created_at?: string
+          etapa_destino?: Database["public"]["Enums"]["opportunity_stage"] | null
+          etapa_rd?: string | null
+          motivo_fora?: string | null
+          oportunidade_id: string
+          payload?: Json
+          rd_deal_id: string
+          responsavel_app_user_id?: string | null
+          schema_version?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          atualizado_por?: string | null
+          concluida_em?: string | null
+          concluida_por?: string | null
+          convertida_em?: string | null
+          convertida_por?: string | null
+          created_at?: string
+          etapa_destino?: Database["public"]["Enums"]["opportunity_stage"] | null
+          etapa_rd?: string | null
+          motivo_fora?: string | null
+          oportunidade_id?: string
+          payload?: Json
+          rd_deal_id?: string
+          responsavel_app_user_id?: string | null
+          schema_version?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rd_migracoes_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: true
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rd_virada: {
+        Row: {
+          congelado_em: string | null
+          congelado_por: string | null
+          convertido_em: string | null
+          convertido_por: string | null
+          id: number
+          ultimo_resumo: Json
+          updated_at: string
+        }
+        Insert: {
+          congelado_em?: string | null
+          congelado_por?: string | null
+          convertido_em?: string | null
+          convertido_por?: string | null
+          id?: number
+          ultimo_resumo?: Json
+          updated_at?: string
+        }
+        Update: {
+          congelado_em?: string | null
+          congelado_por?: string | null
+          convertido_em?: string | null
+          convertido_por?: string | null
+          id?: number
+          ultimo_resumo?: Json
+          updated_at?: string
+        }
+        Relationships: []
       }
       scope_import_batches: {
         Row: {
@@ -3804,6 +4003,24 @@ export type Database = {
       }
     }
     Views: {
+      rd_deal_reconciliacao_kanban: {
+        Row: {
+          detalhes: Json | null
+          id: string | null
+          oportunidade_id: string | null
+          reconciled_at: string | null
+        }
+        Relationships: []
+      }
+      rd_deal_reconciliacao_resumo: {
+        Row: {
+          detalhes: Json | null
+          id: string | null
+          oportunidade_id: string | null
+          reconciled_at: string | null
+        }
+        Relationships: []
+      }
       v_field_definitions_duplicate_labels: {
         Row: {
           definition_ids: string[] | null

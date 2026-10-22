@@ -1,4 +1,5 @@
 import { callStructured, getExtractionModel } from "@/lib/scope-import/openai";
+import { dropArrearsAdjustmentIndex } from "./adjustment-index";
 import { clipContractTextForExtraction } from "./clip-for-extraction";
 import { CONTRACT_IMPORT_INPUT_CHAR_CAP, CONTRACT_IMPORT_MAX_TOKENS } from "./constants";
 import { buildContractImportSystemPrompt, buildContractImportUserPrompt } from "./prompts";
@@ -30,7 +31,7 @@ export async function extractContractFromText(
     options?.timeoutMs ? { timeoutMs: options.timeoutMs } : undefined,
   );
   return {
-    data: result.data,
+    data: dropArrearsAdjustmentIndex(result.data, text),
     model: result.model,
     clippedChars: clipped.clippedChars,
     originalChars: clipped.originalChars,

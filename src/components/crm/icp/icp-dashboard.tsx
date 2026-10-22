@@ -10,6 +10,7 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { BR_TIMEZONE } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 import type { IcpData } from "@/modules/icp/domain/compute";
 import { CarteiraTab } from "./icp-carteira-tab";
@@ -27,12 +28,14 @@ const REFRESH_FALLBACK_ERROR = "Não foi possível recalcular.";
 export function IcpDashboard({ data, error }: { data: IcpData | null; error: string | null }): JSX.Element {
   const router = useRouter();
   const [tab, setTab] = useState<IcpTabKey>("resumo");
-  const [refreshing, setRefreshing] = useState(false);
+  const [requesting, setRequesting] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  // O recálculo acontece no `router.refresh()`: o botão segue girando até a página voltar.
+  const [reloading, startTransition] = useTransition();
+  const refreshing = requesting || reloading;
 
   async function handleRefresh() {
-    setRefreshing(true);
+    setRequesting(true);
     setRefreshError(null);
     try {
       const res = await fetch(ICP_REFRESH_ENDPOINT, { method: "POST", credentials: "include" });
@@ -44,7 +47,7 @@ export function IcpDashboard({ data, error }: { data: IcpData | null; error: str
     } catch (err) {
       setRefreshError(err instanceof Error ? err.message : REFRESH_FALLBACK_ERROR);
     } finally {
-      setRefreshing(false);
+      setRequesting(false);
     }
   }
 
@@ -91,7 +94,12 @@ export function IcpDashboard({ data, error }: { data: IcpData | null; error: str
             <p className="text-xs text-muted-foreground">
               Honorários pagos de {monthLabel(data.windowStart)} a {monthLabel(data.windowEnd)} · calculado em{" "}
               <span className="tabular-nums">
-                {new Date(data.generatedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                {/* Fuso fixo: o servidor (UTC) e o navegador precisam gerar o mesmo texto na hidratação. */}
+                {new Date(data.generatedAt).toLocaleString("pt-BR", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                  timeZone: BR_TIMEZONE,
+                })}
               </span>
             </p>
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>

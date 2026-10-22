@@ -1,8 +1,14 @@
 import type { LeadIntakeEmpresaRow } from "@/app/(crm)/crm/leads/[id]/lead-intake-types";
-import { getSubtipoDef } from "@/data/proposta-tipos-catalog";
+import { getSubtipoDef, type PropostaTiposCatalog } from "@/data/proposta-tipos-catalog";
 import { getPrimarySumKeyForSubtipo } from "@/lib/crm/proposta-investimento-consolidado";
+import {
+  isContratanteDoCadastro,
+  parseContratantesIndexes,
+  type EscolhaEmpresasProposta,
+} from "@/lib/crm/proposta-contratantes";
 import { parseEscopoJsonWithMeta } from "@/lib/crm/proposta-escopo-json";
 import { formatBrlComExtenso, parseAmount } from "./money";
+import { classifyInvestmentSubtype } from "./payment";
 import { getScopeProfile } from "./scope-profiles";
 import type {
   ContractingParty,
@@ -56,14 +62,39 @@ export function createProposalContractSnapshot(input: {
   };
 }
 
-export function extractProposalScopes(escopoJson: string): ProposalScopeRef[] {
+/**
+ * Rótulos dos subtipos de escopo do catálogo do banco (`proposal_scope_subtypes`), por
+ * área/tipo/subtipo. O catálogo do código (`proposta-tipos-catalog`) não tem os subtipos
+ * criados depois no admin; sem o rótulo do banco, o nome sai da chave, sem acento.
+ */
+export type ScopeSubtypeLabels = Record<string, string>;
+
+export function scopeSubtypeLabelKey(areaLabel: string, tipoId: string, subtipoId: string): string {
+  return `${areaLabel}|${tipoId}|${subtipoId}`;
+}
+
+export function scopeSubtypeLabelsFromCatalog(catalog: PropostaTiposCatalog): ScopeSubtypeLabels {
+  const labels: ScopeSubtypeLabels = {};
+  for (const [areaLabel, tipos] of Object.entries(catalog)) {
+    for (const tipo of tipos ?? []) {
+      for (const subtipo of tipo.subtipos) {
+        labels[scopeSubtypeLabelKey(areaLabel, tipo.tipoId, subtipo.subtipoId)] = subtipo.label;
+      }
+    }
+  }
+  return labels;
+}
+
+export function extractProposalScopes(escopoJson: string, scopeLabels?: ScopeSubtypeLabels): ProposalScopeRef[] {
   const { escopo } = parseEscopoJsonWithMeta(escopoJson);
   const out: ProposalScopeRef[] = [];
   for (const [areaLabel, entries] of Object.entries(escopo)) {
     for (const entry of entries) {
       if (!entry.subtipoId?.trim()) continue;
       const profile = getScopeProfile(entry.subtipoId);
-      const catalogLabel = getSubtipoDef(areaLabel, entry.tipoId, entry.subtipoId)?.label;
+      const catalogLabel =
+        scopeLabels?.[scopeSubtypeLabelKey(areaLabel, entry.tipoId, entry.subtipoId)] ??
+        getSubtipoDef(areaLabel, entry.tipoId, entry.subtipoId)?.label;
       out.push({
         entryId: entry.id,
         areaLabel,
@@ -93,8 +124,8 @@ function humanizeScopeKey(raw: string): string {
     .join(" ");
 }
 
-export function resolveContractScopes(escopoJson: string): ContractScope[] {
-  return extractProposalScopes(escopoJson).map((ref) => {
+export function resolveContractScopes(escopoJson: string, scopeLabels?: ScopeSubtypeLabels): ContractScope[] {
+  return extractProposalScopes(escopoJson, scopeLabels).map((ref) => {
     const profile = getScopeProfile(ref.subtypeId) ?? null;
     return {
       ...ref,
@@ -169,8 +200,10 @@ export function resolveContractInvestment(escopoJson: string): ContractInvestmen
     }
   }
 
+  // Total de parcela única: recorrentes (mensal, manutenção) e êxito não somam
+  // com o valor fechado — R$ 12.000 + R$ 250/mês não é "R$ 12.250".
   const totalAmount = items.reduce<number | null>((acc, item) => {
-    if (item.amount == null) return acc;
+    if (item.amount == null || classifyInvestmentSubtype(item.subtipoId) !== "fixed") return acc;
     return (acc ?? 0) + item.amount;
   }, null);
 
@@ -188,33 +221,19 @@ export function resolveContractingParties(params: {
   address: ContractingPartyAddress;
 }): ContractingParty[] {
   const payload = parseEmpresasPayload(params.propostaEmpresasJson);
-  let primaryIndex = payload.primaryIndex;
-  if (primaryIndex <= 0 && params.empresasIntake.length > 0) {
-    primaryIndex = params.empresasIntake[0].index;
-  }
-
-  const extraDocs = new Set(
-    payload.extras.map((e) => e.documento.replace(/\D/g, "")).filter(Boolean),
-  );
-  const extraNames = new Set(
-    payload.extras.map((e) => e.razao_social.trim().toLowerCase()).filter(Boolean),
-  );
 
   const parties: ContractingParty[] = [];
   const usedDocs = new Set<string>();
 
   for (const empresa of params.empresasIntake) {
-    const isPrimary = empresa.index === primaryIndex;
     const doc = empresa.documento.replace(/\D/g, "");
-    const listedAsExtra =
-      (doc && extraDocs.has(doc)) || extraNames.has(empresa.razao_social.trim().toLowerCase());
     parties.push({
       id: `intake-${empresa.index}`,
       razaoSocial: empresa.razao_social,
       documento: empresa.documento,
       documentoTipo: empresa.tipo_documento,
       endereco: params.address,
-      role: isPrimary || listedAsExtra ? "contratante" : "relacionada",
+      role: isContratanteDoCadastro(empresa, payload, params.empresasIntake) ? "contratante" : "relacionada",
       source: "intake",
     });
     if (doc) usedDocs.add(doc);
@@ -238,10 +257,7 @@ export function resolveContractingParties(params: {
   return parties;
 }
 
-function parseEmpresasPayload(raw: string): {
-  primaryIndex: number;
-  extras: Array<{ razao_social: string; documento: string }>;
-} {
+function parseEmpresasPayload(raw: string): EscolhaEmpresasProposta {
   if (!raw.trim()) return { primaryIndex: 0, extras: [] };
   try {
     const o = JSON.parse(raw) as Record<string, unknown>;
@@ -258,7 +274,8 @@ function parseEmpresasPayload(raw: string): {
         });
       }
     }
-    return { primaryIndex, extras };
+    const contratantes = parseContratantesIndexes(o.contratantes);
+    return contratantes ? { primaryIndex, extras, contratantes } : { primaryIndex, extras };
   } catch {
     return { primaryIndex: 0, extras: [] };
   }

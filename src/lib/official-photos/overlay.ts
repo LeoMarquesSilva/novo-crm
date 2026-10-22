@@ -6,7 +6,7 @@ type CacheEntry = { photoUrl: string | null; fetchedAt: number };
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-function withVersion(photoUrl: string, version: string): string {
+export function withVersion(photoUrl: string, version: string): string {
   const sep = photoUrl.includes("?") ? "&" : "?";
   return `${photoUrl}${sep}v=${encodeURIComponent(version)}`;
 }

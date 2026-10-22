@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
@@ -16,9 +17,11 @@ export type CurrentUserProfile = {
   profile: AppUserProfile | null;
 };
 
-export async function getCurrentUserProfile(
-  options?: { officialAvatar?: boolean },
-): Promise<CurrentUserProfile> {
+/**
+ * Sessão + perfil uma vez por request: layout e página do CRM chamam
+ * `requireAuth` no mesmo render e dividem as mesmas consultas.
+ */
+const loadUserAndProfile = cache(async (): Promise<CurrentUserProfile> => {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -34,7 +37,15 @@ export async function getCurrentUserProfile(
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
-  if (!profile) return { user, profile: null };
+  return { user, profile: profile ?? null };
+});
+
+export async function getCurrentUserProfile(
+  options?: { officialAvatar?: boolean },
+): Promise<CurrentUserProfile> {
+  const { user, profile } = await loadUserAndProfile();
+
+  if (!user || !profile) return { user, profile };
 
   if (options?.officialAvatar === false) {
     return { user, profile };
@@ -48,11 +59,20 @@ export async function getCurrentUserProfile(
   };
 }
 
-export async function requireAuth(nextPath = "/crm"): Promise<{
+/**
+ * Sem `officialAvatar`, não consulta a API de fotos (até 2,5 s no caminho da
+ * página): só o layout do CRM mostra o avatar; as páginas usam id e papel.
+ */
+export async function requireAuth(
+  nextPath = "/crm",
+  options?: { officialAvatar?: boolean },
+): Promise<{
   user: User;
   profile: AppUserProfile;
 }> {
-  const { user, profile } = await getCurrentUserProfile();
+  const { user, profile } = await getCurrentUserProfile({
+    officialAvatar: options?.officialAvatar ?? false,
+  });
 
   if (!user) {
     redirect(`/login?next=${encodeURIComponent(nextPath)}`);

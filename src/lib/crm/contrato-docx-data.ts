@@ -289,8 +289,10 @@ export function listContratoPendingFields(
 
   const tipoPagamento = String(fieldByCode["cc_tipo_pagamento"] ?? "").trim();
 
-  // cc_valores é obrigatório para qualquer pagamento exceto Êxito puro
-  if (tipoPagamento && tipoPagamento !== "Êxito") {
+  // cc_valores é obrigatório para qualquer pagamento exceto Êxito puro — só sem o
+  // motor canônico. Com ele a cláusula de honorários vem do investimento da proposta
+  // e cc_valores não entra no contrato (exigir o campo só gerava texto ignorado).
+  if (tipoPagamento && tipoPagamento !== "Êxito" && !hasEngineObject) {
     if (!String(fieldByCode["cc_valores"] ?? "").trim()) {
       push("Valores e vencimento", "section-condicoes");
     }

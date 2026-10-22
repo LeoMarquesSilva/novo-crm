@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
+import { loadRdMigrationLeadState, rdMigrationBlocksAdvance } from "@/lib/crm/rd-migration/state";
 import { parseAmount } from "@/lib/crm/contract-engine/money";
 import { resolveContractingParties } from "@/lib/crm/contract-engine/proposal-snapshot";
 import type { ContractingPartyAddress } from "@/lib/crm/contract-engine/types";
@@ -51,6 +52,8 @@ export type OnboardingContext = {
     clienteId: string | null;
   };
   isRdLead: boolean;
+  /** Lead do RD convertido na virada com a migração incompleta: não envia nem conclui o cadastro. */
+  rdMigrationPending?: boolean;
   /** Tabela `lead_client_onboarding` ainda não existe no banco (migration pendente). */
   migrationPending: boolean;
   row: OnboardingRow | null;
@@ -114,12 +117,13 @@ export async function loadOnboardingContext(
   if (!opp) return null;
   const o = opp as Record<string, unknown>;
 
-  const [{ data: rd }, onboardingResult, { data: intake }, fieldByCode, template] = await Promise.all([
+  const [{ data: rd }, onboardingResult, { data: intake }, fieldByCode, template, rdMigration] = await Promise.all([
     supabase.from("rd_deal_reconciliacao").select("detalhes").eq("oportunidade_id", opportunityId).limit(1).maybeSingle(),
     supabase.from("lead_client_onboarding").select("*").eq("oportunidade_id", opportunityId).maybeSingle(),
     supabase.from("lead_intakes").select("*").eq("oportunidade_id", opportunityId).maybeSingle(),
     loadPipelineFieldByCode(supabase as never, opportunityId),
     loadDefaultContratoTemplate(supabase as never),
+    o.rd_migrado_em ? loadRdMigrationLeadState(supabase, opportunityId) : Promise.resolve(null),
   ]);
 
   const migrationPending = isMissingTableError(onboardingResult.error);
@@ -208,7 +212,9 @@ export async function loadOnboardingContext(
       criadoPor: (o.criado_por as string | null) ?? null,
       clienteId,
     },
-    isRdLead: Boolean((rd as { detalhes?: unknown } | null)?.detalhes),
+    // Convertido na virada (`rd_migrado_em`): deixa de ser lead do RD só leitura.
+    isRdLead: Boolean((rd as { detalhes?: unknown } | null)?.detalhes) && !o.rd_migrado_em,
+    rdMigrationPending: rdMigration ? rdMigrationBlocksAdvance(rdMigration) : false,
     migrationPending,
     row,
     payload: mergeOnboardingDraft(row ? parseClientOnboardingPayload(row.payload) : null, prefill),

@@ -117,6 +117,27 @@ test("as demais abas renderizam sem erro", async () => {
   expect(screen.getAllByText("também em Produtos").length).toBeGreaterThan(0);
 });
 
+test("na Carteira, a tabela de faixas tem receita média por hora, a linha do escritório e ordena pelo cabeçalho", async () => {
+  const user = userEvent.setup();
+  const data = icpFixtureData();
+  render(<IcpDashboard data={data} error={null} />);
+  await user.click(screen.getByRole("tab", { name: "Carteira" }));
+
+  expect(screen.getByText("Receita média por hora")).toBeInTheDocument();
+  const tiersPanel = screen.getByRole("heading", { name: "Faixas da carteira" }).closest("section")!;
+  expect(within(tiersPanel).getByText("Escritório todo")).toBeInTheDocument();
+
+  const ticketHeader = within(tiersPanel).getByRole("columnheader", { name: /Ticket\/mês/ });
+  await user.click(within(ticketHeader).getByRole("button", { name: "Ticket/mês" }));
+  expect(ticketHeader).toHaveAttribute("aria-sort", "ascending");
+  const cheapest = [...data.tiers].sort((a, b) => a.avgMonthly - b.avgMonthly)[0];
+  const firstRow = within(tiersPanel).getAllByRole("row")[1];
+  expect(firstRow).toHaveTextContent(cheapest.range);
+
+  await user.click(within(ticketHeader).getByRole("button", { name: "Ticket/mês" }));
+  expect(ticketHeader).toHaveAttribute("aria-sort", "descending");
+});
+
 test("sem conexão com o ORQESTRAI, a aba Marketing avisa em vez de mostrar painéis vazios", async () => {
   const user = userEvent.setup();
   render(<IcpDashboard data={{ ...icpFixtureData(), marketingAvailable: false }} error={null} />);

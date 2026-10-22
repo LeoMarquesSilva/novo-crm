@@ -16,6 +16,7 @@ import type {
   ContractSioeUsage,
 } from "@/modules/contracts/infrastructure/contract-queries";
 
+import { ContractInstallmentsEditor } from "./contract-installments-editor";
 import { ContractMoneyInput, ContractPercentInput } from "./contract-money-percent-inputs";
 import {
   BILLING_KIND_LABELS,
@@ -35,6 +36,8 @@ type Props = {
   value: ContractComponentDraft[];
   areas: AreaDraft[];
   startsAt: string | null;
+  /** Primeiro vencimento do contrato: sugestão para a 1ª parcela do preço fechado. */
+  firstInvoiceAt?: string | null;
   disabled?: boolean;
   sioeUsage?: ContractSioeUsage | null;
   sioeUsageLoading?: boolean;
@@ -52,6 +55,7 @@ export function ContractComponentsEditor({
   value,
   areas,
   startsAt,
+  firstInvoiceAt,
   disabled,
   sioeUsage,
   sioeUsageLoading,
@@ -109,6 +113,7 @@ export function ContractComponentsEditor({
           {value.map((entry, index) => {
             const isTrigger = TRIGGER_KINDS.has(entry.kind) || Boolean(entry.requiresManualRelease);
             const isPercent = entry.kind === "exito_percentual";
+            const isClosedPrice = entry.kind === "mensal_preco_fechado";
             const isVariable =
               entry.kind === "variavel_processo" ||
               entry.kind === "variavel_hora" ||
@@ -160,6 +165,10 @@ export function ContractComponentsEditor({
                         const needsRelease = TRIGGER_KINDS.has(nextKind);
                         updateAt(index, {
                           kind: nextKind,
+                          // Parcelas só valem no preço fechado; não levar para outro tipo.
+                          ...(entry.kind === "mensal_preco_fechado" && nextKind !== entry.kind
+                            ? { installments: undefined }
+                            : {}),
                           requiresManualRelease: needsRelease ? true : entry.requiresManualRelease,
                           description:
                             entry.description.trim() === "" ||
@@ -303,6 +312,14 @@ export function ContractComponentsEditor({
                         ) : null}
                       </div>
                     </>
+                  ) : isClosedPrice ? (
+                    <ContractInstallmentsEditor
+                      key={`${entry.id}:${entry.installments?.length ?? 0}`}
+                      installments={entry.installments ?? []}
+                      defaultFirstDueDate={firstInvoiceAt ?? startsAt}
+                      disabled={disabled}
+                      onChange={({ installments, amountCents }) => updateAt(index, { installments, amountCents })}
+                    />
                   ) : (
                     <Field label="Valor">
                       <ContractMoneyInput

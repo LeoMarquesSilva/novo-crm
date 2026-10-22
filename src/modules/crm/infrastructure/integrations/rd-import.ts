@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { IntegrationError } from "@/lib/http/api-errors";
 import { RD_PIPELINE_STAGE_MAP as STAGE_MAP } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
+import { isOpportunityRdMigrated, isRdSyncFrozen } from "@/lib/crm/rd-migration/state";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -27,7 +28,19 @@ export interface RdImportResult {
   importedLeads: number;
   failed: number;
   records: RdDealRecord[];
+  /** Sync congelado na virada (`rd_virada.congelado_em`): nada foi lido nem gravado. */
+  frozen?: boolean;
 }
+
+const FROZEN_RESULT: RdImportResult = {
+  imported: 0,
+  skipped: 0,
+  importedDeals: 0,
+  importedLeads: 0,
+  failed: 0,
+  records: [],
+  frozen: true,
+};
 
 interface SyncContext {
   source: "import" | "webhook";
@@ -40,6 +53,7 @@ export class RdImportConnector {
   async importDeals(year = 2026): Promise<RdImportResult> {
     this.assertToken();
     const supabase = createSupabaseAdminClient();
+    if (await isRdSyncFrozen(supabase)) return FROZEN_RESULT;
     const batchId = await this.startBatch(supabase, year);
     const context: SyncContext = { source: "import", importBatchId: batchId };
 
@@ -109,6 +123,7 @@ export class RdImportConnector {
   async syncWebhookPayload(payload: unknown): Promise<RdImportResult> {
     this.assertToken();
     const supabase = createSupabaseAdminClient();
+    if (await isRdSyncFrozen(supabase)) return FROZEN_RESULT;
     const context: SyncContext = { source: "webhook", importBatchId: null };
 
     const event = this.extractString(payload, ["event_name", "event"]);
@@ -261,6 +276,11 @@ export class RdImportConnector {
       return null;
     }
 
+    // Negócio já convertido na virada: anda no CRM; o RD não altera o lead nem o snapshot.
+    if (await this.isMigratedDeal(supabase, rdDealId)) {
+      return null;
+    }
+
     const leadData = this.extractLeadFromDeal(deal);
     const dealTitle =
       this.extractString(deal, ["title", "name"]) ??
@@ -335,6 +355,17 @@ export class RdImportConnector {
       updatedAt:
         this.extractString(deal, ["updated_at", "updatedAt"]) ?? new Date().toISOString(),
     };
+  }
+
+  private async isMigratedDeal(supabase: SupabaseClient<Database>, rdDealId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from("rd_deal_reconciliacao")
+      .select("oportunidade_id")
+      .eq("rd_deal_id", rdDealId)
+      .maybeSingle();
+    if (error) throw error;
+    const opportunityId = data?.oportunidade_id;
+    return opportunityId ? isOpportunityRdMigrated(supabase, opportunityId) : false;
   }
 
   private async syncLeadContact(

@@ -5,6 +5,12 @@ import { requireCrmActorApi } from "@/lib/auth/crm-actor";
 import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import { resolvePipelineEtapaFromDbAndRd } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
 import {
+  loadRdMigrationLeadState,
+  rdMigrationBlocksAdvance,
+  rdMigrationLeadHref,
+  RD_MIGRATION_PENDING_MESSAGE,
+} from "@/lib/crm/rd-migration/state";
+import {
   applyConfeccaoPropostaDefaults,
   collectPriorMeetingValues,
   computeLeadIntakeRequirement,
@@ -156,19 +162,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Oportunidade não encontrada" }, { status: 404 });
     }
 
-    if (reconRow?.detalhes) {
+    // Lead do RD só anda no CRM depois de convertido na virada (`rd_migrado_em`).
+    const rdMigradoEm = (row as { rd_migrado_em?: string | null }).rd_migrado_em ?? null;
+    if (reconRow?.detalhes && !rdMigradoEm) {
       return NextResponse.json(
         { ok: false, error: RD_KANBAN_VIEW_ONLY_MESSAGE },
         { status: 403 },
       );
     }
+    if (rdMigradoEm) {
+      const migrationState = await loadRdMigrationLeadState(supabase, opportunityId);
+      if (rdMigrationBlocksAdvance(migrationState)) {
+        const transitionBlocker = {
+          code: "rd_migration_pending" as const,
+          message: RD_MIGRATION_PENDING_MESSAGE,
+          actionHref: rdMigrationLeadHref(opportunityId),
+        };
+        return NextResponse.json(
+          { ok: false, errors: [transitionBlocker.message], transitionBlocker },
+          { status: 422 },
+        );
+      }
+    }
 
     const dbEtapa = row.etapa as OpportunityStage;
-    const currentStage = resolvePipelineEtapaFromDbAndRd(
-      dbEtapa,
-      Boolean(reconRow?.detalhes),
-      reconRow?.detalhes,
-    );
+    const currentStage = rdMigradoEm
+      ? dbEtapa
+      : resolvePipelineEtapaFromDbAndRd(dbEtapa, Boolean(reconRow?.detalhes), reconRow?.detalhes);
 
     const stageDecision = evaluateLeadAction(auth.actor, {
       action: "stage.advance",
@@ -838,7 +858,7 @@ async function startPostSaleForLegacyLead(
       });
     await notifyAudience(
       supabase,
-      { leadTeamOf: opportunityId },
+      { leadOwnerOf: opportunityId },
       {
         tipo: "cadastro_cliente_solicitado",
         title: `Preencha o cadastro do cliente — ${leadName ?? "Lead"}`,

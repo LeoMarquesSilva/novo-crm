@@ -21,6 +21,11 @@ export function medianOf(values: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+/** Valor em reais ou "—" quando não há (ex.: receita por hora sem horas lançadas). */
+export function moneyOrDash(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? "—" : money(value);
+}
+
 export function pct(value: number | null | undefined, digits = 0): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${(value * 100).toLocaleString("pt-BR", { maximumFractionDigits: digits, minimumFractionDigits: digits })}%`;

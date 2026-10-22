@@ -32,7 +32,7 @@ import {
   focusRing,
 } from "./icp-primitives";
 
-type ClientSortKey = "name" | "employees" | "monthly" | "overdue";
+type ClientSortKey = "name" | "employees" | "folders" | "monthly" | "overdue";
 type ClientSort = { key: ClientSortKey; desc: boolean };
 type BandFilter = IcpEmployeeBand | "sem";
 
@@ -46,6 +46,7 @@ const MAX_AREA_ICONS = 4;
 function sortValue(g: IcpGroupRow, key: ClientSortKey): number | string | null {
   if (key === "name") return groupName(g.grupo).toLowerCase();
   if (key === "employees") return g.profile?.employeeMin ?? g.profile?.linkedinMembers ?? null;
+  if (key === "folders") return g.activeFolders;
   if (key === "monthly") return g.monthly;
   return g.overdue;
 }
@@ -167,7 +168,7 @@ export function ClientesTab({ data }: { data: IcpData }) {
         })}
       </div>
 
-      <Table className="min-w-[940px]">
+      <Table className="min-w-[1020px]">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <SortHeader label="Grupo" sortKey="name" sort={sort} onSort={sortBy} />
@@ -179,6 +180,7 @@ export function ClientesTab({ data }: { data: IcpData }) {
             <TableHead className={headClass}>
               <LabelWithInfo label="Áreas" info={INFO.areasGrupo} />
             </TableHead>
+            <SortHeader label="Pastas ativas" sortKey="folders" sort={sort} onSort={sortBy} info={INFO.pastasAtivas} align="right" />
             <SortHeader label="Média mensal" sortKey="monthly" sort={sort} onSort={sortBy} info={INFO.mediaMensal} align="right" />
             <SortHeader label="Em atraso" sortKey="overdue" sort={sort} onSort={sortBy} info={INFO.atrasoGrupo} align="right" />
             <TableHead className="w-8">
@@ -197,7 +199,7 @@ export function ClientesTab({ data }: { data: IcpData }) {
           ))}
           {rows.length === 0 && (
             <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+              <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
                 Nenhum grupo com esses filtros.
               </TableCell>
             </TableRow>
@@ -316,6 +318,7 @@ function GroupRow({ group: g, open, onToggle }: { group: IcpGroupRow; open: bool
             {g.areas.length === 0 && <span className="text-muted-foreground">—</span>}
           </div>
         </TableCell>
+        <TableCell className="text-right tabular-nums text-foreground">{g.activeFolders > 0 ? g.activeFolders : "—"}</TableCell>
         <TableCell className="text-right font-semibold tabular-nums text-foreground">{money(g.monthly)}</TableCell>
         <TableCell
           className={cn("text-right tabular-nums", heavyOverdue ? "font-medium text-warning-text" : "text-muted-foreground")}
@@ -328,7 +331,7 @@ function GroupRow({ group: g, open, onToggle }: { group: IcpGroupRow; open: bool
       </TableRow>
       {open && (
         <TableRow className="bg-surface-subtle hover:bg-surface-subtle">
-          <TableCell colSpan={8} className="whitespace-normal px-3 pb-4 pt-1">
+          <TableCell colSpan={9} className="whitespace-normal px-3 pb-4 pt-1">
             <GroupDetail group={g} />
           </TableCell>
         </TableRow>
@@ -457,6 +460,10 @@ function GroupDetail({ group: g }: { group: IcpGroupRow }) {
           <div>
             <dt className="text-xs text-muted-foreground">Horas</dt>
             <dd className="tabular-nums text-foreground">{Math.round(g.hours12m).toLocaleString("pt-BR")} h</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Pastas ativas hoje</dt>
+            <dd className="tabular-nums text-foreground">{g.activeFolders}</dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Em atraso</dt>
