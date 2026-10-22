@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { maskCpfCnpj } from "@/lib/crm/br-document-mask";
 import { Label } from "@/components/ui/label";
 import { DUE_AREAS, DUE_AREA_IDS, type DueAreaId } from "@/lib/due-ppt/areas";
 import {
@@ -460,10 +461,11 @@ export function DueApresentacaoPanel({
                 <Label htmlFor="due-cnpj">CNPJ</Label>
                 <Input
                   id="due-cnpj"
+                  inputMode="numeric"
                   value={draft.capa.cnpj}
                   onChange={(e) =>
                     atualizar((d) => {
-                      d.capa.cnpj = e.target.value;
+                      d.capa.cnpj = maskCpfCnpj(e.target.value);
                       return d;
                     })
                   }
@@ -486,10 +488,11 @@ export function DueApresentacaoPanel({
                   />
                   <Input
                     aria-label={`CNPJ da empresa ${i + 2}`}
+                    inputMode="numeric"
                     value={e.cnpj}
                     onChange={(ev) =>
                       atualizar((d) => {
-                        d.capa.empresas[i]!.cnpj = ev.target.value;
+                        d.capa.empresas[i]!.cnpj = maskCpfCnpj(ev.target.value);
                         return d;
                       })
                     }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 
 import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
@@ -11,6 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { maskCpf, maskCpfCnpj, maskPhoneBr } from "@/lib/crm/br-document-mask";
+import { formatCepDisplay } from "@/lib/crm/proposta-empresas";
+import { isValidCpf, isValidCpfOrCnpj } from "@/lib/crm/rd-migration/documents";
 import { cn } from "@/lib/utils";
 import { REAJUSTE_INDICES, type ClientOnboardingPayload } from "@/modules/crm/domain/client-onboarding";
 
@@ -76,6 +80,45 @@ function Section({ title, description, children }: { title: string; description?
 
 type Updater = (mutate: (draft: ClientOnboardingPayload) => void) => void;
 
+/** Documento completo com dígito verificador errado (o envio só confere o tamanho; aqui é aviso). */
+function documentoInvalido(value: string, kind: "cpf" | "cpf_cnpj"): boolean {
+  const digits = value.replace(/\D/g, "");
+  if (kind === "cpf") return digits.length === 11 && !isValidCpf(digits);
+  return (digits.length === 11 || digits.length === 14) && !isValidCpfOrCnpj(digits);
+}
+
+/** Texto do aviso abaixo do campo (só aviso: o envio segue conferindo o tamanho). */
+function documentoInvalidoTexto(value: string, kind: "cpf" | "cpf_cnpj"): string | null {
+  if (!documentoInvalido(value, kind)) return null;
+  return value.replace(/\D/g, "").length === 14
+    ? "CNPJ inválido: confira os dígitos."
+    : "CPF inválido: confira os dígitos.";
+}
+
+function DocumentoAviso({
+  id,
+  value,
+  kind,
+  className,
+}: {
+  id: string;
+  value: string;
+  kind: "cpf" | "cpf_cnpj";
+  className?: string;
+}) {
+  const texto = documentoInvalidoTexto(value, kind);
+  if (!texto) return null;
+  return (
+    <p id={id} className={cn("text-v2-caption text-danger-text", className)}>
+      {texto}
+    </p>
+  );
+}
+
+function apenasNumeroDecimal(value: string): string {
+  return value.replace(/[^\d,.]/g, "");
+}
+
 /**
  * Formulário do cadastro do cliente: dados de cadastro (Operações Legais) e dados para o
  * Financeiro / gestão de contratos. `readOnly` mostra o mesmo layout sem edição.
@@ -98,6 +141,40 @@ export function ClientOnboardingForm({
   const disabled = readOnly;
   const { cadastro, financeiro } = payload;
 
+  // A busca do CEP termina depois de outras digitações: aplica sobre o cadastro mais recente.
+  const payloadRef = useRef(payload);
+  useEffect(() => {
+    payloadRef.current = payload;
+  }, [payload]);
+  const [cepStatus, setCepStatus] = useState<string | null>(null);
+
+  async function buscarCep(cep: string) {
+    setCepStatus("Buscando endereço…");
+    try {
+      const res = await fetch(`/api/integrations/viacep?cep=${encodeURIComponent(cep)}`);
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        data?: { logradouro: string; bairro: string; localidade: string; uf: string };
+      };
+      if (!res.ok || !json.ok || !json.data) {
+        setCepStatus(json.error ?? "CEP não encontrado. Preencha o endereço manualmente.");
+        return;
+      }
+      const data = json.data;
+      const next = structuredClone(payloadRef.current);
+      if (next.cadastro.endereco.cep.replace(/\D/g, "") !== cep) return;
+      next.cadastro.endereco.logradouro = data.logradouro || next.cadastro.endereco.logradouro;
+      next.cadastro.endereco.bairro = data.bairro || next.cadastro.endereco.bairro;
+      next.cadastro.endereco.cidade = data.localidade || next.cadastro.endereco.cidade;
+      next.cadastro.endereco.uf = data.uf || next.cadastro.endereco.uf;
+      onChange(next);
+      setCepStatus(null);
+    } catch {
+      setCepStatus("Não foi possível consultar o CEP. Preencha o endereço manualmente.");
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Section title="Dados do cliente" description="Operações Legais confere e cadastra no VIOS e nos sistemas legados.">
@@ -113,10 +190,14 @@ export function ClientOnboardingForm({
           <Field label="CPF/CNPJ" htmlFor="ob-doc" required source={src["cadastro.documento"]}>
             <Input
               id="ob-doc"
+              inputMode="numeric"
               value={cadastro.documento}
               disabled={disabled}
-              onChange={(e) => update((d) => void (d.cadastro.documento = e.target.value))}
+              aria-invalid={documentoInvalido(cadastro.documento, "cpf_cnpj") || undefined}
+              aria-describedby={documentoInvalido(cadastro.documento, "cpf_cnpj") ? "ob-doc-aviso" : undefined}
+              onChange={(e) => update((d) => void (d.cadastro.documento = maskCpfCnpj(e.target.value)))}
             />
+            <DocumentoAviso id="ob-doc-aviso" value={cadastro.documento} kind="cpf_cnpj" />
           </Field>
           <Field label="E-mail do cliente" htmlFor="ob-email" source={src["cadastro.email"]}>
             <Input
@@ -130,9 +211,12 @@ export function ClientOnboardingForm({
           <Field label="Telefone" htmlFor="ob-tel" source={src["cadastro.telefone"]}>
             <Input
               id="ob-tel"
+              type="tel"
+              inputMode="tel"
+              placeholder="(00) 00000-0000"
               value={cadastro.telefone}
               disabled={disabled}
-              onChange={(e) => update((d) => void (d.cadastro.telefone = e.target.value))}
+              onChange={(e) => update((d) => void (d.cadastro.telefone = maskPhoneBr(e.target.value)))}
             />
           </Field>
         </div>
@@ -146,10 +230,19 @@ export function ClientOnboardingForm({
             <Field label="CEP" htmlFor="ob-cep" required className="sm:col-span-2">
               <Input
                 id="ob-cep"
-                value={cadastro.endereco.cep}
+                inputMode="numeric"
+                placeholder="00000-000"
+                value={formatCepDisplay(cadastro.endereco.cep)}
                 disabled={disabled}
-                onChange={(e) => update((d) => void (d.cadastro.endereco.cep = e.target.value))}
+                onChange={(e) => {
+                  const cep = formatCepDisplay(e.target.value);
+                  update((d) => void (d.cadastro.endereco.cep = cep));
+                  const digits = cep.replace(/\D/g, "");
+                  if (digits.length === 8) void buscarCep(digits);
+                  else setCepStatus(null);
+                }}
               />
+              {cepStatus ? <p className="text-v2-caption text-muted-foreground">{cepStatus}</p> : null}
             </Field>
             <Field label="Logradouro" htmlFor="ob-log" required className="sm:col-span-3">
               <Input
@@ -197,7 +290,7 @@ export function ClientOnboardingForm({
                 maxLength={2}
                 value={cadastro.endereco.uf}
                 disabled={disabled}
-                onChange={(e) => update((d) => void (d.cadastro.endereco.uf = e.target.value.toUpperCase()))}
+                onChange={(e) => update((d) => void (d.cadastro.endereco.uf = e.target.value.replace(/[^a-zA-Z]/g, "").toUpperCase()))}
               />
             </Field>
           </div>
@@ -224,10 +317,13 @@ export function ClientOnboardingForm({
               />
               <Input
                 value={socio.cpf}
-                placeholder="CPF"
+                inputMode="numeric"
+                placeholder="000.000.000-00"
                 aria-label={`CPF do sócio ${index + 1}`}
                 disabled={disabled}
-                onChange={(e) => update((d) => void (d.cadastro.socios[index]!.cpf = e.target.value))}
+                aria-invalid={documentoInvalido(socio.cpf, "cpf") || undefined}
+                aria-describedby={documentoInvalido(socio.cpf, "cpf") ? `ob-socio-${index}-cpf-aviso` : undefined}
+                onChange={(e) => update((d) => void (d.cadastro.socios[index]!.cpf = maskCpf(e.target.value)))}
               />
               {!readOnly ? (
                 <Button
@@ -240,6 +336,12 @@ export function ClientOnboardingForm({
                   <X className="size-4" aria-hidden />
                 </Button>
               ) : null}
+              <DocumentoAviso
+                id={`ob-socio-${index}-cpf-aviso`}
+                value={socio.cpf}
+                kind="cpf"
+                className="sm:col-span-full"
+              />
             </div>
           ))}
           {cadastro.socios.length === 0 ? (
@@ -276,10 +378,15 @@ export function ClientOnboardingForm({
               />
               <Input
                 value={empresa.documento}
+                inputMode="numeric"
                 placeholder="CPF ou CNPJ"
                 aria-label={`CPF/CNPJ da empresa ${index + 1}`}
                 disabled={disabled}
-                onChange={(e) => update((d) => void (d.cadastro.empresasConsulta[index]!.documento = e.target.value))}
+                aria-invalid={documentoInvalido(empresa.documento, "cpf_cnpj") || undefined}
+                aria-describedby={
+                  documentoInvalido(empresa.documento, "cpf_cnpj") ? `ob-consulta-${index}-doc-aviso` : undefined
+                }
+                onChange={(e) => update((d) => void (d.cadastro.empresasConsulta[index]!.documento = maskCpfCnpj(e.target.value)))}
               />
               {!readOnly ? (
                 <Button
@@ -292,6 +399,12 @@ export function ClientOnboardingForm({
                   <X className="size-4" aria-hidden />
                 </Button>
               ) : null}
+              <DocumentoAviso
+                id={`ob-consulta-${index}-doc-aviso`}
+                value={empresa.documento}
+                kind="cpf_cnpj"
+                className="sm:col-span-full"
+              />
             </div>
           ))}
           {!readOnly ? (
@@ -333,10 +446,16 @@ export function ClientOnboardingForm({
           <Field label="CPF/CNPJ para faturamento" htmlFor="ob-fat-doc" required>
             <Input
               id="ob-fat-doc"
+              inputMode="numeric"
               value={financeiro.faturamento.documento}
               disabled={disabled}
-              onChange={(e) => update((d) => void (d.financeiro.faturamento.documento = e.target.value))}
+              aria-invalid={documentoInvalido(financeiro.faturamento.documento, "cpf_cnpj") || undefined}
+              aria-describedby={
+                documentoInvalido(financeiro.faturamento.documento, "cpf_cnpj") ? "ob-fat-doc-aviso" : undefined
+              }
+              onChange={(e) => update((d) => void (d.financeiro.faturamento.documento = maskCpfCnpj(e.target.value)))}
             />
+            <DocumentoAviso id="ob-fat-doc-aviso" value={financeiro.faturamento.documento} kind="cpf_cnpj" />
           </Field>
           <Field label="Início da vigência" htmlFor="ob-vig" required source={src["financeiro.inicioVigencia"]}>
             <DateInputBr
@@ -362,6 +481,7 @@ export function ClientOnboardingForm({
         </div>
         <label className="flex items-center gap-2 text-v2-body-sm text-foreground">
           <Switch
+            aria-label="Primeiro faturamento depende de uma condição"
             checked={financeiro.primeiroFaturamentoCondicionado}
             disabled={disabled}
             onCheckedChange={(checked) =>
@@ -415,9 +535,12 @@ export function ClientOnboardingForm({
             <Field label="Telefone" htmlFor="ob-cf-tel">
               <Input
                 id="ob-cf-tel"
+                type="tel"
+                inputMode="tel"
+                placeholder="(00) 00000-0000"
                 value={financeiro.contatoFinanceiro.telefone}
                 disabled={disabled}
-                onChange={(e) => update((d) => void (d.financeiro.contatoFinanceiro.telefone = e.target.value))}
+                onChange={(e) => update((d) => void (d.financeiro.contatoFinanceiro.telefone = maskPhoneBr(e.target.value)))}
               />
             </Field>
           </div>
@@ -448,7 +571,7 @@ export function ClientOnboardingForm({
               inputMode="numeric"
               value={financeiro.reajuste.periodicidadeMeses}
               disabled={disabled}
-              onChange={(e) => update((d) => void (d.financeiro.reajuste.periodicidadeMeses = e.target.value))}
+              onChange={(e) => update((d) => void (d.financeiro.reajuste.periodicidadeMeses = e.target.value.replace(/\D/g, "").slice(0, 3)))}
             />
           </Field>
           <Field label="Repasse acordado (%)" htmlFor="ob-repasse">
@@ -457,7 +580,7 @@ export function ClientOnboardingForm({
               inputMode="decimal"
               value={financeiro.repassePercentual}
               disabled={disabled}
-              onChange={(e) => update((d) => void (d.financeiro.repassePercentual = e.target.value))}
+              onChange={(e) => update((d) => void (d.financeiro.repassePercentual = apenasNumeroDecimal(e.target.value)))}
             />
           </Field>
         </div>
@@ -482,7 +605,7 @@ export function ClientOnboardingForm({
                 placeholder="%"
                 aria-label={`Percentual da área ${index + 1}`}
                 disabled={disabled}
-                onChange={(e) => update((d) => void (d.financeiro.rateioPorArea[index]!.percentual = e.target.value))}
+                onChange={(e) => update((d) => void (d.financeiro.rateioPorArea[index]!.percentual = apenasNumeroDecimal(e.target.value)))}
               />
               {!readOnly ? (
                 <Button

@@ -1,5 +1,10 @@
 import { formatDateYmdBr } from "@/lib/format-datetime";
 import type { NewLeadPayload } from "@/modules/crm/application/services/new-lead-payload";
+import {
+  WHATSAPP_TEMPLATE_DEFS,
+  renderWhatsappTemplate,
+  type WhatsappTemplateValues,
+} from "@/lib/crm/whatsapp/templates";
 
 function fmtDataPt(v: string | null | undefined): string {
   if (v == null || String(v).trim() === "") return "Não informado";
@@ -8,7 +13,7 @@ function fmtDataPt(v: string | null | undefined): string {
   return br || s;
 }
 
-interface BuildDueWhatsappMessageInput extends NewLeadPayload {
+export interface BuildDueWhatsappMessageInput extends NewLeadPayload {
   razao_social_completa: string;
   cnpj_completo: string;
 }
@@ -38,38 +43,36 @@ function buildOrigemLeadSection(data: BuildDueWhatsappMessageInput) {
   return lines.join("\n");
 }
 
-export function buildDueWhatsappMessage(data: BuildDueWhatsappMessageInput) {
-  const areas_analise_formatted = data.areas_analise.join(", ");
-  const data_reuniao = fmtDataPt(data.data_reuniao);
-  const horario_reuniao = data.horario_reuniao || "Não informado";
-  const due_date = fmtDataPt(data.data_entrega_due);
+/**
+ * Valores do modelo `novo_lead_due` (texto padrão e versão editável em Integrações → WhatsApp).
+ * `avisos`: alerta de área sem responsável no cadastro de usuários (vazio quando está tudo certo).
+ */
+export function buildDueWhatsappValues(
+  data: BuildDueWhatsappMessageInput,
+  avisos?: string | null,
+): WhatsappTemplateValues {
   const due_time = data.horario_entrega_due ? ` às ${data.horario_entrega_due}` : "";
-  const razoes = joinEmpresas(data, "razao_social");
-  const documentos = joinEmpresas(data, "documento");
-  const origemLeadSection = buildOrigemLeadSection(data);
+  return {
+    solicitante: data.solicitante,
+    cadastrado_por: data.cadastrado_por,
+    email: data.email,
+    empresas: joinEmpresas(data, "razao_social") || "Não informado",
+    documentos: joinEmpresas(data, "documento") || "Não informado",
+    origem: buildOrigemLeadSection(data),
+    prazo_due: `${fmtDataPt(data.data_entrega_due)}${due_time}`,
+    areas: data.areas_analise.join(", "),
+    reuniao_local: data.local_reuniao,
+    reuniao_data: fmtDataPt(data.data_reuniao),
+    reuniao_horario: data.horario_reuniao || "Não informado",
+    due_diligence: data.due_diligence,
+    avisos: avisos ?? "",
+  };
+}
 
-  return `
-*Novo Lead com Due Diligence*
-*Solicitante:* ${data.solicitante}
-*Cadastrado por:* ${data.cadastrado_por}
-*E-mail:* ${data.email}
-
-*Empresa/Pessoa:* ${razoes || "Não informado"}
-*CNPJ/CPF:* ${documentos || "Não informado"}
-
-${origemLeadSection}
-
-*Detalhes da Due Diligence:*
-- *Prazo de Entrega:* ${due_date}${due_time}
-- *Áreas de Análise:* ${areas_analise_formatted}
-
-*Detalhes da Reunião:*
-- *Local:* ${data.local_reuniao}
-- *Data:* ${data_reuniao}
-- *Horário:* ${horario_reuniao}
-
-*Due Diligence:* ${data.due_diligence}
-
-_Esta mensagem foi gerada automaticamente pelo sistema de Gestão de Leads do Bismarchi | Pires._
-`.trim();
+/** Texto padrão (sem a sobrescrita do banco), usado em testes e quando não há Supabase à mão. */
+export function buildDueWhatsappMessage(data: BuildDueWhatsappMessageInput) {
+  return renderWhatsappTemplate(
+    WHATSAPP_TEMPLATE_DEFS.novo_lead_due.defaultBody,
+    buildDueWhatsappValues(data),
+  );
 }

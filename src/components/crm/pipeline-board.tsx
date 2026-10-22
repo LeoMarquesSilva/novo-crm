@@ -823,7 +823,7 @@ export function PipelineBoard({
         return;
       }
       setModalError(
-        `Preencha os campos obrigatórios: ${blocking.map((f) => f.label).join(", ")}.`,
+        `Preencha os campos obrigatórios: ${blocking.map((f) => userFacingFieldLabel(f.label, f.field_code)).join(", ")}.`,
       );
       return;
     }

@@ -22,6 +22,24 @@ const dateTimeBrFormatter = new Intl.DateTimeFormat("pt-BR", {
   hour12: false,
 });
 
+const dateTimeMinutesBrFormatter = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: BR_TIMEZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+/** Instante ISO 8601 → `dd/MM/yyyy, HH:mm` em Brasília (prazos: os segundos só poluem). */
+export function formatDateTimeMinutesBr(iso: string | null | undefined): string {
+  if (iso == null || String(iso).trim() === "") return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return dateTimeMinutesBrFormatter.format(d);
+}
+
 /**
  * Instante ISO 8601 → `dd/MM/yyyy HH:mm:ss` no horário de Brasília.
  */
@@ -188,4 +206,22 @@ export function parseBrDateDigitsToYmd(digits: string): string | null {
   const dt = new Date(yyyy, mm - 1, dd);
   if (dt.getFullYear() !== yyyy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) return null;
   return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+}
+
+/** Formata até 4 dígitos como `hh:mm` enquanto o usuário digita. */
+export function maskHmDigitsInput(digits: string): string {
+  const d = digits.replace(/\D/g, "").slice(0, 4);
+  if (d.length <= 2) return d;
+  return `${d.slice(0, 2)}:${d.slice(2)}`;
+}
+
+/** `hhmm` (ou `hmm`, ex.: 930 → 09:30) → `HH:mm` válido, ou `null`. */
+export function parseHmDigits(digits: string): string | null {
+  let d = digits.replace(/\D/g, "");
+  if (d.length === 3) d = `0${d}`;
+  if (d.length !== 4) return null;
+  const h = Number(d.slice(0, 2));
+  const m = Number(d.slice(2, 4));
+  if (h > 23 || m > 59) return null;
+  return `${d.slice(0, 2)}:${d.slice(2, 4)}`;
 }

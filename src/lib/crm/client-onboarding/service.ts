@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { after } from "next/server";
 
 import { evaluateLeadAction, type CrmActor, type PolicyDecision } from "@/lib/auth/crm-access-policy";
 import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
@@ -21,6 +22,23 @@ import type { ContractingParty } from "@/lib/crm/contract-engine/types";
 import { isMissingTableError, type OnboardingContext } from "./load-onboarding-context";
 
 export type OnboardingAction = "edit_draft" | "submit" | "review" | "return" | "conclude";
+
+/**
+ * Avisos (sino + e-mail) depois da resposta: enviar/concluir/devolver não espera a lista de
+ * destinatários nem o e-mail, e a ficha atualiza a etapa na hora. Fora de uma requisição, só dispara.
+ */
+function notifyAfterResponse(task: () => Promise<unknown>, scope: string, opportunityId: string): void {
+  const run = () =>
+    task().then(
+      () => undefined,
+      (error: unknown) => logServerError(scope, error, { opportunityId }),
+    );
+  try {
+    after(run);
+  } catch {
+    void run();
+  }
+}
 
 const MIGRATION_PENDING = new PublicError(
   "O cadastro do cliente ainda não foi habilitado no banco (migration pendente).",
@@ -193,7 +211,7 @@ export async function submitOnboarding(
   }
 
   const leadName = ctx.opportunity.solicitanteNome ?? "Lead";
-  try {
+  notifyAfterResponse(async () => {
     const recipients = await notifyAudience(
       supabase,
       { modules: ["operacoes_legais"] },
@@ -221,9 +239,7 @@ export async function submitOnboarding(
         },
       );
     }
-  } catch (notifyError) {
-    logServerError("onboarding/submit/notify", notifyError, { opportunityId: ctx.opportunity.id });
-  }
+  }, "onboarding/submit/notify", ctx.opportunity.id);
 
   return { transitionId };
 }
@@ -258,22 +274,23 @@ export async function returnOnboarding(
     sourceId: transitionId ? `onboarding-return:${transitionId}` : null,
   });
 
-  try {
-    await notifyAudience(
-      supabase,
-      { leadOwnerOf: ctx.opportunity.id },
-      {
-        tipo: "cadastro_cliente_devolvido",
-        title: `Cadastro devolvido — ${ctx.opportunity.solicitanteNome ?? "Lead"}`,
-        preview: input.comment,
-        path: leadPath(ctx.opportunity.id),
-        idempotencyKey: `cadastro-devolvido:${transitionId ?? ctx.opportunity.id}`,
-        extra: { oportunidade_id: ctx.opportunity.id },
-      },
-    );
-  } catch (notifyError) {
-    logServerError("onboarding/return/notify", notifyError, { opportunityId: ctx.opportunity.id });
-  }
+  notifyAfterResponse(
+    () =>
+      notifyAudience(
+        supabase,
+        { leadOwnerOf: ctx.opportunity.id },
+        {
+          tipo: "cadastro_cliente_devolvido",
+          title: `Cadastro devolvido — ${ctx.opportunity.solicitanteNome ?? "Lead"}`,
+          preview: input.comment,
+          path: leadPath(ctx.opportunity.id),
+          idempotencyKey: `cadastro-devolvido:${transitionId ?? ctx.opportunity.id}`,
+          extra: { oportunidade_id: ctx.opportunity.id },
+        },
+      ),
+    "onboarding/return/notify",
+    ctx.opportunity.id,
+  );
   return { transitionId };
 }
 
@@ -566,7 +583,7 @@ export async function concludeOnboarding(
     metadata: { from: "cadastro_novo_cliente", to: "inclusao_faturamento" },
   });
 
-  try {
+  notifyAfterResponse(async () => {
     await onEnteredInclusaoFaturamento(supabase, {
       opportunityId: ctx.opportunity.id,
       leadName: ctx.opportunity.solicitanteNome,
@@ -584,9 +601,7 @@ export async function concludeOnboarding(
       },
       { email: false },
     );
-  } catch (notifyError) {
-    logServerError("onboarding/conclude/notify", notifyError, { opportunityId: ctx.opportunity.id });
-  }
+  }, "onboarding/conclude/notify", ctx.opportunity.id);
 
   return {
     transitionId: row.transition_id,

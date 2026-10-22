@@ -489,7 +489,15 @@ export function ContractSetupWizard({
         <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="font-bold text-zinc-900">{steps[step]}</h3>
-            <p className="text-sm text-zinc-500">{dirty ? "Alterações não salvas" : "Rascunho sincronizado"}</p>
+            <p className="text-sm text-zinc-500">
+              {contract.editableVersionStatus && contract.editableVersionStatus !== "rascunho"
+                ? "Versão ativa · somente leitura"
+                : !canConfigure
+                  ? "Somente leitura"
+                  : dirty
+                    ? "Alterações não salvas"
+                    : "Rascunho sincronizado"}
+            </p>
           </div>
           <SourceBadges
             fields={contract.sourceFields}
@@ -624,9 +632,11 @@ export function ContractSetupWizard({
                 max={31}
                 value={configuration.dueDay ?? ""}
                 disabled={!canConfigure}
-                onChange={(event) =>
-                  patch({ dueDay: event.target.value ? Number(event.target.value) : null })
-                }
+                onChange={(event) => {
+                  // O navegador não segura min/max na digitação: dia fora de 1–31 vira o limite mais próximo.
+                  const day = event.target.value ? Math.trunc(Number(event.target.value)) : null;
+                  patch({ dueDay: day === null || Number.isNaN(day) ? null : Math.min(31, Math.max(1, day)) });
+                }}
               />
             </Field>
             <Field label="Data-base de renovação">
@@ -841,9 +851,11 @@ export function ContractSetupWizard({
               onGoToStep={setStep}
             />
 
-            <Button type="button" onClick={activate} disabled={!canConfigure || busy} className="w-full">
-              Ativar contrato e avançar etapa
-            </Button>
+            {canConfigure ? (
+              <Button type="button" onClick={activate} disabled={busy} className="w-full">
+                Ativar contrato e avançar etapa
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -917,10 +929,12 @@ export function ContractSetupWizard({
             Anterior
           </Button>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={saveDraft} disabled={!canConfigure || busy}>
-              <Save />
-              Salvar rascunho
-            </Button>
+            {canConfigure ? (
+              <Button type="button" variant="outline" onClick={saveDraft} disabled={busy}>
+                <Save />
+                Salvar rascunho
+              </Button>
+            ) : null}
             {step < steps.length - 1 ? (
               <Button type="button" onClick={() => setStep((value) => Math.min(steps.length - 1, value + 1))}>
                 Próxima

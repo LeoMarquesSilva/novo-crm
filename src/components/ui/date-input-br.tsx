@@ -5,7 +5,11 @@ import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CalendarBr } from "@/components/ui/calendar-br";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { formatDateYmdBr } from "@/lib/format-datetime";
+import {
+  maskBrDateDigitsInput,
+  parseBrDateDigitsToYmd,
+  ymdToBrDateDigitString,
+} from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 
 function ymdToLocalDate(ymd: string): Date {
@@ -17,9 +21,17 @@ function localDateToYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
+function ymdToMasked(ymd: string): string {
+  return ymd ? maskBrDateDigitsInput(ymdToBrDateDigitString(ymd)) : "";
+}
+
 /**
- * Data com **calendário visual** em português (react-day-picker + locale pt-BR).
- * Valor externo: `yyyy-mm-dd`.
+ * Data em português: digita-se `dd/mm/aaaa` (máscara enquanto digita) ou escolhe no calendário do botão.
+ * Antes o campo era só o calendário e não dava para digitar a data (teste ponta a ponta 4).
+ * Valor externo: `yyyy-mm-dd`. Data inexistente ou incompleta fica no campo com aviso e o valor externo
+ * vira vazio, para a validação de obrigatório do formulário barrar o avanço.
  */
 export function DateInputBr({
   value,
@@ -33,6 +45,7 @@ export function DateInputBr({
   maxYmd,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
+  onInvalidChange,
 }: {
   value: string;
   onChange: (ymd: string) => void;
@@ -43,34 +56,55 @@ export function DateInputBr({
   required?: boolean;
   minYmd?: string;
   maxYmd?: string;
-  "aria-invalid"?: React.ComponentProps<"button">["aria-invalid"];
+  "aria-invalid"?: React.ComponentProps<"input">["aria-invalid"];
   "aria-describedby"?: string;
+  /** Avisado quando o texto digitado deixa de ser (ou volta a ser) uma data válida; serve para barrar campo opcional. */
+  onInvalidChange?: (invalid: boolean) => void;
 }) {
   const [open, setOpen] = React.useState(false);
+  const messageId = React.useId();
+  const validValue = value && YMD.test(value.trim()) ? value.trim() : "";
+  const [text, setText] = React.useState(() => ymdToMasked(validValue));
+  const [syncedValue, setSyncedValue] = React.useState(validValue);
+  // Último valor que este campo mandou para fora: a volta dele não reescreve o que está digitado.
+  const [emitted, setEmitted] = React.useState<string | null>(null);
+  const [blurred, setBlurred] = React.useState(false);
+
+  if (validValue !== syncedValue) {
+    setSyncedValue(validValue);
+    if (validValue !== emitted) {
+      setText(ymdToMasked(validValue));
+      setBlurred(false);
+    }
+  }
+
+  const emit = (next: string) => {
+    setEmitted(next);
+    if (next !== validValue) onChange(next);
+  };
 
   const clamp = React.useCallback(
     (ymd: string) => {
       let out = ymd;
-      if (minYmd && /^\d{4}-\d{2}-\d{2}$/.test(minYmd) && out < minYmd) out = minYmd;
-      if (maxYmd && /^\d{4}-\d{2}-\d{2}$/.test(maxYmd) && out > maxYmd) out = maxYmd;
+      if (minYmd && YMD.test(minYmd) && out < minYmd) out = minYmd;
+      if (maxYmd && YMD.test(maxYmd) && out > maxYmd) out = maxYmd;
       return out;
     },
     [minYmd, maxYmd],
   );
 
-  const selectedDate =
-    value && /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? ymdToLocalDate(value.trim()) : undefined;
+  const selectedDate = validValue ? ymdToLocalDate(validValue) : undefined;
 
   const disabledMatcher = React.useMemo(() => {
     if (!minYmd && !maxYmd) return undefined;
     return (date: Date) => {
       const t = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-      if (minYmd && /^\d{4}-\d{2}-\d{2}$/.test(minYmd)) {
+      if (minYmd && YMD.test(minYmd)) {
         const min = ymdToLocalDate(minYmd);
         const minT = new Date(min.getFullYear(), min.getMonth(), min.getDate()).getTime();
         if (t < minT) return true;
       }
-      if (maxYmd && /^\d{4}-\d{2}-\d{2}$/.test(maxYmd)) {
+      if (maxYmd && YMD.test(maxYmd)) {
         const max = ymdToLocalDate(maxYmd);
         const maxT = new Date(max.getFullYear(), max.getMonth(), max.getDate()).getTime();
         if (t > maxT) return true;
@@ -79,50 +113,101 @@ export function DateInputBr({
     };
   }, [minYmd, maxYmd]);
 
-  const labelText =
-    value && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())
-      ? formatDateYmdBr(value.trim()) || value
-      : null;
+  const typedDigits = text.replace(/\D/g, "");
+  const problem =
+    typedDigits.length === 8 && !parseBrDateDigitsToYmd(typedDigits)
+      ? "Data inválida: esse dia não existe."
+      : blurred && typedDigits.length > 0 && typedDigits.length < 8
+        ? "Data incompleta: use dd/mm/aaaa."
+        : null;
+  const describedBy = [ariaDescribedBy, problem ? messageId : null].filter(Boolean).join(" ") || undefined;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      {name ? <input type="hidden" name={name} value={value} readOnly aria-hidden /> : null}
-      <PopoverTrigger asChild>
-        <Button
+    <div className="w-full min-w-0 space-y-1">
+      <div
+        data-slot="date-input-br"
+        data-disabled={disabled || undefined}
+        className={cn(
+          "flex h-10 w-full min-w-0 items-center gap-1 rounded-(--radius-v2-md) border border-input bg-white pl-3 pr-1 text-base transition-colors md:text-sm",
+          "focus-within:border-primary focus-within:ring-3 focus-within:ring-ring/20",
+          "has-[input[aria-invalid=true]]:border-destructive has-[input[aria-invalid=true]]:ring-3 has-[input[aria-invalid=true]]:ring-destructive/20",
+          "data-[disabled]:cursor-not-allowed data-[disabled]:bg-muted data-[disabled]:text-text-disabled-v2",
+          className,
+        )}
+      >
+        {name ? <input type="hidden" name={name} value={validValue} readOnly aria-hidden /> : null}
+        <input
           id={id}
-          type="button"
-          variant="outline"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="dd/mm/aaaa"
+          maxLength={10}
+          value={text}
           disabled={disabled}
-          aria-required={required ?? false}
-          aria-invalid={ariaInvalid}
-          aria-describedby={ariaDescribedBy}
-          className={cn(
-            "h-10 w-full min-w-0 justify-start border-input bg-white px-3 font-normal text-base md:text-sm",
-            !labelText && "text-text-placeholder-v2",
-            className,
-          )}
-        >
-          <CalendarIcon className="mr-2 size-4 shrink-0 opacity-70" aria-hidden />
-          {labelText ?? "dd/mm/aaaa"}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <CalendarBr
-          mode="single"
-          selected={selectedDate}
-          onSelect={(d) => {
-            if (!d) {
-              onChange("");
-              setOpen(false);
+          required={required}
+          aria-invalid={Boolean(problem) || ariaInvalid || undefined}
+          aria-describedby={describedBy}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+            setBlurred(false);
+            const ymd = digits.length === 8 ? parseBrDateDigitsToYmd(digits) : null;
+            onInvalidChange?.(digits.length > 0 && !ymd);
+            if (ymd) {
+              const clamped = clamp(ymd);
+              setText(maskBrDateDigitsInput(clamped === ymd ? digits : ymdToBrDateDigitString(clamped)));
+              emit(clamped);
               return;
             }
-            onChange(clamp(localDateToYmd(d)));
-            setOpen(false);
+            setText(maskBrDateDigitsInput(digits));
+            // Vazio, incompleto ou inexistente: não deixa a data anterior valendo por trás do que está digitado.
+            emit("");
           }}
-          disabled={disabledMatcher}
-          defaultMonth={selectedDate ?? new Date()}
+          onBlur={() => setBlurred(true)}
+          className="h-full min-w-0 flex-1 bg-transparent tabular-nums outline-none placeholder:text-text-placeholder-v2 disabled:cursor-not-allowed"
         />
-      </PopoverContent>
-    </Popover>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={disabled}
+              aria-label="Abrir calendário"
+              className="shrink-0 text-muted-foreground"
+            >
+              <CalendarIcon className="size-4" aria-hidden />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <CalendarBr
+              mode="single"
+              selected={selectedDate}
+              onSelect={(d) => {
+                setBlurred(false);
+                onInvalidChange?.(false);
+                if (!d) {
+                  setText("");
+                  emit("");
+                  setOpen(false);
+                  return;
+                }
+                const ymd = clamp(localDateToYmd(d));
+                setText(ymdToMasked(ymd));
+                emit(ymd);
+                setOpen(false);
+              }}
+              disabled={disabledMatcher}
+              defaultMonth={selectedDate ?? new Date()}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+      {problem ? (
+        <p id={messageId} role="alert" className="text-v2-caption text-danger-text">
+          {problem}
+        </p>
+      ) : null}
+    </div>
   );
 }

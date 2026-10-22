@@ -51,6 +51,7 @@ import {
 } from "@/lib/crm/rd-migration/requirements";
 import type { RdMigrationD4SignDocument, RdMigrationDetail } from "@/lib/crm/rd-migration/service";
 import type { RdMigrationEmpresa, RdMigrationValues } from "@/lib/crm/rd-migration/values";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 import {
@@ -995,7 +996,7 @@ export function RdMigrationForm({ initial }: { initial: RdMigrationDetail }) {
                       {requirements!.fieldDefinitions.map((def) => (
                         <Field
                           key={def.field_code}
-                          label={def.label.replace(/\s*\[CP\]\s*$/i, "")}
+                          label={userFacingFieldLabel(def.label, def.field_code)}
                           required={def.is_required}
                           source={values.sources[`campos.${def.field_code}`]}
                           missing={isMissing(`campos.${def.field_code}`)}

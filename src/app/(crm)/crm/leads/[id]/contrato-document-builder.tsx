@@ -1091,7 +1091,7 @@ function ContratoBuilderDialog({
         });
         if (res.ok) return null;
         const json = (await res.json().catch(() => ({}))) as { error?: string };
-        return `${f.label}: ${json.error ?? "não foi salvo"}`;
+        return `${userFacingFieldLabel(f.label, f.fieldCode)}: ${json.error ?? "não foi salvo"}`;
       }),
     );
     const failed = failures.filter((message): message is string => Boolean(message));
@@ -2245,7 +2245,8 @@ function ReviewTaskCard({
               <p className={cn("text-sm font-bold", atrasado ? "text-rose-600" : "text-foreground")}>
                 {prazoStr}
                 {diasRestantes !== null && reviewTask.status !== "concluido" && (
-                  <span className={cn("ml-2 text-xs font-normal", atrasado ? "text-rose-500" : "text-muted-foreground")}>
+                  <span className={cn("ml-1 text-xs font-normal", atrasado ? "text-rose-500" : "text-muted-foreground")}>
+                    {" · "}
                     {atrasado ? `${Math.abs(diasRestantes)}d atrasado` : diasRestantes === 0 ? "hoje" : `${diasRestantes}d restantes`}
                   </span>
                 )}

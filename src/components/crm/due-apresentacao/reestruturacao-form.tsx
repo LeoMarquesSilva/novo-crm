@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { FileText, Loader2, Plus, Sparkles, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -333,11 +334,10 @@ export function ReestruturacaoForm({
               <Label htmlFor="rj-ajuizamento" className="text-xs">
                 Ajuizamento
               </Label>
-              <Input
+              <DateInputBr
                 id="rj-ajuizamento"
-                type="date"
                 value={f.ajuizamento}
-                onChange={(e) => set("ajuizamento", e.target.value)}
+                onChange={(ymd) => set("ajuizamento", ymd)}
                 className={hl("ajuizamento")}
               />
             </div>
@@ -345,11 +345,10 @@ export function ReestruturacaoForm({
               <Label htmlFor="rj-deferimento" className="text-xs">
                 Deferimento do processamento
               </Label>
-              <Input
+              <DateInputBr
                 id="rj-deferimento"
-                type="date"
                 value={f.deferimento}
-                onChange={(e) => set("deferimento", e.target.value)}
+                onChange={(ymd) => set("deferimento", ymd)}
                 className={hl("deferimento")}
               />
             </div>

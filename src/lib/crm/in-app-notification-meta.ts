@@ -45,6 +45,7 @@ export const CRM_IN_APP_NOTIFICATION_TIPO_LABELS: Record<string, string> = {
   due_compilacao:                 "DUE — compilação",
   due_revisao_area:               "DUE — revisão",
   due_revisao_resposta:           "DUE — resposta da revisão",
+  due_area_sem_responsavel:       "DUE — área sem responsável",
   proposta_escopo_area:           "Proposta — escopo",
   lead_note_mention:              "Anotações",
   contrato_assinado:              "Contrato assinado",
@@ -85,7 +86,8 @@ function isDueNotificationTipo(tipo: string): boolean {
     tipo === "due_area_task" ||
     tipo === "due_compilacao" ||
     tipo === "due_revisao_area" ||
-    tipo === "due_revisao_resposta"
+    tipo === "due_revisao_resposta" ||
+    tipo === "due_area_sem_responsavel"
   );
 }
 

@@ -39,6 +39,7 @@ import {
   type NewLeadPayload,
 } from "@/modules/crm/application/services/new-lead-payload";
 import { leadTypeLabel } from "@/lib/crm/lead-type-label";
+import { isValidCnpj, isValidCpf } from "@/lib/crm/rd-migration/documents";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -364,6 +365,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [localReuniao, setLocalReuniao] = useState("");
   const [dataReuniao, setDataReuniao] = useState("");
   const [horarioReuniao, setHorarioReuniao] = useState("");
+  // Data/horário digitado inválido na Agenda (o campo some com o valor; isto barra o avanço mesmo em campo opcional).
+  const [agendaInvalida, setAgendaInvalida] = useState<Record<string, boolean>>({});
+  const marcarAgendaInvalida = (field: string) => (invalid: boolean) =>
+    setAgendaInvalida((prev) => (prev[field] === invalid ? prev : { ...prev, [field]: invalid }));
   const [tipoLead, setTipoLead] = useState<(typeof leadTypes)[number]>("Indicacao");
   const [tipoIndicacao, setTipoIndicacao] = useState("");
   const [plataforma, setPlataforma] = useState("");
@@ -718,6 +723,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setLocalReuniao("");
     setDataReuniao("");
     setHorarioReuniao("");
+    setAgendaInvalida({});
     setTipoLead("Indicacao");
     setTipoIndicacao("");
     setPlataforma("");
@@ -832,6 +838,17 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
           "Preencha razão social/nome e CPF/CNPJ de todos os itens.",
         );
       }
+      // Dígito verificador (teste ponta a ponta 4: CNPJ com o último dígito errado passava para a etapa seguinte).
+      const invalidIndex = empresas.findIndex((item) =>
+        item.tipo_documento === "CPF" ? !isValidCpf(item.documento) : !isValidCnpj(item.documento),
+      );
+      if (invalidIndex >= 0) {
+        const tipo = empresas[invalidIndex]!.tipo_documento;
+        return issue(
+          `empresa-${invalidIndex}-documento`,
+          `${tipo} inválido: o dígito verificador não confere. Confira os números.`,
+        );
+      }
       if (!isCrossSelling && matchedCliente && !relacaoContrato) {
         return issue("relacaoContrato", "Informe se a demanda é contrato novo ou aditivo.");
       }
@@ -852,6 +869,17 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     }
 
     if (stepId === "agenda") {
+      const campoInvalido = ["prazoDue", "horarioDue", "dataReuniao", "horarioReuniao"].find(
+        (field) => agendaInvalida[field] && (dueDiligence === "Sim" || !field.endsWith("Due")),
+      );
+      if (campoInvalido) {
+        return issue(
+          campoInvalido,
+          campoInvalido.startsWith("horario")
+            ? "Horário inválido: use de 00:00 a 23:59."
+            : "Data inválida: confira dia, mês e ano.",
+        );
+      }
       if (dueDiligence === "Sim" && (!prazoDue || !horarioDue)) {
         return issue(prazoDue ? "horarioDue" : "prazoDue", "Informe prazo e horário da due diligence.");
       }
@@ -1813,6 +1841,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         {...controlProps("prazoDue", { invalid: showStepErrors && !prazoDue })}
                         value={prazoDue}
                         onChange={setPrazoDue}
+                        onInvalidChange={marcarAgendaInvalida("prazoDue")}
                         className={newLeadModalFieldClass}
                       />
                     </FormField>
@@ -1821,6 +1850,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         {...controlProps("horarioDue", { invalid: showStepErrors && !horarioDue })}
                         value={horarioDue}
                         onChange={setHorarioDue}
+                        onInvalidChange={marcarAgendaInvalida("horarioDue")}
                         step={300}
                         suggestions={DUE_TIME_SUGGESTIONS}
                         className={cn(newLeadModalFieldClass, "font-mono")}
@@ -1883,6 +1913,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       })}
                       value={dataReuniao}
                       onChange={setDataReuniao}
+                      onInvalidChange={marcarAgendaInvalida("dataReuniao")}
                       minYmd={
                         dueDiligence === "Sim" && reuniaoMinDate ? reuniaoMinDate : undefined
                       }
@@ -1895,6 +1926,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       {...controlProps("horarioReuniao")}
                       value={horarioReuniao}
                       onChange={setHorarioReuniao}
+                      onInvalidChange={marcarAgendaInvalida("horarioReuniao")}
                       step={300}
                       suggestions={MEETING_TIME_SUGGESTIONS}
                       className={cn(newLeadModalFieldClass, "font-mono")}

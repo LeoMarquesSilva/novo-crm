@@ -280,6 +280,7 @@ export default async function ContratosPage({
         portfolioError={portfolioResult.error}
         orphanGroups={coverage.orphans}
         defaultTab={defaultTab}
+        canManageRenewal={canAccessContractCapability({ role: profile.role, capability: "manage_renewal" })}
         d4signError={error}
         d4sign={{
           initialLinked: linked as Parameters<typeof D4SignDashboard>[0]["initialLinked"],

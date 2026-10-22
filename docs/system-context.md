@@ -308,6 +308,15 @@ Migração de 2026-10-22, **aplicada no remoto em 22/10/2026** pela Management A
 
 - `20261022120000_contract_clause_party_grammar.sql` — `replace()` protegido em `contract_clause_templates` (`obligation_contracting_base`, `obligation_contracted_base`, `expense_km`) para usar `[A_CONTRATANTE]`/`[PELA_CONTRATANTE]` e `{singular|plural}`. Exige o código que resolve `{singular|plural}` (`resolvePartyAlternatives`); código antigo imprimiria as chaves no contrato.
 
+Migração de 2026-10-22 (mensagens de WhatsApp), **aplicada no remoto em 22/10/2026** pela Management API e registrada em `schema_migrations`:
+
+- `20261022130000_whatsapp_message_templates.sql` — tabela `whatsapp_message_templates` (`key` PK, `body`, `enabled`, `updated_at`, `updated_by` → `app_users`), RLS sem policies (só service role). Sem ela o CRM manda os textos padrão do código e a tela de Integrações não salva edição.
+
+Migrações de 2026-10-22 (rótulos e acentos), **aplicadas no remoto em 22/10/2026** pela Management API e registradas em `schema_migrations`:
+
+- `20261022140000_field_definitions_labels_sem_siglas.sql` — tira as siglas do RD e acentua 134 rótulos de `field_definitions` (cada `update` exige o texto antigo, então rótulo já editado no admin fica como está; `field_code` não muda). Sem ela, as telas já mostram o rótulo limpo por `userFacingFieldLabel`.
+- `20261022150000_contract_functions_utf8.sql` — recria `save_contract_configuration_atomic` e `create_contract_closing_revision` em UTF-8 (estavam no banco com "√ß" no lugar de "ç", vindas do SQL Editor em 21/10), refaz 5 comentários de coluna e corrige os eventos de contrato já gravados.
+
 SQL de outro banco: `supabase/sioe/` guarda o que é aplicado no **SIOE** (não no CRM). `20261016120000_icp_agregados.sql` cria `icp_agregados(p_desde)` (só service role), que devolve num jsonb as horas do timesheet e as pastas ativas por grupo/área e o primeiro processo de cada grupo. O loader do ICP chama a função e, sem ela (`PGRST202`), volta a baixar as linhas. Aplicada no SIOE em 16/10/2026 direto por SQL, fora do histórico de migrations do SIOE (`supabase_migrations`): o arquivo deve ser copiado para o repositório do SIOE. Conferida contra o método antigo, sem diferença. Para desfazer: `drop function public.icp_agregados(date);`. `20261016130000_icp_timesheets_cobertura.sql` cria `idx_timesheets_icp_cobertura` (`timesheets (data) include (grupo_cliente, area, total_horas_decimal)`, ~16 MB, `concurrently`), aplicado em 16/10/2026. Com ele, a soma de horas lê só o índice e a função cai de 5–6 s para ~0,25 s no banco. Sem o índice, com o timesheet fora do cache, ela passava do `statement_timeout` de 8 s da API do SIOE. Se a função ainda estourar o tempo (`57014`), o loader baixa as linhas em vez de quebrar a página.
 
 Sem elas o código segue funcionando: RPC ausente cai no caminho antigo (`finalize_d4sign_opportunity`, `transition_opportunity_atomic`), as rotas do cadastro respondem 409 "migration pendente" e o switch de Operações Legais responde 409.
@@ -576,6 +585,23 @@ Lead do RD só anda no CRM depois de convertido na virada; convertido com a migr
 - **Concluir cadastro com vários contratantes:** depois de `conclude_client_onboarding_atomic`, `linkOtherContratantesToGroup` (`client-onboarding/service.ts`) liga os demais contratantes ao grupo: cliente sem grupo é vinculado, sem cadastro é criado, em outro grupo é pulado. O resultado vai para o histórico; falha não desfaz a conclusão.
 - **Consulta automatizada:** aceita CPF ou CNPJ (o processo do RD também monitora sócios); documento preenchido com tamanho inválido entra em `listMissingOnboardingFields`.
 - **Novo lead:** Esc dentro do seletor de indicador fecha só o seletor (listener em captura). "Ainda sem local" grava "A definir" no kanban e no formulário dinâmico, como no Novo lead.
+
+### 14.7 Ajustes do 4º teste ponta a ponta (2026-10-22)
+
+- **WhatsApp em ambiente de teste:** com `WHATSAPP_REDIRECT_TO` definido, `applyWhatsappRedirect` (`evolution-whatsapp.ts`) troca o destino de todo envio (conector da Evolution e envio ao grupo do escopo) por esse número e põe "[TESTE · destino original: …]" na 1ª linha. Em produção a variável não existe e nada muda. O nome da instância vai codificado na URL.
+- **Mensagens do WhatsApp** (`src/lib/crm/whatsapp/`: `templates.ts` com os padrões e placeholders `{{…}}`, `template-store.ts` com a sobrescrita do banco, `due-messages.ts` com as regras, `send-log.ts`): novo lead com DUE (texto de sempre, mais um alerta se alguma área não tem responsável); levantamento concluído (uma vez, quando o lead vai sozinho para Compilação); DUE em revisão (uma por ciclo, com revisores e prazo); resultado da revisão (uma só, quando o ciclo fecha: aprovada por todas, ou ajustes pedidos quando a DUE volta para Compilação); escopo da proposta (uma por pedido, com todas as áreas). Cada envio vira `lead_activity_events` kind `whatsapp_enviado`, que impede repetir. Sino e e-mail por pessoa não mudaram. Edição em Integrações → WhatsApp → "Mensagens do WhatsApp" (só admin; prévia com negrito/itálico, ligar/desligar, restaurar padrão), gravada em `whatsapp_message_templates` (migration `20261022130000`).
+- **Área sem responsável:** sem ninguém com `app_users.area` da área, o responsável do lead recebe `due_area_sem_responsavel` (sino e e-mail) e a mensagem de revisão aponta a área; `ultimo_erro_canais` registra quem foi avisado.
+- **Datas e horários:** `DateInputBr` e `TimeInputBr` (`src/components/ui/`) aceitam digitação (dd/mm/aaaa e hh:mm), mantêm o texto inválido no campo com "Data inválida"/"Horário inválido" e avisam o formulário por `onInvalidChange`. Prazos exibidos sem segundos com `formatDateTimeMinutesBr`.
+- **Documentos e máscaras:** `br-document-mask.ts` ganhou `maskCpfCnpj`, `maskPhoneBr` e `maskForFieldCode`. O Novo lead e o bloco de empresa da ficha conferem o dígito do CPF/CNPJ e bloqueiam; no cadastro do cliente o dígito errado só marca o campo. Percentual de êxito da proposta aceita só número (`sanitizePercentTyping`); o "%" é do modelo.
+- **Tributos na proposta:** `applyTributacaoPhrase` troca "já incluídos/não incluídos os tributos incidentes"; se o modelo do catálogo não tem a frase (vários foram editados no admin) e a tributação foi escolhida, acrescenta "Os valores acima (não) incluem os tributos incidentes."
+- **Levantamento da DUE:** `dueDocuments` traz `areaKey`; o card da área lista as planilhas gravadas e oferece "Marcar levantamento como entregue" mesmo depois de recarregar.
+
+### 14.8 Ajustes depois do 4º teste (2026-10-22)
+
+- **Rótulos de campo:** `userFacingFieldLabel` tira as siglas do RD ("(DD)", "[CP]", "[CC]", "[CA]", "[CE]", "[FINANCEIRO]", "[CADASTRO]", "(JSON)") e acentua; vale no formulário dinâmico, nos modais de transição, na ficha, nos montadores, no kanban, na migração do RD e em Admin → Campos (que grava o texto digitado). A migration `20261022140000` grava os rótulos limpos.
+- **Cadastro do cliente:** avisos de enviar, devolver e concluir rodam depois da resposta (`notifyAfterResponse`), então a etapa da ficha atualiza na hora; CPF/CNPJ com dígito errado mostra o texto do erro, sem bloquear.
+- **Contratos (visão do Financeiro):** referência anual = valor gravado, senão mensal projetado × 12 (`portfolio-annual-reference.ts`), na carteira, no detalhe e nos KPIs; versão ativa abre a configuração somente leitura; status por `contract-status-labels.ts`; competência do fechamento em mm/aaaa (`competency-month.ts`, grava `yyyy-mm-01`); aba Fechamentos do hub com a última competência (`latestClosing`). Quem não tem `approve_closing` vê "Aguardando aprovação da controladoria."; Renovações exige `manage_renewal` e fica somente leitura para o Financeiro.
+- **Responsável da área Recuperação de Créditos:** Renato Vallim (`app_users.area`, 22/10/2026).
 
 ## 15) Migração dos negócios do RD para a virada (2026-10-19)
 

@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger } from "@/components/ui/select";
+import {
+  CONTRACT_ADDENDUM_STATUS_LABELS,
+  CONTRACT_VERSION_STATUS_LABELS,
+  statusLabel,
+} from "@/lib/crm/contract-status-labels";
 import { BR_TIMEZONE, formatDateYmdBr } from "@/lib/format-datetime";
 import type { ContractDetailViewModel } from "@/modules/contracts/infrastructure/contract-queries";
 
@@ -82,7 +87,7 @@ export function ContractVersionsPanel({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <strong>Versão {version.number}</strong>
                 <Badge variant={version.status === "ativa" ? "default" : "outline"}>
-                  {version.status}
+                  {statusLabel(CONTRACT_VERSION_STATUS_LABELS, version.status)}
                 </Badge>
               </div>
               <p className="mt-1 text-sm text-zinc-500">
@@ -103,7 +108,7 @@ export function ContractVersionsPanel({
           {contract.addenda.length ? (
             contract.addenda.map((item) => (
               <Badge key={item.id} variant="outline">
-                {item.title} · {item.status}
+                {item.title} · {statusLabel(CONTRACT_ADDENDUM_STATUS_LABELS, item.status)}
               </Badge>
             ))
           ) : (

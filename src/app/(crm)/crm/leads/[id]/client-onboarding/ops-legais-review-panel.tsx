@@ -162,6 +162,7 @@ export function OpsLegaisReviewPanel({
     <label className="flex items-center justify-between gap-3 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-3 py-2.5">
       <span className="text-v2-body-sm text-foreground">{label}</span>
       <Switch
+        aria-label={label}
         checked={checklist[key]}
         disabled={!canConclude || saving}
         onCheckedChange={(checked) => void saveChecklist({ ...checklist, [key]: Boolean(checked) })}

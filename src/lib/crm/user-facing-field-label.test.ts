@@ -25,6 +25,27 @@ describe("rótulos públicos de campos", () => {
     );
   });
 
+  it("tira o (DD) da reunião da due diligence e acentua o que veio do RD", () => {
+    expect(userFacingFieldLabel("Data da Reuniao (DD)", "data_reuniao_dd")).toBe("Data da Reunião");
+    expect(userFacingFieldLabel("Horario da Reuniao (DD)", "horario_dd")).toBe("Horário da Reunião");
+    expect(userFacingFieldLabel("Inicio da Vigencia do Contrato [FINANCEIRO]")).toBe("Início da Vigência do Contrato");
+    expect(userFacingFieldLabel("Areas de Analise")).toBe("Áreas de Análise");
+    expect(userFacingFieldLabel("Havera Due Diligence?")).toBe("Haverá Due Diligence?");
+  });
+
+  it("tira a caixa alta de palavras comuns e mantém as siglas", () => {
+    expect(userFacingFieldLabel("STATUS [CADASTRO]")).toBe("Status");
+    expect(userFacingFieldLabel("RATEIO R$ - Civel [FINANCEIRO]")).toBe("Rateio R$ - Cível");
+    expect(userFacingFieldLabel("CNPJ / CPF Cliente Principal [CADASTRO]")).toBe("CNPJ / CPF Cliente Principal");
+    expect(userFacingFieldLabel("SPOT - Valor R$ [CC]")).toBe("SPOT - Valor R$");
+    expect(userFacingFieldLabel("Link do Arquivo DUE")).toBe("Link do Arquivo DUE");
+  });
+
+  it("rótulo já limpo passa sem mudança", () => {
+    expect(userFacingFieldLabel("Data da Reunião")).toBe("Data da Reunião");
+    expect(userFacingFieldLabel("Prazo para revisão do contrato")).toBe("Prazo para revisão do contrato");
+  });
+
   it("humaniza o código quando o banco não fornece um rótulo", () => {
     expect(userFacingFieldLabel("cp_nome_focal", "cp_nome_focal")).toBe("Nome focal");
   });

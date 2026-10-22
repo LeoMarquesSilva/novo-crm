@@ -47,7 +47,7 @@ import {
   isCadastroLeadOnlyStage,
   isPosVendaPipelineStage,
 } from "@/lib/crm/pipeline-board-config";
-import { formatDateTimeBr } from "@/lib/format-datetime";
+import { formatDateTimeBr, formatDateTimeMinutesBr } from "@/lib/format-datetime";
 import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
 import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-task-status";
 import { resolveRdFieldEditor } from "@/lib/crm/lead-rd-field-editor-map";
@@ -1281,7 +1281,7 @@ function DueRevisaoSection({
                       </p>
                       <p>
                         <span className="font-bold text-slate-600">Prazo: </span>
-                        {task.prazoAte ? formatDateTimeBr(task.prazoAte) : "—"}
+                        {task.prazoAte ? formatDateTimeMinutesBr(task.prazoAte) : "—"}
                       </p>
                       <p>
                         <span className="font-bold text-slate-600">Tempo para revisar: </span>
@@ -1431,6 +1431,17 @@ function DueAreaTasksCard({
   }
 
   /** A área anexa a planilha do levantamento; ela alimenta a apresentação automática. */
+  /** Planilhas da área já gravadas (sobrevive a recarregar a página) mais as anexadas agora. */
+  function planilhasDaTarefa(task: LeadDetailData["dueAreaTasks"][number]): string[] {
+    const area = dueAreaFromCrmKey(task.areaKey);
+    const doServidor = area
+      ? lead.dueDocuments
+          .filter((doc) => doc.documentKind === "planilha_area" && doc.areaKey === area)
+          .map((doc) => doc.originalFilename)
+      : [];
+    return [...new Set([...doServidor, ...(planilhasAnexadas[task.id] ?? [])])];
+  }
+
   async function anexarPlanilha(task: LeadDetailData["dueAreaTasks"][number], file: File) {
     const area = dueAreaFromCrmKey(task.areaKey);
     if (!area) return;
@@ -1544,7 +1555,7 @@ function DueAreaTasksCard({
                           </p>
                           <p>
                             <span className="font-bold text-slate-600">Prazo: </span>
-                            {task.prazoAte ? formatDateTimeBr(task.prazoAte) : "Sem prazo"}
+                            {task.prazoAte ? formatDateTimeMinutesBr(task.prazoAte) : "Sem prazo"}
                           </p>
                           {task.iniciadoEm ? (
                             <p>
@@ -1629,10 +1640,10 @@ function DueAreaTasksCard({
                             </label>
                           ) : null}
                         </div>
-                        {planilhasAnexadas[task.id]?.length ? (
+                        {planilhasDaTarefa(task).length ? (
                           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                             <span className="font-semibold text-emerald-700">
-                              Planilha anexada: {planilhasAnexadas[task.id]!.join(", ")}
+                              Planilha anexada: {planilhasDaTarefa(task).join(", ")}
                             </span>
                             {task.status !== "disponibilizado" && canUpdate ? (
                               <Button

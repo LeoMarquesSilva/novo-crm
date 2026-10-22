@@ -23,7 +23,8 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       opportunityId: contract.opportunityId,
       opportunityStage: contract.opportunityStage,
       versionNumber: contract.configuration ? 1 : null,
-      versionStatus: contract.configuration ? "rascunho" : null,
+      // O status real da versão: com "rascunho" fixo, a versão ativa parecia editável.
+      versionStatus: contract.configuration ? contract.editableVersionStatus : null,
     },
   });
   return <ContractDetailShell contract={contract} canConfigure={canConfigure} />;

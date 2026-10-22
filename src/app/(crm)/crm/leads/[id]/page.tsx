@@ -111,6 +111,8 @@ export interface LeadDetailData extends Oportunidade {
   dueDocuments: Array<{
     id: string;
     documentKind: string;
+    /** Área da planilha (`planilha_area`); nulo nos demais tipos. */
+    areaKey?: string | null;
     originalFilename: string;
     contentType: string | null;
     byteSize: number | null;
@@ -355,7 +357,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       ? supabase
           .from("due_documents")
           .select(
-            "id, document_kind, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id",
+            "id, document_kind, area_key, original_filename, content_type, byte_size, uploaded_at, uploaded_by_app_user_id",
           )
           .eq("oportunidade_id", id)
           .order("uploaded_at", { ascending: false })
@@ -646,6 +648,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
   const dueDocuments: LeadDetailData["dueDocuments"] = (docRows ?? []).map((r) => ({
     id: r.id,
     documentKind: r.document_kind,
+    areaKey: r.area_key ?? null,
     originalFilename: r.original_filename,
     contentType: r.content_type,
     byteSize: r.byte_size != null ? Number(r.byte_size) : null,

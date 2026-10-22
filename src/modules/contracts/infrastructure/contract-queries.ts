@@ -10,6 +10,7 @@ import {
   type VariableUsageSnapshot,
 } from "@/modules/contracts/domain/variable-usage-projection";
 import type { Database, Json } from "@/lib/supabase/database.types";
+import { annualReferenceCents } from "@/modules/contracts/domain/portfolio-annual-reference";
 import type { StartMonthBilling } from "@/modules/contracts/domain/competency";
 import { readStartMonthBilling } from "@/modules/contracts/infrastructure/start-month-billing";
 
@@ -47,6 +48,8 @@ export type ContractPortfolioItem = {
   setupProgress: ContractSetupProgress;
   closingCount: number;
   pendingClosingCount: number;
+  /** Fechamento mais recente (competência `yyyy-mm-01` e status), para a aba Fechamentos do hub. */
+  latestClosing: { competency: string; status: string } | null;
   updatedAt: string;
 };
 
@@ -348,7 +351,7 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
       : Promise.resolve({ data: [], error: null }),
     supabase.from("contrato_responsaveis").select("id, contrato_id, papel, app_user_id, nome").in("contrato_id", contractIds),
     supabase.from("contrato_versoes").select("id, contrato_id, numero, status, origem_snapshot, updated_at").in("contrato_id", contractIds),
-    supabase.from("contrato_fechamentos").select("id, contrato_id, status").in("contrato_id", contractIds),
+    supabase.from("contrato_fechamentos").select("id, contrato_id, status, competencia").in("contrato_id", contractIds),
   ]);
 
   const versions = versionsResult.data ?? [];
@@ -402,6 +405,7 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
     const manager = responsibles.find((item) => /gestor/i.test(item.papel)) ?? responsibles[0];
     const allocations = (allocationsResult.data ?? []).filter((item) => item.versao_id === selectedVersionId);
     const closings = (closingsResult.data ?? []).filter((item) => item.contrato_id === contract.id);
+    const latestClosing = [...closings].sort((a, b) => String(b.competencia).localeCompare(String(a.competencia)))[0];
     const renewalDate = contract.data_base_renovacao;
     const effectiveRenewal = effectiveContractRenewalDate(renewalDate, contract.vigente_de);
     const client = contract.cliente_id ? clientById.get(contract.cliente_id) : undefined;
@@ -431,11 +435,12 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
       startsAt: contract.vigente_de,
       renewalDate,
       renewalSoon: Boolean(effectiveRenewal && new Date(`${effectiveRenewal}T12:00:00`) >= now && new Date(`${effectiveRenewal}T12:00:00`) <= soon),
-      annualReferenceCents: contract.valor_anual_override != null
-        ? toCents(contract.valor_anual_override)
-        : variable && monthly
-          ? String(Number(monthly) * 12)
-          : toCents(contract.valor_anual_referencia),
+      annualReferenceCents: annualReferenceCents({
+        overrideCents: contract.valor_anual_override != null ? toCents(contract.valor_anual_override) : null,
+        storedCents: toCents(contract.valor_anual_referencia),
+        monthlyCents: monthly ? Number(monthly) : null,
+        variable,
+      }),
       monthlyProjectionCents: monthly,
       setupProgress: computeContractSetupProgress({
         contract,
@@ -446,6 +451,7 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
       }),
       closingCount: closings.length,
       pendingClosingCount: closings.filter((closing) => closing.status === "a_calcular" || closing.status === "em_revisao").length,
+      latestClosing: latestClosing ? { competency: latestClosing.competencia, status: latestClosing.status } : null,
       updatedAt: contract.updated_at,
     };
   });
@@ -679,11 +685,12 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     renewalDate: contract.data_base_renovacao,
     renewalAlertDate: contract.data_alerta_renovacao,
     adjustmentIndex: contract.indice_reajuste,
-    annualReferenceCents: contract.valor_anual_override != null
-      ? toCents(contract.valor_anual_override)
-      : variable && monthly > 0
-        ? String(monthly * 12)
-        : toCents(contract.valor_anual_referencia),
+    annualReferenceCents: annualReferenceCents({
+      overrideCents: contract.valor_anual_override != null ? toCents(contract.valor_anual_override) : null,
+      storedCents: toCents(contract.valor_anual_referencia),
+      monthlyCents: monthly,
+      variable,
+    }),
     sioeUsage,
     activeVersionId: contract.versao_ativa_id,
     editableVersionStatus: editableVersion?.status ?? null,

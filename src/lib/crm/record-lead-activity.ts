@@ -26,7 +26,8 @@ export type LeadActivityKind =
   | "contrato_incluido_gestao"
   | "contrato_ativado"
   | "rd_migrado"
-  | "rd_migracao_concluida";
+  | "rd_migracao_concluida"
+  | "whatsapp_enviado";
 
 export async function recordLeadActivityEvent(
   supabase: SupabaseClient,

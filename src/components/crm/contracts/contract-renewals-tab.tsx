@@ -40,7 +40,14 @@ function draftFromAlert(alert: RenewalAlert): RenewalDraft {
   };
 }
 
-export function ContractRenewalsTab({ portfolio }: { portfolio: ContractPortfolioItem[] }) {
+export function ContractRenewalsTab({
+  portfolio,
+  canManage = false,
+}: {
+  portfolio: ContractPortfolioItem[];
+  /** Atualizar renovação exige `manage_renewal` (administração e controladoria); os demais só leem. */
+  canManage?: boolean;
+}) {
   const [alerts, setAlerts] = useState<RenewalAlert[]>([]);
   const [users, setUsers] = useState<RenewalUser[]>([]);
   const [drafts, setDrafts] = useState<Record<string, RenewalDraft>>({});
@@ -98,11 +105,13 @@ export function ContractRenewalsTab({ portfolio }: { portfolio: ContractPortfoli
   return <section className="space-y-4">
     <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-zinc-900">Renovações e reajustes</h2><p className="text-sm text-zinc-500">Controle interno; nenhuma mensagem é enviada ao cliente.</p></div><Button type="button" variant="outline" size="sm" onClick={() => void load()}><RefreshCw className="size-4" />Atualizar</Button></div>
     {error ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div> : null}
+    {!canManage && alerts.length > 0 ? <p className="rounded-(--radius-v2-lg) border border-info-border bg-info-bg px-4 py-3 text-sm text-info-text">Somente leitura. Administração e controladoria atualizam as renovações.</p> : null}
     {alerts.length === 0 ? <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center text-sm text-zinc-500">Nenhuma renovação pendente.</div> : null}
     <div className="grid gap-4">{alerts.map((alert) => {
       const contract = contracts.get(alert.contrato_id);
       const draft = drafts[alert.id] ?? draftFromAlert(alert);
       const resolved = alert.status === "resolvido";
+      const locked = resolved || !canManage;
       const notifiedBy = users.find((user) => user.id === alert.cliente_notificado_por)?.full_name;
       return <article key={alert.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-zinc-900">{contract?.clientName ?? contract?.title ?? "Contrato"}</h3><p className="text-sm text-zinc-500">Data-base: {alert.data_base ? formatDateYmdBr(alert.data_base) || "não definida" : "não definida"}{notifiedBy ? ` · Cliente notificado por ${notifiedBy}` : ""}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${resolved ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{resolved ? "Concluída" : "Pendente"}</span></div>
@@ -110,7 +119,7 @@ export function ContractRenewalsTab({ portfolio }: { portfolio: ContractPortfoli
           <Select
             items={Object.fromEntries(users.map((user) => [user.id, user.full_name]))}
             value={draft.assigneeId || "__none__"}
-            disabled={resolved}
+            disabled={locked}
             onValueChange={(next) =>
               setDrafts((all) => ({
                 ...all,
@@ -148,7 +157,7 @@ export function ContractRenewalsTab({ portfolio }: { portfolio: ContractPortfoli
             <DateInputBr
               aria-describedby={undefined}
               value={draft.customerNotifiedAt.slice(0, 10)}
-              disabled={resolved}
+              disabled={locked}
               className="!h-10 border-[#dfe5ee] bg-white shadow-sm"
               onChange={(ymd) => {
                 const time = draft.customerNotifiedAt.includes("T")
@@ -169,7 +178,7 @@ export function ContractRenewalsTab({ portfolio }: { portfolio: ContractPortfoli
                   ? draft.customerNotifiedAt.slice(11, 16)
                   : ""
               }
-              disabled={resolved || !draft.customerNotifiedAt.slice(0, 10)}
+              disabled={locked || !draft.customerNotifiedAt.slice(0, 10)}
               className="!h-10 border-[#dfe5ee] bg-white shadow-sm"
               onChange={(hm) => {
                 const day = draft.customerNotifiedAt.slice(0, 10);
@@ -184,12 +193,12 @@ export function ContractRenewalsTab({ portfolio }: { portfolio: ContractPortfoli
               }}
             />
           </div>
-          <Input aria-label="Decisão da renovação" placeholder="Decisão" value={draft.decision} disabled={resolved} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, decision: event.target.value } }))} />
-          <Input aria-label="Índice aplicado" placeholder="Índice aplicado (ex.: IPCA 4,2%)" value={draft.appliedIndex} disabled={resolved} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, appliedIndex: event.target.value } }))} />
-          <Input aria-label="Notas da renovação" placeholder="Notas internas" value={draft.notes} disabled={resolved} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, notes: event.target.value } }))} />
-          <Input aria-label="Conclusão da renovação" placeholder="Conclusão explícita" value={draft.conclusion} disabled={resolved} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, conclusion: event.target.value } }))} />
+          <Input aria-label="Decisão da renovação" placeholder="Decisão" value={draft.decision} disabled={locked} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, decision: event.target.value } }))} />
+          <Input aria-label="Índice aplicado" placeholder="Índice aplicado (ex.: IPCA 4,2%)" value={draft.appliedIndex} disabled={locked} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, appliedIndex: event.target.value } }))} />
+          <Input aria-label="Notas da renovação" placeholder="Notas internas" value={draft.notes} disabled={locked} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, notes: event.target.value } }))} />
+          <Input aria-label="Conclusão da renovação" placeholder="Conclusão explícita" value={draft.conclusion} disabled={locked} onChange={(event) => setDrafts((all) => ({ ...all, [alert.id]: { ...draft, conclusion: event.target.value } }))} />
         </div>
-        {!resolved ? <div className="mt-4 flex justify-end gap-2"><Button type="button" variant="outline" disabled={savingId === alert.id} onClick={() => void save(alert, false)}>Salvar</Button><Button type="button" disabled={savingId === alert.id || !draft.conclusion.trim()} onClick={() => void save(alert, true)}>{savingId === alert.id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}Concluir</Button></div> : null}
+        {!locked ? <div className="mt-4 flex justify-end gap-2"><Button type="button" variant="outline" disabled={savingId === alert.id} onClick={() => void save(alert, false)}>Salvar</Button><Button type="button" disabled={savingId === alert.id || !draft.conclusion.trim()} onClick={() => void save(alert, true)}>{savingId === alert.id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}Concluir</Button></div> : null}
       </article>;
     })}</div>
   </section>;

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { PropostaBrlCurrencyInput } from "@/components/crm/proposta-brl-currency-input";
+import { sanitizePercentTyping } from "@/components/crm/contracts/contract-setup-form-helpers";
 import {
   PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
   type InvestimentoTipoDef,
@@ -175,6 +176,8 @@ function InvestimentoFormaCard({
     [SELECT_EMPTY]: "Selecione o subtipo",
     ...Object.fromEntries((invTipoSel?.subtipos ?? []).map((s) => [s.subtipoId, s.label])),
   };
+  /** Liga cada rótulo ao seu campo (leitores de tela e clique no rótulo). */
+  const fieldId = (key: string) => `investimento-${item.id}-${key}`;
 
   return (
     <div className="space-y-3 rounded-(--radius-v2-xl) border border-border bg-white p-4">
@@ -199,7 +202,9 @@ function InvestimentoFormaCard({
 
       <div className="grid gap-3">
         <div className="min-w-0 space-y-1.5">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</Label>
+          <Label htmlFor={fieldId("tipo")} className="text-xs uppercase tracking-wide text-muted-foreground">
+            Tipo
+          </Label>
           <Select
             value={tipoSelectValue}
             disabled={disabled}
@@ -208,7 +213,7 @@ function InvestimentoFormaCard({
               onPatch({ tipoId, subtipoId: "", placeholders: {}, autoSum: true });
             }}
           >
-            <SelectTrigger className="h-10 w-full min-w-0 border-border bg-white">
+            <SelectTrigger id={fieldId("tipo")} className="h-10 w-full min-w-0 border-border bg-white">
               <CrmSelectValue
                 value={tipoSelectValue}
                 labels={tipoLabels}
@@ -226,7 +231,9 @@ function InvestimentoFormaCard({
           </Select>
         </div>
         <div className="min-w-0 space-y-1.5">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Subtipo</Label>
+          <Label htmlFor={fieldId("subtipo")} className="text-xs uppercase tracking-wide text-muted-foreground">
+            Subtipo
+          </Label>
           <Select
             value={subtipoSelectValue}
             disabled={disabled || !item.tipoId}
@@ -235,7 +242,7 @@ function InvestimentoFormaCard({
               onPatch({ subtipoId, placeholders: {}, autoSum: true });
             }}
           >
-            <SelectTrigger className="h-10 w-full min-w-0 border-border bg-white">
+            <SelectTrigger id={fieldId("subtipo")} className="h-10 w-full min-w-0 border-border bg-white">
               <CrmSelectValue
                 value={subtipoSelectValue}
                 labels={subtipoLabels}
@@ -262,10 +269,11 @@ function InvestimentoFormaCard({
 
       {primarySumKey && invSubDef ? (
         <div className="space-y-1.5">
-          <Label className="text-xs font-bold text-slate-500">
+          <Label htmlFor={fieldId(primarySumKey)} className="text-xs font-bold text-slate-500">
             {getPropostaPlaceholderLabel(primarySumKey)}
           </Label>
           <PropostaBrlCurrencyInput
+            id={fieldId(primarySumKey)}
             value={item.placeholders[primarySumKey] ?? ""}
             disabled={disabled}
             onChange={(next) =>
@@ -281,11 +289,12 @@ function InvestimentoFormaCard({
 
       {extraPaymentKeys.map((key) => (
         <div key={key} className={cn("space-y-1.5", key.length > 20 && "sm:col-span-2")}>
-          <Label className="text-xs font-bold text-slate-500">
+          <Label htmlFor={fieldId(key)} className="text-xs font-bold text-slate-500">
             {getPropostaPlaceholderLabel(key)}
           </Label>
           {isInvestimentoCurrencyKey(key) ? (
             <PropostaBrlCurrencyInput
+              id={fieldId(key)}
               value={item.placeholders[key] ?? ""}
               disabled={disabled}
               onChange={(next) =>
@@ -296,8 +305,31 @@ function InvestimentoFormaCard({
               }
               className="h-10 border-border bg-white"
             />
+          ) : /PORCENTAGEM|PERCENTUAL/.test(key) ? (
+            // O texto do catálogo já põe o "%" depois do valor ("[PORCENTAGEMHONORARIOS]%"): aqui só o número.
+            <div className="relative">
+              <Input
+                id={fieldId(key)}
+                value={item.placeholders[key] ?? ""}
+                disabled={disabled}
+                inputMode="decimal"
+                onChange={(e) => {
+                  const next = sanitizePercentTyping(e.target.value);
+                  if (next === null) return;
+                  onPatch({
+                    placeholders: { ...item.placeholders, [key]: next },
+                    autoSum: item.autoSum,
+                  });
+                }}
+                className="h-10 border-border bg-white pr-8"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500">
+                %
+              </span>
+            </div>
           ) : key.includes("CONDIC") || key.includes("DETALHE") || key.includes("PRAZO") ? (
             <Textarea
+              id={fieldId(key)}
               value={item.placeholders[key] ?? ""}
               disabled={disabled}
               rows={2}
@@ -311,6 +343,7 @@ function InvestimentoFormaCard({
             />
           ) : (
             <Input
+              id={fieldId(key)}
               value={item.placeholders[key] ?? ""}
               disabled={disabled}
               onChange={(e) =>

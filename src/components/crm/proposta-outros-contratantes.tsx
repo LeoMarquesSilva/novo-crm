@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { maskDocument } from "@/lib/crm/br-document-mask";
+import { formatCepDisplay } from "@/lib/crm/proposta-empresas";
 import {
   alternarContratante,
   contratantesMarcados,
@@ -198,7 +199,7 @@ function EnderecoProprioForm({
             inputMode="numeric"
             placeholder="00000-000"
             disabled={disabled}
-            onChange={(e) => set("cep", e.target.value)}
+            onChange={(e) => set("cep", formatCepDisplay(e.target.value))}
           />
         </div>
         <Button type="button" variant="outline" size="sm" disabled={disabled || buscando} onClick={() => void buscarCep()}>
@@ -215,7 +216,10 @@ function EnderecoProprioForm({
               id={`${idPrefix}-${campo.key}`}
               value={endereco[campo.key]}
               disabled={disabled}
-              onChange={(e) => set(campo.key, e.target.value)}
+              maxLength={campo.key === "uf" ? 2 : undefined}
+              onChange={(e) =>
+                set(campo.key, campo.key === "uf" ? e.target.value.replace(/[^a-zA-Z]/g, "").toUpperCase() : e.target.value)
+              }
             />
           </div>
         ))}

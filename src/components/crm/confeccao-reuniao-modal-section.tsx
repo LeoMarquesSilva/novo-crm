@@ -19,7 +19,8 @@ import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { EscopoDirecionamentoAreaPicker } from "@/components/crm/escopo-direcionamento-area-picker";
 import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PropostaOutrosContratantes } from "@/components/crm/proposta-outros-contratantes";
-import { maskDocument } from "@/lib/crm/br-document-mask";
+import { maskCpfCnpj, maskDocument } from "@/lib/crm/br-document-mask";
+import { isValidCpfOrCnpj } from "@/lib/crm/rd-migration/documents";
 import { trocarPrincipal } from "@/lib/crm/proposta-contratantes";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { PROPOSAL_SCOPE_OPTIONS } from "@/lib/crm/proposta-scope-options";
@@ -37,6 +38,7 @@ import {
   type EmpresaIntakeRow,
   type PropostaEmpresasPayload,
 } from "@/lib/crm/proposta-empresas";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { cn } from "@/lib/utils";
 
 export { PROPOSAL_SCOPE_OPTIONS };
@@ -267,7 +269,7 @@ export function ConfeccaoReuniaoModalSection({
         {gestorVisible && gestorField ? (
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-[#111827]">
-              {gestorField.label}
+              {userFacingFieldLabel(gestorField.label, gestorField.field_code)}
               {gestorField.is_required ? (
                 <span className="text-red-500" aria-hidden>
                   {" "}
@@ -354,9 +356,14 @@ export function ConfeccaoReuniaoModalSection({
                 <Input
                   value={row.documento}
                   disabled={disabled}
-                  onChange={(e) => updateExtra(i, "documento", e.target.value)}
+                  inputMode="numeric"
+                  aria-invalid={
+                    ([11, 14].includes(row.documento.replace(/\D/g, "").length) && !isValidCpfOrCnpj(row.documento)) ||
+                    undefined
+                  }
+                  onChange={(e) => updateExtra(i, "documento", maskCpfCnpj(e.target.value))}
                   className={newLeadModalFieldClass}
-                  placeholder="Somente números ou formatado"
+                  placeholder="CPF ou CNPJ"
                 />
               </div>
               <Button
@@ -469,7 +476,7 @@ export function ConfeccaoReuniaoModalSection({
             <Input
               value={typeof customValues.cp_cliente_uf === "string" ? customValues.cp_cliente_uf : ""}
               disabled={disabled}
-              onChange={(e) => patchField("cp_cliente_uf", e.target.value.toUpperCase().slice(0, 2))}
+              onChange={(e) => patchField("cp_cliente_uf", e.target.value.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 2))}
               className={newLeadModalFieldClass}
               maxLength={2}
             />

@@ -15,6 +15,7 @@ import {
   WhatsappDueConfigPanel,
   type WhatsappDueConfig,
 } from "@/components/crm/whatsapp-due-config-panel";
+import { WhatsappTemplatesPanel } from "@/components/crm/whatsapp-templates-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -122,11 +123,12 @@ export function IntegracoesAdminTabs({
           <LeadEmailConfigPanel />
         </TabsContent>
 
-        <TabsContent value="whatsapp" className="mt-0 outline-none focus-visible:ring-0">
+        <TabsContent value="whatsapp" className="mt-0 space-y-5 outline-none focus-visible:ring-0">
           <WhatsappDueConfigPanel
             initialConfig={whatsappInitialConfig}
             initialConfigs={whatsappInitialConfigs}
           />
+          <WhatsappTemplatesPanel />
         </TabsContent>
       </Tabs>
     </div>

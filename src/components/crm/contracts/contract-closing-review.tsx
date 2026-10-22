@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
-import { formatDateYmdBr } from "@/lib/format-datetime";
+import { formatCompetencyLabel } from "@/lib/crm/competency-month";
+import { CONTRACT_CLOSING_STATUS_LABELS, statusLabel } from "@/lib/crm/contract-status-labels";
+import { ContractMoneyInput } from "./contract-money-percent-inputs";
 import { centsToMaskedBrl } from "./contract-setup-form-helpers";
 
 type Revision = {
@@ -76,6 +78,9 @@ const money = (value: number) =>
   centsToMaskedBrl(Math.round(value * 100)) ||
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 const decimal = (value: number | null) => (value === null ? "" : String(value));
+// Valores do fechamento são reais com centavos; o campo com máscara R$ trabalha em centavos.
+const reaisToCents = (value: number | null) => (value === null ? null : Math.round(value * 100));
+const centsToReais = (cents: string | null) => (cents === null ? null : Number(cents) / 100);
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -97,7 +102,9 @@ export function ContractClosingReview({
   const [consumptions, setConsumptions] = useState<Consumption[]>([]);
   const [resolutions, setResolutions] = useState<Resolution[]>([]);
   const [reason, setReason] = useState("");
+  const [blockerReasons, setBlockerReasons] = useState<Record<string, string>>({});
   const [vios, setVios] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -133,8 +140,15 @@ export function ContractClosingReview({
   }
 
   async function act(body: object) {
-    if (await request(`/api/crm/contracts/${contractId}/closings/${closingId}`, "PATCH", body)) {
-      await load();
+    setBusy(true);
+    try {
+      if (await request(`/api/crm/contracts/${contractId}/closings/${closingId}`, "PATCH", body)) {
+        setReason("");
+        setVios("");
+        await load();
+      }
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -160,6 +174,15 @@ export function ContractClosingReview({
   const editable = permissions.canPrepare && revision?.status === "em_revisao";
 
   async function saveInputs() {
+    setBusy(true);
+    try {
+      await saveAndRecalculate();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveAndRecalculate() {
     const ok = await request(`/api/crm/contracts/${contractId}/consumptions`, "PUT", {
       competency: currentDetail.closing.competencia,
       versionId: currentDetail.closing.versao_id,
@@ -226,10 +249,9 @@ export function ContractClosingReview({
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <strong className="text-zinc-900">
-          {formatDateYmdBr(detail.closing.competencia) || detail.closing.competencia} · revisão{" "}
-          {revision?.numero}
+          {formatCompetencyLabel(detail.closing.competencia)} · revisão {revision?.numero}
         </strong>
-        <Badge variant="outline">{revision?.status}</Badge>
+        <Badge variant="outline">{statusLabel(CONTRACT_CLOSING_STATUS_LABELS, revision?.status)}</Badge>
       </div>
       <div className="grid gap-2 sm:grid-cols-4">
         {(
@@ -386,29 +408,35 @@ export function ContractClosingReview({
                 </CrmSelectContent>
               </Select>
               <div className="flex flex-col gap-1">
-                <Input
-                  disabled={!editable}
-                  type="number"
-                  min="0"
-                  step={entry.tipo === "valor_manual" ? "0.01" : "1"}
-                  value={
-                    entry.tipo === "valor_manual" ? decimal(entry.valor) : decimal(entry.quantidade)
-                  }
-                  onChange={(event) =>
-                    setConsumptions(
-                      consumptions.map((item, itemIndex) =>
-                        itemIndex === index
-                          ? {
-                              ...item,
-                              ...(entry.tipo === "valor_manual"
-                                ? { valor: Number(event.target.value) }
-                                : { quantidade: Number(event.target.value) }),
-                            }
-                          : item,
-                      ),
-                    )
-                  }
-                />
+                {entry.tipo === "valor_manual" ? (
+                  <ContractMoneyInput
+                    disabled={!editable}
+                    cents={reaisToCents(entry.valor)}
+                    onCentsChange={(cents) =>
+                      setConsumptions(
+                        consumptions.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, valor: centsToReais(cents) ?? 0 } : item,
+                        ),
+                      )
+                    }
+                  />
+                ) : (
+                  <Input
+                    disabled={!editable}
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    value={decimal(entry.quantidade)}
+                    onChange={(event) =>
+                      setConsumptions(
+                        consumptions.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, quantidade: Number(event.target.value) } : item,
+                        ),
+                      )
+                    }
+                  />
+                )}
               </div>
             </div>
           );
@@ -450,27 +478,17 @@ export function ContractClosingReview({
                     ) : null}
                   </span>
                 </label>
-                <Input
+                <ContractMoneyInput
                   disabled={!editable}
-                  type="number"
-                  step="0.01"
-                  placeholder="Valor"
-                  value={decimal(current.valor)}
-                  onChange={(event) =>
-                    update({ valor: event.target.value ? Number(event.target.value) : null })
-                  }
+                  placeholder="Valor (R$)"
+                  cents={reaisToCents(current.valor)}
+                  onCentsChange={(cents) => update({ valor: centsToReais(cents) })}
                 />
-                <Input
+                <ContractMoneyInput
                   disabled={!editable}
-                  type="number"
-                  step="0.01"
-                  placeholder="Base"
-                  value={decimal(current.base_calculo)}
-                  onChange={(event) =>
-                    update({
-                      base_calculo: event.target.value ? Number(event.target.value) : null,
-                    })
-                  }
+                  placeholder="Base (R$)"
+                  cents={reaisToCents(current.base_calculo)}
+                  onCentsChange={(cents) => update({ base_calculo: centsToReais(cents) })}
                 />
                 <Input
                   disabled={!editable}
@@ -485,7 +503,7 @@ export function ContractClosingReview({
       ) : null}
 
       {editable ? (
-        <Button type="button" onClick={saveInputs}>
+        <Button type="button" disabled={busy} onClick={saveInputs}>
           Salvar entradas e recalcular
         </Button>
       ) : null}
@@ -498,19 +516,22 @@ export function ContractClosingReview({
             {!entry.resolvido_em && editable ? (
               <div className="mt-2 flex gap-2">
                 <Input
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder="Justificativa"
+                  value={blockerReasons[entry.id] ?? ""}
+                  onChange={(event) =>
+                    setBlockerReasons({ ...blockerReasons, [entry.id]: event.target.value })
+                  }
+                  placeholder="Justificativa (mín. 3 caracteres)"
                 />
                 <Button
                   type="button"
+                  disabled={busy || (blockerReasons[entry.id] ?? "").trim().length < 3}
                   onClick={() =>
                     act({
                       action: "resolve_blocker",
                       itemId: entry.id,
                       expectedRevision: revision.numero,
                       resolution: "nao_cobrar",
-                      reason,
+                      reason: (blockerReasons[entry.id] ?? "").trim(),
                     })
                   }
                 >
@@ -523,54 +544,73 @@ export function ContractClosingReview({
 
       {(
         [
-          ["Memória", ["memory", "charge", "tax", "reimbursement"]],
-          ["Rateios", ["area_allocation"]],
-          ["Participações", ["partner_share"]],
-          ["Comissões", ["commission"]],
+          ["Memória", ["memory", "charge", "tax", "reimbursement"], "Nenhum item calculado nesta revisão"],
+          ["Rateios", ["area_allocation"], "Nenhum rateio neste mês"],
+          ["Participações", ["partner_share"], "Nenhuma participação neste mês"],
+          ["Comissões", ["commission"], "Nenhuma comissão neste mês"],
         ] as const
-      ).map(([title, kinds]) => (
-        <section key={title}>
-          <h4 className="font-semibold text-zinc-900">{title}</h4>
-          {items
-            .filter((entry) => (kinds as ReadonlyArray<string>).includes(entry.tipo))
-            .map((entry) => (
-              <div
-                className="flex justify-between gap-3 border-b border-zinc-100 py-2 text-sm"
-                key={entry.id}
-              >
-                <div className="min-w-0">{renderItemLabel(entry)}</div>
-                <strong className="shrink-0 tabular-nums">{money(entry.valor)}</strong>
-              </div>
-            ))}
-        </section>
-      ))}
+      ).map(([title, kinds, emptyText]) => {
+        const sectionItems = items.filter((entry) =>
+          (kinds as ReadonlyArray<string>).includes(entry.tipo),
+        );
+        return (
+          <section key={title}>
+            <h4 className="font-semibold text-zinc-900">{title}</h4>
+            {sectionItems.length ? (
+              sectionItems.map((entry) => (
+                <div
+                  className="flex justify-between gap-3 border-b border-zinc-100 py-2 text-sm"
+                  key={entry.id}
+                >
+                  <div className="min-w-0">{renderItemLabel(entry)}</div>
+                  <strong className="shrink-0 tabular-nums">{money(entry.valor)}</strong>
+                </div>
+              ))
+            ) : (
+              <p className="py-2 text-sm text-zinc-500">{emptyText}</p>
+            )}
+          </section>
+        );
+      })}
 
-      <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-3">
+      <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
         {revision?.status === "em_revisao" && permissions.canApprove ? (
-          <Button
-            type="button"
-            disabled={blocked}
-            onClick={() => act({ action: "approve", expectedRevision: revision.numero })}
-          >
-            Aprovar
-          </Button>
+          <>
+            <Button
+              type="button"
+              disabled={blocked || busy}
+              onClick={() => act({ action: "approve", expectedRevision: revision.numero })}
+            >
+              Aprovar
+            </Button>
+            {blocked ? (
+              <span className="text-sm text-zinc-500">Resolva os bloqueios acima antes de aprovar.</span>
+            ) : null}
+          </>
+        ) : null}
+        {revision?.status === "em_revisao" && !permissions.canApprove ? (
+          <span className="text-sm text-zinc-500">
+            Aguardando aprovação da controladoria.
+            {blocked ? " Há bloqueios pendentes acima." : ""}
+          </span>
         ) : null}
         {revision && ["aprovado", "lancado_vios"].includes(revision.status) && permissions.canApprove ? (
           <>
             <Input
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              placeholder="Motivo da nova revisão"
+              placeholder="Motivo da nova revisão (mín. 3 caracteres)"
             />
             <Button
               type="button"
               variant="outline"
+              disabled={busy || reason.trim().length < 3}
               onClick={() =>
                 act({
                   action: "new_revision",
                   previousRevisionId: revision.id,
                   expectedRevision: revision.numero,
-                  reason,
+                  reason: reason.trim(),
                 })
               }
             >
@@ -587,11 +627,12 @@ export function ContractClosingReview({
             />
             <Button
               type="button"
+              disabled={busy || !vios.trim()}
               onClick={() =>
                 act({
                   action: "register_vios",
                   expectedRevision: revision.numero,
-                  reference: vios,
+                  reference: vios.trim(),
                 })
               }
             >

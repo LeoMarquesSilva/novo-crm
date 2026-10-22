@@ -9,6 +9,13 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
+import { sameContractLabel } from "@/lib/crm/contract-portfolio-identity";
+import {
+  CONTRACT_LIFECYCLE_LABELS,
+  CONTRACT_SIGNATURE_LABELS,
+  CONTRACT_VERSION_STATUS_LABELS,
+  statusLabel,
+} from "@/lib/crm/contract-status-labels";
 import { formatDateTimeBr, formatDateYmdBr } from "@/lib/format-datetime";
 import type { ContractDetailViewModel } from "@/modules/contracts/infrastructure/contract-queries";
 
@@ -36,6 +43,8 @@ export function ContractDetailShell({
   const returnTarget =
     explicitReturn ?? (contract.opportunityId ? `/crm/leads/${contract.opportunityId}?tab=billing` : "/crm/contratos");
   const configuration = contract.configuration;
+  // Versão ativa é imutável (o RPC recusa salvar); antes a aba abria o assistente editável dizendo "Rascunho sincronizado".
+  const versionReadOnly = contract.editableVersionStatus !== null && contract.editableVersionStatus !== "rascunho";
 
   const areaById = useMemo(
     () => new Map((configuration?.areas ?? []).map((area) => [area.id, area.areaKey])),
@@ -55,7 +64,9 @@ export function ContractDetailShell({
       <header className="rounded-2xl bg-zinc-950 p-6 text-white">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-teal-300">{contract.clientName}</p>
+            {sameContractLabel(contract.title, contract.clientName) ? null : (
+              <p className="text-xs uppercase tracking-[0.2em] text-teal-300">{contract.clientName}</p>
+            )}
             <h1 className="mt-2 text-2xl font-bold">{contract.title}</h1>
             <p className="mt-2 text-sm text-zinc-400">
               Origem: {contract.originLabel}
@@ -63,9 +74,9 @@ export function ContractDetailShell({
             </p>
           </div>
           <div className="flex gap-2">
-            <Badge className="bg-white/10 text-white">{contract.lifecycle.replaceAll("_", " ")}</Badge>
+            <Badge className="bg-white/10 text-white">{statusLabel(CONTRACT_LIFECYCLE_LABELS, contract.lifecycle)}</Badge>
             <Badge className="bg-teal-400/15 text-teal-200">
-              {contract.signatureStatus.replaceAll("_", " ")}
+              {statusLabel(CONTRACT_SIGNATURE_LABELS, contract.signatureStatus)}
             </Badge>
           </div>
         </div>
@@ -106,7 +117,20 @@ export function ContractDetailShell({
         </TabsContent>
 
         <TabsContent value="setup">
-          <ContractSetupWizard contract={contract} canConfigure={canConfigure} returnTarget={returnTarget} />
+          {versionReadOnly ? (
+            <p
+              role="status"
+              className="mb-4 rounded-(--radius-v2-lg) border border-info-border bg-info-bg px-4 py-3 text-sm text-info-text"
+            >
+              Versão {statusLabel(CONTRACT_VERSION_STATUS_LABELS, contract.editableVersionStatus).toLocaleLowerCase("pt-BR")} ·
+              somente leitura. Para mudar valores ou condições, crie uma nova condição em Versões e aditivos.
+            </p>
+          ) : null}
+          <ContractSetupWizard
+            contract={contract}
+            canConfigure={canConfigure && !versionReadOnly}
+            returnTarget={returnTarget}
+          />
         </TabsContent>
 
         <TabsContent value="closings">

@@ -2,6 +2,30 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-22 — Depois do 4º teste: rótulos sem siglas, pendências menores e visão do Financeiro
+
+- Rótulos dos campos sem as siglas do RD ("(DD)", "[CP]", "[CC]", "[CA]", "[CE]", "[FINANCEIRO]", "[CADASTRO]", "(JSON)") e com acento (Reunião, Horário, Início, Vigência…): `userFacingFieldLabel` (`src/lib/crm/user-facing-field-label.ts`) passou a cobrir esses casos e é usado também em Admin → Campos (lista e exclusão; a edição grava o texto digitado), no kanban, no montador do contrato, na migração do RD e no bloco da reunião. Migration de dados `20261022140000_field_definitions_labels_sem_siglas.sql` (134 rótulos, cada um protegido pelo texto antigo; aplicada no remoto em 22/10/2026).
+- Etapa da ficha atualiza logo depois de enviar, devolver ou concluir o cadastro: os avisos (sino e e-mail) passaram a rodar depois da resposta (`notifyAfterResponse` em `client-onboarding/service.ts`).
+- Acessibilidade: nome nos interruptores do checklist de Operações Legais e da condição do 1º faturamento, nas caixas de área do Novo lead (`TagSelectable.ariaLabel`) e rótulos ligados aos campos do investimento da proposta.
+- Cadastro do cliente: CPF/CNPJ com dígito errado mostra "CPF inválido: confira os dígitos." (sem bloquear o envio).
+- Escopo da proposta: depois de "Salvar esta área" o modal mostra quem preencheu e quando; datas sem segundos. Prazo da revisão do contrato sai "24/10/2026 · 2d restantes".
+- Carteira de clientes: cabeçalho e indicadores sem nomes de tabela/coluna ("email_client_groups", "gestor_atividade").
+- Acentos quebrados no banco: as funções `save_contract_configuration_atomic` e `create_contract_closing_revision` foram coladas no SQL Editor em 21/10 com a codificação errada e gravavam eventos como "Configura√ß√£o contratual salva". Migration `20261022150000_contract_functions_utf8.sql` recria as duas a partir de `20261018130000` (corpo conferido igual ao do banco, fora os acentos), refaz 5 comentários de coluna e corrige os 4 eventos gravados (aplicada no remoto em 22/10/2026).
+- Visão do Financeiro (contratos): referência anual cai para mensal projetado × 12 quando não há valor gravado (nenhum contrato tinha `valor_anual_referencia`; o detalhe mostrava "—"), em `portfolio-annual-reference.ts`; aba Configuração de versão ativa fica somente leitura com aviso (a página mandava sempre "rascunho"); status com rótulo (`contract-status-labels.ts`: "Em revisão", "Ativo", "Assinado"…); competência do fechamento em mm/aaaa (`competency-month.ts`); "Carregando fechamentos…"; seções vazias com texto; carteira sem nome repetido (grupo igual ao cliente e partes iguais, como matriz e filial); KPIs do hub sem valor cortado; aba Fechamentos do hub com a última competência, o status e "Abrir fechamentos". Para o Financeiro (sem `approve_closing`/`manage_renewal`): "Aguardando aprovação da controladoria." no fechamento e Renovações somente leitura; justificativa por bloqueio e botões travados durante a ação.
+- Dados: Renato Vallim passou para a área Recuperação de Créditos em `app_users` (a área estava sem responsável; o Trabalhista segue com Daniel Pressatto).
+
+## 2026-10-22 — 4º teste ponta a ponta (LE BLOG de novo, com WhatsApp real): máscaras, datas e mensagens
+
+- WhatsApp em teste: `WHATSAPP_REDIRECT_TO` (`applyWhatsappRedirect` em `evolution-whatsapp.ts`, usado também no envio ao grupo do escopo) manda todo envio a um número só, com o destino original na 1ª linha. O conector passou a codificar o nome da instância na URL (a de produção tem espaço: "COMERCIAL BP").
+- Mensagens de WhatsApp consolidadas e editáveis (`src/lib/crm/whatsapp/`): 6 modelos (novo lead com DUE, levantamento concluído, DUE em revisão, revisão aprovada, ajustes pedidos, escopo da proposta), uma mensagem por ciclo em vez de uma por área, resultado da revisão só quando o ciclo fecha, escopo numa mensagem por pedido. Envio registrado em `lead_activity_events` (kind `whatsapp_enviado`) para não repetir. Tela em Integrações → WhatsApp → "Mensagens do WhatsApp". Migration `20261022130000_whatsapp_message_templates.sql` (aplicada no remoto em 22/10/2026).
+- Área da DUE sem responsável (ninguém com `app_users.area`): avisa o responsável do lead no sino e por e-mail (`due_area_sem_responsavel`) e a mensagem de revisão diz qual área precisa de responsável. Antes a tarefa nascia sem aviso para ninguém.
+- Máscaras e datas (auditoria em todos os formulários): `DateInputBr` e `TimeInputBr` digitáveis, com "Data inválida"/"Horário inválido" e `onInvalidChange`; CPF/CNPJ com dígito conferido no Novo lead e no bloco de empresa; telefone, CEP (com busca), UF, percentuais e R$ mascarados no cadastro do cliente, na proposta, no bloco da reunião, na apresentação da DUE e no fechamento mensal.
+- Levantamento da DUE: o card da área mostra a planilha já gravada (sumia ao recarregar) e o botão de marcar como entregue; prazos sem segundos (`formatDateTimeMinutesBr`).
+- Proposta: percentual de êxito só aceita número (o modelo já põe o "%"); com a tributação escolhida e modelo sem a frase dos tributos, sai "Os valores acima (não) incluem os tributos incidentes." (`applyTributacaoPhrase`).
+- Cadastro do cliente: CEP pré-preenchido já sai com máscara.
+- Conferido de novo no navegador (teste 4): todas as correções do teste 3, do nome de arquivo com acento à ativação do contrato sem conflito.
+- Validações: `npx vitest run` (1283 testes), `npx tsc --noEmit` sem erro em `src/`, eslint nos arquivos alterados (só 2 avisos antigos em `new-demand-form.tsx`).
+
 ## 2026-10-22 — 3º teste ponta a ponta (LE BLOG, com DUE): correções do funil inteiro
 
 - Contrato com duas contratantes saía "a CONTRATANTES prestará": cláusulas aceitam `{singular|plural}` (`resolvePartyAlternatives`), `[A_CONTRATANTE]` em início de frase sai com maiúscula e `[À_CONTRATANTE]` vira "à/às". Código corrigido; as cópias do banco mudam com a migration `20261022120000_contract_clause_party_grammar.sql` (aplicada no remoto em 22/10/2026 pela Management API, registrada em `schema_migrations`). Página de assinaturas lista cada contratante com o documento.

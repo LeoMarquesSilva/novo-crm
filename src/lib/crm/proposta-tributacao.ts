@@ -35,10 +35,16 @@ export function isTributosIncluidos(raw: string): boolean {
   return normalizeTributacaoValue(raw) !== TRIBUTACAO_LIQUIDO;
 }
 
+const SENTENCE_INCLUIDOS = "Os valores acima já incluem os tributos incidentes.";
+const SENTENCE_NAO_INCLUIDOS = "Os valores acima não incluem os tributos incidentes.";
+
 export function applyTributacaoPhrase(text: string, tributacao: string): string {
   if (!text.trim()) return text;
-  if (isTributosIncluidos(tributacao)) {
-    return text.replace(/não incluídos os tributos incidentes/gi, PHRASE_INCLUIDOS);
-  }
-  return text.replace(/já incluídos os tributos incidentes/gi, PHRASE_NAO_INCLUIDOS);
+  const replaced = isTributosIncluidos(tributacao)
+    ? text.replace(/não incluídos os tributos incidentes/gi, PHRASE_INCLUIDOS)
+    : text.replace(/já incluídos os tributos incidentes/gi, PHRASE_NAO_INCLUIDOS);
+  // Modelos editados no admin podem ter perdido a frase dos tributos (em 22/10/2026, "Mensal - Fixo" e outros):
+  // com a tributação escolhida e valor em R$, a proposta diz em frase própria se os tributos estão incluídos.
+  if (!normalizeTributacaoValue(tributacao) || /tributos/i.test(replaced) || !/R\$/.test(replaced)) return replaced;
+  return `${replaced}\n\n${isTributosIncluidos(tributacao) ? SENTENCE_INCLUIDOS : SENTENCE_NAO_INCLUIDOS}`;
 }

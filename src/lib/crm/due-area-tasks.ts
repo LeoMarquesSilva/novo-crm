@@ -9,6 +9,17 @@ import {
 } from "@/lib/crm/due-area-task-status";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
+import {
+  buildLevantamentoConcluidoValues,
+  buildRevisaoInicioValues,
+  buildRevisaoResultadoValues,
+  decideReviewCycleResult,
+  type RevisorDaArea,
+} from "@/lib/crm/whatsapp/due-messages";
+import { claimWhatsappSend, markWhatsappSendFailed } from "@/lib/crm/whatsapp/send-log";
+import { buildWhatsappMessage } from "@/lib/crm/whatsapp/template-store";
+import { dueAreaFromCrmKey } from "@/lib/due-ppt/areas";
 import { selectInChunks } from "@/lib/supabase/select-in-chunks";
 export { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
 
@@ -233,6 +244,20 @@ async function sendDueWhatsappText(supabase: SupabaseClient, text: string): Prom
   }
 }
 
+/**
+ * Uma mensagem consolidada no WhatsApp da DUE, no máximo uma vez por `sourceId` (trava no histórico do lead).
+ * Devolve se saiu.
+ */
+async function sendDueWhatsappOnce(
+  supabase: SupabaseClient,
+  input: { oportunidadeId: string; sourceId: string; title: string; text: string },
+): Promise<boolean> {
+  if (!(await claimWhatsappSend(supabase, input))) return false;
+  const sent = await sendDueWhatsappText(supabase, input.text);
+  if (!sent) await markWhatsappSendFailed(supabase, input);
+  return sent;
+}
+
 export async function findDueAreaResponsibleAppUserId(
   supabase: SupabaseClient,
   areaKey: string,
@@ -409,7 +434,103 @@ export async function tryAutoAdvanceLevantamentoToCompilacao(
     originadoPor = actorFromAppUserRow(actorRow);
   }
   await notifyDueCompilationOwner(supabase, oportunidadeId, originadoPor);
+  await notifyDueLevantamentoConcluidoWhatsapp(supabase, oportunidadeId);
   return true;
+}
+
+/** WhatsApp da DUE: uma mensagem quando a última área entrega, com o que cada área entregou. */
+async function notifyDueLevantamentoConcluidoWhatsapp(
+  supabase: SupabaseClient,
+  oportunidadeId: string,
+): Promise<void> {
+  const [{ data: op }, { data: tasks }, { data: docs }] = await Promise.all([
+    supabase.from("oportunidades").select("solicitante_nome").eq("id", oportunidadeId).maybeSingle(),
+    supabase
+      .from("due_area_tasks")
+      .select("area_key, sem_processos_ativos")
+      .eq("oportunidade_id", oportunidadeId)
+      .order("area_key", { ascending: true }),
+    supabase
+      .from("due_documents")
+      .select("area_key, original_filename")
+      .eq("oportunidade_id", oportunidadeId)
+      .eq("document_kind", "planilha_area"),
+  ]);
+  if (!op || !tasks?.length) return;
+
+  const leadPath = `/crm/leads/${oportunidadeId}`;
+  const appUrl = getPublicAppUrl();
+  const text = await buildWhatsappMessage(
+    supabase,
+    "due_levantamento_concluido",
+    buildLevantamentoConcluidoValues({
+      cliente: String(op.solicitante_nome ?? ""),
+      entregas: tasks.map((task) => {
+        const dueArea = dueAreaFromCrmKey(String(task.area_key));
+        return {
+          area: String(task.area_key),
+          semProcessosAtivos: Boolean(task.sem_processos_ativos),
+          planilhas: (docs ?? [])
+            .filter((doc) => dueArea && doc.area_key === dueArea)
+            .map((doc) => String(doc.original_filename)),
+        };
+      }),
+      link: appUrl ? `${appUrl}${leadPath}` : leadPath,
+    }),
+  );
+  if (!text) return;
+  await sendDueWhatsappOnce(supabase, {
+    oportunidadeId,
+    sourceId: "due-levantamento-concluido",
+    title: "WhatsApp: levantamento da DUE concluído",
+    text,
+  });
+}
+
+/**
+ * Área sem ninguém com `app_users.area`: a tarefa nasceria sem aviso para ninguém e a DUE parava ali
+ * (teste ponta a ponta 4: Recuperação de Créditos). Avisa o responsável do lead (sino e e-mail). No WhatsApp
+ * o alerta vai dentro da mensagem do novo lead e da mensagem de revisão, não numa mensagem própria.
+ * Devolve o texto gravado em `ultimo_erro_canais`.
+ */
+async function notifyDueAreaWithoutResponsible(
+  supabase: SupabaseClient,
+  input: {
+    oportunidadeId: string;
+    leadName: string;
+    areaKey: string;
+    etapa: "levantamento" | "revisao";
+    leadPath: string;
+    originadoPor?: InAppNotificationActor | null;
+  },
+): Promise<string> {
+  const title = `DUE sem responsável - ${input.areaKey}`;
+  const preview = `Ninguém tem a área ${input.areaKey} no cadastro de usuários. Defina quem faz ${
+    input.etapa === "levantamento" ? "o levantamento" : "a revisão"
+  } da DUE de ${input.leadName}.`;
+  let notified = 0;
+  try {
+    const recipients = await notifyAudience(
+      supabase,
+      { leadOwnerOf: input.oportunidadeId },
+      {
+        tipo: "due_area_sem_responsavel",
+        title,
+        preview,
+        path: input.leadPath,
+        idempotencyKey: `due-sem-responsavel:${input.oportunidadeId}:${input.etapa}:${input.areaKey}`,
+        extra: {
+          oportunidade_id: input.oportunidadeId,
+          area_key: input.areaKey,
+          ...(input.originadoPor ? { originado_por: input.originadoPor } : {}),
+        },
+      },
+    );
+    notified = recipients.length;
+  } catch {
+    notified = 0;
+  }
+  return `Sem responsável com app_users.area igual a esta área. Avisado o responsável do lead (${notified}).`;
 }
 
 async function dispatchDueAreaTaskNotifications(
@@ -434,13 +555,17 @@ async function dispatchDueAreaTaskNotifications(
   for (const row of pending) {
     const now = new Date().toISOString();
     if (!row.responsavel_app_user_id) {
+      const aviso = await notifyDueAreaWithoutResponsible(supabase, {
+        oportunidadeId,
+        leadName: String(op.solicitante_nome ?? "-"),
+        areaKey: row.area_key,
+        etapa: "levantamento",
+        leadPath,
+        originadoPor,
+      });
       await supabase
         .from("due_area_tasks")
-        .update({
-          notificado_em: now,
-          ultimo_erro_canais: "Sem responsável com app_users.area igual a esta área.",
-          updated_at: now,
-        })
+        .update({ notificado_em: now, ultimo_erro_canais: aviso, updated_at: now })
         .eq("id", row.id);
       continue;
     }
@@ -631,7 +756,7 @@ export async function notifyDueReviewAreas(
     .maybeSingle();
   let pendingQuery = supabase
     .from("due_area_review_tasks")
-    .select("id, area_key, responsavel_app_user_id")
+    .select("id, area_key, responsavel_app_user_id, prazo_ate")
     .eq("oportunidade_id", oportunidadeId)
     .eq("revision_cycle", revisionCycle)
     .is("notificado_em", null);
@@ -645,17 +770,24 @@ export async function notifyDueReviewAreas(
   const leadPath = `/crm/leads/${oportunidadeId}`;
   const appUrl = getPublicAppUrl();
   const link = appUrl ? `${appUrl}${leadPath}` : leadPath;
+  // WhatsApp: uma mensagem do ciclo com todas as áreas, montada depois do laço (sino e e-mail seguem por pessoa).
+  const revisores: RevisorDaArea[] = [];
 
   for (const row of pending) {
     const now = new Date().toISOString();
     if (!row.responsavel_app_user_id) {
+      revisores.push({ area: String(row.area_key), responsavel: null });
+      const aviso = await notifyDueAreaWithoutResponsible(supabase, {
+        oportunidadeId,
+        leadName: String(op.solicitante_nome ?? "-"),
+        areaKey: row.area_key,
+        etapa: "revisao",
+        leadPath,
+        originadoPor,
+      });
       await supabase
         .from("due_area_review_tasks")
-        .update({
-          notificado_em: now,
-          ultimo_erro_canais: "Sem responsável com app_users.area igual a esta área.",
-          updated_at: now,
-        })
+        .update({ notificado_em: now, ultimo_erro_canais: aviso, updated_at: now })
         .eq("id", row.id);
       continue;
     }
@@ -668,6 +800,7 @@ export async function notifyDueReviewAreas(
 
     let emailOk = false;
     let errMsg: string | null = null;
+    revisores.push({ area: String(row.area_key), responsavel: user?.full_name?.trim() || null });
 
     if (user?.auth_user_id) {
       const title = `Revisar DUE - ${row.area_key}`;
@@ -697,13 +830,6 @@ export async function notifyDueReviewAreas(
           `<p>${bodyText}</p><p><a href="${link}">Abrir oportunidade no CRM</a></p>`,
         );
       }
-
-      const waText = `${title}\n${bodyText}\n${link.startsWith("http") ? link : ""}`.trim();
-      const waOk = await sendDueWhatsappText(supabase, waText);
-      await supabase
-        .from("due_area_review_tasks")
-        .update({ whatsapp_enviado_em: waOk ? now : null })
-        .eq("id", row.id);
     } else {
       errMsg = "Responsável sem auth_user_id.";
     }
@@ -717,6 +843,35 @@ export async function notifyDueReviewAreas(
         updated_at: now,
       })
       .eq("id", row.id);
+  }
+
+  const text = await buildWhatsappMessage(
+    supabase,
+    "due_revisao_inicio",
+    buildRevisaoInicioValues({
+      cliente: String(op.solicitante_nome ?? ""),
+      ciclo: revisionCycle,
+      prazoIso: (pending.find((row) => row.prazo_ate)?.prazo_ate as string | null | undefined) ?? null,
+      revisores,
+      link,
+    }),
+  );
+  if (!text) return;
+  const areasDoEnvio = revisores.map((r) => r.area).sort();
+  const sent = await sendDueWhatsappOnce(supabase, {
+    oportunidadeId,
+    sourceId: `due-revisao-inicio:${revisionCycle}:${areasDoEnvio.join("|")}`,
+    title: `WhatsApp: DUE em revisão (ciclo ${revisionCycle})`,
+    text,
+  });
+  if (sent) {
+    await supabase
+      .from("due_area_review_tasks")
+      .update({ whatsapp_enviado_em: new Date().toISOString() })
+      .in(
+        "id",
+        pending.map((row) => row.id),
+      );
   }
 }
 
@@ -771,19 +926,73 @@ export async function notifyDueReviewResponseToCompilationOwner(
     } as never,
   });
 
-  const waText = [
-    `*${title}*`,
-    `Lead: ${String(op.solicitante_nome ?? "-")}`,
-    `Area: ${input.areaKey}`,
-    `Ciclo: ${input.revisionCycle}`,
-    input.respondedByName ? `Respondido por: ${input.respondedByName}` : null,
-    actionLine,
-    link.startsWith("http") ? link : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-  const whatsappSent = await sendDueWhatsappText(supabase, waText);
-  return { whatsappSent, error: nErr ? nErr.message : null };
+  // WhatsApp não sai por resposta: só o resultado do ciclo (`notifyDueReviewCycleResultWhatsapp`).
+  return { whatsappSent: false, error: nErr ? nErr.message : null };
+}
+
+/**
+ * WhatsApp da DUE com o resultado do ciclo de revisão, uma vez por ciclo: quando um pedido de ajuste devolve
+ * a DUE para Compilação ou quando todas as áreas do ciclo responderam. Aprovação no meio do ciclo não manda nada.
+ */
+export async function notifyDueReviewCycleResultWhatsapp(
+  supabase: SupabaseClient,
+  input: { oportunidadeId: string; revisionCycle: number; returnedToCompilacao: boolean },
+): Promise<{ sent: boolean }> {
+  const [{ data: op }, { data: rows }] = await Promise.all([
+    supabase.from("oportunidades").select("solicitante_nome").eq("id", input.oportunidadeId).maybeSingle(),
+    supabase
+      .from("due_area_review_tasks")
+      .select("area_key, status, revision_cycle, observacao_ajustes, responded_by_app_user_id")
+      .eq("oportunidade_id", input.oportunidadeId)
+      .order("area_key", { ascending: true }),
+  ]);
+  if (!op || !rows?.length) return { sent: false };
+
+  const responderIds = [
+    ...new Set(rows.map((row) => row.responded_by_app_user_id).filter((id): id is string => Boolean(id))),
+  ];
+  const nameById = new Map<string, string>();
+  if (responderIds.length) {
+    const { data: users } = await supabase.from("app_users").select("id, full_name").in("id", responderIds);
+    for (const user of users ?? []) nameById.set(String(user.id), String(user.full_name ?? ""));
+  }
+
+  const result = decideReviewCycleResult(
+    rows.map((row) => ({
+      area_key: row.area_key,
+      status: row.status,
+      revision_cycle: row.revision_cycle,
+      observacao_ajustes: row.observacao_ajustes,
+      respondido_por: row.responded_by_app_user_id ? nameById.get(String(row.responded_by_app_user_id)) ?? null : null,
+    })),
+    input.revisionCycle,
+    { returnedToCompilacao: input.returnedToCompilacao },
+  );
+  if (!result) return { sent: false };
+
+  const leadPath = `/crm/leads/${input.oportunidadeId}`;
+  const appUrl = getPublicAppUrl();
+  const text = await buildWhatsappMessage(
+    supabase,
+    result.kind === "aprovada" ? "due_revisao_aprovada" : "due_revisao_ajustes",
+    buildRevisaoResultadoValues({
+      cliente: String(op.solicitante_nome ?? ""),
+      ciclo: input.revisionCycle,
+      result,
+      link: appUrl ? `${appUrl}${leadPath}` : leadPath,
+    }),
+  );
+  if (!text) return { sent: false };
+  const sent = await sendDueWhatsappOnce(supabase, {
+    oportunidadeId: input.oportunidadeId,
+    sourceId: `due-revisao-resultado:${input.revisionCycle}`,
+    title:
+      result.kind === "aprovada"
+        ? `WhatsApp: DUE aprovada (ciclo ${input.revisionCycle})`
+        : `WhatsApp: ajustes na revisão da DUE (ciclo ${input.revisionCycle})`,
+    text,
+  });
+  return { sent };
 }
 
 export async function markDueReviewTasksReentry(
