@@ -5,6 +5,7 @@ import { canAccessContractCapability, canConfigureContract } from "@/lib/auth/cr
 import { loadContractConfigureContext } from "@/modules/contracts/infrastructure/contract-configure-context";
 import { requireAuthApi } from "@/lib/auth/server";
 import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
+import { resolveContractSetupAlert } from "@/lib/crm/post-sale/on-enter-inclusao-faturamento";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { isIsoTimestamp } from "@/lib/crm/timestamps";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -69,6 +70,14 @@ export async function POST(
       expectedVersionUpdatedAt: body.data.expectedVersionUpdatedAt,
       advanceOpportunity: body.data.advanceOpportunity,
     });
+    try {
+      await resolveContractSetupAlert(createSupabaseAdminClient(), {
+        contractId: result.contractId,
+        actorAppUserId: auth.profile.id,
+      });
+    } catch (error) {
+      console.warn("[contracts/activate] alerta de implantação não fechado", error);
+    }
     if (result.opportunityId && result.opportunityTransitionId) {
       await recordContractActivation({
         opportunityId: result.opportunityId,

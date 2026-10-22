@@ -107,7 +107,10 @@ export function LeadDetailView({
     "contrato_assinado",
   ].includes(lead.etapa);
   const showBillingTab = ["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"].includes(lead.etapa);
-  const isRdLead = Boolean(lead.rdDealId || lead.rdDealUrl || lead.filledFields.length > 0);
+  /** Veio do RD (aba "CRM / RD" com o histórico do RD). */
+  const hasRdHistory = Boolean(lead.rdDealId || lead.rdDealUrl || lead.filledFields.length > 0);
+  /** Lead do RD só leitura: ainda não convertido na virada. */
+  const isRdLead = hasRdHistory && !lead.rdMigradoEm;
   const isOnboardingStage = ["aguardando_cadastro", "cadastro_novo_cliente"].includes(lead.etapa);
   const showOnboardingTab =
     !isRdLead &&
@@ -153,7 +156,7 @@ export function LeadDetailView({
     isProposalStage,
     isContractStage,
     showBilling: showBillingTab,
-    isRdLead,
+    isRdLead: hasRdHistory,
     showOnboarding: showOnboardingTab,
     isOnboardingStage,
     isBillingStage: lead.etapa === "inclusao_faturamento",
@@ -177,6 +180,26 @@ export function LeadDetailView({
         viewer={viewer}
         isRdLead={isRdLead}
       />
+
+      {lead.rdMigracaoPendente ? (
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-(--radius-v2-xl) border border-warning-border bg-warning-bg px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-warning-text">Migração do RD com pendências</p>
+            <p className="text-sm text-neutral-700">
+              Este lead veio do RD na virada. Preencha o que o CRM pede e o RD não tinha; até lá ele não muda de etapa.
+            </p>
+          </div>
+          <Link
+            href={`/crm/migracao-rd/${encodeURIComponent(lead.id)}`}
+            className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "shrink-0")}
+          >
+            Completar migração
+          </Link>
+        </div>
+      ) : null}
 
       <main className="min-w-0">
           <Tabs
@@ -212,7 +235,7 @@ export function LeadDetailView({
                     Faturamento
                   </TabsTrigger>
                 ) : null}
-                {isRdLead ? (
+                {hasRdHistory ? (
                   <TabsTrigger value="crm" className="h-10 px-3 text-sm font-medium">
                     CRM / RD
                   </TabsTrigger>
@@ -238,7 +261,7 @@ export function LeadDetailView({
                 isCrossSellingLead={isCrossSellingLead}
                 isContractStage={isContractStage}
                 showBillingTab={showBillingTab}
-                isRdLead={isRdLead}
+                isRdLead={hasRdHistory}
                 onNavigate={(tab) => handleTabChange(tab)}
               />
             </TabsContent>
@@ -312,7 +335,7 @@ export function LeadDetailView({
 
             {showOnboardingTab ? (
               <TabsContent value="onboarding" className="mt-4 space-y-5">
-                <ClientOnboardingTab leadId={lead.id} />
+                <ClientOnboardingTab leadId={lead.id} stage={lead.etapa} />
               </TabsContent>
             ) : null}
 
@@ -327,7 +350,7 @@ export function LeadDetailView({
               </TabsContent>
             ) : null}
 
-            {isRdLead ? (
+            {hasRdHistory ? (
             <TabsContent value="crm" className="mt-4 space-y-5">
               {otherPipelineFields.length > 0 ? (
                 <section id="pipeline" className="scroll-mt-6">
@@ -1406,12 +1429,6 @@ function DueAreaTasksCard({
     } finally {
       setSavingTaskId(null);
     }
-    if (
-      task.status !== "disponibilizado" &&
-      window.confirm(`Planilha anexada. Marcar o levantamento de ${task.areaKey} como entregue?`)
-    ) {
-      await patchTask(task.id, { taskId: task.id, status: "disponibilizado", pastaDueConfirmada: true });
-    }
   }
 
   async function confirmSemProcessos() {
@@ -1598,9 +1615,29 @@ function DueAreaTasksCard({
                           ) : null}
                         </div>
                         {planilhasAnexadas[task.id]?.length ? (
-                          <p className="mt-2 text-xs font-semibold text-emerald-700">
-                            Planilha anexada: {planilhasAnexadas[task.id]!.join(", ")}
-                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                            <span className="font-semibold text-emerald-700">
+                              Planilha anexada: {planilhasAnexadas[task.id]!.join(", ")}
+                            </span>
+                            {task.status !== "disponibilizado" && canUpdate ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={isSaving}
+                                onClick={() =>
+                                  void patchTask(task.id, {
+                                    taskId: task.id,
+                                    status: "disponibilizado",
+                                    pastaDueConfirmada: true,
+                                  })
+                                }
+                              >
+                                Marcar levantamento como entregue
+                              </Button>
+                            ) : null}
+                          </div>
                         ) : null}
                       </div>
                     );

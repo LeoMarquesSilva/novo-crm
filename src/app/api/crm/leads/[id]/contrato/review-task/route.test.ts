@@ -2,16 +2,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { findLatestStoredGeneratedDocumentVersion } from "@/lib/crm/workflow-transition-evidence";
 import { createSupabaseFake } from "@/test/supabase-fake";
 import { mockCrmSession } from "@/test/mock-crm-auth";
-import { PATCH } from "./route";
+import { PATCH, POST } from "./route";
 
 vi.mock("@/lib/auth/server", () => ({ requireAuthApi: vi.fn() }));
 vi.mock("@/lib/auth/module-access", () => ({ listUserModules: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
 vi.mock("@/lib/crm/record-lead-activity", () => ({ recordLeadActivityEvent: vi.fn() }));
 vi.mock("@/lib/crm/workflow-transition-evidence", () => ({
-  hasStoredGeneratedDocument: vi.fn().mockResolvedValue(true),
+  findLatestStoredGeneratedDocumentVersion: vi
+    .fn()
+    .mockResolvedValue({ id: "version-7", generatedFilePath: "documentos/contratos/x/v7.docx" }),
+}));
+vi.mock("@/lib/crm/proposta-document-data", () => ({
+  loadDefaultContratoTemplate: vi.fn().mockResolvedValue(null),
 }));
 
 const leadId = "00000000-0000-4000-8000-000000000001";
@@ -49,10 +55,16 @@ describe("PATCH review-task", () => {
   });
 
   it("comercial conclui e o lead avança pela RPC atômica", async () => {
-    mockCrmSession({ role: "comercial" });
+    mockCrmSession({ role: "comercial", appUserId: "comercial-1" });
     const fake = setupDb();
     const res = await conclude();
     expect(res.status).toBe(200);
+    const update = fake.calls.find((c) => c.table === "contract_review_tasks" && c.method === "update");
+    expect(update?.args[0]).toMatchObject({
+      status: "concluido",
+      approved_by: "comercial-1",
+      document_version_id: "version-7",
+    });
     expect(fake.rpc).toHaveBeenCalledWith(
       "transition_opportunity_atomic",
       expect.objectContaining({
@@ -68,9 +80,58 @@ describe("PATCH review-task", () => {
     expect((await conclude()).status).toBe(200);
   });
 
+  it("sem versão gerada no storage não conclui", async () => {
+    mockCrmSession({ role: "comercial" });
+    vi.mocked(findLatestStoredGeneratedDocumentVersion).mockResolvedValueOnce(null);
+    const fake = setupDb();
+    const res = await conclude();
+    expect(res.status).toBe(422);
+    expect(fake.calls.some((c) => c.method === "update")).toBe(false);
+  });
+
   it("designado para a tarefa conclui", async () => {
     mockCrmSession({ role: "financeiro", appUserId: "revisor-1" });
     setupDb("revisor-1");
     expect((await conclude()).status).toBe(200);
+  });
+});
+
+describe("POST review-task", () => {
+  const request = (prazoRevisao: string) =>
+    POST(
+      new NextRequest("http://localhost", { method: "POST", body: JSON.stringify({ prazoRevisao }) }),
+      ctx(),
+    );
+
+  function setupPostDb() {
+    const fake = createSupabaseFake({
+      tables: {
+        oportunidades: { maybeSingle: { data: { id: leadId, solicitante_nome: "ACME" }, error: null } },
+        contract_review_tasks: { single: { data: { id: "task-1" }, error: null } },
+        app_users: { awaited: { data: [{ id: "u-1", auth_user_id: "auth-9", full_name: "Revisora" }], error: null } },
+      },
+    });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(fake.client as never);
+    return fake;
+  }
+
+  it.each(["2026-10-20", "20/10/2026"])("grava %s como meia-noite de São Paulo e avisa com a mesma data", async (prazo) => {
+    mockCrmSession({ role: "comercial" });
+    const fake = setupPostDb();
+    const res = await request(prazo);
+    expect(res.status).toBe(200);
+    const upsert = fake.calls.find((c) => c.table === "contract_review_tasks" && c.method === "upsert");
+    expect(upsert?.args[0]).toMatchObject({ prazo_revisao: "2026-10-20T03:00:00.000Z" });
+    const notification = fake.calls.find((c) => c.table === "crm_in_app_notifications" && c.method === "insert");
+    const rows = notification?.args[0] as { payload: { preview: string } }[];
+    expect(rows[0]?.payload.preview).toContain("Prazo: 20/10/2026");
+  });
+
+  it("recusa prazo que não é data", async () => {
+    mockCrmSession({ role: "comercial" });
+    const fake = setupPostDb();
+    const res = await request("31/02/2026");
+    expect(res.status).toBe(400);
+    expect(fake.calls.some((c) => c.method === "upsert")).toBe(false);
   });
 });

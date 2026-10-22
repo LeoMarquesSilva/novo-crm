@@ -295,6 +295,7 @@ export type ContractInvestmentItem = {
 
 export type ContractInvestment = {
   items: ContractInvestmentItem[];
+  /** Soma só dos honorários fixos (SPOT); mensais, manutenção e êxito ficam fora. */
   totalAmount: number | null;
   totalExtenso: string;
   tributacao: string;
@@ -304,6 +305,8 @@ export type ContractPaymentMethod = "boleto" | "transferencia" | "pix" | "combin
 
 export type ContractPayment = {
   method: ContractPaymentMethod;
+  /** "boleto bancário ou PIX"… — vazio quando `method` é "indefinido". Ausente em builds antigos. */
+  methodLabel?: string;
   clauseText: string;
   firstDueDate: string | null;
   installmentCount: number | null;

@@ -57,6 +57,7 @@ export async function POST(request: Request) {
       ok: true,
       summary: {
         imported: result.imported,
+        frozen: result.frozen ?? false,
         importedDeals: result.importedDeals,
         importedLeads: result.importedLeads,
       },

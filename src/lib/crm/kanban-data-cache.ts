@@ -13,24 +13,33 @@ export const RD_RECONCILIATION_CACHE_TAG = "crm:rd-reconciliacao";
 export const CRM_USER_DIRECTORY_CACHE_TAG = "crm:user-directory";
 
 /**
- * Lê a view `rd_deal_reconciliacao_resumo` (custom fields só com rótulo e valor: ~2 MB em
- * vez de 16 MB); sem a view aplicada, cai na tabela inteira.
+ * Views do snapshot RD, da mais enxuta para a maior: `rd_deal_reconciliacao_kanban` traz só o
+ * que o resumo usa (~0,3 MB); `rd_deal_reconciliacao_resumo`, o deal com os custom fields
+ * reduzidos (~3 MB). View ainda não aplicada → a próxima; nenhuma → a tabela (~18 MB).
  */
+const RD_RECONCILIATION_VIEWS = ["rd_deal_reconciliacao_kanban", "rd_deal_reconciliacao_resumo"] as const;
+
+function isMissingRelation(error: { code?: string } | null): boolean {
+  return error?.code === "PGRST205" || error?.code === "42P01";
+}
+
 async function loadRdReconciliationSummaries(): Promise<Record<string, RdLeadSummary>> {
   const supabase = createSupabaseAdminClient();
-  const fromView = await supabase
-    .from("rd_deal_reconciliacao_resumo")
+  for (const view of RD_RECONCILIATION_VIEWS) {
+    const { data, error } = await supabase
+      .from(view)
+      .select("oportunidade_id, detalhes, reconciled_at")
+      .not("oportunidade_id", "is", null)
+      .order("reconciled_at", { ascending: false });
+    if (isMissingRelation(error)) continue;
+    if (error) throw error;
+    return summarizeRdReconciliationRows(data ?? []);
+  }
+  const { data, error } = await supabase
+    .from("rd_deal_reconciliacao")
     .select("oportunidade_id, detalhes, reconciled_at")
     .not("oportunidade_id", "is", null)
     .order("reconciled_at", { ascending: false });
-  const viewMissing = fromView.error?.code === "PGRST205" || fromView.error?.code === "42P01";
-  const { data, error } = viewMissing
-    ? await supabase
-        .from("rd_deal_reconciliacao")
-        .select("oportunidade_id, detalhes, reconciled_at")
-        .not("oportunidade_id", "is", null)
-        .order("reconciled_at", { ascending: false })
-    : fromView;
   if (error) throw error;
   return summarizeRdReconciliationRows(data ?? []);
 }

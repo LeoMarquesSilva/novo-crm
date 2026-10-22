@@ -4,7 +4,12 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { UserManagementPanel, type MergedPerson } from "@/components/crm/user-management-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
-import { getOrqestraiColaboradoresLocal, type OrqestraiCollaborator } from "@/lib/orqestrai/client";
+import {
+  fetchOrqestraiPeopleIndex,
+  getOrqestraiColaboradoresLocal,
+  type OrqestraiCollaborator,
+  type OrqestraiPeopleIndex,
+} from "@/lib/orqestrai/client";
 
 function normalizeEmail(email: string | null | undefined): string {
   return (email ?? "").trim().toLowerCase();
@@ -73,13 +78,25 @@ async function getUsers() {
  * Junta o quadro real de colaboradores (ORQESTRAI, espelho local) com quem
  * tem login no CRM (`app_users`) — uma lista só, não duas telas separadas.
  * Casamento por e-mail (e por local-part, pra cobrir @bpplaw.com.br vs
- * @bismarchipires.com.br). Sobra gente dos dois lados: colaborador sem
+ * @bismarchipires.com.br) — o do RH e, em seguida, o de login no ORQESTRAI,
+ * pra quem usa outro e-mail no dia a dia (ex.: Samuel entra como
+ * `controladoria@`, mas no RH é `samuel@`). O do RH tem prioridade: o de
+ * login só ocupa chave livre. Sobra gente dos dois lados: colaborador sem
  * acesso ainda, e conta do CRM sem vínculo no RH (ex.: contas de sistema).
+ * Foto: a oficial por `app_users.id` (API de fotos) e, sem ela, a do
+ * ORQESTRAI pelo e-mail — único caminho pra quem ainda não tem login.
  */
 function mergePeople(
   appUsers: Awaited<ReturnType<typeof getUsers>>["users"],
   collaborators: OrqestraiCollaborator[],
+  people: OrqestraiPeopleIndex,
 ): MergedPerson[] {
+  const photoFor = (raw: string | null | undefined): string | null => {
+    const email = normalizeEmail(raw);
+    if (!email) return null;
+    return people.photoByEmail.get(email) ?? people.photoByLocalPart.get(localPart(email)) ?? null;
+  };
+
   const collabByEmail = new Map<string, OrqestraiCollaborator>();
   const collabByLocalPart = new Map<string, OrqestraiCollaborator>();
   for (const c of collaborators) {
@@ -87,6 +104,12 @@ function mergePeople(
     if (!email) continue;
     collabByEmail.set(email, c);
     collabByLocalPart.set(localPart(email), c);
+  }
+  for (const c of collaborators) {
+    const loginEmail = normalizeEmail(people.loginEmailByCollaboratorId.get(c.id));
+    if (!loginEmail) continue;
+    if (!collabByEmail.has(loginEmail)) collabByEmail.set(loginEmail, c);
+    if (!collabByLocalPart.has(localPart(loginEmail))) collabByLocalPart.set(localPart(loginEmail), c);
   }
 
   const matchedCollabIds = new Set<string>();
@@ -103,7 +126,7 @@ function mergePeople(
       full_name: user.full_name,
       role: user.role,
       area: user.area,
-      avatar_url: user.avatar_url,
+      avatar_url: user.avatar_url ?? photoFor(user.email),
       created_at: user.created_at,
       email: user.email,
       hasAccess: true,
@@ -122,7 +145,7 @@ function mergePeople(
       full_name: c.fullName,
       role: "sem_acesso",
       area: null,
-      avatar_url: null,
+      avatar_url: photoFor(people.loginEmailByCollaboratorId.get(c.id)) ?? photoFor(c.email),
       created_at: c.admissionDate ?? new Date().toISOString(),
       email: c.email ?? undefined,
       hasAccess: false,
@@ -139,12 +162,13 @@ export default async function UsuariosAdminPage() {
   await requireAdmin("/crm/admin/usuarios");
 
   const supabase = createSupabaseAdminClient();
-  const [{ users, error }, collaborators] = await Promise.all([
+  const [{ users, error }, collaborators, people] = await Promise.all([
     getUsers(),
     getOrqestraiColaboradoresLocal(supabase),
+    fetchOrqestraiPeopleIndex(),
   ]);
 
-  const merged = mergePeople(users, collaborators);
+  const merged = mergePeople(users, collaborators, people);
 
   return (
     <div className="space-y-6">

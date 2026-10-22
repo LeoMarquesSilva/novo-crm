@@ -57,6 +57,8 @@ const ACTIVITY_KIND_META: Record<
   cadastro_cliente_concluido: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Cadastro" },
   contrato_incluido_gestao: { icon: ListChecks, tone: "bg-info-bg text-info-text", label: "Faturamento" },
   contrato_ativado: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Faturamento" },
+  rd_migrado: { icon: GitBranch, tone: "bg-violet-bg text-violet-text", label: "Migração RD" },
+  rd_migracao_concluida: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Migração RD" },
 };
 
 export function LeadLifecycleTimelinePanel({ timeline }: LeadLifecycleTimelinePanelProps) {

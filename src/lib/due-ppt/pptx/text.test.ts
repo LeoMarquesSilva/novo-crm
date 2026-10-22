@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { maximoEixo } from "./chart";
 import { fillTokens, plainText } from "./text";
 import { NS, desc, parseXml, serializeXml } from "./xml";
 
@@ -36,5 +37,15 @@ describe("fillTokens", () => {
     fillTokens(doc.documentElement!, {}, missing);
     expect(plainText(doc.documentElement!)).toBe("");
     expect([...missing]).toEqual(["NAO_EXISTE"]);
+  });
+});
+
+
+describe("maximoEixo", () => {
+  it("dá folga e arredonda o máximo do eixo", () => {
+    expect(maximoEixo(9)).toBe(12);
+    expect(maximoEixo(82)).toBe(100);
+    expect(maximoEixo(223_642)).toBe(300_000);
+    expect(maximoEixo(0)).toBe(1);
   });
 });

@@ -3,8 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Loader2, Lock, Mail } from "lucide-react";
+import { ArrowRight, Loader2, Mail } from "lucide-react";
 
+import { authErrorClass, authLinkClass, authPrimaryButtonClass } from "@/components/auth/auth-styles";
+import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +29,10 @@ export function LoginForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!email.trim() || !password) {
+      setError("Informe o e-mail e a senha.");
+      return;
+    }
     setLoading(true);
     try {
       const supabase = createSupabaseClient();
@@ -53,9 +59,10 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5" noValidate>
+    // method="post": se o JS ainda não carregou, o envio nativo não põe a senha na URL.
+    <form method="post" onSubmit={onSubmit} className="space-y-5" noValidate>
       <div className="space-y-2">
-        <Label htmlFor="email">E-mail</Label>
+        <Label htmlFor="email">E-mail corporativo</Label>
         <div className="relative">
           <Mail
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -65,59 +72,65 @@ export function LoginForm() {
             id="email"
             name="email"
             type="email"
-            autoComplete="email"
+            inputMode="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            autoFocus
             required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError(null);
+            }}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "login-error" : undefined}
             className="h-11 pl-10"
-            placeholder="nome@empresa.com.br"
+            placeholder="seu.nome@bismarchipires.com.br"
           />
         </div>
       </div>
 
-      <div className="space-y-2">
+      {/* O link aparece ao lado do rótulo, mas vem depois do campo no DOM:
+          o Tab segue e-mail → senha → "Esqueci minha senha" → Entrar. */}
+      <div className="relative space-y-2">
         <Label htmlFor="password">Senha</Label>
-        <div className="relative">
-          <Lock
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="h-11 pl-10"
-            placeholder="••••••••"
-          />
-        </div>
-        <div className="flex justify-end">
-          <Link href="/esqueci-senha" className="text-v2-body-sm font-semibold text-interactive-700 hover:underline">
-            Esqueci minha senha
-          </Link>
-        </div>
+        <PasswordInput
+          id="password"
+          name="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onValueChange={(value) => {
+            setPassword(value);
+            setError(null);
+          }}
+          placeholder="Sua senha"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "login-error" : undefined}
+        />
+        <Link href="/esqueci-senha" className={`absolute -top-[3px] right-0 text-v2-body-sm ${authLinkClass}`}>
+          Esqueci minha senha
+        </Link>
       </div>
 
       {error ? (
-        <p
-          className="rounded-(--radius-v2-md) border border-destructive/35 bg-destructive/10 px-3 py-2 text-v2-body-sm text-destructive"
-          role="alert"
-        >
+        <p id="login-error" className={authErrorClass} role="alert">
           {error}
         </p>
       ) : null}
 
-      <Button type="submit" disabled={loading} size="lg" className="h-11 w-full">
+      <Button type="submit" disabled={loading} size="lg" className={authPrimaryButtonClass}>
         {loading ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             Entrando…
           </>
         ) : (
-          "Entrar"
+          <>
+            Entrar
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </>
         )}
       </Button>
     </form>

@@ -64,6 +64,31 @@ describe("buildClientOnboardingPrefill", () => {
     expect(p.sources["financeiro.inicioVigencia"]).toBe("assinatura");
   });
 
+  it("vencimento em texto livre da proposta não vira data (teste E2E 18/10/2026)", () => {
+    const p = buildClientOnboardingPrefill(
+      sources({ payment: { firstDueDate: "na data de vencimento a combinar" }, signedOn: "2026-10-18" }),
+    );
+    expect(p.financeiro.primeiroFaturamento).toBe("");
+    expect(p.sources["financeiro.primeiroFaturamento"]).toBeUndefined();
+  });
+
+  it("vencimento na assinatura usa a data em que a venda fechou; data escrita no texto é lida", () => {
+    const naAssinatura = buildClientOnboardingPrefill(
+      sources({ payment: { firstDueDate: "na data de assinatura do Contrato" }, signedOn: "2026-10-18" }),
+    );
+    expect(naAssinatura.financeiro.primeiroFaturamento).toBe("2026-10-18");
+    expect(naAssinatura.sources["financeiro.primeiroFaturamento"]).toBe("assinatura");
+
+    const semAssinatura = buildClientOnboardingPrefill(
+      sources({ payment: { firstDueDate: "na data de assinatura do Contrato" } }),
+    );
+    expect(semAssinatura.financeiro.primeiroFaturamento).toBe("");
+
+    const escrita = buildClientOnboardingPrefill(sources({ payment: { firstDueDate: "na data de 20/10/2026" } }));
+    expect(escrita.financeiro.primeiroFaturamento).toBe("2026-10-20");
+    expect(escrita.sources["financeiro.primeiroFaturamento"]).toBe("contrato");
+  });
+
   it("rateio proporcional aos valores das áreas da proposta", () => {
     const p = buildClientOnboardingPrefill(
       sources({

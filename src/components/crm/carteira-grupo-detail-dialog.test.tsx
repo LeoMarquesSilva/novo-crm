@@ -57,8 +57,12 @@ test("no modo editar, clicar a área marca o chip mesmo com o Select de Indicaç
 
   await user.click(screen.getByRole("button", { name: "Editar" }));
 
-  const indication = screen.getByRole("combobox");
-  await user.click(indication);
+  // O seletor de usuário também é um combobox; o de origem é o Select do Base UI.
+  const indication = screen
+    .getAllByRole("combobox")
+    .find((element) => element.getAttribute("data-slot") === "select-trigger");
+  expect(indication).toBeDefined();
+  await user.click(indication!);
   expect(await screen.findByRole("option", { name: "Lead Digital" })).toBeInTheDocument();
 
   const chip = screen.getByRole("checkbox", { name: /Trabalhista/ });

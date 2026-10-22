@@ -4,8 +4,13 @@ export { InputField } from "./input-field";
 export { SelectField } from "./select-field";
 export { TagSelectable } from "./tag-selectable";
 export { StickyFooter } from "./sticky-footer";
+export { WizardHeader, type WizardStepItem } from "./wizard-header";
+export { FormField, FieldError, newLeadFieldIds, describedBy } from "./form-field";
+export { ChoiceCard } from "./choice-card";
 export {
   ClientPickerField,
+  IndicatorPickerField,
+  normalizeSearch,
   UserPickerField,
   type ClientOption,
   type SystemUserOption,

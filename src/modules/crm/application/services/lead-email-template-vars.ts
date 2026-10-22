@@ -6,7 +6,12 @@ import {
   leadEmailNowSaoPaulo,
 } from "./lead-email-html-utils";
 
-export type LeadEmailTemplatePayload = Pick<
+export type LeadEmailTemplatePayload = LeadEmailTemplateFields & {
+  /** URL absoluta da ficha do lead no CRM (`{{link_lead}}`). Sem ela, a lista de leads. */
+  lead_url?: string | null;
+};
+
+type LeadEmailTemplateFields = Pick<
   NewLeadPayload,
   | "solicitante"
   | "email"
@@ -26,6 +31,11 @@ export type LeadEmailTemplatePayload = Pick<
 
 function plainOneLine(s: string): string {
   return s.replace(/\r?\n/g, " ").trim();
+}
+
+/** Destino dos botões do e-mail: a ficha do lead no CRM (não mais o RD Station). */
+function leadLink(payload: LeadEmailTemplatePayload): string {
+  return payload.lead_url?.trim() || "/crm/leads";
 }
 
 /** Valores escapados para interpolação no corpo HTML. */
@@ -77,6 +87,7 @@ export function buildLeadEmailHtmlVars(payload: LeadEmailTemplatePayload): Recor
     data_reuniao: escapeHtml(payload.data_reuniao || "Não informado"),
     horario_reuniao: escapeHtml(payload.horario_reuniao || "Não informado"),
     reuniao_data_horario_sem: escapeHtml(reuniaoDataHorarioSem),
+    link_lead: escapeHtml(leadLink(payload)),
     frag_nome_indicacao_due: fragNomeIndicacaoDue,
     frag_tipo_indicacao_due: fragTipoIndicacaoDue,
     frag_nome_indicacao_sem: fragNomeIndicacaoSem,
@@ -124,6 +135,7 @@ export function buildLeadEmailSubjectVars(payload: LeadEmailTemplatePayload): Re
     data_reuniao: plainOneLine(payload.data_reuniao || "Não informado"),
     horario_reuniao: plainOneLine(payload.horario_reuniao || "Não informado"),
     reuniao_data_horario_sem: plainOneLine(reuniaoDataHorarioSem),
+    link_lead: plainOneLine(leadLink(payload)),
     ...emptyFrags,
   };
 }
@@ -146,6 +158,7 @@ export const SAMPLE_LEAD_EMAIL_PAYLOAD: LeadEmailTemplatePayload = {
   tipo_de_lead: "Indicacao",
   tipo_indicacao: "Cliente",
   nome_indicacao: "João Indicador",
+  lead_url: "https://crm.exemplo.com.br/crm/leads/00000000-0000-4000-8000-000000000000",
 };
 
 export const SAMPLE_LEAD_EMAIL_PAYLOAD_SEM_DUE: LeadEmailTemplatePayload = {
@@ -173,6 +186,7 @@ export const LEAD_EMAIL_TEMPLATE_PLACEHOLDER_KEYS = [
   "data_reuniao",
   "horario_reuniao",
   "reuniao_data_horario_sem",
+  "link_lead",
   "frag_nome_indicacao_due",
   "frag_tipo_indicacao_due",
   "frag_nome_indicacao_sem",

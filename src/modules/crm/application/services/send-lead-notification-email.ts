@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NewLeadPayload } from "./new-lead-payload";
+import { getPublicAppBaseUrl } from "@/lib/microsoft-mail/public-app-base-url";
 import { buildLeadNotificationEmailMessage } from "./build-lead-notification-email";
 import {
   refreshMicrosoftMailAccessToken,
@@ -217,7 +218,20 @@ async function resolveRecipients(
 export type SendLeadNotificationEmailOptions = {
   /** Se definido, envia só para estes endereços (ex.: teste admin), ignorando resolução por área/fixo. */
   recipientEmailsOverride?: string[];
+  /** Lead criado: os botões do e-mail abrem a ficha dele no CRM. */
+  oportunidadeId?: string | null;
 };
+
+/** URL absoluta da ficha do lead (`NEXT_PUBLIC_APP_URL`/`VERCEL_URL`); sem base, `null`. */
+export function buildLeadDetailUrl(oportunidadeId: string | null | undefined): string | null {
+  let base: string;
+  try {
+    base = getPublicAppBaseUrl().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+  return oportunidadeId ? `${base}/crm/leads/${encodeURIComponent(oportunidadeId)}` : `${base}/crm/leads`;
+}
 
 export async function sendLeadNotificationEmail(
   supabase: SupabaseClient,
@@ -233,7 +247,9 @@ export async function sendLeadNotificationEmail(
     override?.length
       ? Promise.resolve(override)
       : resolveRecipients(supabase, payload.areas_analise as string[], fixedKey, payload.email),
-    buildLeadNotificationEmailMessage(supabase, variant, payload),
+    buildLeadNotificationEmailMessage(supabase, variant, payload, {
+      leadUrl: buildLeadDetailUrl(options?.oportunidadeId),
+    }),
   ]);
 
   return sendOutlookEmail(supabase, recipients, template.subject, template.html);

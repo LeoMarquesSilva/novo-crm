@@ -73,6 +73,7 @@ export async function buildLeadNotificationEmailMessage(
   supabase: SupabaseClient,
   variant: LeadEmailVariant,
   payload: NewLeadPayload,
+  options: { leadUrl?: string | null } = {},
 ): Promise<{ subject: string; html: string }> {
   const defaults = getDefaultTemplatesForVariant(variant);
   const { data } = await supabase
@@ -85,5 +86,8 @@ export async function buildLeadNotificationEmailMessage(
     data?.subject_template?.trim() ? data.subject_template.trim() : defaults.subjectTemplate;
   const htmlTpl = data?.html_template?.trim() ? data.html_template.trim() : defaults.htmlTemplate;
 
-  return renderLeadEmailFromTemplates(variant, subjectTpl, htmlTpl, asTemplatePayload(payload));
+  return renderLeadEmailFromTemplates(variant, subjectTpl, htmlTpl, {
+    ...asTemplatePayload(payload),
+    lead_url: options.leadUrl ?? null,
+  });
 }

@@ -51,7 +51,9 @@ Componentes (`src/components/crm/`):
 
 ## Novo Lead (modal)
 
-`src/components/crm/new-lead-modal/` — `index.ts`, `modal-header.tsx`, `input-field.tsx`, `select-field.tsx`, `searchable-picker.tsx`, `section-card.tsx`, `sticky-footer.tsx`, `tag-selectable.tsx`
+`src/components/crm/new-lead-modal/` — `index.ts`, `modal-header.tsx`, `input-field.tsx`, `select-field.tsx`, `searchable-picker.tsx`, `section-card.tsx`, `sticky-footer.tsx`, `tag-selectable.tsx`, `wizard-header.tsx` (cabeçalho + stepper compacto do cadastro em etapas), `form-field.tsx` (label/ajuda/erro com associação acessível), `choice-card.tsx` (opção de rádio em cartão)
+
+Formulário: `src/components/crm/new-demand-form.tsx` (aberto pelo `Dialog` em `src/app/(crm)/crm/leads/page.tsx`). `ModalHeader`/`StickyFooter`/`SectionCard` (variante `card`) continuam em uso no `pipeline-board.tsx`.
 
 Relacionados: `lead-intake-empresa-block.tsx`, `lead-intake-types.ts`, `lead-add-empresa-button.tsx` (em `leads/[id]/`), `escopo-direcionamento-area-picker.tsx`
 
@@ -94,9 +96,9 @@ Componentes de apoio em `src/components/crm/`:
 
 Rota: `src/app/(crm)/crm/contratos/page.tsx`, `contratos/[id]/`, `contratos/simulacao/`, `contratos/importacao/`
 
-Componentes: `src/components/crm/contracts/` — `contracts-hub.tsx`, `contract-setup-wizard.tsx`, `contract-ai-review.tsx`, `contract-detail-shell.tsx`, `contract-closing-review.tsx`, `contract-closings-tab.tsx`, `contract-portfolio-tab.tsx`, `contract-renewals-tab.tsx`, `contract-responsibles-editor.tsx`, `contract-versions-panel.tsx`, `contract-shares-commissions-editor.tsx`, `contract-components-editor.tsx`, `contract-areas-editor.tsx`, `contract-allocations-editor.tsx`, `contract-money-percent-inputs.tsx`, `contract-setup-form-helpers.ts`, `ensure-contract-draft-banner.tsx`, `contract-import-shell.tsx`, `contract-import-review-card.tsx`, `contract-import-group-picker-dialog.tsx`, `contract-hub-orphan-groups.tsx`
+Componentes: `src/components/crm/contracts/` — `contracts-hub.tsx`, `contract-setup-wizard.tsx`, `contract-ai-review.tsx`, `contract-detail-shell.tsx`, `contract-closing-review.tsx`, `contract-closings-tab.tsx`, `contract-portfolio-tab.tsx`, `contract-renewals-tab.tsx`, `contract-responsibles-editor.tsx`, `contract-versions-panel.tsx`, `contract-shares-commissions-editor.tsx`, `contract-components-editor.tsx`, `contract-installments-editor.tsx` (parcelas do preço fechado), `contract-areas-editor.tsx`, `contract-allocations-editor.tsx`, `contract-money-percent-inputs.tsx`, `contract-setup-form-helpers.ts`, `ensure-contract-draft-banner.tsx`, `contract-import-shell.tsx`, `contract-import-review-card.tsx`, `contract-import-group-picker-dialog.tsx`, `contract-hub-orphan-groups.tsx`
 
-Lib: `src/lib/contract-import/` (clip/extract/map/match/persist + `ai-provenance.ts`, `summarize-extraction.ts`, `sioe-rateio.ts`), `src/lib/orqestrai/client-groups.ts`, `src/lib/orqestrai/gestor-atividade.ts`, `src/lib/crm/contract-hub-summary.ts`, `src/lib/crm/contract-hub-coverage.ts`, `src/lib/crm/contract-renewal-date.ts`, `src/modules/contracts/domain/variable-usage-projection.ts`, `src/lib/sioe/` (`client.ts`, `sync-carteira.ts`, `sync-carteira-plan.ts`, `rateios.ts`, `usage.ts`)
+Lib: `src/lib/contract-import/` (clip/extract/map/match/persist + `ai-provenance.ts`, `summarize-extraction.ts`, `sioe-rateio.ts`), `src/lib/orqestrai/client-groups.ts`, `src/lib/orqestrai/gestor-atividade.ts`, `src/lib/crm/contract-hub-summary.ts`, `src/lib/crm/contract-hub-coverage.ts`, `src/lib/crm/contract-renewal-date.ts`, `src/modules/contracts/domain/variable-usage-projection.ts`, `src/modules/contracts/domain/installment-schedule.ts`, `src/lib/sioe/` (`client.ts`, `sync-carteira.ts`, `sync-carteira-plan.ts`, `rateios.ts`, `usage.ts`)
 
 Também relevante: `contract-signers-kanban-panel.tsx` (Kanban de signatários, em `src/components/crm/`)
 
@@ -126,6 +128,10 @@ Regra de negócio: `src/modules/icp/{domain,infrastructure}/` (ver zona abaixo).
 
 Envio: `src/components/crm/contracts/send-contract-signature-dialog.tsx` (aberto pelo `pipeline-board.tsx`, `lead-detail-stage-advance.tsx` e `D4SignSendSection` em `contrato-document-builder.tsx`). Cadastro: `src/app/(crm)/crm/leads/[id]/client-onboarding/` (`client-onboarding-tab.tsx`, `client-onboarding-form.tsx`, `ops-legais-review-panel.tsx`). Faturamento: `src/app/(crm)/crm/leads/[id]/contract-billing-onboarding-panel.tsx`. Regras: `src/modules/crm/domain/client-onboarding.ts`, `src/modules/crm/domain/stage-transition-rules.ts`, `src/lib/crm/client-onboarding/*`, `src/lib/crm/contract-inclusion/*`, `src/lib/crm/post-signature/*` (não são trabalho visual).
 
+## Migrar do RD (virada)
+
+Rota: `src/app/(crm)/crm/migracao-rd/page.tsx` (fila + painel Dia da virada) e `migracao-rd/[id]/page.tsx` (formulário do negócio). Componentes: `src/components/crm/rd-migration/` — `rd-migration-queue.tsx`, `rd-migration-form.tsx` (reusa `ConfeccaoReuniaoModalSection`, `DynamicField` e `ClientOnboardingForm`), `rd-migration-status.tsx`. Regras e serviço: `src/lib/crm/rd-migration/*` (não são trabalho visual). Selo "Migrar do RD" no cartão do kanban (`pipeline-lead-card-content.tsx`) e aviso na ficha (`lead-detail-view.tsx`).
+
 ## Documentos (due diligence)
 
 Rota: `src/app/(crm)/crm/documentos/page.tsx` + `due-diligence-panel.tsx`, `due-timeline-ui.tsx`
@@ -139,6 +145,7 @@ Componentes (`src/components/crm/`): `field-config-panel.tsx`, `clause-templates
 ## Notificações / Perfil / Login
 
 - Rota: `src/app/(crm)/crm/notifications/`, `src/app/(crm)/crm/perfil/`, `src/app/login/`
+- Telas de acesso: `src/app/{login,esqueci-senha,redefinir-senha,trocar-senha}/`, `src/app/auth/confirmar/`; moldura `src/components/auth/auth-panel.tsx`, formulários e peças em `src/components/auth/` (`password-input.tsx`, `password-requirements.tsx`, `auth-styles.ts`); imagens da marca em `public/brand/`
 
 ## Zona de regra de negócio — NÃO mexer sem necessidade explícita
 

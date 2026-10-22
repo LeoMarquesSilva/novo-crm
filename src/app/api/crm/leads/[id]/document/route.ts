@@ -10,44 +10,13 @@ import {
 } from "@/lib/crm/proposta-document-data";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
+import { ensureDocumentInstance } from "@/lib/crm/document-instance";
 
 const patchSchema = z.object({
   templateId: z.string().uuid().optional(),
   status: z.string().min(1).max(40).optional(),
   data: z.object({ responsavel: z.string().trim().max(160).optional() }).strict().optional(),
 });
-
-async function ensureInstance(params: {
-  supabase: ReturnType<typeof createSupabaseAdminClient>;
-  oportunidadeId: string;
-  templateId: string;
-  appUserId: string | null;
-}) {
-  const { supabase, oportunidadeId, templateId, appUserId } = params;
-  const { data: existing, error: existingErr } = await supabase
-    .from("document_instances")
-    .select("*")
-    .eq("oportunidade_id", oportunidadeId)
-    .eq("template_id", templateId)
-    .maybeSingle();
-  if (existingErr) throw existingErr;
-  if (existing) return existing;
-
-  const { data, error } = await supabase
-    .from("document_instances")
-    .insert({
-      oportunidade_id: oportunidadeId,
-      template_id: templateId,
-      status: "draft",
-      current_version: 0,
-      data_json: {},
-      created_by: appUserId,
-    })
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data;
-}
 
 export async function GET(
   _request: NextRequest,
@@ -72,7 +41,7 @@ export async function GET(
     const template = await loadDefaultDocumentTemplate(supabase);
     if (!template) return NextResponse.json({ ok: false, error: "Nenhum modelo ativo encontrado." }, { status: 404 });
 
-    const instance = await ensureInstance({
+    const instance = await ensureDocumentInstance({
       supabase,
       oportunidadeId,
       templateId: template.id,
@@ -131,7 +100,7 @@ export async function PATCH(
       : await loadDefaultDocumentTemplate(supabase);
     if (!template || template.documentType !== "proposta" || !template.isActive) return NextResponse.json({ ok: false, error: "Modelo de proposta não encontrado." }, { status: 404 });
 
-    const instance = await ensureInstance({
+    const instance = await ensureDocumentInstance({
       supabase,
       oportunidadeId,
       templateId: template.id,

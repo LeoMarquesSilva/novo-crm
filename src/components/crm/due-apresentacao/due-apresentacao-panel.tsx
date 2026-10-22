@@ -82,6 +82,7 @@ export function DueApresentacaoPanel({
   const [salvo, setSalvo] = useState<{ estado: "ok" | "salvando" | "erro"; em: string | null }>({ estado: "ok", em: null });
   const [gerado, setGerado] = useState<{ em: string | null }>({ em: null });
   const [pendentes, setPendentes] = useState<Pendente[]>([]);
+  const [confirmarLogo, setConfirmarLogo] = useState(false);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [gerando, setGerando] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ nome: string; slides: number; avisos: string[]; anexado: boolean } | null>(null);
@@ -251,7 +252,6 @@ export function DueApresentacaoPanel({
   }
 
   async function remover(doc: DueDocumentoLista) {
-    if (!window.confirm(`Remover ${doc.original_filename}?`)) return;
     try {
       await removerDocumentoDue(leadId, doc.id);
       setDocs((cur) => cur.filter((d) => d.id !== doc.id));
@@ -524,7 +524,13 @@ export function DueApresentacaoPanel({
               ) : null}
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <div className="flex h-14 w-32 items-center justify-center overflow-hidden rounded-(--radius-v2-md) border border-dashed border-border bg-muted/30">
+              <div
+                className={cn(
+                  "flex h-14 w-32 items-center justify-center overflow-hidden rounded-(--radius-v2-md) border border-dashed",
+                  // Na capa o logo fica sobre o círculo escuro: a prévia usa o mesmo fundo (logo branco aparece).
+                  logoUrl ? "border-brand-navy bg-brand-navy p-1.5" : "border-border bg-muted/30",
+                )}
+              >
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={logoUrl} alt="Logo do cliente" className="max-h-full max-w-full object-contain" />
@@ -546,8 +552,27 @@ export function DueApresentacaoPanel({
                   }}
                 />
               </label>
-              {logoDoc ? (
-                <Button type="button" variant="ghost" size="sm" onClick={() => void remover(logoDoc)}>
+              {logoDoc && confirmarLogo ? (
+                <span className="flex items-center gap-1 text-xs">
+                  <span className="font-semibold text-destructive">Remover o logo?</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      setConfirmarLogo(false);
+                      void remover(logoDoc);
+                    }}
+                  >
+                    Sim, remover
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setConfirmarLogo(false)}>
+                    Cancelar
+                  </Button>
+                </span>
+              ) : logoDoc ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmarLogo(true)}>
                   Remover logo
                 </Button>
               ) : (

@@ -203,6 +203,31 @@ function updateChartXml(doc: XDocument, data: ChartData, hasWorkbook: boolean): 
     }
   });
   hideZeroPercentLabels(doc);
+  ajustarEixoFixo(doc, data);
+}
+
+/** Máximo "redondo" com folga de 20% para os rótulos (9 → 12, 82 → 100, 223.642 → 300.000). */
+export function maximoEixo(maior: number): number {
+  if (!(maior > 0)) return 1;
+  const alvo = maior * 1.2;
+  const potencia = 10 ** Math.floor(Math.log10(alvo));
+  for (const passo of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) {
+    if (passo * potencia >= alvo) return passo * potencia;
+  }
+  return 10 * potencia;
+}
+
+/**
+ * Eixo de valores com máximo fixo no modelo (feito para os dados do exemplo) achata ou
+ * corta os dados novos: o máximo passa a acompanhar os dados.
+ */
+function ajustarEixoFixo(doc: XDocument, data: ChartData): void {
+  const maior = Math.max(0, ...data.series.flatMap((s) => s.values.filter((v) => Number.isFinite(v))));
+  for (const ax of desc(doc, NS.c, "valAx")) {
+    const scaling = kid(ax, NS.c, "scaling");
+    const max = scaling ? kid(scaling, NS.c, "max") : null;
+    if (max) max.setAttribute("val", String(maximoEixo(maior)));
+  }
 }
 
 // ─── planilha embutida ────────────────────────────────────────────────────────

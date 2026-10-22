@@ -18,6 +18,11 @@ export type NotificationAudience = {
   emails?: readonly (string | null | undefined)[];
   /** Equipe do lead: criador, captador, cadastrado por, dono no RD, responsáveis DUE/escopo/revisão. */
   leadTeamOf?: string;
+  /**
+   * Responsável do lead: criador e captador (solicitante interno), os mesmos que podem enviar o
+   * cadastro do cliente. Para avisos que pedem uma ação deles, sem a equipe inteira.
+   */
+  leadOwnerOf?: string;
   /** Sócios signatários (Gustavo e Ricardo, com aliases). */
   firmPartners?: boolean;
 };
@@ -111,6 +116,12 @@ export async function resolveNotificationRecipients(
     for (const email of [ctx.solicitanteEmail, ctx.cadastradoPorEmail, ctx.rdOwnerEmail]) {
       if (email) emails.add(email);
     }
+  }
+
+  if (audience.leadOwnerOf) {
+    const ctx = await fetchLeadStakeholderContext(supabase, audience.leadOwnerOf);
+    if (ctx.criadoPorAppUserId) appUserIds.add(ctx.criadoPorAppUserId);
+    if (ctx.solicitanteEmail) emails.add(ctx.solicitanteEmail);
   }
 
   if (audience.firmPartners) {

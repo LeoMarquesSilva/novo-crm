@@ -50,16 +50,22 @@ Conferidas contra os PPTs entregues (Cível do Sul Fluminense e Trabalhista/Rec.
 - Potencial passivo: soma do valor da causa dos processos não arquivados com **polo do cliente = PASSIVO**. Sem a coluna de polo, soma todos (com aviso).
 - Ativos / suspensos: não arquivados, separados por "Suspenso".
 - Média e maior valor: sobre todos os não arquivados.
-- Região: tribunais; com mais de 2, o maior + "Outros".
+- Região: não arquivados por tribunal, do maior para o menor, com a UF ("SP · TJSP"; a UF sai da sigla TJxx ou, para TRF e outros, da coluna UF ou do número CNJ). Até 4 tribunais, um por coluna; com 5 ou mais, os 3 maiores + "Outros". Tribunal vazio sai do número CNJ (TJ + UF, TRF + região); "TJ-SP" vira "TJSP".
 - Fase processual e sócio no polo passivo: até 3 fases e 2 linhas de sócio (o excedente vira "Outras fases").
 - Casos com maior valor: top 5 do polo passivo (coluna = polo ativo).
 
-**Trabalhista** (`analisarTrabalhista`)
-- Ativos = não arquivados (Ativo + Suspenso); potencial passivo = soma de **Valor envolvido** (cai para valor da causa se vier vazio).
-- Média do valor da causa: de **toda a planilha** (é o que os PPTs entregues usam).
-- Maior valor: maior valor envolvido.
-- Processos por ano: toda a planilha, anos sem processo entram com zero.
-- Pedidos: contados na coluna **Assuntos** (ou Pedidos, se não houver Assuntos), em 9 categorias fixas (horas extras, multa 477, verbas rescisórias, dano moral, insalubridade, periculosidade, acúmulo de função, acidente, adicional noturno). A multa do art. 477 entra no gráfico mas não no texto de "principais pedidos".
+**Trabalhista** (`analisarTrabalhista`) — regras tiradas dos slides que a área montou (ALEA, Antonini e Sedna, out/2026), conferidos contra as planilhas e confirmados com o advogado da área em 20/10/2026
+- Potencial passivo: soma do **Valor envolvido** dos não arquivados, como a área preencheu (zero conta como zero: acordo quitado, execução extinta, execução reunida em processo piloto). O painel lista os não arquivados com valor zero e o último andamento. Sem a coluna, usa o valor da causa.
+- Situação: **Ativos = ativos + suspensos** (regra da área) e Arquivados. O card da área no CRM mostra quantos dos ativos estão suspensos.
+- Média do valor da causa: **todos os processos da planilha**, inclusive arquivados (igual nas três dues). Maior valor: maior valor envolvido dos não arquivados.
+- Fases: as da planilha, na ordem Conhecimento → Recursal → Liquidação → Execução, com o valor envolvido de cada uma (nos slides da área o rótulo "Liquidação" ficava repetido no 2º/3º quadro).
+- Processos por ano: toda a planilha, pela data de distribuição; anos sem processo entram com zero.
+- Pedidos: coluna **Assuntos** (ou Pedidos), cada assunto da lista, todos os processos. Entram no gráfico os **10 de maior incidência** (a área usa 10 a 12; o gráfico do modelo foi desenhado para 9 e comporta 10). Catálogo em `PEDIDOS_TRABALHISTAS`: horas extras, verbas rescisórias, multa 477, dano moral (qualquer "moral"), vínculo de emprego, insalubridade (inclui "Outros Agentes Insalubres"), periculosidade, rescisão indireta, intervalo, acúmulo de função, desvio de função, acidente/doença ocupacional, adicional noturno, equiparação salarial, justa causa, estabilidade/reintegração, dano material. Assuntos fora do catálogo (FGTS, multa 467, férias e 13º proporcionais, honorários, reflexos, terceirização…) não entram.
+- **Verbas rescisórias** = assunto "Verbas Rescisórias" **ou** multa 477 **ou** aviso prévio. É o saneamento que a área faz à mão: o reclamante muitas vezes cadastra só a multa 477 ou só o aviso prévio, e aí há pedido de verbas rescisórias.
+- "Principais pedidos": os 3 primeiros do gráfico, sem a multa 477 (acessória das verbas rescisórias).
+- Leitura executiva: fase predominante, principais pedidos e o processo de maior valor envolvido, com os pedidos dele.
+- Saneamento: a área corrige a planilha do levantamento antes da due (situação desatualizada, processo em que o cliente foi excluído, assuntos incompletos). O CRM lê a planilha como foi enviada, então a planilha saneada é a que deve subir.
+- Diferenças com os slides da área: nas três dues as barras "Multa 477" e "Verbas rescisórias" tinham o mesmo número, o maior dos dois assuntos (ALEA 54, Antonini 7, Sedna 44); pela regra acima a planilha dá ALEA 79/39, Antonini 11/6, Sedna 76/44. Anos da ALEA (41/82 no slide, 43/80 na planilha); valor da Execução da ALEA (43.291,01 no slide, 43.298,01 na planilha); rótulo "Liquidação" repetido no 3º quadro de fase.
 
 **Tributário** (`analisarTributario`)
 - Processos judiciais = execuções não arquivadas; passivo judicial = soma do valor.
@@ -68,6 +74,7 @@ Conferidas contra os PPTs entregues (Cível do Sul Fluminense e Trabalhista/Rec.
 - Na conclusão: judicial + administrativo, com nota de rodapé.
 
 **Recuperação de Crédito** (`analisarRecCred`) — só processos ativos
+- Arquivados ficam fora de tudo: painel, slides por processo e lista (confirmado com a área em 20/10/2026). Suspensos entram, porque não estão arquivados.
 - Valor por tipo de ação (top 5), faixas de valor (até 50 mil … acima de 1 milhão), valor por ano de ajuizamento, tempo de tramitação até hoje (até 1, 1–3, 3–5, +5 anos) e tempo médio, top 5 devedores.
 - Vai para a conclusão como crédito (quadro "Recuperação de Créditos").
 
@@ -85,6 +92,7 @@ O modelo ativo fica em `due_modelos_apresentacao` + bucket `due-documents/modelo
   - capa: `TXT_EMPRESA_n`, `ICO_EMPRESA_n`, `IMG_LOGO_CLIENTE`, `CIRCULO_CLIENTE`, `CIRCULO_ESCRITORIO`, `IMG_LOGO_ESCRITORIO`;
   - áreas envolvidas: grupos `AREA_REESTRUTURACAO`, `AREA_REC_CRED`, `AREA_CIVEL`, `AREA_TRABALHISTA`, `AREA_TRIBUTARIO` (com 5 áreas o layout do modelo fica como está; com menos, os cards são centralizados numa linha);
   - fases e sócios: `CIVEL_FASE_n_*`, `CIVEL_SOCIO_n_*`, `TRAB_FASE_n_*` + `*_LINHA`;
+  - região do Cível: colunas `CIVEL_TRIBUNAL_n_NOME` / `CIVEL_TRIBUNAL_n_QTD` (n = 1 a 4) e divisórias `CIVEL_TRIBUNAL_DIV_n`. O gerador deixa só as colunas usadas e divide entre elas a faixa que as 4 ocupam no modelo; com 4 colunas o nome sai 10% menor. Modelo sem essas colunas (anterior a 20/10/2026) segue com `{{CIVEL_REGIAO_1}}` / `{{CIVEL_REGIAO_2}}`: o maior tribunal + "Outros";
   - crédito: `RC_TIPO_QTD_n` (alinhados às barras do gráfico), gráficos `CHART_RC_TIPO|FAIXA|ANO|TEMPO`, `CHART_TRAB_ANO|PEDIDOS`;
   - tabelas: `TBL_*`;
   - conclusão: `CONC_<REEST|TRIB|TRAB|CIVEL>_<NOME|VALOR|TRILHO|BARRA|PCT|ICONE>`, `CONC_SEPARADOR`, `CONC_NOTAS`.

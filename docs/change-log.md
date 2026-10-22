@@ -2,6 +2,33 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-10-21 — Contrato: perfil de Recuperação de Crédito em Processos de Recuperação Judicial
+
+- O subtipo não tinha perfil contratual e o contrato travava no objeto (2º teste ponta a ponta). Perfil novo em `scope-profiles.ts` + blocos em `object-catalog.ts`, tirados do contrato real (negócio do RD de Vinicius e André, assinado em 29/09/2026): texto genérico fixo, dados do caso como variáveis — credores pela gramática da parte, empresa/processo/vara dos campos da proposta, pontos do parecer opcionais. Pendente de revisão jurídica, como os demais perfis.
+- Migrations `20261008183000`, `20261018120000`, `20261018130000` e `20261019120000` aplicadas no remoto em 21/10/2026 pelo SQL Editor (system-context atualizado).
+- Validações: `npx vitest run src/lib/crm/contract-engine` (84 testes), conferido no CRM local: objeto completo, Word v1 gerado sem duplicatas.
+
+## 2026-10-21 — Contrato: todas as pessoas do lead como contratantes
+
+- Lead com mais de uma pessoa/empresa no cadastro: no avanço para a proposta as outras vêm marcadas como contratantes (`cp_proposta_empresas_json.contratantes`) e dá para desmarcar. Antes só a principal entrava; a 2ª pessoa precisava ser redigitada e, depois da proposta, não havia como incluí-la (achado no 2º teste ponta a ponta: Vinicius e André).
+- Correção depois: seção Cliente do editor da proposta e seção Partes do montador do contrato (até o envio). A aba Contrato avisa quando a proposta mudou e atualiza o contrato.
+- `initializeContractFromProposal` guarda só as cláusulas escolhidas à mão em `clausulas_selecionadas`.
+- Sem DDL. Validações: `npx vitest run` (1181 testes), `npx tsc --noEmit` sem erro em `src/`; conferido no CRM local com o lead do teste 2 (prévia com as duas pessoas e "CONTRATANTES").
+
+## 2026-10-21 — Contrato: defeitos achados no 2º teste ponta a ponta
+
+- A aba Contrato devolvia 500 na primeira abertura. A tela pede o contrato duas vezes ao mesmo tempo, as duas tentam criar o rascunho e a segunda batia em `unique (oportunidade_id, template_id)` de `document_instances`. As quatro cópias de `ensureInstance` (rotas `document` e `contrato`, `contrato/generate-docx`, `generate-proposta-file`) viraram `ensureDocumentInstance` (`src/lib/crm/document-instance.ts`), que lê o rascunho da outra requisição quando a inserção dá 23505.
+- O subtipo de escopo sem perfil contratual aparecia sem acento no montador ("Recuperacao de Credito Em Processos…"). O motor procurava o nome no catálogo fixo do código, que não tem os subtipos criados no admin. Agora usa os nomes do catálogo do banco (`scopeSubtypeLabelsFromCatalog` sobre `loadProposalCatalog`), passados por `scopeLabels` ao `buildCanonicalContract`, nas rotas e no montador.
+- Manutenção saía "até até o encerramento…" quando a condição final já começava com "até". O `\b` do JavaScript não vê fim de palavra depois de letra acentuada; `renderManutencao` e o prazo do êxito valor fixo passaram a usar `(?![\p{L}\p{N}])` com a flag `u`.
+- Sem DDL. Validações: `npx vitest run` (1168 testes), `npx tsc --noEmit` sem erro em `src/`, eslint nos arquivos alterados; conferido no CRM local com o lead do teste 2.
+
+## 2026-10-21 — Usuários: foto de quem ainda não tem login e casamento pelo login do ORQESTRAI
+
+- Colaborador do RH sem login aparecia só com as iniciais: a `official-photos-api` acha a pessoa pelo `app_users.id` vinculado, e quem não tem login não tem esse id. A tela de Usuários agora lê a view `official_system_photos` do ORQESTRAI e casa a foto pelo e-mail ou pelo local-part (`fetchOrqestraiPeopleIndex` em `src/lib/orqestrai/client.ts`, duas consultas em paralelo, prazo de 2,5 s). Usuário com login sem vínculo na API também usa essa foto. Ao conceder acesso, o card novo mantém a foto. Em 21/10, 59 dos 61 ativos ficam com foto (Fênix Agendador e Rafael Sampaio não têm foto no ORQESTRAI).
+- Samuel aparecia duas vezes (com acesso como `controladoria@bismarchipires.com.br` e "sem acesso" como `samuel@bpplaw.com.br` do RH). O casamento usuário ↔ colaborador agora tenta também o e-mail de login no ORQESTRAI (`hr_employees.user_id` → `official_system_photos.normalized_email`, no caso dele `controladoria@bpplaw.com.br`). O e-mail do RH tem prioridade; o de login só ocupa chave livre.
+- Sync de colaboradores: as variáveis `ORQESTRAI_SUPABASE_*` foram para a Vercel em 14/10 e o cron diário voltou a rodar. Em 21/10 o espelho tinha as mesmas 82 pessoas (61 ativas) de `hr_employees`.
+- Sem DDL. Validações: `npx tsc --noEmit`, `eslint` nos arquivos alterados.
+
 ## 2026-10-20 — Apresentação automática da Due Diligence
 
 - O CRM monta o PPT da DUE no modelo do escritório a partir das planilhas das áreas: capa (razão social, CNPJ, empresas, logo), metodologia com as esferas certas, áreas envolvidas (cards com link), slides por área, conclusão recalculada e sócios. Áreas fora da due somem do arquivo.
@@ -11,16 +38,27 @@ Formato: data (ISO) | onda | resumo | validações.
 - Modelo do CRM em `templates/due/MODELO-DUE-CRM.pptx`, gerado por `scripts/due-ppt/prepare-due-template.py`.
 - Migration `20261020120000_due_apresentacao_automatica.sql` (não aplicada).
 - Reestruturação: **Preencher a partir do PDF** lê edital do art. 52, §1º, relatório do AJ e plano com IA (`POST /api/crm/leads/[id]/due-apresentacao/reestruturacao-pdf`, PDF por URL assinada, apagado depois da leitura). A sugestão aparece em azul para revisão; só entra no rascunho ao aplicar, e dá para desfazer.
+- Trabalhista, regras confirmadas com o advogado da área: suspensos somam em "Ativos"; o gráfico de pedidos mostra os 10 de maior incidência (catálogo `PEDIDOS_TRABALHISTAS`, inclui vínculo de emprego), não mais 9 categorias fixas; verbas rescisórias contam também multa 477 e aviso prévio. Sedna: Ativos 18, verbas rescisórias 76.
+- Cível, quadro "Processos por região": até 4 tribunais com a UF ("SP · TJSP"); com 5 ou mais, os 3 maiores + "Outros". Corrigido o 2º item de "Sócio no polo passivo", que repetia o 1º. Ops novas `columns` e `fontScale` em `pptx/build.ts`. Precisa do modelo novo (`templates/due/MODELO-DUE-CRM.pptx`) como modelo ativo; com o modelo antigo o quadro continua "maior tribunal + Outros".
 
 Validações: `npx vitest run src/lib/due-ppt` (22 testes, inclui geração com o modelo do repositório), `npx tsc --noEmit`, eslint nos arquivos alterados; PPTs gerados com as planilhas reais abertos e renderizados no PowerPoint. Leitura do PDF: `npx vitest run src/lib/due-ppt src/components/crm/due-apresentacao` (50 testes; recorte, parse e mescla sem chamar a OpenAI), `npm run lint` sem erros; não testada com a OpenAI real.
+
+## 2026-10-18 — Fechamento da competência do mês de início da vigência
+
+- A versão vale na competência quando algum dia do mês está na vigência. Uma vigência desde 18/10 fecha outubro, e a 1ª parcela do preço fechado entra no fechamento da competência dela. Antes, `findApplicableVersion`, `calculateMonthlyBilling` e o RPC `create_contract_closing_revision` exigiam `vigente_de ≤ dia 1`. A mesma regra vale para consumos, referência anual e projeção (`competency.ts`).
+- Mensalidade fixa que começa depois do dia 1: o Financeiro escolhe na configuração (etapa 1) entre cobrar o mês de início cheio e começar no mês seguinte. A escolha é gravada na versão (`cobranca_mes_inicio`) e é exigida ao salvar e ao ativar. Sem resposta, vale o mês seguinte, que é a regra anterior.
+- Migration `20261018130000` versionada, não aplicada.
+
+Validações: `npm test`, `npm run lint`, `npm run build`.
 
 ## 2026-10-16 — Kanban de leads mais rápido
 
 - Medição em produção (só leitura): a API do kanban somava 3–5 s, quase tudo do snapshot do RD (15,6 MB em 422 linhas, lido e processado a cada abertura) e de consultas em cascata (usuários do auth e fotos oficiais antes das demais).
 - Snapshot do RD resumido e em cache do Next (6 h; o import do RD e o webhook expiram). Usuários e fotos em cache de 2 min (Perfil e Usuários expiram). Oportunidades só com as colunas usadas; consultas por id em paralelo. Caminho sem cache medido em ~0,5 s (antes ~3,2 s), com a conexão aquecida.
 - Kanban abre na hora com a última lista da aba e atualiza em segundo plano.
-- Junto com o PR #15: o cache do RD é preenchido pela view `rd_deal_reconciliacao_resumo` (2,6 MB em vez de 15,6 MB), com fallback para a tabela. Conferido nos 422 leads do RD: mesmo resultado que a tabela inteira.
+- Junto com o PR #15 e o ajuste de 22/10 da main: o cache do RD é preenchido pela view `rd_deal_reconciliacao_kanban` (~0,3 MB); sem ela, `rd_deal_reconciliacao_resumo` (2,6 MB) e, por último, a tabela (15,6 MB). Conferido nos 422 leads do RD (resumo pela view resumo): mesmo resultado que a tabela inteira.
 - Validações: `npx vitest run`, `npx tsc --noEmit`, eslint nos arquivos alterados.
+
 
 ## 2026-10-15 — ICP: receita média por hora e colunas ordenáveis na Carteira
 

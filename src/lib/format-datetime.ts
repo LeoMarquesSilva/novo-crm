@@ -54,6 +54,76 @@ export function formatDateYmdBr(dateYmd: string | null | undefined): string {
 }
 
 /**
+ * Data digitada sem hora (`yyyy-mm-dd`, `dd/mm/aaaa` ou ISO com hora) → `yyyy-mm-dd`.
+ * Valida o calendário; texto que não é data devolve `null`.
+ */
+export function parseDateOnlyInput(raw: string | null | undefined): string | null {
+  const s = String(raw ?? "").trim();
+  const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/.exec(s);
+  const [y, m, d] = br
+    ? [Number(br[3]), Number(br[2]), Number(br[1])]
+    : iso
+      ? [Number(iso[1]), Number(iso[2]), Number(iso[3])]
+      : [0, 0, 0];
+  if (!y) return null;
+  const check = new Date(Date.UTC(y, m - 1, d));
+  if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d) {
+    return null;
+  }
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** Diferença (em minutos) entre o relógio de `timeZone` e o UTC no instante dado. */
+function timeZoneOffsetMinutes(at: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  return Math.round((asUtc - at.getTime()) / 60_000);
+}
+
+/**
+ * Data sem hora (`yyyy-mm-dd`) → instante ISO da meia-noite em São Paulo
+ * (`2026-10-20` → `2026-10-20T03:00:00.000Z`). Gravar `T00:00Z` faz a data
+ * aparecer um dia antes em quem está no Brasil.
+ */
+export function saoPauloMidnightIso(ymd: string, timeZone = BR_TIMEZONE): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!m) throw new Error(`Data inválida: ${ymd}`);
+  const utcMidnight = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const offset = timeZoneOffsetMinutes(new Date(utcMidnight), timeZone);
+  return new Date(utcMidnight - offset * 60_000).toISOString();
+}
+
+/** Dia civil (`yyyy-mm-dd`) de um instante no fuso de São Paulo. */
+export function saoPauloDateYmd(at: Date = new Date(), timeZone = BR_TIMEZONE): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+}
+
+/** Dias corridos de `fromYmd` até `toYmd` (negativo se `toYmd` já passou). */
+export function daysBetweenYmd(fromYmd: string, toYmd: string): number | null {
+  const from = parseDateOnlyInput(fromYmd);
+  const to = parseDateOnlyInput(toYmd);
+  if (!from || !to) return null;
+  const ms = (s: string) => Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10)));
+  return Math.round((ms(to) - ms(from)) / 86_400_000);
+}
+
+/**
  * Detecta string só com data/hora em formato internacional e exibe em pt-BR.
  * Texto livre ou já em dd/mm/yyyy permanece como está.
  */

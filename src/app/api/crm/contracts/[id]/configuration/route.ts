@@ -23,6 +23,7 @@ const installment = z.object({
   number: z.number().int().positive(),
   competency: date,
   amountCents: cents,
+  dueDate: date.optional(),
 });
 
 const component = z.object({
@@ -119,6 +120,7 @@ const configuration = z.object({
     id: uuid,
     effectiveFrom: date,
     effectiveTo: date.nullable(),
+    startMonthBilling: z.enum(["mes_cheio", "mes_seguinte"]).nullable().optional(),
     components: z.array(component),
     areaAllocations: z.array(areaAllocation),
     partnerShares: z.array(z.object({

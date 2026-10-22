@@ -63,10 +63,17 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         .filter((a): a is DueAreaId => !!a),
     ),
   ];
+  // Lead do RD não tem empresas no cadastro: o nome costuma vir como "EMPRESA A, EMPRESA B".
+  const doNome = String(op.solicitante_nome ?? "")
+    .split(/\s*,\s*/)
+    .map((n) => n.trim().toUpperCase())
+    .filter(Boolean)
+    .map((razaoSocial) => ({ razaoSocial, cnpj: "" }));
+  const base = empresas.length ? empresas : doNome;
   const sugestao = {
-    razaoSocial: empresas[0]?.razaoSocial ?? String(op.solicitante_nome ?? "").toUpperCase(),
-    cnpj: empresas[0]?.cnpj ?? "",
-    empresas: empresas.slice(1, 4),
+    razaoSocial: base[0]?.razaoSocial ?? "",
+    cnpj: base[0]?.cnpj ?? "",
+    empresas: base.slice(1, 4),
     areas: areasCadastro,
   };
 

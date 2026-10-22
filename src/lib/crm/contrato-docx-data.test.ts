@@ -103,14 +103,24 @@ describe("listContratoPendingFields", () => {
     expect(sectionOf(pending, "Número do processo *")).toBe("section-objeto");
   });
 
-  it("exige Valores e vencimento quando o pagamento não é Êxito puro, apontando para Condições Comerciais", () => {
+  it("sem motor: exige Valores e vencimento quando o pagamento não é Êxito puro, apontando para Condições Comerciais", () => {
     const pending = listContratoPendingFields(
-      { cc_tipo_pagamento: "Boleto" },
+      { cc_tipo_pagamento: "Boleto", cc_tipo_instrumento: "Contrato", cc_objeto: "Objeto" },
       "Empresa Teste Ltda",
-      engineWithObject(),
     );
     expect(labels(pending)).toContain("Valores e vencimento");
     expect(sectionOf(pending, "Valores e vencimento")).toBe("section-condicoes");
+  });
+
+  it("com motor: não exige Valores e vencimento (a cláusula de honorários vem da proposta)", () => {
+    // Teste E2E 18/10/2026: o campo era obrigatório, o usuário redigia os honorários
+    // de novo e o texto não entrava no contrato.
+    const pending = listContratoPendingFields(
+      { cc_tipo_pagamento: "Personalizado" },
+      "Empresa Teste Ltda",
+      engineWithObject(),
+    );
+    expect(labels(pending)).not.toContain("Valores e vencimento");
   });
 
   it("não exige Valores e vencimento para pagamento por Êxito puro", () => {

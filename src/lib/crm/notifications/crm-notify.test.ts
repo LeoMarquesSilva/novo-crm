@@ -47,6 +47,26 @@ describe("resolveNotificationRecipients", () => {
     expect(byId.get("auth-gus")?.partnerOnly).toBe(true);
     expect(byId.get("auth-com")?.partnerOnly).toBe(false);
   });
+
+  it("responsável do lead = criador e captador, sem quem só cadastrou nem a equipe", async () => {
+    const fake = fakeWithUsers(
+      [
+        { id: "auth-criador", email: "criador@bp.com.br" },
+        { id: "auth-captador", email: "captador@bp.com.br" },
+        { id: "auth-cadastrou", email: "cadastrou@bp.com.br" },
+      ],
+      {
+        oportunidades: {
+          maybeSingle: { data: { criado_por: "app-criador", solicitante_email: "Captador@bp.com.br" }, error: null },
+        },
+        lead_intakes: { maybeSingle: { data: { cadastrado_por_email: "cadastrou@bp.com.br" }, error: null } },
+        rd_deal_reconciliacao: { maybeSingle: { data: null, error: null } },
+        app_users: { awaited: { data: [{ auth_user_id: "auth-criador" }], error: null } },
+      },
+    );
+    const recipients = await resolveNotificationRecipients(fake.client as never, { leadOwnerOf: "lead-1" });
+    expect(recipients.map((r) => r.authUserId).sort()).toEqual(["auth-captador", "auth-criador"]);
+  });
 });
 
 describe("notifyInApp", () => {

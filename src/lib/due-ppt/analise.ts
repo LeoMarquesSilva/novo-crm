@@ -8,7 +8,8 @@ import type { ExtrasTributario, Processo } from "./processos";
 
 export type Agrupado = { nome: string; qtd: number; valor: number };
 
-const ORDEM_FASES = ["conhecimento", "liquidacao", "execucao", "recursal", "cumprimento de sentenca"];
+// Ordem do andamento do processo.
+const ORDEM_FASES = ["conhecimento", "recursal", "liquidacao", "execucao", "cumprimento de sentenca"];
 
 export function isArquivado(p: Processo): boolean {
   const s = normalizarTexto(p.situacao);
@@ -84,6 +85,9 @@ export type AnaliseCivel = {
   passivo: number;
   media: number;
   maior: number;
+  /** Tribunais dos não arquivados, do que tem mais processos para o que tem menos. */
+  tribunais: TribunalCivel[];
+  /** Quadro "Processos por região": até 4 tribunais ("SP · TJSP"); com mais, os 3 maiores + "Outros". */
   regioes: Agrupado[];
   fases: Agrupado[];
   socios: Agrupado[];
@@ -93,6 +97,44 @@ export type AnaliseCivel = {
   leitura: string;
 };
 
+export type TribunalCivel = { sigla: string; uf: string | null; qtd: number };
+
+const SEM_TRIBUNAL = "Não informado";
+
+/** Sigla pelo número CNJ: justiça estadual (J=8) → TJ + UF; federal (J=4) → TRF + região. */
+function tribunalDoNumero(numero: string): string | null {
+  const m = /\d{7}-?\d{2}\.?\d{4}\.?(\d)\.?(\d{2})\.?\d{4}/.exec(numero);
+  if (!m) return null;
+  if (m[1] === "4") return `TRF${Number(m[2])}`;
+  const uf = ufDoProcesso(numero);
+  return uf ? (uf === "DF" ? "TJDFT" : `TJ${uf}`) : null;
+}
+
+/** "TJ-SP" → "TJSP"; coluna vazia → sigla pelo número CNJ. */
+function siglaTribunal(p: Processo): string {
+  const t = p.tribunal.trim().toUpperCase();
+  if (!t) return tribunalDoNumero(p.numero) ?? SEM_TRIBUNAL;
+  return /^(TJ|TRF|TRT)[\s-]*[A-Z0-9]+$/.test(t) ? t.replace(/[\s-]/g, "") : t;
+}
+
+/** UF do tribunal: a da sigla (TJSP, TJDFT) ou a mais comum nos processos (coluna UF ou número CNJ). */
+function ufDoTribunal(sigla: string, ps: Processo[]): string | null {
+  const ufs = Object.values(UF_TR);
+  const tj = /^TJ([A-Z]{2})T?$/.exec(sigla);
+  if (tj && ufs.includes(tj[1]!)) return tj[1]!;
+  const cont = new Map<string, number>();
+  for (const p of ps) {
+    const col = p.uf.trim().toUpperCase();
+    const uf = ufs.includes(col) ? col : ufDoProcesso(p.numero);
+    if (uf) cont.set(uf, (cont.get(uf) ?? 0) + 1);
+  }
+  return [...cont.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
+function rotuloTribunal(t: TribunalCivel): string {
+  return t.uf ? `${t.uf} · ${t.sigla}` : t.sigla;
+}
+
 export function analisarCivel(processos: Processo[]): AnaliseCivel {
   const considerados = processos.filter((p) => !isArquivado(p));
   const semPoloCliente = considerados.every((p) => p.poloCliente == null);
@@ -100,19 +142,19 @@ export function analisarCivel(processos: Processo[]): AnaliseCivel {
   const passivo = soma(passivos, (p) => p.valorCausa);
   const valores = considerados.map((p) => p.valorCausa);
 
-  const porTribunal = new Map<string, number>();
+  const porTribunal = new Map<string, Processo[]>();
   for (const p of considerados) {
-    const t = (p.tribunal || "Não informado").toUpperCase();
-    porTribunal.set(t, (porTribunal.get(t) ?? 0) + 1);
+    const t = siglaTribunal(p);
+    porTribunal.set(t, [...(porTribunal.get(t) ?? []), p]);
   }
-  const tribunais = [...porTribunal.entries()].sort((a, b) => b[1] - a[1]);
-  const regioes: Agrupado[] =
-    tribunais.length <= 2
-      ? tribunais.map(([nome, qtd]) => ({ nome, qtd, valor: 0 }))
-      : [
-          { nome: tribunais[0]![0], qtd: tribunais[0]![1], valor: 0 },
-          { nome: "Outros", qtd: tribunais.slice(1).reduce((s, t) => s + t[1], 0), valor: 0 },
-        ];
+  const tribunais: TribunalCivel[] = [...porTribunal.entries()]
+    .map(([sigla, ps]) => ({ sigla, uf: sigla === SEM_TRIBUNAL ? null : ufDoTribunal(sigla, ps), qtd: ps.length }))
+    .sort((a, b) => b.qtd - a.qtd);
+  const regioes = limitarGrupos(
+    tribunais.map((t) => ({ nome: rotuloTribunal(t), qtd: t.qtd, valor: 0 })),
+    4,
+    "Outros",
+  );
 
   const socioMap = new Map<string, Agrupado>();
   for (const p of considerados) {
@@ -153,6 +195,7 @@ export function analisarCivel(processos: Processo[]): AnaliseCivel {
     passivo,
     media: valores.length ? soma(considerados, (p) => p.valorCausa) / valores.length : 0,
     maior: valores.length ? Math.max(...valores) : 0,
+    tribunais,
     regioes,
     fases,
     socios,
@@ -163,29 +206,89 @@ export function analisarCivel(processos: Processo[]): AnaliseCivel {
 }
 
 // ─── Trabalhista ──────────────────────────────────────────────────────────────
+//
+// Regras tiradas dos slides que a área trabalhista montou (ALEA, Antonini, Sedna — out/2026),
+// conferidos contra as planilhas e confirmados com o advogado da área (20/10/2026):
+// ver docs/DUE-APRESENTACAO-AUTOMATICA.md.
 
-/** Categorias de pedido do gráfico, procuradas em "Assuntos" (ou "Pedidos"). */
-export const PEDIDOS_TRABALHISTAS: Array<{ rotulo: string; texto: string; re: RegExp; destaque: boolean }> = [
+type CategoriaPedido = { rotulo: string; texto: string; re: RegExp; destaque: boolean };
+
+/**
+ * Pedidos que a área conta no gráfico, procurados em cada assunto da coluna "Assuntos"
+ * (ou "Pedidos") de todos os processos; entram os de maior incidência. Saneamento da área:
+ * quem pede multa 477 ou aviso prévio pede verbas rescisórias, mesmo sem esse assunto
+ * cadastrado. `destaque: false` = fica fora do texto "principais pedidos" (a multa 477 é
+ * acessória das verbas rescisórias). Na ordem desta lista ficam os empates.
+ */
+export const PEDIDOS_TRABALHISTAS: CategoriaPedido[] = [
   { rotulo: "Horas extras", texto: "horas extras", re: /horas? extras?/, destaque: true },
-  // Multa do art. 477 acompanha quase toda rescisão: entra no gráfico, mas não no texto.
-  { rotulo: "Multa 477 CLT", texto: "multa do art. 477 da CLT", re: /multa/, destaque: false },
-  { rotulo: "Verbas rescisórias", texto: "verbas rescisórias", re: /verbas rescis/, destaque: true },
+  { rotulo: "Verbas rescisórias", texto: "verbas rescisórias", re: /verbas rescis|477|aviso previo/, destaque: true },
+  { rotulo: "Multa 477 CLT", texto: "multa do art. 477 da CLT", re: /477/, destaque: false },
   { rotulo: "Dano moral", texto: "danos morais", re: /moral/, destaque: true },
-  { rotulo: "Insalubridade", texto: "adicional de insalubridade", re: /insalubridade/, destaque: true },
-  { rotulo: "Periculosidade", texto: "adicional de periculosidade", re: /periculosidade/, destaque: true },
+  { rotulo: "Vínculo de emprego", texto: "vínculo de emprego", re: /relacao de emprego|vinculo (de emprego|empregaticio)/, destaque: true },
+  { rotulo: "Insalubridade", texto: "insalubridade", re: /insalub/, destaque: true },
+  { rotulo: "Periculosidade", texto: "periculosidade", re: /periculos/, destaque: true },
+  { rotulo: "Rescisão indireta", texto: "rescisão indireta", re: /rescisao indireta/, destaque: true },
+  { rotulo: "Intervalo", texto: "intervalo intrajornada", re: /intervalo/, destaque: true },
   { rotulo: "Acúmulo função", texto: "acúmulo de função", re: /acumulo/, destaque: true },
-  { rotulo: "Acidente", texto: "acidente de trabalho", re: /acidente/, destaque: true },
-  { rotulo: "Adicional noturno", texto: "adicional noturno", re: /adicional noturno/, destaque: true },
+  { rotulo: "Desvio de função", texto: "desvio de função", re: /desvio de funcao/, destaque: true },
+  { rotulo: "Acidente", texto: "acidente de trabalho", re: /acidente|doenca (ocupacional|profissional)/, destaque: true },
+  { rotulo: "Adicional noturno", texto: "adicional noturno", re: /noturn/, destaque: true },
+  { rotulo: "Equiparação salarial", texto: "equiparação salarial", re: /equiparacao|isonomia/, destaque: true },
+  { rotulo: "Justa causa", texto: "reversão da justa causa", re: /justa causa/, destaque: true },
+  { rotulo: "Estabilidade", texto: "estabilidade/reintegração", re: /estabilidade|reintegra/, destaque: true },
+  { rotulo: "Dano material", texto: "danos materiais", re: /\bmateria(l|is)\b/, destaque: true },
 ];
+
+/** A área mostra de 10 a 12 pedidos; o gráfico do modelo foi desenhado para 9. */
+export const MAX_PEDIDOS_GRAFICO = 10;
+
+function assuntosDoProcesso(texto: string): string[] {
+  return normalizarTexto(texto)
+    .split(/\s*[,;]\s*/)
+    .filter(Boolean);
+}
+
+/** Assuntos que viram um trecho legível no destaque da leitura executiva. */
+const ASSUNTO_DESTAQUE: Array<[RegExp, string]> = [
+  [/acidente|doenca ocupacional/, "acidente de trabalho"],
+  [/reconhecimento de relacao de emprego|vinculo/, "vínculo empregatício"],
+  [/comiss/, "diferenças de comissão"],
+  [/dano moral|assedio moral/, "danos morais"],
+  [/horas? extras?/, "horas extras"],
+  [/insalub/, "adicional de insalubridade"],
+  [/periculos/, "adicional de periculosidade"],
+  [/equiparacao|isonomia/, "equiparação salarial"],
+  [/rescisao indireta/, "rescisão indireta"],
+  [/justa causa/, "reversão de justa causa"],
+  [/estabilidade|reintegracao/, "estabilidade/reintegração"],
+  [/verbas rescis/, "verbas rescisórias"],
+];
+
+function pedidosDoProcesso(p: Processo): string[] {
+  const texto = normalizarTexto(`${p.assuntos}, ${p.pedidos}`);
+  const out: string[] = [];
+  for (const [re, frase] of ASSUNTO_DESTAQUE) {
+    if (re.test(texto) && !out.includes(frase)) out.push(frase);
+    if (out.length === 2) break;
+  }
+  return out;
+}
 
 export type AnaliseTrabalhista = {
   total: number;
+  /** Não arquivados: a área soma os suspensos em "Ativos". */
   ativos: number;
+  /** Quantos dos ativos estão com situação "Suspenso" (só informativo no CRM). */
+  suspensos: number;
   arquivados: number;
   passivo: number;
+  /** Média do valor da causa de todos os processos da planilha (padrão da área). */
   media: number;
   maior: number;
   maiorProcesso: Processo | null;
+  /** Não arquivados com "Valor envolvido" zero na planilha (acordo quitado, execução extinta…). */
+  zerados: Processo[];
   fases: Agrupado[];
   porAno: Array<{ ano: string; qtd: number }>;
   pedidos: Array<{ rotulo: string; texto: string; qtd: number; destaque: boolean }>;
@@ -194,17 +297,22 @@ export type AnaliseTrabalhista = {
   leitura: string;
 };
 
-/** Valor envolvido (cai para o valor da causa quando a planilha não traz). */
+/**
+ * Exposição do processo: a coluna "Valor envolvido" como a área preencheu (zero inclusive:
+ * é saldo de acordo quitado, execução extinta etc.). Sem essa coluna, o valor da causa.
+ */
 export function valorEnvolvido(p: Processo): number {
-  if (isArquivado(p)) return p.valorEnvolvido ?? 0;
-  return p.valorEnvolvido != null && p.valorEnvolvido > 0 ? p.valorEnvolvido : p.valorCausa;
+  if (p.valorEnvolvido == null) return isArquivado(p) ? 0 : p.valorCausa;
+  return p.valorEnvolvido;
 }
 
 export function analisarTrabalhista(processos: Processo[]): AnaliseTrabalhista {
   const considerados = processos.filter((p) => !isArquivado(p));
+  const suspensos = considerados.filter(isSuspenso).length;
   const passivo = soma(considerados, valorEnvolvido);
   const maiorProcesso = [...considerados].sort((a, b) => valorEnvolvido(b) - valorEnvolvido(a))[0] ?? null;
 
+  // Histórico de ajuizamento e perfil de pedidos: a base inteira (inclusive arquivados).
   const anos = new Map<number, number>();
   for (const p of processos) {
     const a = ano(p);
@@ -217,15 +325,16 @@ export function analisarTrabalhista(processos: Processo[]): AnaliseTrabalhista {
   }
 
   const usaAssuntos = processos.some((p) => p.assuntos);
+  const assuntos = processos.map((p) => assuntosDoProcesso(usaAssuntos ? p.assuntos : p.pedidos));
   const pedidos = PEDIDOS_TRABALHISTAS.map((c) => ({
     rotulo: c.rotulo,
     texto: c.texto,
     destaque: c.destaque,
-    qtd: processos.filter((p) => c.re.test(normalizarTexto(usaAssuntos ? p.assuntos : p.pedidos))).length,
+    qtd: assuntos.filter((itens) => itens.some((x) => c.re.test(x))).length,
   }))
     .filter((c) => c.qtd > 0)
     .sort((a, b) => b.qtd - a.qtd)
-    .slice(0, 9);
+    .slice(0, MAX_PEDIDOS_GRAFICO);
 
   const pico = [...porAno].sort((a, b) => b.qtd - a.qtd)[0];
   const obsAno = pico
@@ -245,21 +354,24 @@ export function analisarTrabalhista(processos: Processo[]): AnaliseTrabalhista {
   if (faseTop) partes.push(`Carteira concentrada na fase de ${faseTop.nome.toLowerCase()}.`);
   if (principais.length) partes.push(`Os principais pedidos estão ligados a ${listaPt(principais)}.`);
   if (maiorProcesso) {
-    const acidente = /acidente/.test(normalizarTexto(`${maiorProcesso.assuntos} ${maiorProcesso.pedidos}`));
+    const pedidosMaior = pedidosDoProcesso(maiorProcesso);
+    const v = valorEnvolvido(maiorProcesso);
+    const qualValor = Math.abs(v - maiorProcesso.valorCausa) < 0.01 ? "valor da causa" : "valor envolvido";
     partes.push(
-      `Destaque para o processo n. ${maiorProcesso.numero} (${tituloNome(primeiraParte(maiorProcesso.poloAtivo))})${acidente ? " com pedido de acidente de trabalho" : ""} e valor envolvido de ${brl(valorEnvolvido(maiorProcesso))}.`,
+      `Destaque para o processo n. ${maiorProcesso.numero} (${tituloNome(primeiraParte(maiorProcesso.poloAtivo))})${pedidosMaior.length ? `, em que há pedido de ${listaPt(pedidosMaior)},` : ""} com ${qualValor} de ${brl(v)}.`,
     );
   }
 
   return {
     total: processos.length,
     ativos: considerados.length,
+    suspensos,
     arquivados: processos.length - considerados.length,
     passivo,
-    // Igual aos PPTs entregues: média do valor da causa de toda a planilha.
     media: processos.length ? soma(processos, (p) => p.valorCausa) / processos.length : 0,
     maior: maiorProcesso ? valorEnvolvido(maiorProcesso) : 0,
     maiorProcesso,
+    zerados: considerados.filter((p) => p.valorEnvolvido === 0),
     fases,
     porAno,
     pedidos,
@@ -306,9 +418,10 @@ function origemTributaria(p: Processo): string {
   const uf = ufDoProcesso(p.numero);
   if (/uniao|fazenda nacional|pgfn|receita federal/.test(a)) return "União (PGFN)";
   if (/municip|prefeitura/.test(a)) return `Municípios${uf ? ` (${uf})` : ""}`;
-  const est = /estado (do|de|da) (.+)$/.exec(a);
+  // Nome do estado vem do texto original (com acento): "Fazenda Pública do Estado de São Paulo".
+  const est = /estado (do|de|da) (.+)$/i.exec(p.poloAtivo.trim());
   if (est || /fazenda (publica )?estadual|fazenda do estado/.test(a)) {
-    return est ? `Estado ${est[1]} ${tituloNome(est[2]!)}` : `Estado${uf ? ` (${uf})` : ""}`;
+    return est ? `Estado ${est[1]!.toLowerCase()} ${tituloNome(est[2]!)}` : `Estado${uf ? ` (${uf})` : ""}`;
   }
   return p.poloAtivo ? tituloNome(p.poloAtivo) : "Não informado";
 }
