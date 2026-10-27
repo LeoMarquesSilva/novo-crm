@@ -106,6 +106,15 @@ Validações: `npx vitest run src/lib/due-ppt` (22 testes, inclui geração com 
 
 Validações: `npm test`, `npm run lint`, `npm run build`.
 
+## 2026-10-16 — Kanban de leads mais rápido
+
+- Medição em produção (só leitura): a API do kanban somava 3–5 s, quase tudo do snapshot do RD (15,6 MB em 422 linhas, lido e processado a cada abertura) e de consultas em cascata (usuários do auth e fotos oficiais antes das demais).
+- Snapshot do RD resumido e em cache do Next (6 h; o import do RD e o webhook expiram). Usuários e fotos em cache de 2 min (Perfil e Usuários expiram). Oportunidades só com as colunas usadas; consultas por id em paralelo. Caminho sem cache medido em ~0,5 s (antes ~3,2 s), com a conexão aquecida.
+- Kanban abre na hora com a última lista da aba e atualiza em segundo plano.
+- Junto com o PR #15 e o ajuste de 22/10 da main: o cache do RD é preenchido pela view `rd_deal_reconciliacao_kanban` (~0,3 MB); sem ela, `rd_deal_reconciliacao_resumo` (2,6 MB) e, por último, a tabela (15,6 MB). Conferido nos 422 leads do RD (resumo pela view resumo): mesmo resultado que a tabela inteira.
+- Validações: `npx vitest run`, `npx tsc --noEmit`, eslint nos arquivos alterados.
+
+
 ## 2026-10-15 — ICP: receita média por hora e colunas ordenáveis na Carteira
 
 - Receita média por hora = receita ÷ horas lançadas, somando só quem tem horas no timesheet (`revenuePerHour`). Entra como indicador do escritório no topo da Carteira (R$ 362/h em 15/10), como coluna na tabela de faixas (com a linha "Escritório todo" no fim) e no comparativo dos blocos.
