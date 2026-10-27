@@ -181,7 +181,11 @@ export async function loadOnboardingContext(
     payment: engine?.payment ?? null,
     signedOn: signedRaw ? signedRaw.slice(0, 10) : null,
     areaAmounts: areaAmountsFromEscopo(fieldByCode.cp_escopo_detalhe_json ?? ""),
-    focal: { name: fieldByCode.cp_nome_focal ?? null, email: fieldByCode.cp_email_focal ?? null },
+    focal: {
+      name: fieldByCode.cp_nome_focal ?? null,
+      email: fieldByCode.cp_email_focal ?? null,
+      phone: fieldByCode.cp_tel_focal ?? null,
+    },
     cliente: c
       ? {
           razaoSocial: c.razao_social,

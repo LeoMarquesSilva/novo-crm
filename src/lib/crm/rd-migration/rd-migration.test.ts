@@ -264,6 +264,25 @@ describe("pré-preenchimento", () => {
     expect(v.sources["campos.cp_gestor_contrato"]).toBe("RD: Gestor do Contrato [CP]");
   });
 
+  it("lê a data da reunião e o prazo da proposta com os rótulos que o RD usa", () => {
+    const fields = Object.fromEntries(
+      Object.entries(RD_FIELDS).filter(([label]) => label !== "Data da Reunião" && label !== "Prazo para entrega [CP]"),
+    );
+    const deal = readRdDeal(
+      details({
+        stage: "Proposta Enviada (AGUARDA CLIENTE)",
+        fields: {
+          ...fields,
+          "Data Reunião": "19/02/2026",
+          "Prazo para entrega (mínimo de 2 dias úteis - sinalizar exceções e motivos) [CP]": "24/02/2026",
+        },
+      }),
+    )!;
+    const v = buildRdMigrationPrefill({ deal, opportunity: OPP, users: USERS, fieldOptions: {} });
+    expect(v.cadastro.dataReuniao).toBe("2026-02-19");
+    expect(v.campos.cp_prazo_entrega).toBe("2026-02-24");
+  });
+
   it("pré-preenche cadastro do cliente e faturamento com [CADASTRO]/[FINANCEIRO]", () => {
     const { onboarding } = prefillFor("Inclusão no Fluxo de Faturamento (FINANCEIRO)");
     expect(onboarding.cadastro).toMatchObject({ razaoSocial: "RENATO MAROTTA STAREK", documento: "41664100830" });
@@ -276,6 +295,8 @@ describe("pré-preenchimento", () => {
     });
     expect(onboarding.financeiro.rateioPorArea).toHaveLength(2);
     expect(onboarding.sources["financeiro.inicioVigencia"]).toBe("rd");
+    expect(onboarding.cadastro).toMatchObject({ email: "renato@example.com", telefone: "(19) 99999-0000" });
+    expect(onboarding.sources["cadastro.email"]).toBe("ponto_focal");
   });
 
   it("primeiro faturamento em texto vira condição", () => {

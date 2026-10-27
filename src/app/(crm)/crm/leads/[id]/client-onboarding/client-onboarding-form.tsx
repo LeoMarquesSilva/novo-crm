@@ -127,10 +127,13 @@ export function ClientOnboardingForm({
   payload,
   onChange,
   readOnly = false,
+  inModal = false,
 }: {
   payload: ClientOnboardingPayload;
   onChange: (next: ClientOnboardingPayload) => void;
   readOnly?: boolean;
+  /** Dentro de um Dialog: o menu do select abre por cima do modal. */
+  inModal?: boolean;
 }) {
   const src = payload.sources;
   const update: Updater = (mutate) => {
@@ -556,7 +559,7 @@ export function ClientOnboardingForm({
               <SelectTrigger id="ob-indice" className="w-full">
                 <span>{financeiro.reajuste.indice || "Selecione"}</span>
               </SelectTrigger>
-              <CrmSelectContent>
+              <CrmSelectContent inModal={inModal}>
                 {REAJUSTE_INDICES.map((indice) => (
                   <CrmSelectItem key={indice} value={indice}>
                     {indice}

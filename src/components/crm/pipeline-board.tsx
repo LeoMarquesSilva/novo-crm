@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ClientOnboardingSubmitDialog } from "@/components/crm/client-onboarding-submit-dialog";
 import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
 import { useCrmActor } from "@/components/crm/crm-session-context";
 import { STAGE_ACTION_LABELS } from "@/lib/crm/stage-actions";
@@ -381,6 +382,8 @@ export function PipelineBoard({
   const [boardError, setBoardError] = useState<BoardError | null>(null);
   /** Lead em Contrato Elaborado cujo envio para assinatura está aberto. */
   const [sendDialogLead, setSendDialogLead] = useState<Oportunidade | null>(null);
+  /** Lead em Aguardando Cadastro cujo cadastro do cliente está aberto no modal. */
+  const [onboardingDialogLead, setOnboardingDialogLead] = useState<Oportunidade | null>(null);
   const [transitionModal, setTransitionModal] = useState<TransitionModalState | null>(
     null,
   );
@@ -674,6 +677,10 @@ export function PipelineBoard({
           setTransitionModal(null);
           if (data.transitionBlocker.actionKind === "open_send_dialog") {
             setSendDialogLead(item);
+            return;
+          }
+          if (data.transitionBlocker.actionKind === "open_onboarding") {
+            setOnboardingDialogLead(item);
             return;
           }
           setBoardError({
@@ -1469,6 +1476,26 @@ export function PipelineBoard({
           onSent={() => {
             setSendDialogLead(null);
             onDataChange?.();
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {onboardingDialogLead ? (
+        <ClientOnboardingSubmitDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setOnboardingDialogLead(null);
+          }}
+          leadId={onboardingDialogLead.id}
+          leadName={onboardingDialogLead.solicitante}
+          onSubmitted={({ stage }) => {
+            const lead = onboardingDialogLead;
+            const nextStage = stage as OpportunityStage;
+            setOnboardingDialogLead(null);
+            setBoardItems((prev) => prev.map((i) => (i.id === lead.id ? { ...i, etapa: nextStage } : i)));
+            onDataChange?.();
+            onAfterTransition?.({ opportunityId: lead.id, from: lead.etapa, to: nextStage });
             router.refresh();
           }}
         />

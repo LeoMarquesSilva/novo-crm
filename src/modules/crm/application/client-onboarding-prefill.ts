@@ -19,7 +19,8 @@ export type OnboardingPrefillSources = {
   signedOn: string | null;
   /** Áreas da proposta com o valor de cada uma (para o rateio). */
   areaAmounts: { area: string; amount: number | null }[];
-  focal: { name: string | null; email: string | null };
+  /** Ponto focal pedido na passagem para a proposta (`cp_nome_focal`, `cp_email_focal`, `cp_tel_focal`). */
+  focal: { name: string | null; email: string | null; phone: string | null };
   cliente: {
     razaoSocial: string | null;
     documento: string | null;
@@ -87,13 +88,22 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
     origin["cadastro.endereco"] = address.source;
   }
 
+  // Sem e-mail/telefone na carteira, vale o ponto focal da proposta (o responsável confirma).
+  const focalEmail = sources.focal.email?.trim() ?? "";
+  const focalPhone = sources.focal.phone?.trim() ?? "";
   if (sources.cliente?.email) {
     payload.cadastro.email = sources.cliente.email;
     origin["cadastro.email"] = "carteira";
+  } else if (focalEmail) {
+    payload.cadastro.email = focalEmail;
+    origin["cadastro.email"] = "ponto_focal";
   }
   if (sources.cliente?.telefone) {
     payload.cadastro.telefone = sources.cliente.telefone;
     origin["cadastro.telefone"] = "carteira";
+  } else if (focalPhone) {
+    payload.cadastro.telefone = focalPhone;
+    origin["cadastro.telefone"] = "ponto_focal";
   }
 
   const consulta = parties
@@ -136,12 +146,12 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
       telefone: sources.contatoFinanceiro.telefone ?? "",
     };
     origin["financeiro.contatoFinanceiro"] = "carteira";
-  } else if (sources.focal.name || sources.focal.email) {
+  } else if (sources.focal.name || focalEmail) {
     payload.financeiro.contatoFinanceiro = {
       nome: sources.focal.name?.trim() ?? "",
       posicao: "",
-      email: sources.focal.email?.trim() ?? "",
-      telefone: "",
+      email: focalEmail,
+      telefone: focalPhone,
     };
     // Ponto focal comercial: o responsável confirma se também é o contato financeiro.
     origin["financeiro.contatoFinanceiro"] = "ponto_focal";

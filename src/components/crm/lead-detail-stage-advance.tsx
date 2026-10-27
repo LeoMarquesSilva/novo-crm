@@ -23,6 +23,7 @@ import {
   DynamicField,
   type FieldDefinition,
 } from "@/components/crm/dynamic-form";
+import { ClientOnboardingSubmitDialog } from "@/components/crm/client-onboarding-submit-dialog";
 import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
 import { LeadStageDurationStrip } from "@/components/crm/lead-stage-duration-strip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -119,6 +120,7 @@ export function LeadDetailStageAdvance({
   const [blocker, setBlocker] = useState<TransitionBlocker | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [onboardingDialogOpen, setOnboardingDialogOpen] = useState(false);
 
   const requestAdvance = async (
     targetStage: OpportunityStage,
@@ -183,6 +185,12 @@ export function LeadDetailStageAdvance({
         if (payload.transitionBlocker.actionKind === "open_send_dialog") {
           setOpen(false);
           setSendDialogOpen(true);
+          return;
+        }
+        // Aguardando Cadastro → Cadastro de Novo Cliente: o cadastro do cliente abre num modal.
+        if (payload.transitionBlocker.actionKind === "open_onboarding") {
+          setOpen(false);
+          setOnboardingDialogOpen(true);
           return;
         }
         setBlocker(payload.transitionBlocker);
@@ -387,6 +395,14 @@ export function LeadDetailStageAdvance({
         leadId={leadId}
         leadName={leadName}
         onSent={() => router.refresh()}
+      />
+
+      <ClientOnboardingSubmitDialog
+        open={onboardingDialogOpen}
+        onOpenChange={setOnboardingDialogOpen}
+        leadId={leadId}
+        leadName={leadName}
+        onSubmitted={() => router.refresh()}
       />
 
       <Dialog

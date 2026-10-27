@@ -35,7 +35,7 @@ export const RD_LABELS = {
   razaoSocial: ["Razão Social / Nome Completo", "Razão Social [CP]", "Razão Social"],
   documento: ["CNPJ/CPF", "CNPJ [CP]", "CNPJ / CPF", "CPF/CNPJ", "CNPJ"],
   localReuniao: ["Local da Reunião"],
-  dataReuniao: ["Data da Reunião"],
+  dataReuniao: ["Data Reunião", "Data da Reunião"],
   horarioReuniao: ["Horário da Reunião", "Horário"],
   tipoLead: ["Tipo de Lead"],
   tipoIndicacao: ["Indicação", "Tipo de Indicação"],
@@ -53,7 +53,7 @@ export const RD_LABELS = {
   areasObjeto: ["Áreas Objeto do contrato [CP]", "Áreas objeto do contrato [CP]"],
   gestor: ["Gestor do Contrato [CP]"],
   captador: ["Captador [CP]"],
-  prazoEntrega: ["Prazo para entrega [CP]"],
+  prazoEntrega: ["Prazo para entrega (mínimo de 2 dias úteis - sinalizar exceções e motivos) [CP]", "Prazo para entrega [CP]"],
   primeiroVencimento: ["Data do primeiro vencimento [CP]"],
   realizouDue: ["Realizou Due Diligence? [CP]"],
   nomeFocal: ["Nome do ponto focal / Comercial [CP]"],
@@ -551,6 +551,16 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
   extras.push(...cadastroNotes);
   ob.cadastro.informacoesAdicionais = extras.join("\n");
   if (extras.length > 0) sources["onboarding.cadastro.informacoesAdicionais"] = "RD: [CADASTRO]";
+  // O [CADASTRO] do RD não tem e-mail/telefone do cliente: vale o ponto focal da proposta (o responsável confirma).
+  for (const [field, code] of [
+    ["email", "cp_email_focal"],
+    ["telefone", "cp_tel_focal"],
+  ] as const) {
+    const value = campos[code];
+    if (typeof value !== "string" || !value) continue;
+    ob.cadastro[field] = value;
+    if (sources[`campos.${code}`]) sources[`onboarding.cadastro.${field}`] = sources[`campos.${code}`];
+  }
 
   const finRazaoRaw = take("onboarding.financeiro.faturamento.razaoSocial", RD_LABELS.finRazao);
   const finDocRaw = take("onboarding.financeiro.faturamento.documento", RD_LABELS.finDocumento);
@@ -622,6 +632,8 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
       // O formulário marca a origem por grupo de dois níveis ("financeiro.faturamento").
       .map((path) => [path.slice("onboarding.".length).split(".").slice(0, 2).join("."), "rd"]),
   );
+  if (ob.cadastro.email) ob.sources["cadastro.email"] = "ponto_focal";
+  if (ob.cadastro.telefone) ob.sources["cadastro.telefone"] = "ponto_focal";
 
   values.sources = sources;
   return values;

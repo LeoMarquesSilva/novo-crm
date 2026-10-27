@@ -9,6 +9,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/components/crm/contracts/send-contract-signature-dialog", () => ({
   SendContractSignatureDialog: () => null,
 }));
+vi.mock("@/components/crm/client-onboarding-submit-dialog", () => ({
+  ClientOnboardingSubmitDialog: ({ open }: { open: boolean }) => (open ? <div>modal do cadastro do cliente</div> : null),
+}));
 vi.mock("@/components/crm/lead-stage-duration-strip", () => ({
   LeadStageDurationStrip: ({
     advanceStage,
@@ -109,4 +112,38 @@ test("fechar e reabrir mantém o que foi preenchido", async () => {
   await user.click(screen.getByRole("button", { name: "Recomeçar" }));
   expect(await screen.findByDisplayValue("Rua das Flores")).toBeInTheDocument();
   expect(requirementCalls()).toBe(2);
+});
+
+test("Aguardando Cadastro → Cadastro de Novo Cliente abre o cadastro do cliente num modal", async () => {
+  fetchMock.mockImplementationOnce(async () =>
+    new Response(
+      JSON.stringify({
+        ok: true,
+        needsModal: false,
+        transitionBlocker: {
+          code: "use_dedicated_action",
+          message: "Preencha o cadastro do cliente e envie para Operações Legais.",
+          actionHref: "/crm/leads/lead-1?tab=onboarding",
+          actionKind: "open_onboarding",
+        },
+      }),
+      { status: 200 },
+    ),
+  );
+  const user = userEvent.setup();
+  render(
+    <LeadDetailStageAdvance
+      leadId="lead-1"
+      currentStage="aguardando_cadastro"
+      hasDueDiligence={false}
+      timeline={{ periods: [], activities: [], summary: {} } as never}
+      canAdvance
+      linkProposta={null}
+      linkContrato={null}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Avançar etapa" }));
+
+  expect(await screen.findByText("modal do cadastro do cliente")).toBeInTheDocument();
+  expect(screen.queryByText("Existe uma pendência")).not.toBeInTheDocument();
 });
