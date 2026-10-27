@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { newLeadPayloadSchema } from "@/modules/crm/application/services/new-lead-payload";
+import {
+  invalidCompanyDocumentMessage,
+  newLeadPayloadSchema,
+} from "@/modules/crm/application/services/new-lead-payload";
 
 const validPayload = {
   solicitante: "Aline Ferreira",
@@ -114,5 +117,33 @@ describe("newLeadPayloadSchema", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe("invalidCompanyDocumentMessage", () => {
+  it("aceita CPF e CNPJ com dígito certo, com ou sem pontuação", () => {
+    expect(
+      invalidCompanyDocumentMessage([
+        { tipo_documento: "CNPJ", razao_social: "LE BLOG", documento: "13.030.003/0001-10" },
+        { tipo_documento: "CPF", razao_social: "Fulano", documento: "52998224725" },
+      ]),
+    ).toBeNull();
+  });
+
+  it("aponta a empresa com dígito errado e o tipo do documento", () => {
+    expect(
+      invalidCompanyDocumentMessage([
+        { tipo_documento: "CNPJ", razao_social: "LE BLOG", documento: "13.030.003/0001-10" },
+        { tipo_documento: "CPF", razao_social: "Fulano", documento: "529.982.247-26" },
+      ]),
+    ).toBe('CPF inválido em "Fulano" (529.982.247-26): o dígito verificador não confere. Confira os números.');
+  });
+
+  it("CNPJ marcado como CPF também é recusado", () => {
+    expect(
+      invalidCompanyDocumentMessage([
+        { tipo_documento: "CPF", razao_social: "LE BLOG", documento: "13.030.003/0001-10" },
+      ]),
+    ).toContain("CPF inválido");
   });
 });

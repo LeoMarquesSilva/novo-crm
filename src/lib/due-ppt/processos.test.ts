@@ -90,3 +90,27 @@ describe("leitor de xlsx", () => {
     expect(sheet!.rows[1]).toEqual(["0001", "27/04/2026", 12.5]);
   });
 });
+
+describe("planilha Cível no formato das áreas (POLO ... PRINCIPAL, POLO CLIENTE, FORO, ANO)", () => {
+  const sheet: SheetData = {
+    name: "Planilha1",
+    rows: [
+      ["NÚMERO PROCESSO", "CLASSE", "TIPO", "TRÂMITE", "FORO", "VARA", "ANO", "VALOR DA CAUSA", "POLO ATIVO PRINCIPAL", "POLO PASSIVO PRINCIPAL", "POLO CLIENTE", "POSIÇÃO DO CLIENTE", "ID CLIENTE", "SÓCIO POLO PASSIVO", "SITUAÇÃO PROCESSUAL", "FASE"],
+      ["0000001-11.2005.8.26.0100", "AÇÃO DE DESPEJO", "", "", "SP", "", 2005, 70605.76, "AUTOR FICTÍCIO", "RÉ FICTÍCIA LTDA", "TERCEIRO", "INTERESSADO", "CLIENTE", "NÃO", "EM TRÂMITE", "CONHECIMENTO"],
+    ],
+  };
+
+  it("lê partes, polo do cliente, foro, ano e situação (teste 3, 22/10/2026)", () => {
+    const [p] = normalizarPlanilha([sheet]).processos;
+    expect(p).toMatchObject({
+      poloAtivo: "AUTOR FICTÍCIO",
+      poloPassivo: "RÉ FICTÍCIA LTDA",
+      poloCliente: "TERCEIRO",
+      socioPoloPassivo: "NAO",
+      comarca: "SP",
+      anoDistribuicao: 2005,
+      situacao: "EM TRÂMITE",
+      fase: "CONHECIMENTO",
+    });
+  });
+});

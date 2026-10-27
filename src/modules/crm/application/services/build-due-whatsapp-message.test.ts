@@ -67,7 +67,8 @@ describe("buildDueWhatsappMessage", () => {
 
     expect(message).toContain("*Novo Lead com Due Diligence*");
     expect(message).toContain("*Solicitante:* Aline Ferreira");
-    expect(message).toContain("*Tipo de Lead:* Indicacao");
+    expect(message).toContain("*Tipo de Lead:* Indicação");
+    expect(message).not.toContain("Indicacao");
     expect(message).toContain("- *Áreas de Análise:* Cível, Tributário");
     expect(message).toContain("20/05/2026");
     expect(message).toContain("22/05/2026");
@@ -136,5 +137,45 @@ describe("buildDueWhatsappMessage", () => {
     expect(message).toContain("*Origem do Cross-selling:* Cliente já atendido pelo Tributário");
     expect(message).not.toContain("*Indicação:*");
     expect(message).not.toContain("*Nome da Indicação:*");
+  });
+
+  it("mostra valores legíveis: plataforma, área do cross-selling, horário sem segundos e Não com acento", () => {
+    const base = {
+      solicitante: "Felipe Camargo",
+      cadastrado_por: "leonardo.marques@bismarchipires.com.br",
+      email: "felipe@bismarchipires.com.br",
+      razao_social_completa: "CLIENTE LTDA",
+      cnpj_completo: "11.222.333/0001-81",
+      tipo_indicacao: null,
+      nome_indicacao: null,
+      data_entrega_due: "2026-05-13",
+      horario_entrega_due: "18:00:00",
+      areas_analise: ["Cível" as const],
+      local_reuniao: "A definir",
+      data_reuniao: "2026-05-14",
+      horario_reuniao: "12:00:00",
+      empresas: [{ tipo_documento: "CNPJ" as const, razao_social: "CLIENTE LTDA", documento: "11.222.333/0001-81" }],
+      contexto_comercial: null,
+    };
+
+    const digital = buildDueWhatsappMessage({
+      ...base,
+      due_diligence: "Nao",
+      tipo_de_lead: "Lead Digital",
+      plataforma: "Instagram",
+    });
+    expect(digital).toContain("*Plataforma:* Instagram");
+    expect(digital).toContain("*Due Diligence:* Não");
+    expect(digital).toContain("- *Prazo de Entrega:* 13/05/2026 às 18:00\n");
+    expect(digital).toContain("- *Horário:* 12:00\n");
+
+    const cross = buildDueWhatsappMessage({
+      ...base,
+      due_diligence: "Sim",
+      tipo_de_lead: "Cross Selling",
+      area_cross_selling: "Tributário",
+    });
+    expect(cross).toContain("*Área do Cross-selling:* Tributário");
+    expect(cross).toContain("*Origem do Cross-selling:* Cliente da base / relacionamento existente");
   });
 });

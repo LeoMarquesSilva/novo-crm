@@ -28,10 +28,12 @@ test("gera 5 parcelas de R$ 2.400 vencendo no dia 20 e recalcula o total ao edit
   const onChange = vi.fn();
   render(<Harness onChange={onChange} />);
 
-  const [count, total] = screen.getAllByRole("textbox");
-  await user.clear(count!);
-  await user.type(count!, "5");
-  await user.type(total!, "1200000");
+  // Pelo rótulo: o 1º vencimento agora também é caixa de texto (data digitável).
+  const count = screen.getByLabelText("Quantidade");
+  const total = screen.getByLabelText("Valor total");
+  await user.clear(count);
+  await user.type(count, "5");
+  await user.type(total, "1200000");
   await user.click(screen.getByRole("button", { name: "Gerar parcelas" }));
 
   expect(onChange).toHaveBeenLastCalledWith({

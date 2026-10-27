@@ -1,3 +1,5 @@
+import { leadTypeLabel } from "@/lib/crm/lead-type-label";
+import { formatDateYmdBr } from "@/lib/format-datetime";
 import type { NewLeadPayload } from "./new-lead-payload";
 import { escapeHtml } from "./lead-email-interpolate";
 import {
@@ -33,6 +35,35 @@ function plainOneLine(s: string): string {
   return s.replace(/\r?\n/g, " ").trim();
 }
 
+/** `2026-05-15` → `15/05/2026`; outro texto passa como veio. */
+function dataBr(v: string | null | undefined): string {
+  const t = v?.trim() ?? "";
+  return formatDateYmdBr(t) || t;
+}
+
+/** `18:00:00` → `18:00` (o banco devolve com segundos). */
+function horaBr(v: string | null | undefined): string {
+  return (v?.trim() ?? "").replace(/^(\d{2}:\d{2}):\d{2}$/, "$1");
+}
+
+/** Datas e horários do cadastro já no formato do e-mail (iguais no HTML e no assunto). */
+function datasDoLead(payload: LeadEmailTemplatePayload) {
+  const dataEntrega = dataBr(payload.data_entrega_due);
+  const horaEntrega = horaBr(payload.horario_entrega_due);
+  const dataReuniao = dataBr(payload.data_reuniao);
+  const horaReuniao = horaBr(payload.horario_reuniao);
+  return {
+    dataEntrega,
+    horaEntrega,
+    dataReuniao,
+    horaReuniao,
+    prazoEntrega: `${dataEntrega || "Não informado"}${horaEntrega ? ` às ${horaEntrega}` : ""}`,
+    reuniaoDataHorarioSem: dataReuniao
+      ? `${dataReuniao}${horaReuniao ? ` às ${horaReuniao}` : ""}`
+      : "A definir",
+  };
+}
+
 /** Destino dos botões do e-mail: a ficha do lead no CRM (não mais o RD Station). */
 function leadLink(payload: LeadEmailTemplatePayload): string {
   return payload.lead_url?.trim() || "/crm/leads";
@@ -62,13 +93,7 @@ export function buildLeadEmailHtmlVars(payload: LeadEmailTemplatePayload): Recor
     ? leadEmailField("Tipo de Indicação", escapeHtml(String(tipoInd)))
     : "";
 
-  const prazoEntrega =
-    `${payload.data_entrega_due || "Não informado"}` +
-    (payload.horario_entrega_due ? ` às ${payload.horario_entrega_due}` : "");
-
-  const reuniaoDataHorarioSem = payload.data_reuniao
-    ? `${payload.data_reuniao}${payload.horario_reuniao ? ` às ${payload.horario_reuniao}` : ""}`
-    : "A definir";
+  const d = datasDoLead(payload);
 
   return {
     solicitante: escapeHtml(payload.solicitante || "Não informado"),
@@ -77,16 +102,16 @@ export function buildLeadEmailHtmlVars(payload: LeadEmailTemplatePayload): Recor
     razao_social: escapeHtml(razaoSocial || "Não informado"),
     cnpj: escapeHtml(cnpj || "Não informado"),
     razao_social_primeira: escapeHtml(razaoSocialPrimeira || razaoSocial || "Não informado"),
-    tipo_de_lead: escapeHtml(payload.tipo_de_lead || "Não informado"),
+    tipo_de_lead: escapeHtml(leadTypeLabel(payload.tipo_de_lead) || "Não informado"),
     areas: escapeHtml(areas),
     data_hora_cadastro: escapeHtml(`${date} às ${time}`),
-    data_entrega_due: escapeHtml(payload.data_entrega_due || "Não informado"),
-    horario_entrega_due: escapeHtml(payload.horario_entrega_due || ""),
-    prazo_entrega_due: escapeHtml(prazoEntrega),
+    data_entrega_due: escapeHtml(d.dataEntrega || "Não informado"),
+    horario_entrega_due: escapeHtml(d.horaEntrega),
+    prazo_entrega_due: escapeHtml(d.prazoEntrega),
     local_reuniao: escapeHtml(payload.local_reuniao || "Não informado"),
-    data_reuniao: escapeHtml(payload.data_reuniao || "Não informado"),
-    horario_reuniao: escapeHtml(payload.horario_reuniao || "Não informado"),
-    reuniao_data_horario_sem: escapeHtml(reuniaoDataHorarioSem),
+    data_reuniao: escapeHtml(d.dataReuniao || "Não informado"),
+    horario_reuniao: escapeHtml(d.horaReuniao || "Não informado"),
+    reuniao_data_horario_sem: escapeHtml(d.reuniaoDataHorarioSem),
     link_lead: escapeHtml(leadLink(payload)),
     frag_nome_indicacao_due: fragNomeIndicacaoDue,
     frag_tipo_indicacao_due: fragTipoIndicacaoDue,
@@ -110,13 +135,7 @@ export function buildLeadEmailSubjectVars(payload: LeadEmailTemplatePayload): Re
     frag_tipo_indicacao_sem: "",
   };
 
-  const prazoEntrega =
-    `${payload.data_entrega_due || "Não informado"}` +
-    (payload.horario_entrega_due ? ` às ${payload.horario_entrega_due}` : "");
-
-  const reuniaoDataHorarioSem = payload.data_reuniao
-    ? `${payload.data_reuniao}${payload.horario_reuniao ? ` às ${payload.horario_reuniao}` : ""}`
-    : "A definir";
+  const d = datasDoLead(payload);
 
   return {
     solicitante: plainOneLine(payload.solicitante || "Não informado"),
@@ -125,16 +144,16 @@ export function buildLeadEmailSubjectVars(payload: LeadEmailTemplatePayload): Re
     razao_social: plainOneLine(razaoSocial || "Não informado"),
     cnpj: plainOneLine(cnpj || "Não informado"),
     razao_social_primeira: plainOneLine(razaoSocialPrimeira || razaoSocial || "Não informado"),
-    tipo_de_lead: plainOneLine(payload.tipo_de_lead || "Não informado"),
+    tipo_de_lead: plainOneLine(leadTypeLabel(payload.tipo_de_lead) || "Não informado"),
     areas: plainOneLine(areas),
     data_hora_cadastro: plainOneLine(`${date} às ${time}`),
-    data_entrega_due: plainOneLine(payload.data_entrega_due || "Não informado"),
-    horario_entrega_due: plainOneLine(payload.horario_entrega_due || ""),
-    prazo_entrega_due: plainOneLine(prazoEntrega),
+    data_entrega_due: plainOneLine(d.dataEntrega || "Não informado"),
+    horario_entrega_due: plainOneLine(d.horaEntrega),
+    prazo_entrega_due: plainOneLine(d.prazoEntrega),
     local_reuniao: plainOneLine(payload.local_reuniao || "Não informado"),
-    data_reuniao: plainOneLine(payload.data_reuniao || "Não informado"),
-    horario_reuniao: plainOneLine(payload.horario_reuniao || "Não informado"),
-    reuniao_data_horario_sem: plainOneLine(reuniaoDataHorarioSem),
+    data_reuniao: plainOneLine(d.dataReuniao || "Não informado"),
+    horario_reuniao: plainOneLine(d.horaReuniao || "Não informado"),
+    reuniao_data_horario_sem: plainOneLine(d.reuniaoDataHorarioSem),
     link_lead: plainOneLine(leadLink(payload)),
     ...emptyFrags,
   };

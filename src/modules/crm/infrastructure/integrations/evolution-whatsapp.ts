@@ -32,6 +32,16 @@ function stringifyJsonAscii(value: unknown): string {
   );
 }
 
+/**
+ * Ambiente de teste: com `WHATSAPP_REDIRECT_TO` todo envio vai só para esse número, com o destino
+ * original no começo do texto, para um teste não mandar mensagem aos grupos e colegas reais.
+ */
+export function applyWhatsappRedirect(destination: string, text: string): SendTextInput {
+  const redirect = process.env.WHATSAPP_REDIRECT_TO?.trim();
+  if (!redirect) return { destination, text };
+  return { destination: redirect, text: `[TESTE · destino original: ${destination}]\n${text}` };
+}
+
 export class EvolutionWhatsappConnector {
   constructor(
     private readonly baseUrl: string,
@@ -78,10 +88,11 @@ export class EvolutionWhatsappConnector {
     return (await response.json()) as T;
   }
 
-  async sendText({ destination, text }: SendTextInput) {
+  async sendText(input: SendTextInput) {
     this.assertConfig();
+    const { destination, text } = applyWhatsappRedirect(input.destination, input.text);
     const response = await fetchWithTimeout(
-      `${this.instanceBaseUrl}/message/sendText/${this.instance}`,
+      `${this.instanceBaseUrl}/message/sendText/${encodeURIComponent(this.instance)}`,
       {
         method: "POST",
         headers: {

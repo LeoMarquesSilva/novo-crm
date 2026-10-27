@@ -65,7 +65,7 @@ function calculateVariable(
     blockers.push({
       code: "missing_consumption",
       componentId: component.id,
-      message: `Consumption is required for ${component.description}`,
+      message: `Informe o consumo do mês: ${component.description}`,
     });
     return null;
   }
@@ -85,7 +85,7 @@ function calculateVariable(
     blockers.push({
       code: component.chargeMode === "excedente" ? "missing_excess_rate" : "missing_unit_rate",
       componentId: component.id,
-      message: `A rate is required to charge ${billableQuantity} units for ${component.description}`,
+      message: `Falta o valor unitário para cobrar ${billableQuantity} unidade(s): ${component.description}`,
       excessQuantity: component.chargeMode === "excedente" ? billableQuantity : undefined,
     });
     return null;
@@ -115,7 +115,7 @@ function calculateManual(
     blockers.push({
       code: "manual_release_required",
       componentId: component.id,
-      message: `Manual release is required for ${component.description}`,
+      message: `Aguardando liberação manual: ${component.description}`,
     });
     return null;
   }

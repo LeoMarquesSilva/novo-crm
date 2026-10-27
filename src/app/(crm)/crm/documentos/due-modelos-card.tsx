@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { limparCacheModelo } from "@/lib/due-ppt/client";
 import { conferirModelo, SLIDES_DO_MODELO } from "@/lib/due-ppt/modelo";
-import { formatDateTimeBr } from "@/lib/format-datetime";
+import { formatDateTimeMinutesBr } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 
 type Modelo = {
@@ -242,7 +242,7 @@ export function DueModelosCard({ isAdmin }: { isAdmin: boolean }) {
                 {anteriores.map((m) => (
                   <li key={m.id} className="flex items-center gap-2 text-xs">
                     <span className="min-w-0 flex-1 truncate text-foreground">{m.nomeArquivo}</span>
-                    <span className="shrink-0 text-muted-foreground">{formatDateTimeBr(m.enviadoEm)}</span>
+                    <span className="shrink-0 text-muted-foreground">{formatDateTimeMinutesBr(m.enviadoEm)}</span>
                     <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => void baixar(m.id)} disabled={!!ocupado}>
                       Baixar
                     </Button>

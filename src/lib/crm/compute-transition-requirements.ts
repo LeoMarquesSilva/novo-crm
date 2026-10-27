@@ -13,6 +13,15 @@ import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
 export type PipelineCode = "vendas" | "pos_venda";
 
+/**
+ * Pós-venda usa o cadastro do cliente e a inclusão no faturamento (telas próprias), não campos
+ * configuráveis no modal de transição. A exceção é a Reunião Kick-off: data, horário, local e
+ * participantes ficam registrados na negociação.
+ */
+export function stageUsesTransitionFields(pipeline: PipelineCode, nextStage: string): boolean {
+  return pipeline !== "pos_venda" || nextStage === "reuniao_kickoff";
+}
+
 type FormValues = Record<string, string | string[] | undefined>;
 
 function trimStr(v: unknown): string {

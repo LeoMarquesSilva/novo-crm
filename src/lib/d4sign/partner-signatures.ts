@@ -167,6 +167,30 @@ export function dateFromDocumentName(name: string | null): string | null {
   return date.toISOString();
 }
 
+/** Nome para a tela: a D4Sign troca o "." da extensão por espaço ("… LUCIANO pdf"). */
+export function documentDisplayName(name: string | null): string | null {
+  const clean = name?.trim().replace(/[ ._-]+(pdf|docx?)$/i, "").trim();
+  return clean || null;
+}
+
+/** Cliente no nome do arquivo ("2026 01 13 CONTRATO DE HONORARIOS ANDREIA AMBONATTI pdf" → "ANDREIA AMBONATTI"). */
+export function clientFromDocumentName(name: string | null): string | null {
+  const base = documentDisplayName(name)?.replace(/^\d{4}[ ._-]\d{2}[ ._-]\d{2}[\s–-]*/, "");
+  const m = base?.match(/^(?:contrato|proposta)\s+de\s+honor[aá]rios[\s–-]*(.+)$/i);
+  return m?.[1].trim() || null;
+}
+
+/** Nome do primeiro signatário que não é sócio, contratada nem testemunha (`act` 5). */
+function clientSignerName(signers: D4SignSignerInfo[], partners: PartnerSigner[]): string | null {
+  for (const s of signers) {
+    if (resolvePartnerEmail(s.email, partners)) continue;
+    if (String(s.act ?? "") === "5" || /contratad|testemunha/i.test(s.role ?? "")) continue;
+    const name = s.name?.trim() || s.user_name?.trim();
+    if (name) return name;
+  }
+  return null;
+}
+
 function latestIso(values: (string | null | undefined)[]): string | null {
   let best: string | null = null;
   for (const v of values) {
@@ -207,8 +231,12 @@ export function classifyPartnerDoc(
 
   return {
     uuid: row.uuid_doc,
-    name: row.name_document,
-    clientName: row.client_name ?? row.folder_name,
+    name: documentDisplayName(row.name_document),
+    clientName:
+      row.client_name?.trim() ||
+      row.folder_name?.trim() ||
+      clientFromDocumentName(row.name_document) ||
+      clientSignerName(signers, partners),
     area: row.folder_area,
     status: row.d4sign_status,
     lifecycle: lifecycleFromStatus(row.d4sign_status),

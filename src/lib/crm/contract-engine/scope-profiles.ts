@@ -395,6 +395,40 @@ export const CONTRACT_SCOPE_PROFILES: ContractScopeProfile[] = [
     active: true,
     status: "pending_legal_review",
   },
+  // Mesmos blocos de Negociações Estratégicas: o contrato real do Grupo LE BLOG (assinado em
+  // 18/08/2026, proposta com este subtipo) tem esse objeto, escopo, sucumbência e solidariedade.
+  {
+    scopeSubtypeId: SCOPE_IDS.reestruturacaoAjuizamento,
+    label: "Ajuizamento de Medida de Reestruturação",
+    instrumentType: "Contrato de Prestação de Serviços Advocatícios",
+    areaSortOrder: 50,
+    typeSortOrder: 10,
+    subtypeSortOrder: 5,
+    objectDefinition: {
+      mode: "simple",
+      objectBlockKeys: [
+        "object.reestruturacao.negociacoes_estrategicas",
+        "object.reestruturacao.negociacoes_estrategicas.scope",
+        "object.reestruturacao.negociacoes_estrategicas.sucumbencia",
+        "object.reestruturacao.negociacoes_estrategicas.compensacao",
+        "object.reestruturacao.negociacoes_estrategicas.confidencialidade",
+        "object.reestruturacao.negociacoes_estrategicas.solidariedade",
+      ],
+      objectGroupKey: "reestruturacao",
+    },
+    requiredContractFields: [],
+    objectClauseKeys: ["object_reestruturacao_negociacoes"],
+    scopeClauseKeys: ["scope_reestruturacao_negociacoes"],
+    limitationClauseKeys: [],
+    exclusionClauseKeys: ["exclusion_reestruturacao_consultoria_correlata"],
+    natureClauseKeys: [],
+    contractedObligationKeys: [],
+    contractingObligationKeys: [],
+    defaultTermRule: { kind: "indefinite" },
+    defaultStartRule: { kind: "on_first_payment" },
+    active: true,
+    status: "pending_legal_review",
+  },
   {
     scopeSubtypeId: SCOPE_IDS.reestruturacaoNegociacoes,
     label: "Negociações Estratégicas (Reestruturação)",
@@ -407,7 +441,6 @@ export const CONTRACT_SCOPE_PROFILES: ContractScopeProfile[] = [
       objectBlockKeys: [
         "object.reestruturacao.negociacoes_estrategicas",
         "object.reestruturacao.negociacoes_estrategicas.scope",
-        "object.reestruturacao.negociacoes_estrategicas.exclusoes",
         "object.reestruturacao.negociacoes_estrategicas.sucumbencia",
         "object.reestruturacao.negociacoes_estrategicas.compensacao",
         "object.reestruturacao.negociacoes_estrategicas.confidencialidade",

@@ -8,6 +8,7 @@ import {
   GitBranch,
   History,
   ListChecks,
+  MessageCircle,
   MessageSquareText,
   PencilLine,
   RotateCcw,
@@ -55,10 +56,12 @@ const ACTIVITY_KIND_META: Record<
   cadastro_cliente_enviado: { icon: Send, tone: "bg-info-bg text-info-text", label: "Cadastro" },
   cadastro_cliente_devolvido: { icon: RotateCcw, tone: "bg-warning-bg text-warning-text", label: "Cadastro" },
   cadastro_cliente_concluido: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Cadastro" },
+  faturamento_dados_enviados: { icon: Send, tone: "bg-info-bg text-info-text", label: "Faturamento" },
   contrato_incluido_gestao: { icon: ListChecks, tone: "bg-info-bg text-info-text", label: "Faturamento" },
   contrato_ativado: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Faturamento" },
   rd_migrado: { icon: GitBranch, tone: "bg-violet-bg text-violet-text", label: "Migração RD" },
   rd_migracao_concluida: { icon: CheckCircle2, tone: "bg-success-bg text-success-text", label: "Migração RD" },
+  whatsapp_enviado: { icon: MessageCircle, tone: "bg-success-bg text-success-text", label: "WhatsApp" },
 };
 
 export function LeadLifecycleTimelinePanel({ timeline }: LeadLifecycleTimelinePanelProps) {

@@ -154,15 +154,15 @@ export default async function ClientesPage() {
         title="Cadastro único de clientes"
         description={
           lastSyncedAt
-            ? `Última sync do OrquestrAI em ${lastSyncedAt}. Categoria é Cliente ou Lead (hoje só Cliente). Status Ativo/Inativo vem de gestor_atividade. Áreas são a atuação jurídica (OrquestrAI responsible_area ∪ SIOE). Títulos ABERTO/PAGO vêm do SIOE. Origem do Lead vem do preenchimento público ou da edição no modal.`
-            : "Grupos econômicos do OrquestrAI. Categoria é Cliente ou Lead (hoje só Cliente). Status é Cliente ativo ou inativo (gestor_atividade). Áreas são a atuação jurídica (responsible_area ∪ SIOE). Títulos ABERTO/PAGO vêm do SIOE. Origem do Lead vem do preenchimento público ou da edição no modal."
+            ? `Grupos econômicos e clientes da carteira, atualizados do OrquestrAI em ${lastSyncedAt}. Status e áreas vêm do cadastro de clientes; títulos em aberto e pagos vêm do SIOE.`
+            : "Grupos econômicos e clientes da carteira, vindos do OrquestrAI. Status e áreas vêm do cadastro de clientes; títulos em aberto e pagos vêm do SIOE."
         }
         icon={Building2}
         stats={[
-          { label: "Grupos no CRM", value: groups.length, detail: "email_client_groups" },
+          { label: "Grupos no CRM", value: groups.length, detail: "grupos econômicos" },
           { label: "Pessoas/CNPJs", value: fromOrqestrai, detail: "vieram do OrquestrAI" },
-          { label: "Clientes ativos", value: ativos, detail: "gestor_atividade no OrquestrAI" },
-          { label: "Clientes inativos", value: inativos, detail: "gestor_atividade no OrquestrAI" },
+          { label: "Clientes ativos", value: ativos, detail: "marcados como ativos no OrquestrAI" },
+          { label: "Clientes inativos", value: inativos, detail: "marcados como inativos no OrquestrAI" },
         ]}
         actions={
           <div className="flex flex-col items-stretch gap-2 sm:items-end">

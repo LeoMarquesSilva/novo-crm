@@ -4,8 +4,12 @@ import { internalErrorResponse, logServerError, publicErrorMessage } from "@/lib
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { buildDueSharePointAgendamentoFields } from "@/modules/crm/application/services/build-due-sharepoint-agendamento-fields";
-import { buildDueWhatsappMessage } from "@/modules/crm/application/services/build-due-whatsapp-message";
-import { newLeadPayloadSchema } from "@/modules/crm/application/services/new-lead-payload";
+import { buildDueWhatsappValues } from "@/modules/crm/application/services/build-due-whatsapp-message";
+import { buildWhatsappMessage } from "@/lib/crm/whatsapp/template-store";
+import {
+  invalidCompanyDocumentMessage,
+  newLeadPayloadSchema,
+} from "@/modules/crm/application/services/new-lead-payload";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
 import { sendLeadNotificationEmail } from "@/modules/crm/application/services/send-lead-notification-email";
@@ -57,6 +61,11 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     );
+  }
+
+  const documentoInvalido = invalidCompanyDocumentMessage(parsed.data.empresas);
+  if (documentoInvalido) {
+    return NextResponse.json({ ok: false, error: documentoInvalido }, { status: 400 });
   }
 
   try {
@@ -218,16 +227,36 @@ export async function POST(request: Request) {
             process.env.EVOLUTION_INSTANCE ?? process.env.EVOLUTION_INSTANCE_NAME ?? "BP",
           );
 
-          const message = buildDueWhatsappMessage({
-            ...payload,
-            razao_social_completa: firstCompany.razao_social,
-            cnpj_completo: firstCompany.documento,
-          });
+          // Área do lead sem ninguém no cadastro de usuários: o alerta vai nesta mensagem (não numa à parte).
+          const { data: semResponsavel } = await supabase
+            .from("due_area_tasks")
+            .select("area_key")
+            .eq("oportunidade_id", oportunidade.id)
+            .is("responsavel_app_user_id", null);
+          const areasSemResponsavel = (semResponsavel ?? []).map((row) => String(row.area_key)).filter(Boolean);
+          const avisos = areasSemResponsavel.length
+            ? `*Atenção:* nenhum usuário cadastrado na área ${areasSemResponsavel.join(", ")}. Defina no cadastro de usuários quem faz o levantamento.`
+            : "";
 
-          await connector.sendText({
-            destination: whatsappConfig.destination,
-            text: message,
-          });
+          const message = await buildWhatsappMessage(
+            supabase,
+            "novo_lead_due",
+            buildDueWhatsappValues(
+              {
+                ...payload,
+                razao_social_completa: firstCompany.razao_social,
+                cnpj_completo: firstCompany.documento,
+              },
+              avisos,
+            ),
+          );
+
+          if (message) {
+            await connector.sendText({
+              destination: whatsappConfig.destination,
+              text: message,
+            });
+          }
         } catch (error) {
           warnings.push(
             `WhatsApp DUE: ${safeWarning("whatsapp", error, "Falha ao enviar mensagem de due diligence.")}`,

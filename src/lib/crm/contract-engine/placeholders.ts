@@ -1,4 +1,4 @@
-import { applyPartyPlaceholders, type PartyGrammar } from "./party-language";
+import { applyPartyPlaceholders, resolvePartyAlternatives, type PartyGrammar } from "./party-language";
 import type { CanonicalContractData } from "./types";
 
 const BRACKET_RE = /\[([A-Z0-9_]+)\]/g;
@@ -21,7 +21,9 @@ export function resolveContractClausePlaceholders(params: {
   optionalPlaceholders?: string[];
   grammar?: PartyGrammar;
 }): PlaceholderResolution {
-  let text = params.grammar ? applyPartyPlaceholders(params.content, params.grammar) : params.content;
+  let text = params.grammar
+    ? applyPartyPlaceholders(params.content, params.grammar)
+    : resolvePartyAlternatives(params.content, false);
 
   const normalizeKey = (raw: string) => raw.trim().replace(/^\{\{|\}\}$/g, "").replace(/^\[|\]$/g, "");
 

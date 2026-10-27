@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { actorFromAppUserRow } from "@/lib/crm/in-app-notification-meta";
-import { notifyDueReviewResponseToCompilationOwner } from "@/lib/crm/due-area-tasks";
+import {
+  notifyDueReviewCycleResultWhatsapp,
+  notifyDueReviewResponseToCompilationOwner,
+} from "@/lib/crm/due-area-tasks";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -182,7 +185,15 @@ export async function PATCH(
     originadoPor,
   });
   notificationError = notifyResult.error;
-  whatsappSentAt = notifyResult.whatsappSent ? now : null;
+  // WhatsApp só com o resultado do ciclo (ajuste que devolveu para Compilação, ou todas as áreas responderam),
+  // e um complemento quando esta área pede ajuste depois que a mensagem do ciclo já saiu.
+  const cycleResult = await notifyDueReviewCycleResultWhatsapp(supabase, {
+    oportunidadeId: opportunityId,
+    revisionCycle: Number(task.revision_cycle),
+    returnedToCompilacao: autoMovedToCompilacao,
+    areaKey: String(task.area_key ?? ""),
+  });
+  whatsappSentAt = cycleResult.sent ? now : null;
 
   const { error: channelAuditErr } = await supabase
     .from("due_area_review_tasks")

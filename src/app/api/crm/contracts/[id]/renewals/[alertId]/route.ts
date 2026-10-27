@@ -18,25 +18,7 @@ const bodySchema = z.object({
 });
 const json = (body: object, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string; alertId: string }> }) {
-  const auth = await requireAuthApi();
-  if (!auth.ok) return auth.response;
-  const params = await context.params;
-  if (!uuid.safeParse(params.id).success || params.alertId !== "open") return json({ ok: false, code: "INVALID_REQUEST" }, 400);
-  const supabase = createSupabaseAdminClient();
-  const [alertsResult, usersResult] = await Promise.all([
-    supabase.from("contrato_alertas")
-      .select("id, contrato_id, data_base, data_vencimento, status, responsavel_app_user_id, cliente_notificado_em, cliente_notificado_por, decisao, resolucao, updated_at")
-      .eq("contrato_id", params.id)
-      .eq("tipo", "contrato_renovacao_pendente")
-      .order("data_base", { ascending: false }),
-    supabase.from("app_users").select("id, full_name").in("role", ["controladoria", "admin"]).order("full_name"),
-  ]);
-  const error = alertsResult.error ?? usersResult.error;
-  if (error) return json({ ok: false, error: error.message }, 500);
-  return json({ ok: true, alerts: alertsResult.data ?? [], users: usersResult.data ?? [] });
-}
-
+// A leitura da carteira inteira fica em `GET /api/crm/contracts/renewals` (uma consulta só).
 export async function PATCH(request: Request, context: { params: Promise<{ id: string; alertId: string }> }) {
   const auth = await requireAuthApi();
   if (!auth.ok) return auth.response;

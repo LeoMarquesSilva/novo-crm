@@ -87,3 +87,20 @@ describe("ReestruturacaoForm — preencher a partir do PDF", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("A IA não respondeu a tempo");
   });
 });
+
+describe("ReestruturacaoForm — valores em reais", () => {
+  it("enche pelos centavos como os outros campos de R$ e grava o número", () => {
+    const onChange = vi.fn();
+    render(<Tela inicial={reestruturacaoSchema.parse({ passivoTotal: 1000 })} onChange={onChange} />);
+    const passivo = screen.getByLabelText("Passivo total");
+    expect(passivo).toHaveValue("R$ 1.000,00");
+
+    fireEvent.change(passivo, { target: { value: "150000" } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ passivoTotal: 1500 }));
+    expect(passivo).toHaveValue("R$ 1.500,00");
+
+    fireEvent.change(passivo, { target: { value: "" } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ passivoTotal: null }));
+    expect(passivo).toHaveValue("");
+  });
+});

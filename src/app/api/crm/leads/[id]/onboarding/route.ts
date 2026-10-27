@@ -12,9 +12,34 @@ import { evaluateOnboardingAction, saveOnboardingDraft } from "@/lib/crm/client-
 import { internalErrorResponse } from "@/lib/http/api-errors";
 import {
   clientOnboardingPayloadSchema,
+  listMissingCadastroFields,
   listMissingChecklistItems,
-  listMissingOnboardingFields,
+  listMissingFaturamentoFields,
+  onlyDigits,
+  parseOnboardingAdjustments,
+  partyTipo,
+  type OnboardingParty,
 } from "@/modules/crm/domain/client-onboarding";
+import type { OnboardingContext } from "@/lib/crm/client-onboarding/load-onboarding-context";
+
+/** Empresas e pessoas já informadas no lead, para "puxar" no cadastro e no faturamento. */
+function leadParties(ctx: OnboardingContext): OnboardingParty[] {
+  const seen = new Set<string>();
+  const out: OnboardingParty[] = [];
+  const candidates = [
+    { razaoSocial: ctx.payload.cadastro.razaoSocial, documento: ctx.payload.cadastro.documento },
+    ...(ctx.contractParties ?? []).map((p) => ({ razaoSocial: p.razaoSocial, documento: p.documento })),
+    ...ctx.payload.cadastro.empresasConsulta,
+  ];
+  for (const party of candidates) {
+    const digits = onlyDigits(party.documento);
+    const key = digits || party.razaoSocial.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ tipo: partyTipo(party), razaoSocial: party.razaoSocial.trim(), documento: party.documento.trim() });
+  }
+  return out;
+}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -23,6 +48,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const { ctx, actor } = result;
     const can = (action: Parameters<typeof evaluateOnboardingAction>[2]) =>
       evaluateOnboardingAction(actor, ctx, action).allowed;
+    // Quem enviou o cadastro (Operações Legais vê "Enviado por … em …").
+    const submittedBy = ctx.row?.submitted_by
+      ? (
+          await result.supabase.from("app_users").select("full_name").eq("id", ctx.row.submitted_by).maybeSingle()
+        ).data
+      : null;
     return NextResponse.json({
       ok: true,
       stage: ctx.opportunity.etapa,
@@ -33,6 +64,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
             status: ctx.row.status,
             submissionCount: ctx.row.submission_count,
             submittedAt: ctx.row.submitted_at,
+            submittedByName: (submittedBy as { full_name?: string } | null)?.full_name ?? null,
             returnedAt: ctx.row.returned_at,
             returnComment: ctx.row.return_comment,
             concludedAt: ctx.row.concluded_at,
@@ -44,15 +76,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           }
         : null,
       payload: ctx.payload,
-      missing: listMissingOnboardingFields(ctx.payload),
+      missing: listMissingCadastroFields(ctx.payload),
+      missingFaturamento: listMissingFaturamentoFields(ctx.payload),
+      leadParties: leadParties(ctx),
+      ajustes: parseOnboardingAdjustments(ctx.row?.ajustes_solicitados),
       checklist: ctx.checklist,
       missingChecklist: listMissingChecklistItems(ctx.checklist),
       permissions: {
         editDraft: can("edit_draft"),
+        editCadastro: can("edit_cadastro"),
+        editFaturamento: can("edit_faturamento"),
         submit: can("submit"),
         review: can("review"),
         returnToOwner: can("return"),
         conclude: can("conclude"),
+        submitBilling: can("submit_billing"),
       },
     });
   } catch (error) {
@@ -79,7 +117,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       payload: parsed.data.payload,
       expectedUpdatedAt: parsed.data.expectedUpdatedAt ?? null,
     });
-    return NextResponse.json({ ok: true, updatedAt: saved.updatedAt, missing: listMissingOnboardingFields(parsed.data.payload) });
+    return NextResponse.json({ ok: true, updatedAt: saved.updatedAt, missing: listMissingCadastroFields(parsed.data.payload) });
   } catch (error) {
     return internalErrorResponse("onboarding/put", error, "Não foi possível salvar o cadastro.");
   }

@@ -21,7 +21,7 @@ function sources(patch: Partial<OnboardingPrefillSources> = {}): OnboardingPrefi
     payment: null,
     signedOn: null,
     areaAmounts: [],
-    focal: { name: null, email: null },
+    focal: { name: null, email: null, phone: null },
     cliente: null,
     contatoFinanceiro: null,
     ...patch,
@@ -50,7 +50,7 @@ describe("buildClientOnboardingPrefill", () => {
     expect(p.cadastro.razaoSocial).toBe("ACME");
     expect(p.cadastro.endereco).toMatchObject({ cep: "13010000", uf: "SP" });
     expect(p.cadastro.empresasConsulta).toHaveLength(2);
-    expect(p.financeiro.faturamento).toEqual({ razaoSocial: "ACME", documento: "12345678000190" });
+    expect(p.financeiro.faturamento).toEqual({ tipo: "CNPJ", razaoSocial: "ACME", documento: "12345678000190" });
     expect(p.financeiro.inicioVigencia).toBe("2026-11-01");
     expect(p.financeiro.primeiroFaturamento).toBe("2026-11-10");
     expect(p.sources["cadastro.razaoSocial"]).toBe("contrato");
@@ -105,16 +105,36 @@ describe("buildClientOnboardingPrefill", () => {
   });
 
   it("ponto focal vira sugestão de contato financeiro, contato da carteira prevalece", () => {
-    const focalOnly = buildClientOnboardingPrefill(sources({ focal: { name: "Ana", email: "ana@acme.com" } }));
-    expect(focalOnly.financeiro.contatoFinanceiro.email).toBe("ana@acme.com");
+    const focalOnly = buildClientOnboardingPrefill(
+      sources({ focal: { name: "Ana", email: "ana@acme.com", phone: "(19) 98215-2220" } }),
+    );
+    expect(focalOnly.financeiro.contatoFinanceiro).toMatchObject({ email: "ana@acme.com", telefone: "(19) 98215-2220" });
     expect(focalOnly.sources["financeiro.contatoFinanceiro"]).toBe("ponto_focal");
 
     const withContact = buildClientOnboardingPrefill(
       sources({
-        focal: { name: "Ana", email: "ana@acme.com" },
+        focal: { name: "Ana", email: "ana@acme.com", phone: null },
         contatoFinanceiro: { nome: "Bruno", cargo: "Financeiro", email: "fin@acme.com", telefone: null },
       }),
     );
     expect(withContact.financeiro.contatoFinanceiro).toMatchObject({ nome: "Bruno", email: "fin@acme.com" });
+  });
+
+  it("e-mail e telefone do cliente vêm do ponto focal quando a carteira não tem", () => {
+    const focal = { name: "Ana", email: "ana@acme.com", phone: "(19) 98215-2220" };
+    const fromFocal = buildClientOnboardingPrefill(sources({ focal }));
+    expect(fromFocal.cadastro).toMatchObject({ email: "ana@acme.com", telefone: "(19) 98215-2220" });
+    expect(fromFocal.sources["cadastro.email"]).toBe("ponto_focal");
+    expect(fromFocal.sources["cadastro.telefone"]).toBe("ponto_focal");
+
+    const fromCarteira = buildClientOnboardingPrefill(
+      sources({
+        focal,
+        cliente: { razaoSocial: "ACME", documento: null, endereco: null, email: "contato@acme.com", telefone: null },
+      }),
+    );
+    expect(fromCarteira.cadastro).toMatchObject({ email: "contato@acme.com", telefone: "(19) 98215-2220" });
+    expect(fromCarteira.sources["cadastro.email"]).toBe("carteira");
+    expect(fromCarteira.sources["cadastro.telefone"]).toBe("ponto_focal");
   });
 });

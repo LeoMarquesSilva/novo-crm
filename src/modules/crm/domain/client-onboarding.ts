@@ -3,10 +3,12 @@ import { z } from "zod";
 /**
  * Cadastro do novo cliente no pós-venda (`lead_client_onboarding.payload`).
  * - cadastro: dados que Operações Legais confere e lança no VIOS e nos sistemas legados.
+ *   O responsável envia em Aguardando Cadastro (`listMissingCadastroFields`).
  * - financeiro: dados que o Financeiro usa para incluir o contrato no gerenciamento de
- *   contratos (vigência, primeiro faturamento, contato, reajuste, rateio).
- * O schema aceita rascunho (campos vazios); `listMissingOnboardingFields` diz o que falta
- * para enviar a Operações Legais.
+ *   contratos (vigência, primeiro faturamento, contato, reajuste, rateio). O responsável
+ *   envia depois que Operações Legais conclui o cadastro, ao avançar para Inclusão no
+ *   Faturamento (`listMissingFaturamentoFields`).
+ * O schema aceita rascunho (campos vazios).
  */
 export const CLIENT_ONBOARDING_SCHEMA_VERSION = 1;
 
@@ -14,6 +16,18 @@ export const ONBOARDING_STATUSES = ["rascunho", "enviado", "devolvido", "conclui
 export type ClientOnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
 
 export const REAJUSTE_INDICES = ["IPCA", "IGP-M", "INPC", "Sem reajuste", "Outro"] as const;
+
+/** Posição do sócio no cliente (lista fechada; valores antigos em texto livre continuam aparecendo). */
+export const SOCIO_POSICOES = [
+  "Sócio",
+  "Sócio-administrador",
+  "Administrador",
+  "Diretor",
+  "Presidente",
+  "Procurador",
+  "Consultor familiar",
+  "Outro",
+] as const;
 
 const text = (max = 500) => z.string().trim().max(max).catch("").default("");
 
@@ -29,7 +43,21 @@ const addressSchema = z
   })
   .default({ cep: "", logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", uf: "" });
 
-const partySchema = z.object({ razaoSocial: text(250), documento: text(20) });
+/** Empresa (CNPJ) ou pessoa (CPF); vazio nos cadastros antigos, quando vale o tamanho do documento. */
+export type PartyTipo = "CNPJ" | "CPF";
+
+const partySchema = z.object({
+  tipo: z.enum(["", "CNPJ", "CPF"]).catch("").default(""),
+  razaoSocial: text(250),
+  documento: text(20),
+});
+
+export type OnboardingParty = z.infer<typeof partySchema>;
+
+export function partyTipo(party: { tipo?: string; documento: string }): PartyTipo {
+  if (party.tipo === "CPF" || party.tipo === "CNPJ") return party.tipo;
+  return onlyDigits(party.documento).length === 11 ? "CPF" : "CNPJ";
+}
 
 export const clientOnboardingPayloadSchema = z.object({
   cadastro: z
@@ -58,7 +86,7 @@ export const clientOnboardingPayloadSchema = z.object({
     }),
   financeiro: z
     .object({
-      faturamento: partySchema.default({ razaoSocial: "", documento: "" }),
+      faturamento: partySchema.default({ tipo: "", razaoSocial: "", documento: "" }),
       /** AAAA-MM-DD */
       inicioVigencia: text(10),
       primeiroFaturamento: text(10),
@@ -79,7 +107,7 @@ export const clientOnboardingPayloadSchema = z.object({
       observacoes: text(4000),
     })
     .default({
-      faturamento: { razaoSocial: "", documento: "" },
+      faturamento: { tipo: "", razaoSocial: "", documento: "" },
       inicioVigencia: "",
       primeiroFaturamento: "",
       primeiroFaturamentoCondicionado: false,
@@ -121,15 +149,58 @@ export function parseOpsChecklist(raw: unknown): OpsChecklist {
   return parsed.success ? parsed.data : opsChecklistSchema.parse({});
 }
 
-/** O que falta para Operações Legais concluir (cadastro no VIOS, legados e nome do grupo). */
+/**
+ * O que falta para Operações Legais concluir (cadastro no VIOS, grupo, conferência e legados).
+ * O código do cliente no VIOS não é digitado: vem da pessoa do grupo (`pessoas.ci` do SIOE).
+ */
 export function listMissingChecklistItems(checklist: OpsChecklist): string[] {
   const missing: string[] = [];
-  if (!checklist.dadosConferidos) missing.push("Dados conferidos");
   if (!checklist.viosCadastrado) missing.push("Cadastro no VIOS");
-  if (!checklist.viosReferencia) missing.push("Código do cliente no VIOS");
+  if (!checklist.grupoNome) missing.push("Grupo econômico");
+  if (!checklist.dadosConferidos) missing.push("Dados conferidos");
   if (!checklist.sistemasLegadosAtualizados) missing.push("Sistemas legados atualizados");
-  if (!checklist.grupoNome) missing.push("Nome do grupo econômico");
   return missing;
+}
+
+/**
+ * Campos do cadastro que Operações Legais aponta ao devolver; `anchor` é o id do campo no
+ * formulário, para a ficha levar o responsável direto a ele.
+ */
+export const ONBOARDING_ADJUSTABLE_FIELDS = [
+  { campo: "cadastro.razaoSocial", label: "Razão social", anchor: "ob-razao" },
+  { campo: "cadastro.documento", label: "CPF/CNPJ", anchor: "ob-doc" },
+  { campo: "cadastro.email", label: "E-mail do cliente", anchor: "ob-email" },
+  { campo: "cadastro.telefone", label: "Telefone", anchor: "ob-tel" },
+  { campo: "cadastro.endereco", label: "Endereço", anchor: "ob-cep" },
+  { campo: "cadastro.socios", label: "Qualificação dos sócios", anchor: "ob-socios" },
+  { campo: "cadastro.empresasConsulta", label: "Empresas para a busca de novas demandas", anchor: "ob-consulta" },
+] as const;
+
+export type OnboardingAdjustableField = (typeof ONBOARDING_ADJUSTABLE_FIELDS)[number]["campo"];
+
+const ADJUSTABLE_KEYS = ONBOARDING_ADJUSTABLE_FIELDS.map((f) => f.campo) as [
+  OnboardingAdjustableField,
+  ...OnboardingAdjustableField[],
+];
+
+export const onboardingAdjustmentSchema = z.object({
+  campo: z.enum(ADJUSTABLE_KEYS),
+  comentario: text(500),
+});
+
+export type OnboardingAdjustment = z.infer<typeof onboardingAdjustmentSchema>;
+
+/** Ajustes pedidos na devolução (`lead_client_onboarding.ajustes_solicitados`); inválidos são descartados. */
+export function parseOnboardingAdjustments(raw: unknown): OnboardingAdjustment[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    const parsed = onboardingAdjustmentSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+export function adjustableFieldMeta(campo: string) {
+  return ONBOARDING_ADJUSTABLE_FIELDS.find((f) => f.campo === campo) ?? null;
 }
 
 export function onlyDigits(value: string): string {
@@ -144,10 +215,15 @@ export function isValidDocument(value: string): boolean {
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Rótulos dos campos obrigatórios que faltam para enviar a Operações Legais. */
-export function listMissingOnboardingFields(payload: ClientOnboardingPayload): string[] {
+function isValidPartyDocument(party: { tipo?: string; documento: string }): boolean {
+  const digits = onlyDigits(party.documento);
+  return digits.length === (partyTipo(party) === "CPF" ? 11 : 14);
+}
+
+/** Rótulos dos campos obrigatórios que faltam para enviar o cadastro a Operações Legais. */
+export function listMissingCadastroFields(payload: ClientOnboardingPayload): string[] {
   const missing: string[] = [];
-  const { cadastro, financeiro } = payload;
+  const { cadastro } = payload;
 
   if (!cadastro.razaoSocial) missing.push("Razão social do cliente");
   if (!isValidDocument(cadastro.documento)) missing.push("CPF/CNPJ do cliente");
@@ -160,9 +236,22 @@ export function listMissingOnboardingFields(payload: ClientOnboardingPayload): s
   for (const [i, socio] of cadastro.socios.entries()) {
     if (!socio.nome) missing.push(`Nome do sócio ${i + 1}`);
   }
+  // Busca de novas demandas: empresas e, como no processo do RD, também pessoas (CPF).
+  for (const [i, empresa] of cadastro.empresasConsulta.entries()) {
+    if (empresa.documento && !isValidPartyDocument(empresa)) {
+      missing.push(`${partyTipo(empresa)} da busca de novas demandas ${i + 1} (inválido)`);
+    }
+  }
+  return missing;
+}
 
-  if (!financeiro.faturamento.razaoSocial) missing.push("Razão social para faturamento");
-  if (!isValidDocument(financeiro.faturamento.documento)) missing.push("CPF/CNPJ para faturamento");
+/** Rótulos dos campos obrigatórios que faltam para enviar os dados do faturamento ao Financeiro. */
+export function listMissingFaturamentoFields(payload: ClientOnboardingPayload): string[] {
+  const missing: string[] = [];
+  const { financeiro } = payload;
+
+  if (!financeiro.faturamento.razaoSocial) missing.push("Razão social ou nome para faturamento");
+  if (!isValidPartyDocument(financeiro.faturamento)) missing.push(`${partyTipo(financeiro.faturamento)} para faturamento`);
   if (!ISO_DATE.test(financeiro.inicioVigencia)) missing.push("Início da vigência");
   if (!financeiro.primeiroFaturamentoCondicionado && !ISO_DATE.test(financeiro.primeiroFaturamento)) {
     missing.push("Primeiro faturamento");
@@ -185,4 +274,9 @@ export function listMissingOnboardingFields(payload: ClientOnboardingPayload): s
   }
 
   return missing;
+}
+
+/** Cadastro e faturamento completos (lead que chega em Inclusão no Faturamento). */
+export function listMissingOnboardingFields(payload: ClientOnboardingPayload): string[] {
+  return [...listMissingCadastroFields(payload), ...listMissingFaturamentoFields(payload)];
 }

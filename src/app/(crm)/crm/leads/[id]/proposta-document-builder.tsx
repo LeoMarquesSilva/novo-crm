@@ -40,6 +40,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeInputBr } from "@/components/ui/time-input-br";
+import { maskForFieldCode, maskPhoneBr } from "@/lib/crm/br-document-mask";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { DateInputBr } from "@/components/ui/date-input-br";
@@ -1895,16 +1897,28 @@ function PropFieldInput({
     );
   }
 
+  if (pe.kind === "time") {
+    return (
+      <div className={cn("space-y-1.5", wrapperClass)}>
+        <Label className="text-xs font-medium text-foreground">{label}</Label>
+        <TimeInputBr value={value} onChange={onChange} disabled={disabled} step={300} className="border-border bg-white text-sm" />
+      </div>
+    );
+  }
+
   // Default: input texto / email / url / phone / number — todos como texto controlado
-  const inputType = pe.kind === "email" ? "email" : pe.kind === "url" ? "url" : "text";
+  const inputType = pe.kind === "email" ? "email" : pe.kind === "url" ? "url" : pe.kind === "phone" ? "tel" : "text";
+  // Telefone e documento/CEP gravado como texto (cp_cliente_cep, cnpj_cpf…) com máscara.
+  const mask = pe.kind === "phone" ? maskPhoneBr : pe.kind === "text" ? maskForFieldCode(field.fieldCode) : null;
 
   return (
     <div className={cn("space-y-1.5", wrapperClass)}>
       <Label className="text-xs font-medium text-foreground">{label}</Label>
       <Input
         type={inputType}
+        inputMode={mask ? (pe.kind === "phone" ? "tel" : "numeric") : undefined}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(mask ? mask(e.target.value) : e.target.value)}
         disabled={disabled}
         placeholder={`${label}…`}
         className="rounded-(--radius-v2-md) border-border bg-white text-sm"

@@ -20,6 +20,20 @@ describe("proposta-tributacao", () => {
     expect(isTributosIncluidos(TRIBUTACAO_LIQUIDO)).toBe(false);
   });
 
+  it("modelo sem a frase dos tributos ganha frase própria quando a tributação foi escolhida", () => {
+    const base = "propõe-se o pagamento mensal de R$ 15.000,00 (quinze mil reais).";
+    expect(applyTributacaoPhrase(base, TRIBUTACAO_LIQUIDO)).toBe(
+      `${base}\n\nOs valores acima não incluem os tributos incidentes.`,
+    );
+    expect(applyTributacaoPhrase(base, TRIBUTACAO_ENGLOBANDO)).toBe(
+      `${base}\n\nOs valores acima já incluem os tributos incidentes.`,
+    );
+    expect(applyTributacaoPhrase(base, "")).toBe(base);
+    expect(applyTributacaoPhrase("honorários de êxito de 3% sobre o deságio.", TRIBUTACAO_LIQUIDO)).toBe(
+      "honorários de êxito de 3% sobre o deságio.",
+    );
+  });
+
   it("troca a frase no texto de investimento", () => {
     const base = "propõe-se o pagamento mensal de R$ 1.000,00, já incluídos os tributos incidentes.";
     expect(applyTributacaoPhrase(base, TRIBUTACAO_LIQUIDO)).toContain(

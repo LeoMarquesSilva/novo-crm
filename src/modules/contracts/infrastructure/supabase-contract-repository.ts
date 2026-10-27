@@ -128,7 +128,14 @@ export class SupabaseContractRepository implements ContractConfigurationReposito
       p_version_id: input.versionId,
     });
     if (error) rpcError(error);
-    return { updatedAt: data };
+    // O RPC devolve `p_now`, mas o trigger `set_contract_updated_at` grava o now() do banco:
+    // devolver o carimbo gravado, senão o próximo salvar/ativar na mesma tela dá conflito de versão.
+    const { data: saved } = await supabase
+      .from("contrato_versoes")
+      .select("updated_at")
+      .eq("id", input.versionId)
+      .maybeSingle();
+    return { updatedAt: (saved?.updated_at as string | undefined) ?? data };
   }
 
   async activateVersionAtomic(input: ActivateContractVersionInput): Promise<ActivateContractVersionResult> {

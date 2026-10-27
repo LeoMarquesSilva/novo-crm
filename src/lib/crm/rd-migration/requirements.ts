@@ -23,7 +23,7 @@ import {
   leadDigitalPlatforms,
   leadTypes,
 } from "@/modules/crm/application/services/new-lead-payload";
-import { listMissingOnboardingFields } from "@/modules/crm/domain/client-onboarding";
+import { listMissingCadastroFields, listMissingOnboardingFields } from "@/modules/crm/domain/client-onboarding";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
 import { CRM_STAGE_ORDER, isPostSaleMigrationStage, stageBetween, stageIndex } from "./scope";
@@ -341,9 +341,18 @@ export function computeRdMigrationRequirements(input: {
   }
 
   if (needs.onboarding === "required") {
-    const missingOnboarding = listMissingOnboardingFields(values.onboarding);
+    // Em Cadastro de Novo Cliente o faturamento ainda não foi pedido (vem depois da conclusão).
+    const withBilling = stage === "inclusao_faturamento";
+    const missingOnboarding = withBilling
+      ? listMissingOnboardingFields(values.onboarding)
+      : listMissingCadastroFields(values.onboarding);
     if (missingOnboarding.length === 0) {
-      items.push({ key: "onboarding", section: "pos_venda", label: "Cadastro do cliente e faturamento", missing: false });
+      items.push({
+        key: "onboarding",
+        section: "pos_venda",
+        label: withBilling ? "Cadastro do cliente e faturamento" : "Cadastro do cliente",
+        missing: false,
+      });
     }
     for (const label of missingOnboarding) {
       items.push({ key: `onboarding.${normalizeLabelKey(label)}`, section: "pos_venda", label, missing: true });

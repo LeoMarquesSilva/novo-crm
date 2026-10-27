@@ -17,10 +17,14 @@ import {
   listBlockingCustomFields,
   mapDbFieldToDefinition,
   mergeFieldValuesFromDb,
+  stageUsesTransitionFields,
   valueJsonToFormValue,
   type PipelineCode,
 } from "@/lib/crm/compute-transition-requirements";
 import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
+import { isDueReviewApprovedForCycle } from "@/lib/crm/due-area-task-status";
+import { countDuePptDocuments } from "@/lib/crm/due-area-tasks";
+import { saoPauloDateYmd } from "@/lib/format-datetime";
 import {
   loadRdMigrationLeadState,
   rdMigrationBlocksAdvance,
@@ -142,7 +146,7 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       supabase
         .from("oportunidades")
-        .select("id, etapa, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle, criado_por, solicitante_email")
+        .select("id, etapa, link_proposta, link_contrato, havera_due_diligence, due_revision_cycle, criado_por, solicitante_email, d4sign_document_uuid")
         .eq("id", opportunityId)
         .maybeSingle(),
       supabase
@@ -158,9 +162,7 @@ export async function GET(request: NextRequest) {
             .eq("oportunidade_id", opportunityId)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-      // Pós-venda usa o cadastro do cliente e a inclusão no faturamento (telas próprias),
-      // não campos configuráveis no modal de transição.
-      pipeline === "pos_venda"
+      !stageUsesTransitionFields(pipeline as PipelineCode, nextStage)
         ? Promise.resolve({ data: [], error: null })
         : supabase
             .from("field_definitions")
@@ -184,7 +186,7 @@ export async function GET(request: NextRequest) {
       loadReviewTasks
         ? supabase
             .from("due_area_review_tasks")
-            .select("status, revision_cycle")
+            .select("area_key, status, revision_cycle")
             .eq("oportunidade_id", opportunityId)
         : Promise.resolve({ data: null, error: null }),
     ]);
@@ -329,16 +331,17 @@ export async function GET(request: NextRequest) {
         if (cycle < 1) {
           leadIntakeBlockingReason =
             "A negociação precisa ter passado por Revisão antes de finalizar a DUE.";
-        } else {
-          const cycleRows = (reviewTasksResult.data ?? []).filter(
-            (task) => (Number(task.revision_cycle) || 0) === cycle,
-          );
-          const allApproved =
-            cycleRows.length > 0 && cycleRows.every((task) => task.status === "ok");
-          if (!allApproved) {
-            leadIntakeBlockingReason =
-              "Todas as áreas devem aprovar a revisão da DUE antes de mover para Due Diligence Finalizada.";
-          }
+        } else if (!isDueReviewApprovedForCycle(reviewTasksResult.data ?? [], cycle)) {
+          leadIntakeBlockingReason =
+            "Todas as áreas devem aprovar a revisão da DUE antes de mover para Due Diligence Finalizada.";
+        }
+      }
+
+      // Mesma regra da transição: sem o PPT da compilação o modal não pode dizer que está tudo certo.
+      if (nextStage === "revisao" && row.havera_due_diligence && leadIntakeBlockingReason == null) {
+        if ((await countDuePptDocuments(supabase, opportunityId)) < 1) {
+          leadIntakeBlockingReason =
+            "Antes de mover para Revisão, envie pelo menos um arquivo PPT da compilação (Due Diligence).";
         }
       }
     }
@@ -394,10 +397,18 @@ export async function GET(request: NextRequest) {
     }
 
     let fieldValues = mergeFieldValuesFromDb(defs, valueRows ?? []);
-    if (pipeline === "vendas" && nextStage === "reuniao" && leadIntake) {
-      const localFromLeadIntake = String(leadIntake.local_reuniao ?? "").trim();
-      const dataFromLeadIntake = String(leadIntake.data_reuniao ?? "").trim();
-      const horarioFromLeadIntake = String(leadIntake.horario_reuniao ?? "").trim();
+    // A reunião já informada no cadastro do lead preenche os campos da etapa (Reunião e, com DUE,
+    // Due Diligence Finalizada, que pedia de novo data, horário e local).
+    const meetingSource =
+      nextStage === "reuniao"
+        ? leadIntake
+        : nextStage === "due_diligence_finalizada"
+          ? (intakeRow as { local_reuniao?: unknown; data_reuniao?: unknown; horario_reuniao?: unknown } | null)
+          : null;
+    if (pipeline === "vendas" && meetingSource) {
+      const localFromLeadIntake = String(meetingSource.local_reuniao ?? "").trim();
+      const dataFromLeadIntake = String(meetingSource.data_reuniao ?? "").trim();
+      const horarioFromLeadIntake = String(meetingSource.horario_reuniao ?? "").trim().replace(/^(\d{2}:\d{2}):\d{2}$/, "$1");
       const nextValues = { ...fieldValues };
       for (const def of defs) {
         if (!isEmptyFormValue(nextValues[def.field_code])) continue;
@@ -426,6 +437,19 @@ export async function GET(request: NextRequest) {
         }
       }
       fieldValues = nextValues;
+    }
+    if (pipeline === "vendas" && nextStage === "contrato_assinado" && isEmptyFormValue(fieldValues.data_assinatura_ca)) {
+      // Override do admin: a data em que a D4Sign finalizou o documento atual já vem preenchida.
+      const documentUuid = (row as { d4sign_document_uuid?: string | null }).d4sign_document_uuid;
+      if (documentUuid) {
+        const { data: d4 } = await supabase
+          .from("d4sign_documents")
+          .select("finalized_at")
+          .eq("uuid_doc", documentUuid)
+          .maybeSingle();
+        const finalizedAt = (d4?.finalized_at as string | null | undefined) ?? null;
+        if (finalizedAt) fieldValues = { ...fieldValues, data_assinatura_ca: saoPauloDateYmd(new Date(finalizedAt)) };
+      }
     }
     if (pipeline === "vendas" && nextStage === "confeccao_proposta") {
       fieldValues = applyConfeccaoPropostaDefaults(fieldValues, {

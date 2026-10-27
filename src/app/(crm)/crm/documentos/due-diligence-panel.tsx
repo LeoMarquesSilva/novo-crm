@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { matchesDueDiligenceTextQuery } from "@/lib/crm/due-diligence-filters";
 import type { DueDiligenceTimeline } from "@/lib/crm/due-diligence-timeline";
 import type { DuePunctuality } from "@/lib/crm/due-diligence-deadline";
-import { formatDateTimeBr } from "@/lib/format-datetime";
+import { formatDateTimeMinutesBr } from "@/lib/format-datetime";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -187,7 +187,7 @@ function timelineProgressHint(lead: DueDiligenceLeadRow, phase: DuePhaseKey): st
     return `${done} de ${n} área${n !== 1 ? "s" : ""} aprovada${n !== 1 ? "s" : ""}`;
   }
   return lead.dueFinalizadaEmIso
-    ? `Concluída em ${formatDateTimeBr(lead.dueFinalizadaEmIso)}`
+    ? `Concluída em ${formatDateTimeMinutesBr(lead.dueFinalizadaEmIso)}`
     : "Marcada como finalizada";
 }
 
@@ -295,8 +295,8 @@ function DuePhaseProgressTrack({
               {hintIso ? (
                 <p className="mt-1 hidden truncate text-[9px] text-muted-foreground sm:block">
                   {state === "done" && fase?.fimIso
-                    ? `até ${formatDateTimeBr(fase.fimIso)}`
-                    : `desde ${formatDateTimeBr(hintIso)}`}
+                    ? `até ${formatDateTimeMinutesBr(fase.fimIso)}`
+                    : `desde ${formatDateTimeMinutesBr(hintIso)}`}
                 </p>
               ) : state === "pending" ? (
                 <p className="mt-1 hidden text-[9px] text-muted-foreground/70 sm:block">Aguardando</p>
@@ -417,7 +417,7 @@ function DueDocumentRow({
         <p className="truncate text-sm font-medium text-foreground">{doc.originalFilename}</p>
         <p className="text-[11px] text-muted-foreground">
           {kindLabel(doc.documentKind)} · {formatBytes(doc.byteSize)} ·{" "}
-          {formatDateTimeBr(doc.uploadedAt)}
+          {formatDateTimeMinutesBr(doc.uploadedAt)}
         </p>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
@@ -662,7 +662,7 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
               </dt>
               <dd className="mt-1 flex items-center gap-1.5 text-sm font-bold text-foreground">
                 <Timer className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                {formatDateTimeBr(lead.duePedidoEmIso ?? undefined)}
+                {formatDateTimeMinutesBr(lead.duePedidoEmIso ?? undefined)}
               </dd>
             </div>
           </dl>
@@ -781,7 +781,7 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
                   </InfoCell>
                   <InfoCell label="Due pedida / início">
                     <span className="font-semibold text-foreground">
-                      {formatDateTimeBr(lead.duePedidoEmIso ?? undefined)}
+                      {formatDateTimeMinutesBr(lead.duePedidoEmIso ?? undefined)}
                     </span>
                   </InfoCell>
                   <InfoCell label="Prazo combinado">
@@ -791,7 +791,7 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
                   </InfoCell>
                   <InfoCell label="Due finalizada">
                     <span className="font-semibold text-foreground">
-                      {lead.dueFinalizadaEmIso ? formatDateTimeBr(lead.dueFinalizadaEmIso) : "—"}
+                      {lead.dueFinalizadaEmIso ? formatDateTimeMinutesBr(lead.dueFinalizadaEmIso) : "—"}
                     </span>
                   </InfoCell>
                   <InfoCell label="Fase atual">
@@ -1087,14 +1087,14 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
         <p className="text-xs text-muted-foreground">
           {sorted.length === leads.length ? (
             <>
-              Exibindo <strong className="text-foreground">{sorted.length}</strong> negociação
-              {leads.length !== 1 ? "ões" : ""}
+              Exibindo <strong className="text-foreground">{sorted.length}</strong>{" "}
+              {sorted.length === 1 ? "negociação" : "negociações"}
               {leads.length > 0 ? " — prioridade para atrasos e prazos mais próximos" : ""}
             </>
           ) : (
             <>
               <strong className="text-foreground">{sorted.length}</strong> de {leads.length}{" "}
-              negociação{leads.length !== 1 ? "ões" : ""} com os filtros atuais
+              {leads.length === 1 ? "negociação" : "negociações"} com os filtros atuais
             </>
           )}
         </p>

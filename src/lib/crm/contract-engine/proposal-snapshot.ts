@@ -2,8 +2,10 @@ import type { LeadIntakeEmpresaRow } from "@/app/(crm)/crm/leads/[id]/lead-intak
 import { getSubtipoDef, type PropostaTiposCatalog } from "@/data/proposta-tipos-catalog";
 import { getPrimarySumKeyForSubtipo } from "@/lib/crm/proposta-investimento-consolidado";
 import {
+  enderecoContratantePreenchido,
   isContratanteDoCadastro,
   parseContratantesIndexes,
+  parseEnderecosContratantes,
   type EscolhaEmpresasProposta,
 } from "@/lib/crm/proposta-contratantes";
 import { parseEscopoJsonWithMeta } from "@/lib/crm/proposta-escopo-json";
@@ -227,12 +229,14 @@ export function resolveContractingParties(params: {
 
   for (const empresa of params.empresasIntake) {
     const doc = empresa.documento.replace(/\D/g, "");
+    // Outra contratante com endereço próprio (teste 3: a PEC fica em outro endereço que a LE BLOG).
+    const proprio = payload.enderecos?.[String(empresa.index)];
     parties.push({
       id: `intake-${empresa.index}`,
       razaoSocial: empresa.razao_social,
       documento: empresa.documento,
       documentoTipo: empresa.tipo_documento,
-      endereco: params.address,
+      endereco: enderecoContratantePreenchido(proprio) ? proprio : params.address,
       role: isContratanteDoCadastro(empresa, payload, params.empresasIntake) ? "contratante" : "relacionada",
       source: "intake",
     });
@@ -275,7 +279,13 @@ function parseEmpresasPayload(raw: string): EscolhaEmpresasProposta {
       }
     }
     const contratantes = parseContratantesIndexes(o.contratantes);
-    return contratantes ? { primaryIndex, extras, contratantes } : { primaryIndex, extras };
+    const enderecos = parseEnderecosContratantes(o.enderecos);
+    return {
+      primaryIndex,
+      extras,
+      ...(contratantes ? { contratantes } : {}),
+      ...(enderecos ? { enderecos } : {}),
+    };
   } catch {
     return { primaryIndex: 0, extras: [] };
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCrmActor } from "@/components/crm/crm-session-context";
@@ -1060,6 +1060,18 @@ function ContratoBuilderDialog({
   }
 
   async function persistAllFields() {
+    // Pedido de revisão: prazo novo ou alterado, ou prazo já gravado sem tarefa de revisão
+    // (um Salvar anterior gravou o prazo e falhou depois). Valida antes de gravar qualquer campo,
+    // senão o prazo fica salvo, a revisão não é pedida e o próximo Salvar não vê mudança.
+    const prazoRevisao = draftValues.cc_prazo_revisao?.trim() ?? "";
+    const savedPrazoRevisao = savedValues.cc_prazo_revisao?.trim() ?? "";
+    const missingReviewTask = !contratoState.reviewTask && lead.etapa === "confeccao_contrato";
+    const requestReview = Boolean(prazoRevisao) && (prazoRevisao !== savedPrazoRevisao || missingReviewTask);
+    if (requestReview && !objectComplete) {
+      throw new Error(
+        "Não é possível enviar o contrato para revisão. Complete o Objeto do Contrato e os escopos sem perfil.",
+      );
+    }
     // Só os campos que mudaram desde a última gravação: antes ia um PATCH por campo a cada
     // Salvar (~18), lento e com um "Campo atualizado" no histórico até para campo vazio.
     const changedFields = contratoState.ccFieldDefs.filter(
@@ -1079,7 +1091,7 @@ function ContratoBuilderDialog({
         });
         if (res.ok) return null;
         const json = (await res.json().catch(() => ({}))) as { error?: string };
-        return `${f.label}: ${json.error ?? "não foi salvo"}`;
+        return `${userFacingFieldLabel(f.label, f.fieldCode)}: ${json.error ?? "não foi salvo"}`;
       }),
     );
     const failed = failures.filter((message): message is string => Boolean(message));
@@ -1126,15 +1138,8 @@ function ContratoBuilderDialog({
       throw new Error(json.error ?? "Falha ao salvar o rascunho do contrato.");
     }
 
-    // Se prazo de revisão foi definido ou alterado, notificar Societário e Contratos
-    const prazoRevisao = draftValues.cc_prazo_revisao?.trim() ?? "";
-    const savedPrazoRevisao = savedValues.cc_prazo_revisao?.trim() ?? "";
-    if (prazoRevisao && prazoRevisao !== savedPrazoRevisao) {
-      if (!objectComplete) {
-        throw new Error(
-          "Não é possível enviar o contrato para revisão. Complete o Objeto do Contrato e os escopos sem perfil.",
-        );
-      }
+    // Prazo de revisão definido/alterado (ou sem tarefa): notificar Societário e Contratos
+    if (requestReview) {
       const reviewRes = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/contrato/review-task`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2240,7 +2245,8 @@ function ReviewTaskCard({
               <p className={cn("text-sm font-bold", atrasado ? "text-rose-600" : "text-foreground")}>
                 {prazoStr}
                 {diasRestantes !== null && reviewTask.status !== "concluido" && (
-                  <span className={cn("ml-2 text-xs font-normal", atrasado ? "text-rose-500" : "text-muted-foreground")}>
+                  <span className={cn("ml-1 text-xs font-normal", atrasado ? "text-rose-500" : "text-muted-foreground")}>
+                    {" · "}
                     {atrasado ? `${Math.abs(diasRestantes)}d atrasado` : diasRestantes === 0 ? "hoje" : `${diasRestantes}d restantes`}
                   </span>
                 )}
@@ -3668,6 +3674,15 @@ function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePre
         <div className="flex flex-col items-center text-center">
           <div className="mb-1 w-full" style={{ borderTop: "1px solid #333" }} />
           <p className="font-bold">{contratanteNoun}</p>
+          {(page.contratantesAssinatura ?? []).map((c) => (
+            <Fragment key={`${c.documento}-${c.nome}`}>
+              <p className="mt-6 w-full" style={{ borderTop: "1px solid #333" }} />
+              <p className="mt-1 text-[9pt] text-slate-500">
+                {c.nome}
+                {c.documento ? ` · ${c.documentoTipo} ${c.documento}` : ""}
+              </p>
+            </Fragment>
+          ))}
         </div>
         <div className="flex flex-col items-center text-center">
           <div className="mb-1 w-full" style={{ borderTop: "1px solid #333" }} />

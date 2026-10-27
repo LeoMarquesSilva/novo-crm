@@ -15,6 +15,7 @@ export function TagSelectable({
   children,
   hint,
   className,
+  ariaLabel,
 }: {
   checked: boolean;
   onToggle: () => void;
@@ -23,12 +24,15 @@ export function TagSelectable({
   /** Texto auxiliar dentro do botão (não bloqueia o clique). */
   hint?: ReactNode;
   className?: string;
+  /** Nome para leitores de tela; sem ele, usa o texto quando `children` é uma string. */
+  ariaLabel?: string;
 }) {
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={checked}
+      aria-label={ariaLabel ?? (typeof children === "string" ? children : undefined)}
       onPointerDown={stopDialogRowCapture}
       onClick={(event) => {
         stopDialogRowCapture(event);

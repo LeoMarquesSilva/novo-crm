@@ -3,6 +3,7 @@ import { parseDueDateText } from "@/lib/crm/due-date-text";
 import {
   emptyClientOnboardingPayload,
   onlyDigits,
+  partyTipo,
   type ClientOnboardingPayload,
 } from "@/modules/crm/domain/client-onboarding";
 
@@ -15,11 +16,14 @@ export type OnboardingPrefillSources = {
   proposalAddress: ContractingPartyAddress | null;
   startRule: ContractStartRule | null;
   payment: Pick<ContractPayment, "firstDueDate"> | null;
+  /** "Data do primeiro vencimento" pedida na proposta (`cp_primeiro_vencimento`, AAAA-MM-DD). */
+  proposalFirstDueDate?: string | null;
   /** Quando a venda foi fechada (assinatura), AAAA-MM-DD. */
   signedOn: string | null;
   /** Áreas da proposta com o valor de cada uma (para o rateio). */
   areaAmounts: { area: string; amount: number | null }[];
-  focal: { name: string | null; email: string | null };
+  /** Ponto focal pedido na passagem para a proposta (`cp_nome_focal`, `cp_email_focal`, `cp_tel_focal`). */
+  focal: { name: string | null; email: string | null; phone: string | null };
   cliente: {
     razaoSocial: string | null;
     documento: string | null;
@@ -87,18 +91,31 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
     origin["cadastro.endereco"] = address.source;
   }
 
+  // Sem e-mail/telefone na carteira, vale o ponto focal da proposta (o responsável confirma).
+  const focalEmail = sources.focal.email?.trim() ?? "";
+  const focalPhone = sources.focal.phone?.trim() ?? "";
   if (sources.cliente?.email) {
     payload.cadastro.email = sources.cliente.email;
     origin["cadastro.email"] = "carteira";
+  } else if (focalEmail) {
+    payload.cadastro.email = focalEmail;
+    origin["cadastro.email"] = "ponto_focal";
   }
   if (sources.cliente?.telefone) {
     payload.cadastro.telefone = sources.cliente.telefone;
     origin["cadastro.telefone"] = "carteira";
+  } else if (focalPhone) {
+    payload.cadastro.telefone = focalPhone;
+    origin["cadastro.telefone"] = "ponto_focal";
   }
 
   const consulta = parties
     .filter((p) => p.razaoSocial.trim() || onlyDigits(p.documento))
-    .map((p) => ({ razaoSocial: p.razaoSocial.trim(), documento: p.documento.trim() }));
+    .map((p) => ({
+      tipo: partyTipo({ documento: p.documento }),
+      razaoSocial: p.razaoSocial.trim(),
+      documento: p.documento.trim(),
+    }));
   if (consulta.length > 0) {
     payload.cadastro.empresasConsulta = consulta;
     origin["cadastro.empresasConsulta"] = partiesSource;
@@ -106,6 +123,7 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
 
   if (payload.cadastro.razaoSocial) {
     payload.financeiro.faturamento = {
+      tipo: partyTipo({ documento: payload.cadastro.documento }),
       razaoSocial: payload.cadastro.razaoSocial,
       documento: payload.cadastro.documento,
     };
@@ -123,9 +141,13 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
   // O vencimento da proposta é texto livre ("na data de assinatura do Contrato"): só vira
   // data quando dá para ler uma; senão o responsável informa.
   const firstDue = parseDueDateText(sources.payment?.firstDueDate, { signedOn: sources.signedOn });
+  const proposalFirstDue = sources.proposalFirstDueDate?.trim() ?? "";
   if (firstDue) {
     payload.financeiro.primeiroFaturamento = firstDue.date;
     origin["financeiro.primeiroFaturamento"] = firstDue.basis === "assinatura" ? "assinatura" : "contrato";
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(proposalFirstDue)) {
+    payload.financeiro.primeiroFaturamento = proposalFirstDue;
+    origin["financeiro.primeiroFaturamento"] = "proposta";
   }
 
   if (sources.contatoFinanceiro) {
@@ -136,12 +158,12 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
       telefone: sources.contatoFinanceiro.telefone ?? "",
     };
     origin["financeiro.contatoFinanceiro"] = "carteira";
-  } else if (sources.focal.name || sources.focal.email) {
+  } else if (sources.focal.name || focalEmail) {
     payload.financeiro.contatoFinanceiro = {
       nome: sources.focal.name?.trim() ?? "",
       posicao: "",
-      email: sources.focal.email?.trim() ?? "",
-      telefone: "",
+      email: focalEmail,
+      telefone: focalPhone,
     };
     // Ponto focal comercial: o responsável confirma se também é o contato financeiro.
     origin["financeiro.contatoFinanceiro"] = "ponto_focal";
@@ -164,7 +186,45 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
   return payload;
 }
 
-/** Junta o rascunho salvo com o pré-preenchimento: o que o usuário já digitou prevalece. */
+/**
+ * Faturamento do rascunho com os vazios completados pelo que o lead já tem: o cadastro é
+ * salvo antes (Aguardando Cadastro) e os dados do faturamento só são pedidos depois, então o
+ * responsável revê o que já foi informado em vez de digitar de novo.
+ */
+function fillEmptyFinanceiro(
+  saved: ClientOnboardingPayload,
+  prefill: ClientOnboardingPayload,
+): ClientOnboardingPayload {
+  const out = structuredClone(saved);
+  const f = out.financeiro;
+  const p = prefill.financeiro;
+  const sources = { ...out.sources };
+  const take = (key: string, apply: () => void) => {
+    apply();
+    if (prefill.sources[key]) sources[key] = prefill.sources[key];
+  };
+  if (!f.faturamento.razaoSocial && !f.faturamento.documento && (p.faturamento.razaoSocial || p.faturamento.documento)) {
+    take("financeiro.faturamento", () => void (f.faturamento = { ...p.faturamento }));
+  }
+  if (!f.inicioVigencia && p.inicioVigencia) take("financeiro.inicioVigencia", () => void (f.inicioVigencia = p.inicioVigencia));
+  if (!f.primeiroFaturamento && !f.primeiroFaturamentoCondicionado && p.primeiroFaturamento) {
+    take("financeiro.primeiroFaturamento", () => void (f.primeiroFaturamento = p.primeiroFaturamento));
+  }
+  const contato = f.contatoFinanceiro;
+  if (!contato.nome && !contato.email && !contato.telefone && (p.contatoFinanceiro.nome || p.contatoFinanceiro.email)) {
+    take("financeiro.contatoFinanceiro", () => void (f.contatoFinanceiro = { ...p.contatoFinanceiro }));
+  }
+  if (f.rateioPorArea.length === 0 && p.rateioPorArea.length > 0) {
+    take("financeiro.rateioPorArea", () => void (f.rateioPorArea = p.rateioPorArea.map((r) => ({ ...r }))));
+  }
+  out.sources = sources;
+  return out;
+}
+
+/**
+ * Junta o rascunho salvo com o pré-preenchimento: o que o usuário já digitou prevalece; no
+ * faturamento, o que ficou vazio recebe o que o lead já tem.
+ */
 export function mergeOnboardingDraft(
   saved: ClientOnboardingPayload | null,
   prefill: ClientOnboardingPayload,
@@ -175,5 +235,5 @@ export function mergeOnboardingDraft(
     !saved.cadastro.documento &&
     !saved.financeiro.inicioVigencia &&
     !saved.financeiro.contatoFinanceiro.email;
-  return isEmptyDraft ? prefill : saved;
+  return isEmptyDraft ? prefill : fillEmptyFinanceiro(saved, prefill);
 }

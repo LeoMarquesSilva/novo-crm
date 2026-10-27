@@ -235,7 +235,13 @@ export function resumoProcesso(area: DueAreaId, p: Processo): string {
       .join(" ");
   }
   const classe = p.classe ? tituloNome(p.classe) : "Processo";
-  const frases = [`${classe} movido por ${a} contra ${b}${inst ? `, ${inst}` : ""}.`];
+  const semPartes = !primeiraParte(p.poloAtivo) && !primeiraParte(p.poloPassivo);
+  const frases = [
+    semPartes
+      ? `${classe}${inst ? `, ${inst}` : ""}; a planilha não informa as partes.`
+      : `${classe} movido por ${a} contra ${b}${inst ? `, ${inst}` : ""}.`,
+  ];
+  if (p.poloCliente === "TERCEIRO") frases.push("O cliente figura como terceiro interessado, fora dos polos da ação.");
   if (p.fase) frases.push(`Processo em fase de ${minusc(p.fase)}${p.ultimoMovimento ? `; o último ato registrado é ${minusc(p.ultimoMovimento)}` : ""}.`);
   else if (p.ultimoMovimento) frases.push(`O último ato registrado é ${minusc(p.ultimoMovimento)}.`);
   if (area === "rec_cred") {
@@ -256,7 +262,7 @@ function detalheTokens(area: DueAreaId, p: Processo, resumo: string): Record<str
     DET_STATUS: statusProcesso(p),
     DET_VARA: varaComarca(p),
     DET_TRIBUNAL: tribunalInstancia(p),
-    DET_AJUIZAMENTO: dataBr(p.dataDistribuicao) || "—",
+    DET_AJUIZAMENTO: dataBr(p.dataDistribuicao) || (p.anoDistribuicao ? String(p.anoDistribuicao) : "—"),
     DET_RESUMO: resumo,
   };
   if (area === "trabalhista") {
@@ -305,7 +311,7 @@ function detalheTokens(area: DueAreaId, p: Processo, resumo: string): Record<str
       DET_BLOCO_1: [
         `**Tipo da dívida:** ${p.classe ? minusc(p.classe) : "não informado"}`,
         `**Assuntos:** ${p.assuntos ? minusc(p.assuntos) : "não informados"}`,
-        `**Data da distribuição:** ${dataBr(p.dataDistribuicao) || "não informada na base"}`,
+        `**Data da distribuição:** ${dataBr(p.dataDistribuicao) || (p.anoDistribuicao ? String(p.anoDistribuicao) : "não informada na base")}`,
       ].join("\n"),
       DET_L_BLOCO_2: "PEDIDOS",
       DET_BLOCO_2: [
@@ -721,7 +727,11 @@ export function composeDeck(input: ComposeInput): ComposeResult {
     const ad = draft.areas[id];
     if (!ad?.incluir) return false;
     if (id === "reestruturacao") return true;
-    return dadosPorArea.has(id);
+    if (!dadosPorArea.has(id)) {
+      avisos.push(`${DUE_AREAS[id].titulo}: sem planilha anexada — a área fica fora da apresentação.`);
+      return false;
+    }
+    return true;
   });
   const resumos = incluidas.map((id) =>
     analisarArea(dadosPorArea.get(id) ?? { id, processos: [], extras: { pge: null, pgfn: null } }, draft, hoje),

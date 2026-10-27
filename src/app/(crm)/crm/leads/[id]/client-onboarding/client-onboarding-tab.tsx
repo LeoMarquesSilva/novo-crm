@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Save, Send } from "lucide-react";
+import { ChevronDown, Loader2, Save, Send } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -15,11 +15,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ClientOnboardingSubmitDialog } from "@/components/crm/client-onboarding-submit-dialog";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
-  listMissingOnboardingFields,
+  adjustableFieldMeta,
+  listMissingCadastroFields,
   type ClientOnboardingPayload,
   type ClientOnboardingStatus,
+  type OnboardingAdjustment,
+  type OnboardingParty,
   type OpsChecklist,
 } from "@/modules/crm/domain/client-onboarding";
 
@@ -35,6 +40,9 @@ type OnboardingResponse = {
   onboarding: {
     status: ClientOnboardingStatus;
     returnComment: string | null;
+    submittedAt?: string | null;
+    submittedByName?: string | null;
+    submissionCount?: number;
     returnedAt: string | null;
     concludedAt: string | null;
     grupoNome: string | null;
@@ -43,8 +51,32 @@ type OnboardingResponse = {
   } | null;
   payload: ClientOnboardingPayload;
   checklist: OpsChecklist;
-  permissions: { editDraft: boolean; submit: boolean; review: boolean; returnToOwner: boolean; conclude: boolean };
+  leadParties?: OnboardingParty[];
+  ajustes?: OnboardingAdjustment[];
+  permissions: {
+    editDraft: boolean;
+    editCadastro?: boolean;
+    editFaturamento?: boolean;
+    submit: boolean;
+    review: boolean;
+    returnToOwner: boolean;
+    conclude: boolean;
+    submitBilling?: boolean;
+  };
 };
+
+/** Rola até o campo apontado na devolução e põe o cursor nele. */
+function focusField(anchor: string | undefined) {
+  if (!anchor) return;
+  const target = document.getElementById(anchor);
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  const input = target.matches("input, textarea, button") ? target : target.querySelector<HTMLElement>("input, textarea, button");
+  input?.focus({ preventScroll: true });
+}
+
+/** Etapas em que os dados do faturamento já foram enviados ao Financeiro. */
+const BILLING_SENT_STAGES = new Set(["inclusao_faturamento", "boas_vindas", "reuniao_kickoff"]);
 
 const STATUS_LABEL: Record<ClientOnboardingStatus, string> = {
   rascunho: "Em preenchimento pelo responsável",
@@ -54,8 +86,9 @@ const STATUS_LABEL: Record<ClientOnboardingStatus, string> = {
 };
 
 /**
- * Aba "Cadastro" da ficha do lead (pós-venda): o responsável preenche e envia para
- * Operações Legais; Operações Legais confere, cadastra e conclui (ou devolve).
+ * Aba "Cadastro" da ficha do lead (pós-venda): o responsável preenche e envia o cadastro para
+ * Operações Legais, que confere e conclui (ou devolve apontando campos) em paralelo; em Cadastro
+ * de Novo Cliente o responsável envia os dados do faturamento e o lead vai para o Financeiro.
  */
 export function ClientOnboardingTab({ leadId, stage }: { leadId: string; stage?: string }) {
   const router = useRouter();
@@ -67,6 +100,8 @@ export function ClientOnboardingTab({ leadId, stage }: { leadId: string; stage?:
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [billingOpen, setBillingOpen] = useState(false);
+  const [showBilling, setShowBilling] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
   // Só a leitura mais recente vale: uma resposta atrasada (ex.: a da montagem) não pode
@@ -102,6 +137,18 @@ export function ClientOnboardingTab({ leadId, stage }: { leadId: string; stage?:
   useEffect(() => {
     if (stage && loadedStage && stage !== loadedStage && !dirty) void load();
   }, [stage, loadedStage, dirty, load]);
+
+  // Cadastro devolvido: leva o responsável direto ao primeiro campo apontado (uma vez por leitura).
+  const focusedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!data || data.stage === "aguardando_cadastro" || data.onboarding?.status !== "devolvido") return;
+    const first = data.ajustes?.[0];
+    const canFix = data.permissions.editCadastro ?? data.permissions.editDraft;
+    const key = `${data.onboarding.updatedAt}:${first?.campo ?? ""}`;
+    if (!first || !canFix || focusedFor.current === key) return;
+    focusedFor.current = key;
+    window.setTimeout(() => focusField(adjustableFieldMeta(first.campo)?.anchor), 150);
+  }, [data]);
 
   async function saveDraft(): Promise<boolean> {
     if (!payload) return false;
@@ -188,10 +235,25 @@ export function ClientOnboardingTab({ leadId, stage }: { leadId: string; stage?:
   }
 
   const { permissions, onboarding } = data;
-  const missing = listMissingOnboardingFields(payload);
-  const editable = permissions.editDraft && onboarding?.status !== "concluido";
+  const status = onboarding?.status ?? null;
   const isOwnerStage = data.stage === "aguardando_cadastro";
-  const isOpsStage = data.stage === "cadastro_novo_cliente";
+  // Depois do envio, o cadastro corre em paralelo: Operações Legais confere, o lead segue.
+  const opsReviewing =
+    !isOwnerStage && status === "enviado" && (permissions.review || permissions.returnToOwner) && !data.migrationPending;
+  const returned = !isOwnerStage && status === "devolvido";
+  const canEditCadastro = permissions.editCadastro ?? permissions.editDraft;
+  const canSendCadastro = permissions.submit && (isOwnerStage || returned);
+  const canSendBilling = Boolean(permissions.submitBilling);
+  const missingCadastro = listMissingCadastroFields(payload);
+  // Os dados do faturamento são preenchidos no modal (botão ou "Avançar"); depois do envio, ficam
+  // aqui só para consulta.
+  const billingSent = BILLING_SENT_STAGES.has(data.stage);
+  const ajustes = returned ? (data.ajustes ?? []) : [];
+  const statusLabel = !onboarding
+    ? "Pré-preenchido com os dados do lead — confira e complete."
+    : returned
+      ? "Devolvido para ajuste — corrija o que foi apontado e reenvie"
+      : STATUS_LABEL[onboarding.status];
 
   return (
     <div className="space-y-4">
@@ -209,41 +271,66 @@ export function ClientOnboardingTab({ leadId, stage }: { leadId: string; stage?:
         <div>
           <p className="text-v2-body-sm-medium text-foreground">Cadastro do cliente</p>
           <p className="text-v2-caption text-muted-foreground">
-            {onboarding ? STATUS_LABEL[onboarding.status] : "Pré-preenchido com os dados do lead — confira e complete."}
+            {statusLabel}
             {onboarding?.status === "concluido" && onboarding.grupoNome
               ? ` · Grupo ${onboarding.grupoNome}${onboarding.viosReferencia ? ` · VIOS ${onboarding.viosReferencia}` : ""}`
               : ""}
           </p>
         </div>
-        {editable && isOwnerStage ? (
+        {canEditCadastro || canSendCadastro || canSendBilling ? (
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" disabled={saving || !dirty || data.migrationPending} onClick={() => void saveDraft()}>
-              <Save className="size-4" aria-hidden />
-              Salvar rascunho
-            </Button>
-            {permissions.submit ? (
+            {canEditCadastro ? (
+              <Button type="button" variant="outline" disabled={saving || !dirty || data.migrationPending} onClick={() => void saveDraft()}>
+                <Save className="size-4" aria-hidden />
+                Salvar rascunho
+              </Button>
+            ) : null}
+            {canSendCadastro ? (
               <Button
                 type="button"
-                disabled={saving || missing.length > 0 || data.migrationPending}
+                variant={canSendBilling ? "outline" : "default"}
+                disabled={saving || missingCadastro.length > 0 || data.migrationPending}
                 onClick={() => setSubmitOpen(true)}
               >
                 <Send className="size-4" aria-hidden />
-                Enviar para Operações Legais
+                {returned ? "Reenviar para Operações Legais" : "Enviar para Operações Legais"}
+              </Button>
+            ) : null}
+            {canSendBilling ? (
+              <Button type="button" disabled={saving || data.migrationPending} onClick={() => setBillingOpen(true)}>
+                <Send className="size-4" aria-hidden />
+                Enviar para o Financeiro
               </Button>
             ) : null}
           </div>
-        ) : editable && isOpsStage ? (
-          <Button type="button" variant="outline" disabled={saving || !dirty} onClick={() => void saveDraft()}>
-            <Save className="size-4" aria-hidden />
-            Salvar correções
-          </Button>
         ) : null}
       </div>
 
-      {onboarding?.status === "devolvido" && onboarding.returnComment ? (
+      {returned && (ajustes.length > 0 || onboarding?.returnComment) ? (
         <Alert className="border-warning-border bg-warning-bg text-warning-text">
           <AlertTitle>Operações Legais devolveu para ajuste</AlertTitle>
-          <AlertDescription>{onboarding.returnComment}</AlertDescription>
+          <AlertDescription>
+            {ajustes.length > 0 ? (
+              <ul className="mt-1 space-y-1">
+                {ajustes.map((ajuste) => {
+                  const meta = adjustableFieldMeta(ajuste.campo);
+                  return (
+                    <li key={ajuste.campo}>
+                      <button
+                        type="button"
+                        className="font-medium underline underline-offset-2"
+                        onClick={() => focusField(meta?.anchor)}
+                      >
+                        {meta?.label ?? ajuste.campo}
+                      </button>
+                      {ajuste.comentario ? ` — ${ajuste.comentario}` : ""}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            {onboarding?.returnComment ? <p className="mt-1">{onboarding.returnComment}</p> : null}
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -253,14 +340,17 @@ export function ClientOnboardingTab({ leadId, stage }: { leadId: string; stage?:
         </Alert>
       ) : null}
 
-      {editable && isOwnerStage && missing.length > 0 ? (
-        <p className="text-v2-caption text-muted-foreground">Para enviar, falta: {missing.join(", ")}.</p>
+      {canSendCadastro && missingCadastro.length > 0 ? (
+        <p className="text-v2-caption text-muted-foreground">Para enviar o cadastro, falta: {missingCadastro.join(", ")}.</p>
       ) : null}
-
-      {isOpsStage && (permissions.review || permissions.returnToOwner) && !data.migrationPending ? (
+      {opsReviewing ? (
         <OpsLegaisReviewPanel
           leadId={leadId}
           initialChecklist={data.checklist}
+          cadastro={payload.cadastro}
+          submittedAt={onboarding?.submittedAt ?? null}
+          submittedByName={onboarding?.submittedByName ?? null}
+          resubmitted={Boolean(onboarding?.returnedAt)}
           canReturn={permissions.returnToOwner}
           canConclude={permissions.conclude}
           onChanged={() => {
@@ -270,22 +360,82 @@ export function ClientOnboardingTab({ leadId, stage }: { leadId: string; stage?:
         />
       ) : null}
 
-      <ClientOnboardingForm
-        payload={payload}
-        readOnly={!editable}
-        onChange={(next) => {
-          setPayload(next);
-          setDirty(true);
-        }}
-      />
+      {/* Quem confere lê e copia os dados no painel (e devolve se algo estiver errado). */}
+      {opsReviewing ? null : (
+        <ClientOnboardingForm
+          payload={payload}
+          readOnly={!canEditCadastro}
+          sections="cadastro"
+          leadParties={data.leadParties ?? []}
+          ajustes={ajustes}
+          onChange={(next) => {
+            setPayload(next);
+            setDirty(true);
+          }}
+        />
+      )}
+      {billingSent ? (
+        // Enviado ao Financeiro: só consulta, recolhido.
+        <div className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
+          <button
+            type="button"
+            onClick={() => setShowBilling((v) => !v)}
+            aria-expanded={showBilling}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-hover"
+          >
+            <span>
+              <span className="block text-v2-body-sm-medium text-foreground">Dados para o faturamento</span>
+              <span className="block text-v2-caption text-muted-foreground">
+                {[
+                  payload.financeiro.faturamento.razaoSocial,
+                  payload.financeiro.primeiroFaturamento
+                    ? `1º faturamento ${payload.financeiro.primeiroFaturamento.split("-").reverse().join("/")}`
+                    : "",
+                  payload.financeiro.contatoFinanceiro.nome ? `contato ${payload.financeiro.contatoFinanceiro.nome}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "Enviados ao Financeiro"}
+              </span>
+            </span>
+            <ChevronDown
+              className={cn("size-4 shrink-0 text-muted-foreground transition-transform", showBilling && "rotate-180")}
+              aria-hidden
+            />
+          </button>
+          {showBilling ? (
+            <div className="border-t border-neutral-200 p-3">
+              <ClientOnboardingForm payload={payload} readOnly sections="faturamento" onChange={() => undefined} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {billingOpen ? (
+        <ClientOnboardingSubmitDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setBillingOpen(false);
+          }}
+          leadId={leadId}
+          step="faturamento"
+          onSubmitted={() => {
+            setMessage({ tone: "success", text: "Dados do faturamento enviados ao Financeiro." });
+            router.refresh();
+            void load();
+          }}
+        />
+      ) : null}
 
       <AlertDialog open={submitOpen} onOpenChange={(open) => !saving && setSubmitOpen(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Enviar o cadastro para Operações Legais?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {returned ? "Reenviar o cadastro para Operações Legais?" : "Enviar o cadastro para Operações Legais?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              O lead vai para Cadastro de Novo Cliente. Operações Legais confere, cadastra no VIOS e nos sistemas legados e
-              cria o grupo do cliente.
+              {returned
+                ? "Operações Legais confere de novo o que foi ajustado. O lead continua na etapa em que está."
+                : "O lead vai para Cadastro de Novo Cliente. Operações Legais confere, cadastra no VIOS e nos sistemas legados e cria o grupo do cliente."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

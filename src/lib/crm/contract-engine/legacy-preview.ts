@@ -3,7 +3,7 @@ import { CONTRACT_CLAUSE_CATALOG } from "./clause-catalog";
 import { SECTION_ORDER } from "./clause-engine";
 import { renderContractObjectPlainText } from "./object-engine";
 import { paymentMethodDisplay } from "./payment";
-import type { CanonicalContractData } from "./types";
+import type { CanonicalContractData, ContractingPartyAddress } from "./types";
 
 /** Título das seções cujo conteúdo já está representado dentro de `objeto` (não repetir). */
 const OBJETO_SECTION_TITLE = "OBJETO DO CONTRATO";
@@ -16,6 +16,22 @@ const PAGAMENTO_SECTION_TITLE = "PREÇO E FORMA DE PAGAMENTO";
  * item já está listado dentro da seção "OBJETOS EXCLUÍDOS DO CONTRATO" (o cabeçalho
  * da seção já deixa claro que é uma exclusão; repetir em cada sub-item polui). */
 const REDUNDANT_TITLE_PREFIX_RE = /^exclus(ã|a)o\s*[—-]\s*/i;
+
+/** "Rua Tenerife, nº 44, Vila Olímpia, São Paulo/SP, CEP 04548-040" — como nos contratos do escritório. */
+export function formatPartyAddress(end: ContractingPartyAddress): string {
+  const cep = end.cep.replace(/\D/g, "");
+  const cidadeUf = [end.cidade.trim(), end.uf.trim().toUpperCase()].filter(Boolean).join("/");
+  return [
+    end.logradouro.trim(),
+    end.numero.trim() ? `nº ${end.numero.trim()}` : "",
+    end.complemento.trim(),
+    end.bairro.trim(),
+    cidadeUf,
+    cep.length === 8 ? `CEP ${cep.slice(0, 5)}-${cep.slice(5)}` : end.cep.trim(),
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
 
 function stripSubItemTitlePrefix(title: string): string {
   return title
@@ -46,12 +62,12 @@ function sectionToClausula(section: {
 
 export function previewFromCanonical(data: CanonicalContractData): ContratoDocumentPagePreview {
   const qualificacoes = data.contractingParties.map((party) => {
-    const end = party.endereco;
-    const addr = [end.logradouro, end.numero, end.bairro, end.cidade, end.uf, end.cep]
-      .filter((p) => p.trim())
-      .join(", ");
+    const addr = formatPartyAddress(party.endereco);
     return `${party.razaoSocial}, inscrita no ${party.documentoTipo} nº ${party.documento}${addr ? `, com sede em ${addr}` : ""}.`;
   });
+  const contratantesAssinatura = data.contractingParties
+    .filter((party) => party.role !== "relacionada")
+    .map((party) => ({ nome: party.razaoSocial, documento: party.documento, documentoTipo: party.documentoTipo }));
 
   const objeto = data.contractObject
     ? renderContractObjectPlainText(data.contractObject)
@@ -65,7 +81,10 @@ export function previewFromCanonical(data: CanonicalContractData): ContratoDocum
     objeto: objeto || "…",
     valores: data.payment.clauseText || "…",
     investimento: data.investment.totalExtenso,
-    dataAssinatura: data.generation.localDateLabel,
+    // A página de assinaturas já escreve "Campinas/SP, …."; aqui vai só a data
+    // (o rótulo do motor é "Campinas, 22 de outubro de 2026." e saía duplicado).
+    dataAssinatura: data.generation.localDateLabel.replace(/^[^,]+,s*/, "").replace(/.$/, ""),
+    contratantesAssinatura,
     limiteProcessos: "",
     limiteHoras: "",
     exitoAreas: "",

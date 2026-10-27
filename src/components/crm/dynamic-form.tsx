@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { isEmptyOrInvalidDateBrStoredValue } from "@/lib/crm/date-br";
+import { maskForFieldCode, maskPhoneBr } from "@/lib/crm/br-document-mask";
 import { isValidFullNameTokens } from "@/lib/crm/full-name";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import {
@@ -43,7 +44,8 @@ interface FieldProps {
 
 const CP_NOME_FOCAL_MSG = "Informe nome e sobrenome (nome completo).";
 const MEETING_TIME_SUGGESTIONS = ["09:30", "11:30", "14:30", "16:30"];
-const MEETING_LOCATION_PENDING = "Não definido ainda";
+// Mesmo valor do Novo lead ("A definir"); antes cada tela gravava um texto para "ainda sem local".
+const MEETING_LOCATION_PENDING = "A definir";
 
 function normalizeToken(value: string): string {
   return value
@@ -124,20 +126,6 @@ function CpNomeFocalInput({
       ) : null}
     </div>
   );
-}
-
-function digitsOnly(s: string): string {
-  return s.replace(/\D/g, "");
-}
-
-/** Ex.: (11) 98765-4321 ou (11) 3333-4444 (até 11 dígitos). */
-function formatBrazilPhoneDisplay(digits: string): string {
-  const d = digits.slice(0, 11);
-  if (d.length === 0) return "";
-  if (d.length <= 2) return `(${d}`;
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
 function SelectField({ field, value, onChange }: FieldProps) {
@@ -366,6 +354,17 @@ export function DynamicField({
     );
   }
 
+  // Horários gravados como texto no banco (horario_entrega_due, horario_dd…): mesmo campo com máscara hh:mm.
+  if (field.field_type === "text" && /^horario(_|$)/.test(fieldCodeNorm)) {
+    return (
+      <TimeInputBr
+        value={typeof value === "string" ? value : ""}
+        onChange={(hm) => onChange(field.field_code, hm)}
+        step={300}
+      />
+    );
+  }
+
   if (field.field_code === "cp_nome_focal") {
     return (
       <CpNomeFocalInput
@@ -430,8 +429,7 @@ export function DynamicField({
           autoComplete="tel"
           value={typeof value === "string" ? value : ""}
           onChange={(e) => {
-            const formatted = formatBrazilPhoneDisplay(digitsOnly(e.target.value));
-            onChange(field.field_code, formatted);
+            onChange(field.field_code, maskPhoneBr(e.target.value));
           }}
           placeholder="(11) 99999-9999"
         />
@@ -453,14 +451,18 @@ export function DynamicField({
           rows={3}
         />
       );
-    default:
+    default: {
+      // Documento ou CEP gravado como texto (cnpj_cpf_financeiro, cp_cliente_cep…): máscara pelo código.
+      const mask = maskForFieldCode(field.field_code);
       return (
         <Input
           type="text"
+          inputMode={mask ? "numeric" : undefined}
           value={typeof value === "string" ? value : ""}
-          onChange={(e) => onChange(field.field_code, e.target.value)}
+          onChange={(e) => onChange(field.field_code, mask ? mask(e.target.value) : e.target.value)}
         />
       );
+    }
   }
 }
 

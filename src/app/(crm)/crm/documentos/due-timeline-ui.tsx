@@ -22,7 +22,7 @@ import type {
   DueFaseResumo,
 } from "@/lib/crm/due-diligence-timeline";
 import { formatarDuracaoBr } from "@/lib/crm/due-diligence-timeline";
-import { formatDateTimeBr } from "@/lib/format-datetime";
+import { formatDateTimeMinutesBr } from "@/lib/format-datetime";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -101,7 +101,7 @@ function AreaRow({ area }: { area: DueAreaTempo }) {
               aria-hidden
             />
             <span className="font-medium">
-              {area.inicioIso ? formatDateTimeBr(area.inicioIso) : "—"}
+              {area.inicioIso ? formatDateTimeMinutesBr(area.inicioIso) : "—"}
             </span>
             {area.fimIso && (
               <>
@@ -110,7 +110,7 @@ function AreaRow({ area }: { area: DueAreaTempo }) {
                   aria-hidden
                 />
                 <span className="font-medium">
-                  {formatDateTimeBr(area.fimIso)}
+                  {formatDateTimeMinutesBr(area.fimIso)}
                 </span>
               </>
             )}
@@ -263,7 +263,7 @@ function PhaseStep({
               aria-hidden
             />
             <span className="font-medium text-muted-foreground">
-              {fase.inicioIso ? formatDateTimeBr(fase.inicioIso) : "—"}
+              {fase.inicioIso ? formatDateTimeMinutesBr(fase.inicioIso) : "—"}
             </span>
             {(fase.fimIso || state === "active") && (
               <>
@@ -278,7 +278,7 @@ function PhaseStep({
                   )}
                 >
                   {fase.fimIso
-                    ? formatDateTimeBr(fase.fimIso)
+                    ? formatDateTimeMinutesBr(fase.fimIso)
                     : "em andamento"}
                 </span>
               </>

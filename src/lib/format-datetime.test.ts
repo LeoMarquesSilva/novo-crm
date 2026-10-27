@@ -3,12 +3,30 @@ import {
   daysBetweenYmd,
   formatDateYmdBr,
   formatMaybeDateLikeBr,
+  maskHmDigitsInput,
   normalizeTimeToHm,
+  parseHmDigits,
   parseBrDateDigitsToYmd,
   parseDateOnlyInput,
   saoPauloDateYmd,
   saoPauloMidnightIso,
 } from "./format-datetime";
+
+describe("horário digitado (teste ponta a ponta 4)", () => {
+  it("máscara hh:mm enquanto digita", () => {
+    expect(maskHmDigitsInput("14")).toBe("14");
+    expect(maskHmDigitsInput("143")).toBe("14:3");
+    expect(maskHmDigitsInput("14305")).toBe("14:30");
+  });
+
+  it("só aceita 00:00 a 23:59; 930 vira 09:30", () => {
+    expect(parseHmDigits("1430")).toBe("14:30");
+    expect(parseHmDigits("930")).toBe("09:30");
+    expect(parseHmDigits("2575")).toBeNull();
+    expect(parseHmDigits("2400")).toBeNull();
+    expect(parseHmDigits("14")).toBeNull();
+  });
+});
 
 describe("formatDateYmdBr", () => {
   it("converts yyyy-mm-dd to dd/mm/yyyy", () => {

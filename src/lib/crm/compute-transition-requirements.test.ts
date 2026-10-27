@@ -11,7 +11,17 @@ import {
   filterReuniaoDuplicateMeetingFields,
   linkFieldsMissing,
   listBlockingCustomFields,
+  stageUsesTransitionFields,
 } from "./compute-transition-requirements";
+
+describe("stageUsesTransitionFields", () => {
+  it("pede campos em vendas e só na Reunião Kick-off do pós-venda", () => {
+    expect(stageUsesTransitionFields("vendas", "reuniao")).toBe(true);
+    expect(stageUsesTransitionFields("pos_venda", "reuniao_kickoff")).toBe(true);
+    expect(stageUsesTransitionFields("pos_venda", "cadastro_novo_cliente")).toBe(false);
+    expect(stageUsesTransitionFields("pos_venda", "inclusao_faturamento")).toBe(false);
+  });
+});
 
 function def(overrides: Partial<FieldDefinition> & Pick<FieldDefinition, "field_code">): FieldDefinition {
   return {

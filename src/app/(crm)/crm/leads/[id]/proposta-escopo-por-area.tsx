@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { formatDateTimeBr } from "@/lib/format-datetime";
+import { formatDateTimeMinutesBr } from "@/lib/format-datetime";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
 import {
   PROPOSTA_INVESTIMENTO_TIPOS_CATALOG,
@@ -147,6 +147,8 @@ export function PropostaEscopoPorArea({
   const [areaPanelOpen, setAreaPanelOpen] = useState<Record<string, boolean>>({});
   /** Área em que o PATCH está em andamento (spinner no botão "Salvar esta área"). */
   const [savingAreaKey, setSavingAreaKey] = useState<string | null>(null);
+  /** Área salva nesta tela: o cabeçalho do modal mostra "Você" e a hora até a solicitação voltar do servidor. */
+  const [salvoAgoraEm, setSalvoAgoraEm] = useState<Record<string, string>>({});
   const [notifyingAreaKey, setNotifyingAreaKey] = useState<string | null>(null);
   const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(
     () => initialScopeCatalog ?? PROPOSTA_TIPOS_CATALOG,
@@ -368,6 +370,7 @@ export function PropostaEscopoPorArea({
       try {
         if (shouldPersist) {
           await persist(normalizedEscopo, shouldRestrictToArea ? { restrictToArea: areaKey } : undefined);
+          setSalvoAgoraEm((current) => ({ ...current, [areaKey]: new Date().toISOString() }));
         } else {
           collapseCompleteEditableAreas(normalizedEscopo);
         }
@@ -585,6 +588,7 @@ export function PropostaEscopoPorArea({
               )}
               onSaveThisArea={() => void saveArea(area)}
               onSaveAndNotify={() => void saveArea(area, { notifyAfter: true })}
+              savedNowAt={salvoAgoraEm[area] ?? null}
             />
           );
         })}
@@ -899,6 +903,7 @@ function EscopoAreaBlock({
   canNotifyOthersAfterSave,
   onSaveThisArea,
   onSaveAndNotify,
+  savedNowAt = null,
 }: {
   area: string;
   catalogArea: PropostaAreaKey;
@@ -919,6 +924,7 @@ function EscopoAreaBlock({
   canNotifyOthersAfterSave: boolean;
   onSaveThisArea: () => void;
   onSaveAndNotify: () => void;
+  savedNowAt?: string | null;
 }) {
   const areaLabel = normalizePracticeAreaKey(area);
   const tipos = scopeCatalog[catalogArea] ?? [];
@@ -995,6 +1001,7 @@ function EscopoAreaBlock({
             request={request}
             statusLabel={complete ? "Preenchido" : areaDirty ? "Alterações não salvas" : "Em preenchimento"}
             direcionamentoHint={!complete ? direcionamentoHint : null}
+            savedNowAt={complete && !areaDirty ? savedNowAt : null}
           />
           <div className="crm-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5">
             <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
@@ -1196,11 +1203,11 @@ function AreaSummaryCard({
             </div>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               {request?.concluidoEm
-                ? `Concluído em ${formatDateTimeBr(request.concluidoEm)}.`
+                ? `Concluído em ${formatDateTimeMinutesBr(request.concluidoEm)}.`
                 : request?.prazoAte
-                  ? `Prazo até ${formatDateTimeBr(request.prazoAte)}.`
+                  ? `Prazo até ${formatDateTimeMinutesBr(request.prazoAte)}.`
                   : request?.notificadoEm
-                    ? `Solicitado em ${formatDateTimeBr(request.notificadoEm)}.`
+                    ? `Solicitado em ${formatDateTimeMinutesBr(request.notificadoEm)}.`
                     : "Ainda sem prazo registrado. Solicite o escopo para acionar o gestor."}
             </p>
           </div>
@@ -1219,13 +1226,17 @@ function EscopoModalHeader({
   request,
   statusLabel,
   direcionamentoHint,
+  savedNowAt = null,
 }: {
   areaLabel: string;
   request: EscopoAreaSolicitacao | null;
   statusLabel: string;
   direcionamentoHint?: string | null;
+  /** Salvo agora nesta tela, antes da solicitação ser relida do servidor. */
+  savedNowAt?: string | null;
 }) {
   const completedBy = request?.preenchidoPor ?? (request?.concluidoEm ? request?.gestor : null);
+  const concluidoEm = request?.concluidoEm ?? savedNowAt;
 
   return (
     <DialogHeader className="relative shrink-0 border-b border-border bg-white px-4 py-4 pr-14 text-foreground sm:px-5 sm:pr-16">
@@ -1265,7 +1276,7 @@ function EscopoModalHeader({
         <div className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-2 border-t border-slate-200 pt-3 sm:grid-cols-3 lg:min-w-[440px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
           <HeaderMeta
             label="Prazo"
-            value={request?.prazoAte ? formatDateTimeBr(request.prazoAte) : "Não definido"}
+            value={request?.prazoAte ? formatDateTimeMinutesBr(request.prazoAte) : "Não definido"}
           />
           <HeaderMeta
             label="Preenchido por"
@@ -1279,6 +1290,8 @@ function EscopoModalHeader({
                 />
               ) : request?.concluidoEm ? (
                 "Usuário não registrado"
+              ) : savedNowAt ? (
+                "Você"
               ) : (
                 "Ainda não"
               )
@@ -1286,7 +1299,7 @@ function EscopoModalHeader({
           />
           <HeaderMeta
             label="Preenchido"
-            value={request?.concluidoEm ? formatDateTimeBr(request.concluidoEm) : "Ainda não"}
+            value={concluidoEm ? formatDateTimeMinutesBr(concluidoEm) : "Ainda não"}
           />
         </div>
       </div>

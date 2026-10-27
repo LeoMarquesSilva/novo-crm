@@ -22,6 +22,7 @@ import {
   leadAreas,
   leadTypes,
 } from "@/modules/crm/application/services/new-lead-payload";
+import { maskForFieldCode, maskPhoneBr } from "@/lib/crm/br-document-mask";
 import { LEAD_TYPE_SELECT_LABELS, leadTypeLabel } from "@/lib/crm/lead-type-label";
 
 export type LeadFieldEditorKind =
@@ -95,19 +96,6 @@ type LeadFormOptionsPayload = {
   registeredIndicators?: string[];
 };
 
-function digitsOnly(s: string): string {
-  return s.replace(/\D/g, "");
-}
-
-function formatBrazilPhoneDisplay(digits: string): string {
-  const d = digits.slice(0, 11);
-  if (d.length === 0) return "";
-  if (d.length <= 2) return `(${d}`;
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-}
-
 function parseMultiselectStored(value: string): string[] {
   return value
     .split(/[,;\n]+/)
@@ -149,8 +137,13 @@ function multiselectOptionsForKind(
 export function pipelineFieldToEditorProps(field: {
   fieldType: string;
   fieldOptions: string[] | null;
+  fieldCode?: string;
 }): { kind: LeadFieldEditorKind; selectOptions?: string[] } {
   const opts = field.fieldOptions;
+  // Horários gravados como texto no banco (horario_entrega_due, horario_dd…): mesmo campo com máscara hh:mm.
+  if (field.fieldType === "text" && field.fieldCode && /^horario(_|$)/.test(field.fieldCode)) {
+    return { kind: "time" };
+  }
   switch (field.fieldType) {
     case "select":
       if (!opts?.length) return { kind: "text" };
@@ -574,7 +567,10 @@ export function LeadDetailFieldEditor({
             <Input
               type={kind === "email" ? "email" : "text"}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                const mask = kind === "text" ? maskForFieldCode(fieldKey) : null;
+                setDraft(mask ? mask(e.target.value) : e.target.value);
+              }}
               disabled={saving}
               className="bg-white"
             />
@@ -777,8 +773,7 @@ export function LeadDetailFieldEditor({
               autoComplete="tel"
               value={draft}
               onChange={(e) => {
-                const formatted = formatBrazilPhoneDisplay(digitsOnly(e.target.value));
-                setDraft(formatted);
+                setDraft(maskPhoneBr(e.target.value));
               }}
               disabled={saving}
               placeholder="(11) 99999-9999"

@@ -66,6 +66,8 @@ export type ContratoDocumentPagePreview = {
   objetosExcluidos: ClausulaAdicional | null;
   /** Cláusulas adicionais escolhidas/editadas no builder (podem ser 0). */
   clausulasAdicionais: ClausulaAdicional[];
+  /** Quem assina pelo cliente na página de assinaturas (nome e documento de cada contratante). */
+  contratantesAssinatura?: Array<{ nome: string; documento: string; documentoTipo: string }>;
 };
 
 /**

@@ -50,6 +50,7 @@ import {
   slugifyFieldCodeFromLabel,
 } from "@/lib/crm/field-code";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
+import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 
 const STAGE_LABELS: Record<string, string> = {
   cadastro_lead: "Cadastro do Lead",
@@ -134,8 +135,9 @@ function FieldRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
-            {field.label}
+          {/* Mostra o rótulo como o usuário vê; o texto gravado (com as siglas do RD) fica no título e na edição. */}
+          <span className="truncate text-sm font-medium text-foreground" title={field.label}>
+            {userFacingFieldLabel(field.label, field.field_code)}
           </span>
           {field.is_required && (
             <span className="text-xs text-danger-text" title="Obrigatório">
@@ -197,7 +199,7 @@ function FieldRow({
             <AlertDialogHeader>
               <AlertDialogTitle>Excluir campo?</AlertDialogTitle>
               <AlertDialogDescription>
-                O campo <strong className="text-foreground">{field.label}</strong> (
+                O campo <strong className="text-foreground">{userFacingFieldLabel(field.label, field.field_code)}</strong> (
                 <code className="text-xs">{field.field_code}</code>) será removido deste funil.
                 Esta ação não pode ser desfeita.
               </AlertDialogDescription>
@@ -366,7 +368,7 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
 
   const availableFields = allFields.map((f) => ({
     code: f.field_code,
-    label: f.label,
+    label: userFacingFieldLabel(f.label, f.field_code),
   }));
 
   return (

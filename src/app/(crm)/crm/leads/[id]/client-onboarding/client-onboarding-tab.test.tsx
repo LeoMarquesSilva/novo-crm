@@ -10,6 +10,8 @@ vi.mock("./ops-legais-review-panel", () => ({ OpsLegaisReviewPanel: () => <div>p
 vi.mock("@/modules/crm/domain/client-onboarding", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/modules/crm/domain/client-onboarding")>()),
   listMissingOnboardingFields: () => [],
+  listMissingCadastroFields: () => [],
+  listMissingFaturamentoFields: () => [],
 }));
 
 import { ClientOnboardingTab } from "./client-onboarding-tab";

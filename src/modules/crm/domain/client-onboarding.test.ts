@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   emptyClientOnboardingPayload,
+  listMissingCadastroFields,
   listMissingChecklistItems,
+  listMissingFaturamentoFields,
   listMissingOnboardingFields,
   parseClientOnboardingPayload,
   parseOpsChecklist,
@@ -21,7 +23,7 @@ function complete() {
     cidade: "Campinas",
     uf: "SP",
   };
-  p.financeiro.faturamento = { razaoSocial: "ACME S.A.", documento: "12345678000190" };
+  p.financeiro.faturamento = { tipo: "", razaoSocial: "ACME S.A.", documento: "12345678000190" };
   p.financeiro.inicioVigencia = "2026-10-15";
   p.financeiro.primeiroFaturamento = "2026-11-10";
   p.financeiro.contatoFinanceiro = { nome: "Ana", posicao: "CFO", email: "ana@acme.com", telefone: "" };
@@ -48,6 +50,30 @@ describe("client onboarding", () => {
     expect(listMissingOnboardingFields(p)).toEqual(["Condição do primeiro faturamento"]);
   });
 
+  it("busca de novas demandas aceita empresa ou pessoa e aponta documento inválido", () => {
+    const p = complete();
+    p.cadastro.empresasConsulta = [
+      { tipo: "CNPJ", razaoSocial: "ACME S.A.", documento: "12.345.678/0001-90" },
+      { tipo: "CPF", razaoSocial: "Sócio", documento: "123.456.789-09" },
+      { tipo: "", razaoSocial: "Sem documento", documento: "" },
+    ];
+    expect(listMissingOnboardingFields(p)).toEqual([]);
+    p.cadastro.empresasConsulta[1]!.documento = "123.456";
+    expect(listMissingOnboardingFields(p)).toEqual(["CPF da busca de novas demandas 2 (inválido)"]);
+    // Pessoa marcada como empresa: o CNPJ precisa de 14 dígitos.
+    p.cadastro.empresasConsulta[1] = { tipo: "CNPJ", razaoSocial: "Sócio", documento: "123.456.789-09" };
+    expect(listMissingOnboardingFields(p)).toEqual(["CNPJ da busca de novas demandas 2 (inválido)"]);
+  });
+
+  it("cadastro e faturamento são conferidos em passos separados", () => {
+    const p = complete();
+    p.financeiro = emptyClientOnboardingPayload().financeiro;
+    expect(listMissingCadastroFields(p)).toEqual([]);
+    expect(listMissingFaturamentoFields(p)).toContain("Início da vigência");
+    p.financeiro.faturamento = { tipo: "CPF", razaoSocial: "Ana", documento: "12345678000190" };
+    expect(listMissingFaturamentoFields(p)).toContain("CPF para faturamento");
+  });
+
   it("rateio precisa somar 100%", () => {
     const p = complete();
     p.financeiro.rateioPorArea = [
@@ -64,12 +90,8 @@ describe("client onboarding", () => {
     expect(parseClientOnboardingPayload(null).financeiro.rateioPorArea).toEqual([]);
   });
 
-  it("checklist de Operações Legais", () => {
+  it("checklist de Operações Legais (o código do VIOS vem da pessoa do grupo, não é digitado)", () => {
     const checklist = parseOpsChecklist({ dadosConferidos: true, viosCadastrado: true });
-    expect(listMissingChecklistItems(checklist)).toEqual([
-      "Código do cliente no VIOS",
-      "Sistemas legados atualizados",
-      "Nome do grupo econômico",
-    ]);
+    expect(listMissingChecklistItems(checklist)).toEqual(["Grupo econômico", "Sistemas legados atualizados"]);
   });
 });

@@ -312,19 +312,16 @@ describe("evaluateLeadAction", () => {
       expect(crmAccessPolicy.canPerformLeadAction(actor("comercial"), submit)).toBe(true);
     });
 
-    it("concluir cadastro: time Operações Legais e admin", () => {
-      const conclude = advance("cadastro_novo_cliente", "inclusao_faturamento", "onboarding_conclude");
-      expect(crmAccessPolicy.canPerformLeadAction(actor("comercial"), conclude)).toBe(false);
+    it("Inclusão no Faturamento: o responsável envia o faturamento; Operações Legais não move o lead (27/10/2026)", () => {
+      const billing = advance("cadastro_novo_cliente", "inclusao_faturamento", "onboarding_billing");
+      expect(crmAccessPolicy.canPerformLeadAction(actor("comercial"), billing)).toBe(true);
+      expect(crmAccessPolicy.canPerformLeadAction(actor("admin"), billing)).toBe(true);
       expect(
-        crmAccessPolicy.canPerformLeadAction(actor("controladoria", { modules: ["operacoes_legais"] }), conclude),
-      ).toBe(true);
-      expect(crmAccessPolicy.canPerformLeadAction(actor("admin"), conclude)).toBe(true);
+        crmAccessPolicy.canPerformLeadAction(actor("controladoria", { modules: ["operacoes_legais"] }), billing),
+      ).toBe(false);
       expect(
-        crmAccessPolicy.evaluateLeadAction(
-          actor("controladoria", { modules: ["operacoes_legais"] }),
-          advance("cadastro_novo_cliente", "inclusao_faturamento"),
-        ),
-      ).toMatchObject({ allowed: false, code: "use_dedicated_action", actionKind: "open_ops_panel" });
+        crmAccessPolicy.evaluateLeadAction(actor("comercial"), advance("cadastro_novo_cliente", "inclusao_faturamento")),
+      ).toMatchObject({ allowed: false, code: "use_dedicated_action", actionKind: "open_billing" });
     });
 
     it("boas-vindas só pela ativação do contrato (financeiro, controladoria, admin)", () => {

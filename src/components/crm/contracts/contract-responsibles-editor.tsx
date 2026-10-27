@@ -114,20 +114,32 @@ export function ContractResponsiblesEditor({ value, users, disabled, onChange }:
                 key={`${entry.id}-${index}`}
                 className="flex flex-col gap-3 rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm sm:flex-row sm:items-center"
               >
-                <div className="min-w-0 flex-1">
-                  {user ? (
-                    <CrmUserLabel
-                      name={user.name}
-                      avatarUrl={user.avatarUrl}
-                      size="md"
-                      variant="inline"
-                      sublabel={RESPONSIBLE_ROLE_LABELS[entry.role] ?? entry.role}
-                    />
-                  ) : (
-                    <p className="text-sm text-rose-700">Usuário não encontrado</p>
-                  )}
-                </div>
+                {/* Em leitura mostra só o nome e o papel; em edição os seletores já dizem quem e qual papel
+                    (antes o nome saía duas vezes: "Leonardo Marques Leonardo Marques Comercial").
+                    O papel fica na mesma linha: a variante inline do CrmUserLabel ignora `sublabel`. */}
+                {disabled || !user ? (
+                  <div className="min-w-0 flex-1">
+                    {user ? (
+                      <span className="flex min-w-0 items-center gap-1.5 text-sm">
+                        <CrmUserLabel
+                          name={user.name}
+                          avatarUrl={user.avatarUrl}
+                          size="md"
+                          variant="inline"
+                        />
+                        {entry.role ? (
+                          <span className="shrink-0 text-slate-500">
+                            · {RESPONSIBLE_ROLE_LABELS[entry.role] ?? entry.role}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      <p className="text-sm text-rose-700">Usuário não encontrado</p>
+                    )}
+                  </div>
+                ) : null}
 
+                {disabled ? null : (
                 <div className="grid flex-1 gap-2 sm:grid-cols-2">
                   <Select
                     items={personLabels}
@@ -192,6 +204,7 @@ export function ContractResponsiblesEditor({ value, users, disabled, onChange }:
                     </CrmSelectContent>
                   </Select>
                 </div>
+                )}
 
                 {disabled ? null : (
                   <Button

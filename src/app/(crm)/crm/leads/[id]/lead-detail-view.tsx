@@ -47,7 +47,7 @@ import {
   isCadastroLeadOnlyStage,
   isPosVendaPipelineStage,
 } from "@/lib/crm/pipeline-board-config";
-import { formatDateTimeBr } from "@/lib/format-datetime";
+import { formatDateTimeBr, formatDateTimeMinutesBr } from "@/lib/format-datetime";
 import { getDueAreaTaskStatus, type DueAreaTaskStatus } from "@/lib/crm/due-area-task-status";
 import { isDueAreaTaskDelivered } from "@/lib/crm/due-area-task-status";
 import { resolveRdFieldEditor } from "@/lib/crm/lead-rd-field-editor-map";
@@ -725,6 +725,19 @@ function DueCompilacaoSection({
   const adjustmentTasks = lead.dueAreaReviewTasks.filter((task) => task.status === "ajustes_solicitados");
   const pendingAdjustmentTasks = adjustmentTasks.filter((task) => !task.adjustmentCompletedAt);
   const completedAdjustmentCount = adjustmentTasks.length - pendingAdjustmentTasks.length;
+  // Mesma regra da rota: PPT anexado depois do pedido de ajuste mais antigo das áreas marcadas já vale como evidência
+  // (ex.: a apresentação gerada de novo pelo CRM); antes a tela exigia reenviar o arquivo.
+  const selectedRequestedAt = adjustmentTasks
+    .filter((task) => selectedAdjustmentTaskIds.includes(task.id))
+    .map((task) => Date.parse(task.adjustmentsRequestedAt ?? task.respondedAt ?? ""))
+    .filter((value) => Number.isFinite(value));
+  const minRequestedAt = selectedRequestedAt.length > 0 ? Math.min(...selectedRequestedAt) : null;
+  const attachedPptAfterRequest =
+    minRequestedAt == null
+      ? null
+      : (pptDocs
+          .filter((doc) => Date.parse(doc.uploadedAt) >= minRequestedAt)
+          .sort((a, b) => Date.parse(b.uploadedAt) - Date.parse(a.uploadedAt))[0] ?? null);
 
   if (!lead.haveraDueDiligence || lead.etapa !== "compilacao") return null;
 
@@ -801,7 +814,7 @@ function DueCompilacaoSection({
       setAdjustmentModalError("Selecione ao menos uma área para concluir os ajustes.");
       return;
     }
-    if (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile) {
+    if (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile && !attachedPptAfterRequest) {
       setAdjustmentModalError("Selecione um arquivo PPT novo para concluir.");
       return;
     }
@@ -1078,7 +1091,9 @@ function DueCompilacaoSection({
                     }}
                   />
                   <p className="text-xs text-slate-500">
-                    Envie um .ppt ou .pptx atualizado após a solicitação de ajustes.
+                    {attachedPptAfterRequest
+                      ? `Já vale o PPT anexado depois do pedido: ${attachedPptAfterRequest.originalFilename} (${formatDateTimeBr(attachedPptAfterRequest.uploadedAt)}). Envie outro só para substituí-lo.`
+                      : "Envie um .ppt ou .pptx atualizado após a solicitação de ajustes."}
                   </p>
                 </div>
               ) : (
@@ -1128,7 +1143,7 @@ function DueCompilacaoSection({
               disabled={
                 concludingAdjustments ||
                 selectedAdjustmentTaskIds.length < 1 ||
-                (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile) ||
+                (adjustmentEvidenceKind === "file" && !adjustmentEvidenceFile && !attachedPptAfterRequest) ||
                 (adjustmentEvidenceKind === "link" && !adjustmentEvidenceLink.trim())
               }
               onClick={() => void concludeSelectedAdjustments()}
@@ -1266,7 +1281,7 @@ function DueRevisaoSection({
                       </p>
                       <p>
                         <span className="font-bold text-slate-600">Prazo: </span>
-                        {task.prazoAte ? formatDateTimeBr(task.prazoAte) : "—"}
+                        {task.prazoAte ? formatDateTimeMinutesBr(task.prazoAte) : "—"}
                       </p>
                       <p>
                         <span className="font-bold text-slate-600">Tempo para revisar: </span>
@@ -1416,6 +1431,17 @@ function DueAreaTasksCard({
   }
 
   /** A área anexa a planilha do levantamento; ela alimenta a apresentação automática. */
+  /** Planilhas da área já gravadas (sobrevive a recarregar a página) mais as anexadas agora. */
+  function planilhasDaTarefa(task: LeadDetailData["dueAreaTasks"][number]): string[] {
+    const area = dueAreaFromCrmKey(task.areaKey);
+    const doServidor = area
+      ? lead.dueDocuments
+          .filter((doc) => doc.documentKind === "planilha_area" && doc.areaKey === area)
+          .map((doc) => doc.originalFilename)
+      : [];
+    return [...new Set([...doServidor, ...(planilhasAnexadas[task.id] ?? [])])];
+  }
+
   async function anexarPlanilha(task: LeadDetailData["dueAreaTasks"][number], file: File) {
     const area = dueAreaFromCrmKey(task.areaKey);
     if (!area) return;
@@ -1529,7 +1555,7 @@ function DueAreaTasksCard({
                           </p>
                           <p>
                             <span className="font-bold text-slate-600">Prazo: </span>
-                            {task.prazoAte ? formatDateTimeBr(task.prazoAte) : "Sem prazo"}
+                            {task.prazoAte ? formatDateTimeMinutesBr(task.prazoAte) : "Sem prazo"}
                           </p>
                           {task.iniciadoEm ? (
                             <p>
@@ -1614,10 +1640,10 @@ function DueAreaTasksCard({
                             </label>
                           ) : null}
                         </div>
-                        {planilhasAnexadas[task.id]?.length ? (
+                        {planilhasDaTarefa(task).length ? (
                           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                             <span className="font-semibold text-emerald-700">
-                              Planilha anexada: {planilhasAnexadas[task.id]!.join(", ")}
+                              Planilha anexada: {planilhasDaTarefa(task).join(", ")}
                             </span>
                             {task.status !== "disponibilizado" && canUpdate ? (
                               <Button

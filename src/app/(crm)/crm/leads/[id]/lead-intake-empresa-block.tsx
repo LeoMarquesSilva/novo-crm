@@ -19,6 +19,7 @@ import { Select, SelectTrigger } from "@/components/ui/select";
 
 const DOC_TYPE_LABELS = { CPF: "CPF", CNPJ: "CNPJ" } as const;
 import { maskDocument } from "@/lib/crm/br-document-mask";
+import { isValidCnpj, isValidCpf } from "@/lib/crm/rd-migration/documents";
 import type { LeadIntakeEmpresaRow } from "./lead-intake-types";
 
 type Props = {
@@ -73,6 +74,10 @@ export function LeadIntakeEmpresaBlock({ leadId, initial, canDelete }: Props) {
     }
     if (!d) {
       setError("Documento é obrigatório.");
+      return;
+    }
+    if (tipo === "CPF" ? !isValidCpf(d) : !isValidCnpj(d)) {
+      setError(`${tipo} inválido: o dígito verificador não confere. Confira os números.`);
       return;
     }
     setSaving(true);

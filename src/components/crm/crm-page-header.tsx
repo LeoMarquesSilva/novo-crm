@@ -69,16 +69,20 @@ function CrmPageHeaderStat({
         href && "transition-colors hover:border-interactive-300",
       )}
     >
-      <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      {/* Nada de reticências: em tela estreita o rótulo e o valor quebram linha ("R$ 403.97…" escondia o número). */}
+      <p className="break-words text-[10px] font-semibold uppercase leading-tight tracking-wider text-muted-foreground">
+        {label}
+      </p>
       <p
         className={cn(
-          "mt-1 truncate text-xl font-bold tabular-nums tracking-tight sm:text-2xl",
+          "mt-1 break-words font-bold tabular-nums leading-tight tracking-tight",
+          String(value).length > 10 ? "text-lg sm:text-xl" : "text-xl sm:text-2xl",
           toneValueClass[tone],
         )}
       >
         {value}
       </p>
-      {detail ? <p className="mt-0.5 truncate text-xs leading-snug text-muted-foreground">{detail}</p> : null}
+      {detail ? <p className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">{detail}</p> : null}
       {extra}
     </div>
   );

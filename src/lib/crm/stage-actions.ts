@@ -8,6 +8,7 @@ export function stageActionHref(kind: StageActionKind, opportunityId: string): s
       return `${base}?tab=contract&send=1`;
     case "open_onboarding":
     case "open_ops_panel":
+    case "open_billing":
       return `${base}?tab=onboarding`;
     case "open_contract_setup":
       return `${base}?tab=billing`;
@@ -18,5 +19,6 @@ export const STAGE_ACTION_LABELS: Record<StageActionKind, string> = {
   open_send_dialog: "Enviar para assinatura",
   open_onboarding: "Abrir cadastro do cliente",
   open_ops_panel: "Abrir painel de Operações Legais",
+  open_billing: "Abrir dados do faturamento",
   open_contract_setup: "Abrir inclusão no faturamento",
 };

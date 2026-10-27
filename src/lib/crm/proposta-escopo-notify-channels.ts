@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appUserAreaCandidatesForScopeKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import type { InAppNotificationActor } from "@/lib/crm/in-app-notification-meta";
+import { IntegrationError } from "@/lib/http/api-errors";
 import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+import { applyWhatsappRedirect } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
+import { buildEscopoPedidoValues, type EscopoPedidoArea } from "@/lib/crm/whatsapp/due-messages";
+import { claimWhatsappSend, markWhatsappSendFailed, withOneWhatsappRetry } from "@/lib/crm/whatsapp/send-log";
+import { buildWhatsappMessage } from "@/lib/crm/whatsapp/template-store";
 
 type SolicitacaoRow = {
   id: string;
@@ -9,6 +14,7 @@ type SolicitacaoRow = {
   area_key: string;
   gestor_app_user_id: string | null;
   notificado_em: string | null;
+  prazo_ate: string | null;
 };
 
 function getPublicAppUrl(): string {
@@ -42,16 +48,24 @@ async function sendEvolutionGroupText(text: string): Promise<boolean> {
   const groupJid = process.env.EVOLUTION_GROUP_JID;
   if (!base || !apiKey || !instance || !groupJid) return false;
   const url = `${base}/message/sendText/${encodeURIComponent(instance)}`;
-  const res = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { apikey: apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ number: groupJid, text }),
+  const message = applyWhatsappRedirect(groupJid, text);
+  // 5xx da Evolution ou queda de rede: uma nova tentativa imediata.
+  return withOneWhatsappRetry(async () => {
+    const res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { apikey: apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ number: message.destination, text: message.text }),
+    });
+    if (res.status >= 500) {
+      throw new IntegrationError("evolution", "Evolution API indisponível.", `HTTP ${res.status}`, res.status);
+    }
+    return res.ok;
   });
-  return res.ok;
 }
 
 /**
- * Para cada solicitação ainda não notificada: in-app + e-mail (Resend) + WhatsApp (Evolution), com auditoria.
+ * Para cada solicitação ainda não notificada: in-app + e-mail (Resend) por gestor, com auditoria. No WhatsApp
+ * (Evolution) sai UMA mensagem com todas as áreas do pedido, no fim.
  */
 export async function dispatchPropostaEscopoChannelNotifications(
   supabase: SupabaseClient,
@@ -71,7 +85,7 @@ export async function dispatchPropostaEscopoChannelNotifications(
 
   let pendingQuery = supabase
     .from("proposta_escopo_solicitacao")
-    .select("id, oportunidade_id, area_key, gestor_app_user_id, notificado_em")
+    .select("id, oportunidade_id, area_key, gestor_app_user_id, notificado_em, prazo_ate")
     .eq("oportunidade_id", oportunidadeId)
     .is("notificado_em", null);
   if (options?.areaKeys?.length) {
@@ -82,8 +96,11 @@ export async function dispatchPropostaEscopoChannelNotifications(
 
   const appUrl = getPublicAppUrl();
   const leadPath = `/crm/leads/${oportunidadeId}`;
+  const waAreas: EscopoPedidoArea[] = [];
+  const waRowIds: string[] = [];
 
   for (const row of pending as SolicitacaoRow[]) {
+    waRowIds.push(row.id);
     const explicitTargets = options?.targetsByArea?.[row.area_key]
       ?? options?.targetsByArea?.[normalizePracticeAreaKey(row.area_key)]
       ?? [];
@@ -94,6 +111,7 @@ export async function dispatchPropostaEscopoChannelNotifications(
         : [];
     const targetIds = [...new Set(rawTargetIds.map((id) => id.trim()).filter(Boolean))];
     if (targetIds.length === 0) {
+      waAreas.push({ area: row.area_key, gestores: [] });
       const err = "Sem gestor com app_users.area igual a esta área.";
       const now = new Date().toISOString();
       await supabase
@@ -109,6 +127,10 @@ export async function dispatchPropostaEscopoChannelNotifications(
       .in("id", targetIds)
       .in("area", appUserAreaCandidatesForScopeKey(row.area_key));
     const validGestores = gestores ?? [];
+    waAreas.push({
+      area: row.area_key,
+      gestores: gErr ? [] : validGestores.map((g) => String(g.full_name ?? "").trim()).filter(Boolean),
+    });
     if (gErr || validGestores.length === 0) {
       const now = new Date().toISOString();
       await supabase
@@ -136,7 +158,6 @@ export async function dispatchPropostaEscopoChannelNotifications(
     };
 
     let emailOk = false;
-    let waOk = false;
     let errMsg: string | null = null;
 
     for (const gestor of validGestores) {
@@ -169,24 +190,53 @@ export async function dispatchPropostaEscopoChannelNotifications(
       }
     }
 
-    try {
-      waOk = await sendEvolutionGroupText(
-        `${bodyText} ${link.startsWith("http") ? link : ""}`.trim(),
-      );
-    } catch (e) {
-      errMsg = (errMsg ? errMsg + "; " : "") + (e instanceof Error ? e.message : "WhatsApp erro");
-    }
-
     const now = new Date().toISOString();
     await supabase
       .from("proposta_escopo_solicitacao")
       .update({
         notificado_em: now,
         email_enviado_em: emailOk ? now : null,
-        whatsapp_enviado_em: waOk ? now : null,
         ultimo_erro_canais: errMsg,
         updated_at: now,
       })
       .eq("id", row.id);
   }
+
+  if (waAreas.length === 0) return;
+  const prazos = (pending as SolicitacaoRow[])
+    .map((row) => row.prazo_ate)
+    .filter((value): value is string => Boolean(value))
+    .sort();
+  const text = await buildWhatsappMessage(
+    supabase,
+    "proposta_escopo_pedido",
+    buildEscopoPedidoValues({
+      cliente: String(op.solicitante_nome ?? ""),
+      prazoIso: prazos[0] ?? null,
+      areas: waAreas,
+      link: appUrl ? `${appUrl}${leadPath}` : leadPath,
+    }),
+  );
+  if (!text) return;
+  const sendLog = {
+    oportunidadeId,
+    sourceId: `proposta-escopo:${[...waRowIds].sort().join("|")}`,
+    title: "WhatsApp: escopo da proposta solicitado",
+    text,
+  };
+  if (!(await claimWhatsappSend(supabase, sendLog))) return;
+  let waOk = false;
+  try {
+    waOk = await sendEvolutionGroupText(text);
+  } catch {
+    waOk = false;
+  }
+  if (!waOk) {
+    await markWhatsappSendFailed(supabase, sendLog);
+    return;
+  }
+  await supabase
+    .from("proposta_escopo_solicitacao")
+    .update({ whatsapp_enviado_em: new Date().toISOString() })
+    .in("id", waRowIds);
 }

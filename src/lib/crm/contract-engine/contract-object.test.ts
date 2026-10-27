@@ -338,6 +338,23 @@ describe("várias áreas", () => {
     expect(result.data.startRule.kind).toBe("on_first_payment");
   });
 
+  it("Reestruturação e Insolvência (ajuizamento_de_medida_de_reestruturacao) usa o objeto de reestruturação", () => {
+    const result = buildCanonicalContract({
+      snapshot: snapshot({
+        "Reestruturação e Insolvência": [
+          entry("ajuizamento_de_medida_de_reestruturacao", "ajuizamento_de_medida_de_reestruturacao"),
+        ],
+      }),
+    });
+    const scope = result.data.scopes.find((s) => s.subtypeId === "ajuizamento_de_medida_de_reestruturacao");
+    expect(scope?.missingProfile).toBe(false);
+    expect(result.data.contractObject.missingScopeIds).toHaveLength(0);
+    const joined = result.data.contractObject.numberedLines.map((l) => l.content).join("\n");
+    expect(joined).toMatch(/pedido de natureza cautelar/i);
+    expect(joined).toMatch(/solidariamente responsáveis/i);
+    expect(result.data.startRule.kind).toBe("on_first_payment");
+  });
+
   it("Societário e Contratos (diagnostico_estruturacao_e_protecao_patrimonial) já tem perfil real", () => {
     const result = buildCanonicalContract({
       snapshot: snapshot({

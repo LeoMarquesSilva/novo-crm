@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
+import { sameContractLabel } from "@/lib/crm/contract-portfolio-identity";
+import { CONTRACT_LIFECYCLE_LABELS } from "@/lib/crm/contract-status-labels";
 import { effectiveContractRenewalDate } from "@/lib/crm/contract-renewal-date";
 import type { HubOrphanGroup } from "@/lib/crm/contract-hub-summary";
 import { formatDateYmdBr } from "@/lib/format-datetime";
@@ -17,13 +19,7 @@ import type { ContractPortfolioItem } from "@/modules/contracts/infrastructure/c
 import { BILLING_KIND_LABELS, centsToMaskedBrl } from "./contract-setup-form-helpers";
 import { ContractHubOrphanGroupsTrigger } from "./contract-hub-orphan-groups";
 
-const lifecycleLabels: Record<ContractPortfolioItem["lifecycle"], string> = {
-  rascunho: "Rascunho",
-  em_revisao: "Em revisão",
-  ativo: "Ativo",
-  suspenso: "Suspenso",
-  encerrado: "Encerrado",
-};
+const lifecycleLabels: Record<ContractPortfolioItem["lifecycle"], string> = CONTRACT_LIFECYCLE_LABELS;
 
 function money(cents: string | null): string {
   return centsToMaskedBrl(cents) || "—";
@@ -217,14 +213,21 @@ function LifecycleBadge({ lifecycle }: { lifecycle: ContractPortfolioItem["lifec
   return <Badge variant="outline" className="shrink-0">{lifecycleLabels[lifecycle]}</Badge>;
 }
 
+/** Contrato sem grupo: título e razão social são o mesmo texto — mostra uma vez só. */
+function portfolioNames(item: Pick<ContractPortfolioItem, "title" | "clientName">) {
+  const showClient = !sameContractLabel(item.title, item.clientName);
+  return { showClient, full: showClient ? `${item.title} · ${item.clientName}` : item.title };
+}
+
 function PortfolioRow({ item }: { item: ContractPortfolioItem }) {
+  const names = portfolioNames(item);
   return (
     <tr className="h-11 hover:bg-muted/50">
       <td className="max-w-xs px-3 py-2 align-middle">
         <div className="flex min-w-0 items-center gap-2">
-          <p className="min-w-0 truncate">
+          <p className="min-w-0 truncate" title={names.full}>
             <span className="font-semibold text-foreground">{item.title}</span>
-            <span className="text-muted-foreground"> · {item.clientName}</span>
+            {names.showClient ? <span className="text-muted-foreground"> · {item.clientName}</span> : null}
           </p>
           <LifecycleBadge lifecycle={item.lifecycle} />
           {item.renewalSoon ? (
@@ -269,15 +272,16 @@ function PortfolioRow({ item }: { item: ContractPortfolioItem }) {
 }
 
 function PortfolioCard({ item }: { item: ContractPortfolioItem }) {
+  const names = portfolioNames(item);
   return (
     <Link
       href={`/crm/contratos/${item.id}`}
       className="flex items-center justify-between gap-3 rounded-(--radius-v2-lg) border border-border bg-background px-3 py-2.5"
     >
       <div className="min-w-0">
-        <p className="truncate text-sm">
+        <p className="truncate text-sm" title={names.full}>
           <span className="font-semibold text-foreground">{item.title}</span>
-          <span className="text-muted-foreground"> · {item.clientName}</span>
+          {names.showClient ? <span className="text-muted-foreground"> · {item.clientName}</span> : null}
         </p>
         <p className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
           <LifecycleBadge lifecycle={item.lifecycle} />

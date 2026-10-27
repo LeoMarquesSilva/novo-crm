@@ -3,11 +3,12 @@
 import { useMemo, useRef, useState } from "react";
 import { FileText, Loader2, Plus, Sparkles, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { ReestruturacaoForm as Form } from "@/lib/due-ppt/draft";
-import { parseValor } from "@/lib/due-ppt/processos";
+import { maskBrlCurrencyFromInput, parseBrlUserInput } from "@/lib/crm/proposta-valor-brl-extenso";
 import { REEST_PDF_MAX_ARQUIVOS } from "@/lib/due-ppt/reestruturacao-ia";
 import { aceitasPadrao, aplicarSugestoes, destacado, sugestoesIa } from "@/lib/due-ppt/reestruturacao-mescla";
 import { lerPdfsReestruturacao } from "@/lib/due-ppt/reestruturacao-pdf-client";
@@ -19,10 +20,13 @@ const DESTAQUE_IA =
 
 function formatarValor(v: number | null): string {
   if (v == null) return "";
-  return v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return maskBrlCurrencyFromInput(String(Math.round(v * 100)));
 }
 
-/** Campo de valor em reais: aceita "1.234,56" / "1234,56"; grava número (ou vazio). */
+/**
+ * Campo de valor em reais, no mesmo padrão dos valores da proposta e do contrato: digita-se só
+ * números e o valor enche pelos centavos (`150000` → `R$ 1.500,00`). Grava número (ou vazio).
+ */
 function ValorInput({
   id,
   value,
@@ -36,21 +40,17 @@ function ValorInput({
   label: string;
   className?: string;
 }) {
-  // Texto livre só enquanto o campo está em edição; fora disso mostra o valor gravado.
-  const [editando, setEditando] = useState<string | null>(null);
   return (
     <Input
       id={id}
       aria-label={label}
-      inputMode="decimal"
+      inputMode="numeric"
+      autoComplete="off"
       placeholder="R$ 0,00"
-      value={editando ?? formatarValor(value)}
-      onFocus={() => setEditando(formatarValor(value))}
-      onChange={(e) => setEditando(e.target.value)}
-      onBlur={() => {
-        const t = (editando ?? "").trim();
-        setEditando(null);
-        onChange(t ? parseValor(t) : null);
+      value={formatarValor(value)}
+      onChange={(e) => {
+        const masked = maskBrlCurrencyFromInput(e.target.value);
+        onChange(masked ? parseBrlUserInput(masked) : null);
       }}
       className={cn("tabular-nums", className)}
     />
@@ -333,11 +333,10 @@ export function ReestruturacaoForm({
               <Label htmlFor="rj-ajuizamento" className="text-xs">
                 Ajuizamento
               </Label>
-              <Input
+              <DateInputBr
                 id="rj-ajuizamento"
-                type="date"
                 value={f.ajuizamento}
-                onChange={(e) => set("ajuizamento", e.target.value)}
+                onChange={(ymd) => set("ajuizamento", ymd)}
                 className={hl("ajuizamento")}
               />
             </div>
@@ -345,11 +344,10 @@ export function ReestruturacaoForm({
               <Label htmlFor="rj-deferimento" className="text-xs">
                 Deferimento do processamento
               </Label>
-              <Input
+              <DateInputBr
                 id="rj-deferimento"
-                type="date"
                 value={f.deferimento}
-                onChange={(e) => set("deferimento", e.target.value)}
+                onChange={(ymd) => set("deferimento", ymd)}
                 className={hl("deferimento")}
               />
             </div>

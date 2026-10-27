@@ -175,18 +175,21 @@ export function SearchablePicker<T>({
       setQuery("");
     }
 
+    // Captura + stopPropagation: o Esc fecha só a lista; antes chegava ao diálogo e fechava o Novo lead inteiro.
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
+      event.stopPropagation();
+      event.preventDefault();
       setOpen(false);
       setQuery("");
       triggerRef.current?.focus();
     }
 
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown, true);
     };
   }, [open]);
 

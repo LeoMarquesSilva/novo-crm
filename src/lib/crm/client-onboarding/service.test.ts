@@ -6,7 +6,7 @@ import { createSupabaseFake } from "@/test/supabase-fake";
 import { emptyClientOnboardingPayload, parseOpsChecklist } from "@/modules/crm/domain/client-onboarding";
 
 import type { OnboardingContext } from "./load-onboarding-context";
-import { concludeOnboarding, evaluateOnboardingAction, submitOnboarding } from "./service";
+import { concludeOnboarding, evaluateOnboardingAction, linkOtherContratantesToGroup, submitOnboarding } from "./service";
 
 vi.mock("@/lib/crm/notifications/crm-notify", () => ({ notifyAudience: vi.fn(async () => [{}]) }));
 vi.mock("@/lib/crm/record-lead-activity", () => ({ recordLeadActivityEvent: vi.fn() }));
@@ -40,6 +40,28 @@ function ctx(etapa: OnboardingContext["opportunity"]["etapa"], patch: Partial<On
   };
 }
 
+function row(status: NonNullable<OnboardingContext["row"]>["status"]): NonNullable<OnboardingContext["row"]> {
+  return {
+    id: "onb-1",
+    status,
+    payload: {},
+    ops_checklist: {},
+    grupo_nome: null,
+    vios_referencia: null,
+    submission_count: 1,
+    submitted_at: null,
+    submitted_by: null,
+    returned_at: null,
+    returned_by: null,
+    return_comment: null,
+    concluded_at: null,
+    concluded_by: null,
+    cliente_id: null,
+    grupo_id: null,
+    updated_at: "2026-10-27T12:00:00Z",
+  };
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("evaluateOnboardingAction", () => {
@@ -51,11 +73,35 @@ describe("evaluateOnboardingAction", () => {
   });
 
   it("só Operações Legais (e admin) conferem, devolvem e concluem", () => {
-    const c = ctx("cadastro_novo_cliente");
+    const c = ctx("cadastro_novo_cliente", { row: row("enviado") });
+    const ops = actor("controladoria", { modules: ["operacoes_legais"] });
     expect(evaluateOnboardingAction(actor("comercial"), c, "conclude").allowed).toBe(false);
-    expect(evaluateOnboardingAction(actor("controladoria", { modules: ["operacoes_legais"] }), c, "conclude").allowed).toBe(true);
-    expect(evaluateOnboardingAction(actor("controladoria", { modules: ["operacoes_legais"] }), c, "return").allowed).toBe(true);
+    expect(evaluateOnboardingAction(ops, c, "conclude").allowed).toBe(true);
+    expect(evaluateOnboardingAction(ops, c, "return").allowed).toBe(true);
+    // Operações Legais não corrige o cadastro: aponta os campos e devolve (27/10/2026).
+    expect(evaluateOnboardingAction(ops, c, "edit_cadastro").allowed).toBe(false);
+    expect(evaluateOnboardingAction(actor("admin"), c, "edit_cadastro").allowed).toBe(false);
+    expect(evaluateOnboardingAction(ops, c, "edit_faturamento").allowed).toBe(false);
     expect(evaluateOnboardingAction(actor("admin"), c, "edit_draft").allowed).toBe(true);
+  });
+
+  it("o cadastro corre em paralelo: o lead não espera Operações Legais (27/10/2026)", () => {
+    const ops = actor("controladoria", { modules: ["operacoes_legais"] });
+    const dono = actor("financeiro", { email: "captador@bp.com.br" });
+    // Responsável envia o faturamento com Operações Legais ainda conferindo.
+    const conferindo = ctx("cadastro_novo_cliente", { row: row("enviado") });
+    expect(evaluateOnboardingAction(dono, conferindo, "submit_billing").allowed).toBe(true);
+    expect(evaluateOnboardingAction(dono, conferindo, "edit_faturamento").allowed).toBe(true);
+    expect(evaluateOnboardingAction(dono, conferindo, "edit_cadastro").allowed).toBe(false);
+    // Operações Legais conclui ou devolve depois que o lead já foi para o faturamento.
+    const adiante = ctx("inclusao_faturamento", { row: row("enviado") });
+    expect(evaluateOnboardingAction(ops, adiante, "conclude").allowed).toBe(true);
+    expect(evaluateOnboardingAction(dono, adiante, "submit_billing").allowed).toBe(false);
+    // Devolvido: o responsável corrige e reenvia sem mudar de etapa.
+    const devolvido = ctx("inclusao_faturamento", { row: row("devolvido") });
+    expect(evaluateOnboardingAction(dono, devolvido, "submit").allowed).toBe(true);
+    expect(evaluateOnboardingAction(dono, devolvido, "edit_cadastro").allowed).toBe(true);
+    expect(evaluateOnboardingAction(ops, devolvido, "conclude").allowed).toBe(false);
   });
 
   it("etapa errada e lead do RD são recusados", () => {
@@ -115,11 +161,11 @@ describe("submitOnboarding / concludeOnboarding", () => {
     });
     const fake = createSupabaseFake({
       rpc: {
-        conclude_client_onboarding_atomic: { data: null, error: { code: "23514", message: "CLIENTE_GRUPO_CONFLICT" } },
+        conclude_client_onboarding_v2_atomic: { data: null, error: { code: "23514", message: "CLIENTE_GRUPO_CONFLICT" } },
       },
     });
     const error = await concludeOnboarding(fake.client as never, {
-      ctx: ctx("cadastro_novo_cliente", { payload }),
+      ctx: ctx("cadastro_novo_cliente", { payload, row: row("enviado") }),
       actor: actor("admin"),
       checklist: parseOpsChecklist({
         dadosConferidos: true,
@@ -133,8 +179,32 @@ describe("submitOnboarding / concludeOnboarding", () => {
     }).catch((e) => e);
     expect((error as PublicError).code).toBe("CLIENTE_GRUPO_CONFLICT");
     expect(fake.rpc).toHaveBeenCalledWith(
-      "conclude_client_onboarding_atomic",
+      "conclude_client_onboarding_v2_atomic",
       expect.objectContaining({ p_grupo_nome: "Grupo ACME", p_grupo_chave: "grupo acme" }),
     );
+  });
+});
+
+describe("linkOtherContratantesToGroup — outras contratantes no grupo (teste 3, 22/10/2026)", () => {
+  const endereco = { logradouro: "Av. dos Eucaliptos", numero: "550", complemento: "", bairro: "Indianópolis", cidade: "São Paulo", uf: "SP", cep: "04517-050" };
+  const parties = [
+    { id: "intake-1", razaoSocial: "LE BLOG", documento: "13.030.003/0001-10", documentoTipo: "CNPJ" as const, endereco, role: "contratante" as const, source: "intake" as const },
+    { id: "intake-2", razaoSocial: "PEC", documento: "48.030.003/0001-02", documentoTipo: "CNPJ" as const, endereco, role: "contratante" as const, source: "intake" as const },
+    { id: "intake-3", razaoSocial: "Só relacionada", documento: "111.444.777-35", documentoTipo: "CPF" as const, endereco, role: "relacionada" as const, source: "intake" as const },
+  ];
+
+  it("cria a outra contratante no grupo e ignora a principal e as só relacionadas", async () => {
+    const fake = createSupabaseFake({ tables: { clientes: { awaited: { data: [], error: null } } } });
+    const r = await linkOtherContratantesToGroup(fake.client as never, { parties, mainDocument: "13030003000110", grupoId: "g-1" });
+    expect(r).toEqual({ created: ["PEC"], linked: [], conflicts: [] });
+    const insert = fake.calls.find((c) => c.table === "clientes" && c.method === "insert");
+    expect(insert?.args[0]).toMatchObject({ razao_social: "PEC", documento: "48.030.003/0001-02", grupo_id: "g-1", cep: "04517050" });
+  });
+
+  it("cliente já em outro grupo não é movido", async () => {
+    const fake = createSupabaseFake({ tables: { clientes: { awaited: { data: [{ id: "c-9", grupo_id: "outro" }], error: null } } } });
+    const r = await linkOtherContratantesToGroup(fake.client as never, { parties, mainDocument: "13030003000110", grupoId: "g-1" });
+    expect(r.conflicts).toEqual(["PEC"]);
+    expect(fake.calls.some((c) => c.table === "clientes" && (c.method === "insert" || c.method === "update"))).toBe(false);
   });
 });

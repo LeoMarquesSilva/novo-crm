@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger } from "@/components/ui/select";
+import {
+  CONTRACT_ADDENDUM_STATUS_LABELS,
+  CONTRACT_VERSION_STATUS_LABELS,
+  statusLabel,
+} from "@/lib/crm/contract-status-labels";
 import { BR_TIMEZONE, formatDateYmdBr } from "@/lib/format-datetime";
 import type { ContractDetailViewModel } from "@/modules/contracts/infrastructure/contract-queries";
 
@@ -34,6 +39,8 @@ export function ContractVersionsPanel({
   const [effectiveFrom, setEffectiveFrom] = useState(contract.renewalDate ?? "");
   const [addendumId, setAddendumId] = useState("");
   const [reason, setReason] = useState("");
+  // Término escolhido no encerramento (antes era sempre hoje: competências já vencidas continuavam faturáveis).
+  const [endedAt, setEndedAt] = useState(todayYmdBr);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const addendumLabels = useMemo(
@@ -80,7 +87,7 @@ export function ContractVersionsPanel({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <strong>Versão {version.number}</strong>
                 <Badge variant={version.status === "ativa" ? "default" : "outline"}>
-                  {version.status}
+                  {statusLabel(CONTRACT_VERSION_STATUS_LABELS, version.status)}
                 </Badge>
               </div>
               <p className="mt-1 text-sm text-zinc-500">
@@ -101,7 +108,7 @@ export function ContractVersionsPanel({
           {contract.addenda.length ? (
             contract.addenda.map((item) => (
               <Badge key={item.id} variant="outline">
-                {item.title} · {item.status}
+                {item.title} · {statusLabel(CONTRACT_ADDENDUM_STATUS_LABELS, item.status)}
               </Badge>
             ))
           ) : (
@@ -178,6 +185,15 @@ export function ContractVersionsPanel({
               placeholder="Decisão auditável"
             />
           </label>
+          <label className="mt-3 block space-y-1.5 text-sm font-medium">
+            <span>Data de encerramento</span>
+            <DateInputBr
+              value={endedAt}
+              onChange={setEndedAt}
+              disabled={!canManage || busy}
+              className="!h-10 border-[#dfe5ee] bg-white shadow-sm"
+            />
+          </label>
           <div className="mt-3 grid grid-cols-3 gap-2">
             <Button
               variant="outline"
@@ -198,11 +214,11 @@ export function ContractVersionsPanel({
             <Button
               variant="destructive"
               size="sm"
-              disabled={!canManage || busy || !reason.trim()}
+              disabled={!canManage || busy || !reason.trim() || !endedAt}
               onClick={() =>
                 execute({
                   action: "end_contract",
-                  endedAt: todayYmdBr(),
+                  endedAt,
                   reason,
                 })
               }

@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ClientOnboardingSubmitDialog,
+  type OnboardingDialogStep,
+} from "@/components/crm/client-onboarding-submit-dialog";
 import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
 import { useCrmActor } from "@/components/crm/crm-session-context";
 import { STAGE_ACTION_LABELS } from "@/lib/crm/stage-actions";
@@ -130,7 +134,8 @@ interface PipelineBoardProps {
 }
 
 const MEETING_TIME_SUGGESTIONS = ["09:30", "11:30", "14:30", "16:30"];
-const MEETING_LOCATION_PENDING = "Não definido ainda";
+// Mesmo valor do Novo lead ("A definir"); antes cada tela gravava um texto para "ainda sem local".
+const MEETING_LOCATION_PENDING = "A definir";
 
 type TransitionModalState = {
   item: Oportunidade;
@@ -380,6 +385,11 @@ export function PipelineBoard({
   const [boardError, setBoardError] = useState<BoardError | null>(null);
   /** Lead em Contrato Elaborado cujo envio para assinatura está aberto. */
   const [sendDialogLead, setSendDialogLead] = useState<Oportunidade | null>(null);
+  /** Lead do pós-venda com o cadastro do cliente ou os dados do faturamento abertos no modal. */
+  const [onboardingDialogLead, setOnboardingDialogLead] = useState<{
+    lead: Oportunidade;
+    step: OnboardingDialogStep;
+  } | null>(null);
   const [transitionModal, setTransitionModal] = useState<TransitionModalState | null>(
     null,
   );
@@ -675,6 +685,14 @@ export function PipelineBoard({
             setSendDialogLead(item);
             return;
           }
+          if (data.transitionBlocker.actionKind === "open_onboarding") {
+            setOnboardingDialogLead({ lead: item, step: "cadastro" });
+            return;
+          }
+          if (data.transitionBlocker.actionKind === "open_billing") {
+            setOnboardingDialogLead({ lead: item, step: "faturamento" });
+            return;
+          }
           setBoardError({
             message: data.transitionBlocker.message,
             actionHref: data.transitionBlocker.actionHref,
@@ -822,7 +840,7 @@ export function PipelineBoard({
         return;
       }
       setModalError(
-        `Preencha os campos obrigatórios: ${blocking.map((f) => f.label).join(", ")}.`,
+        `Preencha os campos obrigatórios: ${blocking.map((f) => userFacingFieldLabel(f.label, f.field_code)).join(", ")}.`,
       );
       return;
     }
@@ -1468,6 +1486,27 @@ export function PipelineBoard({
           onSent={() => {
             setSendDialogLead(null);
             onDataChange?.();
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {onboardingDialogLead ? (
+        <ClientOnboardingSubmitDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setOnboardingDialogLead(null);
+          }}
+          leadId={onboardingDialogLead.lead.id}
+          leadName={onboardingDialogLead.lead.solicitante}
+          step={onboardingDialogLead.step}
+          onSubmitted={({ stage }) => {
+            const { lead } = onboardingDialogLead;
+            const nextStage = stage as OpportunityStage;
+            setOnboardingDialogLead(null);
+            setBoardItems((prev) => prev.map((i) => (i.id === lead.id ? { ...i, etapa: nextStage } : i)));
+            onDataChange?.();
+            onAfterTransition?.({ opportunityId: lead.id, from: lead.etapa, to: nextStage });
             router.refresh();
           }}
         />
