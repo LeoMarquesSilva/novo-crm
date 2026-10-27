@@ -106,7 +106,7 @@ describe("negócio do RD com dois clientes", () => {
     expect(onboarding.cadastro).toMatchObject({ razaoSocial: "", documento: "" });
     expect(onboarding.cadastro.endereco).toMatchObject({ cep: "", uf: "" });
     expect(onboarding.cadastro.informacoesAdicionais).toContain("tem mais de um valor");
-    expect(onboarding.financeiro.faturamento).toEqual({ razaoSocial: "", documento: "" });
+    expect(onboarding.financeiro.faturamento).toEqual({ tipo: "", razaoSocial: "", documento: "" });
     expect(onboarding.financeiro.contatoFinanceiro).toEqual({ nome: "", posicao: "", email: "", telefone: "" });
     expect(onboarding.financeiro.observacoes).toContain("fulano@example.com / beltrano@example.com");
     expect(onboarding.sources["financeiro.contatoFinanceiro"]).toBeUndefined();
@@ -128,7 +128,7 @@ describe("negócio do RD com dois clientes", () => {
       { tipo_documento: "CNPJ", razao_social: "ACME INDÚSTRIA, COMÉRCIO E SERVIÇOS LTDA", documento: "11222333000181" },
     ]);
     expect(onboarding.cadastro).toMatchObject({ razaoSocial: "ACME INDÚSTRIA, COMÉRCIO E SERVIÇOS LTDA", documento: "11222333000181" });
-    expect(onboarding.financeiro.faturamento).toEqual({ razaoSocial: "ACME LTDA", documento: "11222333000181" });
+    expect(onboarding.financeiro.faturamento).toEqual({ tipo: "", razaoSocial: "ACME LTDA", documento: "11222333000181" });
     expect(onboarding.financeiro.contatoFinanceiro.email).toBe("financeiro@acme.com.br");
   });
 

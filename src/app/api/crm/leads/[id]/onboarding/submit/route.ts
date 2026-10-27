@@ -1,4 +1,7 @@
-/** POST /api/crm/leads/[id]/onboarding/submit — envia o cadastro para Operações Legais. */
+/**
+ * POST /api/crm/leads/[id]/onboarding/submit — envia o cadastro para Operações Legais (ou
+ * reenvia o devolvido, sem mudar a etapa).
+ */
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -22,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       actor: result.actor,
       payload: parsed.data.payload,
     });
-    return NextResponse.json({ ok: true, stage: "cadastro_novo_cliente", transitionId: submitted.transitionId });
+    return NextResponse.json({ ok: true, stage: submitted.stage, transitionId: submitted.transitionId });
   } catch (error) {
     return internalErrorResponse("onboarding/submit", error, "Não foi possível enviar o cadastro.");
   }

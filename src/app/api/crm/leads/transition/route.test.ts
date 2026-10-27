@@ -55,11 +55,12 @@ describe("POST /api/crm/leads/transition — permissão por etapa", () => {
     expect(json.transitionBlocker).toMatchObject({ code: "use_dedicated_action", actionKind: "open_send_dialog" });
   });
 
-  it("comercial não conclui o cadastro (time Operações Legais)", async () => {
+  it("Cadastro de Novo Cliente → Inclusão: só pelos dados do faturamento (27/10/2026)", async () => {
     mockCrmSession({ role: "comercial" });
     setupLead("cadastro_novo_cliente");
     const res = await move("inclusao_faturamento");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(422);
+    expect((await res.json()).transitionBlocker).toMatchObject({ actionKind: "open_billing" });
   });
 });
 

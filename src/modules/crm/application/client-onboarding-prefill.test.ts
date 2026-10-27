@@ -50,7 +50,7 @@ describe("buildClientOnboardingPrefill", () => {
     expect(p.cadastro.razaoSocial).toBe("ACME");
     expect(p.cadastro.endereco).toMatchObject({ cep: "13010000", uf: "SP" });
     expect(p.cadastro.empresasConsulta).toHaveLength(2);
-    expect(p.financeiro.faturamento).toEqual({ razaoSocial: "ACME", documento: "12345678000190" });
+    expect(p.financeiro.faturamento).toEqual({ tipo: "CNPJ", razaoSocial: "ACME", documento: "12345678000190" });
     expect(p.financeiro.inicioVigencia).toBe("2026-11-01");
     expect(p.financeiro.primeiroFaturamento).toBe("2026-11-10");
     expect(p.sources["cadastro.razaoSocial"]).toBe("contrato");

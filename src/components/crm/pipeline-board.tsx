@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ClientOnboardingSubmitDialog } from "@/components/crm/client-onboarding-submit-dialog";
+import {
+  ClientOnboardingSubmitDialog,
+  type OnboardingDialogStep,
+} from "@/components/crm/client-onboarding-submit-dialog";
 import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
 import { useCrmActor } from "@/components/crm/crm-session-context";
 import { STAGE_ACTION_LABELS } from "@/lib/crm/stage-actions";
@@ -382,8 +385,11 @@ export function PipelineBoard({
   const [boardError, setBoardError] = useState<BoardError | null>(null);
   /** Lead em Contrato Elaborado cujo envio para assinatura está aberto. */
   const [sendDialogLead, setSendDialogLead] = useState<Oportunidade | null>(null);
-  /** Lead em Aguardando Cadastro cujo cadastro do cliente está aberto no modal. */
-  const [onboardingDialogLead, setOnboardingDialogLead] = useState<Oportunidade | null>(null);
+  /** Lead do pós-venda com o cadastro do cliente ou os dados do faturamento abertos no modal. */
+  const [onboardingDialogLead, setOnboardingDialogLead] = useState<{
+    lead: Oportunidade;
+    step: OnboardingDialogStep;
+  } | null>(null);
   const [transitionModal, setTransitionModal] = useState<TransitionModalState | null>(
     null,
   );
@@ -680,7 +686,11 @@ export function PipelineBoard({
             return;
           }
           if (data.transitionBlocker.actionKind === "open_onboarding") {
-            setOnboardingDialogLead(item);
+            setOnboardingDialogLead({ lead: item, step: "cadastro" });
+            return;
+          }
+          if (data.transitionBlocker.actionKind === "open_billing") {
+            setOnboardingDialogLead({ lead: item, step: "faturamento" });
             return;
           }
           setBoardError({
@@ -1487,10 +1497,11 @@ export function PipelineBoard({
           onOpenChange={(open) => {
             if (!open) setOnboardingDialogLead(null);
           }}
-          leadId={onboardingDialogLead.id}
-          leadName={onboardingDialogLead.solicitante}
+          leadId={onboardingDialogLead.lead.id}
+          leadName={onboardingDialogLead.lead.solicitante}
+          step={onboardingDialogLead.step}
           onSubmitted={({ stage }) => {
-            const lead = onboardingDialogLead;
+            const { lead } = onboardingDialogLead;
             const nextStage = stage as OpportunityStage;
             setOnboardingDialogLead(null);
             setBoardItems((prev) => prev.map((i) => (i.id === lead.id ? { ...i, etapa: nextStage } : i)));

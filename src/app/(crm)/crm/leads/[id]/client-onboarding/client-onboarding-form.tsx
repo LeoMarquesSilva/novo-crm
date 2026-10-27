@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Download, Loader2, Plus, Search, X } from "lucide-react";
 
 import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { Badge } from "@/components/ui/badge";
@@ -12,11 +12,20 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { maskCpf, maskCpfCnpj, maskPhoneBr } from "@/lib/crm/br-document-mask";
+import { maskCpf, maskCpfCnpj, maskDocument, maskPhoneBr } from "@/lib/crm/br-document-mask";
 import { formatCepDisplay } from "@/lib/crm/proposta-empresas";
 import { isValidCpf, isValidCpfOrCnpj } from "@/lib/crm/rd-migration/documents";
 import { cn } from "@/lib/utils";
-import { REAJUSTE_INDICES, type ClientOnboardingPayload } from "@/modules/crm/domain/client-onboarding";
+import {
+  onlyDigits,
+  partyTipo,
+  REAJUSTE_INDICES,
+  SOCIO_POSICOES,
+  type ClientOnboardingPayload,
+  type OnboardingAdjustment,
+  type OnboardingParty,
+  type PartyTipo,
+} from "@/modules/crm/domain/client-onboarding";
 
 const SOURCE_LABELS: Record<string, string> = {
   contrato: "Do contrato",
@@ -37,11 +46,22 @@ function SourceChip({ source }: { source?: string }) {
   );
 }
 
+/** Aviso do que Operações Legais pediu para ajustar no campo. */
+function AjusteNota({ ajuste }: { ajuste?: OnboardingAdjustment }) {
+  if (!ajuste) return null;
+  return (
+    <p className="rounded-(--radius-v2-sm) bg-warning-bg px-2 py-1 text-v2-caption text-warning-text">
+      Ajustar{ajuste.comentario ? `: ${ajuste.comentario}` : " este campo."}
+    </p>
+  );
+}
+
 function Field({
   label,
   htmlFor,
   required,
   source,
+  ajuste,
   className,
   children,
 }: {
@@ -49,11 +69,18 @@ function Field({
   htmlFor?: string;
   required?: boolean;
   source?: string;
+  ajuste?: OnboardingAdjustment;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div
+      className={cn(
+        "space-y-1.5",
+        ajuste ? "rounded-(--radius-v2-md) ring-2 ring-warning-border ring-offset-4 ring-offset-white" : undefined,
+        className,
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor={htmlFor}>
           {label}
@@ -62,17 +89,38 @@ function Field({
         <SourceChip source={source} />
       </div>
       {children}
+      <AjusteNota ajuste={ajuste} />
     </div>
   );
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+function Section({
+  id,
+  title,
+  description,
+  ajuste,
+  children,
+}: {
+  id?: string;
+  title: string;
+  description?: string;
+  ajuste?: OnboardingAdjustment;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="space-y-4 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4 sm:p-5">
+    <section
+      id={id}
+      tabIndex={id ? -1 : undefined}
+      className={cn(
+        "space-y-4 rounded-(--radius-v2-xl) border bg-white p-4 sm:p-5",
+        ajuste ? "border-warning-border ring-2 ring-warning-border" : "border-neutral-200",
+      )}
+    >
       <div>
         <h3 className="text-v2-heading-md text-foreground">{title}</h3>
         {description ? <p className="mt-0.5 text-v2-caption text-muted-foreground">{description}</p> : null}
       </div>
+      <AjusteNota ajuste={ajuste} />
       {children}
     </section>
   );
@@ -119,6 +167,55 @@ function apenasNumeroDecimal(value: string): string {
   return value.replace(/[^\d,.]/g, "");
 }
 
+const PARTY_TIPO_LABELS: Record<PartyTipo, string> = { CNPJ: "Empresa (CNPJ)", CPF: "Pessoa (CPF)" };
+
+function partyKey(party: { razaoSocial: string; documento: string }): string {
+  return onlyDigits(party.documento) || party.razaoSocial.trim().toLowerCase();
+}
+
+function partyLabel(party: OnboardingParty): string {
+  const doc = party.documento ? maskDocument(party.documento, partyTipo(party)) : "sem documento";
+  return `${party.razaoSocial || "Sem nome"} · ${doc}`;
+}
+
+/** Empresa ou pessoa: troca a máscara do documento (CNPJ ou CPF). */
+function PartyTipoSelect({
+  id,
+  value,
+  disabled,
+  inModal,
+  label,
+  onChange,
+}: {
+  id?: string;
+  value: PartyTipo;
+  disabled: boolean;
+  inModal: boolean;
+  label: string;
+  onChange: (tipo: PartyTipo) => void;
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(next) => {
+        if (next === "CPF" || next === "CNPJ") onChange(next);
+      }}
+      disabled={disabled}
+    >
+      <SelectTrigger id={id} className="w-full" aria-label={label}>
+        <span>{PARTY_TIPO_LABELS[value]}</span>
+      </SelectTrigger>
+      <CrmSelectContent inModal={inModal}>
+        <CrmSelectItem value="CNPJ">{PARTY_TIPO_LABELS.CNPJ}</CrmSelectItem>
+        <CrmSelectItem value="CPF">{PARTY_TIPO_LABELS.CPF}</CrmSelectItem>
+      </CrmSelectContent>
+    </Select>
+  );
+}
+
+/** Seções do formulário: o cadastro vai antes (Aguardando Cadastro), o faturamento depois. */
+export type ClientOnboardingFormSections = "cadastro" | "faturamento" | "all";
+
 /**
  * Formulário do cadastro do cliente: dados de cadastro (Operações Legais) e dados para o
  * Financeiro / gestão de contratos. `readOnly` mostra o mesmo layout sem edição.
@@ -128,13 +225,24 @@ export function ClientOnboardingForm({
   onChange,
   readOnly = false,
   inModal = false,
+  sections = "all",
+  leadParties = [],
+  ajustes = [],
 }: {
   payload: ClientOnboardingPayload;
   onChange: (next: ClientOnboardingPayload) => void;
   readOnly?: boolean;
   /** Dentro de um Dialog: o menu do select abre por cima do modal. */
   inModal?: boolean;
+  sections?: ClientOnboardingFormSections;
+  /** Empresas e pessoas já informadas no lead, para puxar sem digitar de novo. */
+  leadParties?: OnboardingParty[];
+  /** Campos que Operações Legais pediu para ajustar (ficam destacados). */
+  ajustes?: OnboardingAdjustment[];
 }) {
+  const ajusteDe = (campo: OnboardingAdjustment["campo"]) => ajustes.find((a) => a.campo === campo);
+  const showCadastro = sections !== "faturamento";
+  const showFaturamento = sections !== "cadastro";
   const src = payload.sources;
   const update: Updater = (mutate) => {
     const next = structuredClone(payload);
@@ -150,9 +258,11 @@ export function ClientOnboardingForm({
     payloadRef.current = payload;
   }, [payload]);
   const [cepStatus, setCepStatus] = useState<string | null>(null);
+  const [cepBuscando, setCepBuscando] = useState(false);
 
   async function buscarCep(cep: string) {
     setCepStatus("Buscando endereço…");
+    setCepBuscando(true);
     try {
       const res = await fetch(`/api/integrations/viacep?cep=${encodeURIComponent(cep)}`);
       const json = (await res.json()) as {
@@ -175,14 +285,37 @@ export function ClientOnboardingForm({
       setCepStatus(null);
     } catch {
       setCepStatus("Não foi possível consultar o CEP. Preencha o endereço manualmente.");
+    } finally {
+      setCepBuscando(false);
     }
   }
 
+  const consultaKeys = new Set(cadastro.empresasConsulta.map(partyKey).filter(Boolean));
+  const partiesToPull = leadParties.filter((p) => !consultaKeys.has(partyKey(p)));
+  // "Usar dados de": o cliente principal, as partes do lead e as da busca de novas demandas.
+  const billingOptions: OnboardingParty[] = [];
+  const billingSeen = new Set<string>();
+  for (const party of [
+    { tipo: "" as const, razaoSocial: cadastro.razaoSocial, documento: cadastro.documento },
+    ...leadParties,
+    ...cadastro.empresasConsulta,
+  ]) {
+    const key = partyKey(party);
+    if (!key || billingSeen.has(key)) continue;
+    billingSeen.add(key);
+    billingOptions.push({ ...party, tipo: partyTipo(party) });
+  }
+  const billingTipo = partyTipo(financeiro.faturamento);
+  const socioPosicoes = (atual: string): string[] =>
+    atual && !(SOCIO_POSICOES as readonly string[]).includes(atual) ? [...SOCIO_POSICOES, atual] : [...SOCIO_POSICOES];
+
   return (
     <div className="space-y-4">
+      {showCadastro ? (
+      <>
       <Section title="Dados do cliente" description="Operações Legais confere e cadastra no VIOS e nos sistemas legados.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Razão social" htmlFor="ob-razao" required source={src["cadastro.razaoSocial"]}>
+          <Field label="Razão social" htmlFor="ob-razao" required source={src["cadastro.razaoSocial"]} ajuste={ajusteDe("cadastro.razaoSocial")}>
             <Input
               id="ob-razao"
               value={cadastro.razaoSocial}
@@ -190,11 +323,11 @@ export function ClientOnboardingForm({
               onChange={(e) => update((d) => void (d.cadastro.razaoSocial = e.target.value))}
             />
           </Field>
-          <Field label="CPF/CNPJ" htmlFor="ob-doc" required source={src["cadastro.documento"]}>
+          <Field label="CPF/CNPJ" htmlFor="ob-doc" required source={src["cadastro.documento"]} ajuste={ajusteDe("cadastro.documento")}>
             <Input
               id="ob-doc"
               inputMode="numeric"
-              value={cadastro.documento}
+              value={maskCpfCnpj(cadastro.documento)}
               disabled={disabled}
               aria-invalid={documentoInvalido(cadastro.documento, "cpf_cnpj") || undefined}
               aria-describedby={documentoInvalido(cadastro.documento, "cpf_cnpj") ? "ob-doc-aviso" : undefined}
@@ -202,7 +335,7 @@ export function ClientOnboardingForm({
             />
             <DocumentoAviso id="ob-doc-aviso" value={cadastro.documento} kind="cpf_cnpj" />
           </Field>
-          <Field label="E-mail do cliente" htmlFor="ob-email" source={src["cadastro.email"]}>
+          <Field label="E-mail do cliente" htmlFor="ob-email" source={src["cadastro.email"]} ajuste={ajusteDe("cadastro.email")}>
             <Input
               id="ob-email"
               type="email"
@@ -211,7 +344,7 @@ export function ClientOnboardingForm({
               onChange={(e) => update((d) => void (d.cadastro.email = e.target.value))}
             />
           </Field>
-          <Field label="Telefone" htmlFor="ob-tel" source={src["cadastro.telefone"]}>
+          <Field label="Telefone" htmlFor="ob-tel" source={src["cadastro.telefone"]} ajuste={ajusteDe("cadastro.telefone")}>
             <Input
               id="ob-tel"
               type="tel"
@@ -224,27 +357,52 @@ export function ClientOnboardingForm({
           </Field>
         </div>
 
-        <div className="space-y-2">
+        <div
+          className={cn(
+            "space-y-2",
+            ajusteDe("cadastro.endereco")
+              ? "rounded-(--radius-v2-md) ring-2 ring-warning-border ring-offset-4 ring-offset-white"
+              : undefined,
+          )}
+        >
           <div className="flex items-center gap-2">
             <p className="text-v2-body-sm-medium text-foreground">Endereço</p>
             <SourceChip source={src["cadastro.endereco"]} />
           </div>
+          <AjusteNota ajuste={ajusteDe("cadastro.endereco")} />
           <div className="grid gap-3 sm:grid-cols-6">
             <Field label="CEP" htmlFor="ob-cep" required className="sm:col-span-2">
-              <Input
-                id="ob-cep"
-                inputMode="numeric"
-                placeholder="00000-000"
-                value={formatCepDisplay(cadastro.endereco.cep)}
-                disabled={disabled}
-                onChange={(e) => {
-                  const cep = formatCepDisplay(e.target.value);
-                  update((d) => void (d.cadastro.endereco.cep = cep));
-                  const digits = cep.replace(/\D/g, "");
-                  if (digits.length === 8) void buscarCep(digits);
-                  else setCepStatus(null);
-                }}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="ob-cep"
+                  className="min-w-0 flex-1"
+                  inputMode="numeric"
+                  placeholder="00000-000"
+                  value={formatCepDisplay(cadastro.endereco.cep)}
+                  disabled={disabled}
+                  onChange={(e) => {
+                    const cep = formatCepDisplay(e.target.value);
+                    update((d) => void (d.cadastro.endereco.cep = cep));
+                    const digits = cep.replace(/\D/g, "");
+                    if (digits.length === 8) void buscarCep(digits);
+                    else setCepStatus(null);
+                  }}
+                />
+                {!readOnly ? (
+                  // CEP que já veio preenchido (RD, proposta) não dispara a busca sozinho.
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="control"
+                    aria-label="Buscar endereço pelo CEP"
+                    title="Buscar endereço pelo CEP"
+                    disabled={cepBuscando || onlyDigits(cadastro.endereco.cep).length !== 8}
+                    onClick={() => void buscarCep(onlyDigits(cadastro.endereco.cep))}
+                  >
+                    {cepBuscando ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Search className="size-4" aria-hidden />}
+                  </Button>
+                ) : null}
+              </div>
               {cepStatus ? <p className="text-v2-caption text-muted-foreground">{cepStatus}</p> : null}
             </Field>
             <Field label="Logradouro" htmlFor="ob-log" required className="sm:col-span-3">
@@ -300,7 +458,7 @@ export function ClientOnboardingForm({
         </div>
       </Section>
 
-      <Section title="Qualificação dos sócios" description="Nome, posição e CPF de quem representa o cliente.">
+      <Section id="ob-socios" title="Qualificação dos sócios" description="Nome, posição e CPF de quem representa o cliente." ajuste={ajusteDe("cadastro.socios")}>
         <div className="space-y-2">
           {cadastro.socios.map((socio, index) => (
             <div key={index} className="grid gap-2 sm:grid-cols-[1.4fr_1fr_1fr_auto] sm:items-center">
@@ -311,15 +469,24 @@ export function ClientOnboardingForm({
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.cadastro.socios[index]!.nome = e.target.value))}
               />
-              <Input
-                value={socio.posicao}
-                placeholder="Posição (ex.: diretor)"
-                aria-label={`Posição do sócio ${index + 1}`}
+              <Select
+                value={socio.posicao || null}
+                onValueChange={(value) => update((d) => void (d.cadastro.socios[index]!.posicao = String(value ?? "")))}
                 disabled={disabled}
-                onChange={(e) => update((d) => void (d.cadastro.socios[index]!.posicao = e.target.value))}
-              />
+              >
+                <SelectTrigger className="w-full" aria-label={`Posição do sócio ${index + 1}`}>
+                  <span className={socio.posicao ? undefined : "text-muted-foreground"}>{socio.posicao || "Posição"}</span>
+                </SelectTrigger>
+                <CrmSelectContent inModal={inModal}>
+                  {socioPosicoes(socio.posicao).map((posicao) => (
+                    <CrmSelectItem key={posicao} value={posicao}>
+                      {posicao}
+                    </CrmSelectItem>
+                  ))}
+                </CrmSelectContent>
+              </Select>
               <Input
-                value={socio.cpf}
+                value={maskCpf(socio.cpf)}
                 inputMode="numeric"
                 placeholder="000.000.000-00"
                 aria-label={`CPF do sócio ${index + 1}`}
@@ -365,80 +532,177 @@ export function ClientOnboardingForm({
       </Section>
 
       <Section
-        title="Empresas para a consulta automatizada"
+        id="ob-consulta"
+        title="Empresas para incluir na busca de novas demandas"
         description="Nomes e CPF/CNPJ de todas as empresas (e pessoas) do cliente que entram no monitoramento."
+        ajuste={ajusteDe("cadastro.empresasConsulta")}
       >
         <div className="space-y-2">
           <SourceChip source={src["cadastro.empresasConsulta"]} />
-          {cadastro.empresasConsulta.map((empresa, index) => (
-            <div key={index} className="grid gap-2 sm:grid-cols-[1.6fr_1fr_auto] sm:items-center">
-              <Input
-                value={empresa.razaoSocial}
-                placeholder="Razão social"
-                aria-label={`Empresa ${index + 1}`}
-                disabled={disabled}
-                onChange={(e) => update((d) => void (d.cadastro.empresasConsulta[index]!.razaoSocial = e.target.value))}
-              />
-              <Input
-                value={empresa.documento}
-                inputMode="numeric"
-                placeholder="CPF ou CNPJ"
-                aria-label={`CPF/CNPJ da empresa ${index + 1}`}
-                disabled={disabled}
-                aria-invalid={documentoInvalido(empresa.documento, "cpf_cnpj") || undefined}
-                aria-describedby={
-                  documentoInvalido(empresa.documento, "cpf_cnpj") ? `ob-consulta-${index}-doc-aviso` : undefined
+          {cadastro.empresasConsulta.map((empresa, index) => {
+            const tipo = partyTipo(empresa);
+            const kind = tipo === "CPF" ? "cpf" : "cpf_cnpj";
+            return (
+              <div key={index} className="grid gap-2 sm:grid-cols-[170px_1.6fr_1fr_auto] sm:items-center">
+                <PartyTipoSelect
+                  value={tipo}
+                  disabled={disabled}
+                  inModal={inModal}
+                  label={`Empresa ou pessoa ${index + 1}`}
+                  onChange={(next) =>
+                    update((d) => {
+                      const row = d.cadastro.empresasConsulta[index]!;
+                      row.tipo = next;
+                      row.documento = maskDocument(row.documento, next);
+                    })
+                  }
+                />
+                <Input
+                  value={empresa.razaoSocial}
+                  placeholder={tipo === "CPF" ? "Nome completo" : "Razão social"}
+                  aria-label={`${tipo === "CPF" ? "Nome" : "Razão social"} ${index + 1}`}
+                  disabled={disabled}
+                  onChange={(e) => update((d) => void (d.cadastro.empresasConsulta[index]!.razaoSocial = e.target.value))}
+                />
+                <Input
+                  value={maskDocument(empresa.documento, tipo)}
+                  inputMode="numeric"
+                  placeholder={tipo === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"}
+                  aria-label={`${tipo} ${index + 1}`}
+                  disabled={disabled}
+                  aria-invalid={documentoInvalido(empresa.documento, kind) || undefined}
+                  aria-describedby={documentoInvalido(empresa.documento, kind) ? `ob-consulta-${index}-doc-aviso` : undefined}
+                  onChange={(e) =>
+                    update((d) => void (d.cadastro.empresasConsulta[index]!.documento = maskDocument(e.target.value, tipo)))
+                  }
+                />
+                {!readOnly ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remover ${index + 1} da busca de novas demandas`}
+                    onClick={() => update((d) => void d.cadastro.empresasConsulta.splice(index, 1))}
+                  >
+                    <X className="size-4" aria-hidden />
+                  </Button>
+                ) : null}
+                <DocumentoAviso
+                  id={`ob-consulta-${index}-doc-aviso`}
+                  value={empresa.documento}
+                  kind={kind}
+                  className="sm:col-span-full"
+                />
+              </div>
+            );
+          })}
+          {cadastro.empresasConsulta.length === 0 ? (
+            <p className="text-v2-caption text-muted-foreground">Nenhuma empresa ou pessoa informada.</p>
+          ) : null}
+          {!readOnly ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  update((d) => void d.cadastro.empresasConsulta.push({ tipo: "CNPJ", razaoSocial: "", documento: "" }))
                 }
-                onChange={(e) => update((d) => void (d.cadastro.empresasConsulta[index]!.documento = maskCpfCnpj(e.target.value)))}
-              />
-              {!readOnly ? (
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Adicionar empresa
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  update((d) => void d.cadastro.empresasConsulta.push({ tipo: "CPF", razaoSocial: "", documento: "" }))
+                }
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Adicionar pessoa
+              </Button>
+              {leadParties.length > 0 ? (
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Remover empresa ${index + 1}`}
-                  onClick={() => update((d) => void d.cadastro.empresasConsulta.splice(index, 1))}
+                  variant="outline"
+                  size="sm"
+                  disabled={partiesToPull.length === 0}
+                  title={partiesToPull.length === 0 ? "Todas as empresas e pessoas do lead já estão na lista." : undefined}
+                  onClick={() =>
+                    update((d) => void d.cadastro.empresasConsulta.push(...partiesToPull.map((p) => ({ ...p, documento: maskDocument(p.documento, partyTipo(p)) }))))
+                  }
                 >
-                  <X className="size-4" aria-hidden />
+                  <Download className="size-3.5" aria-hidden />
+                  Puxar do lead{partiesToPull.length > 0 ? ` (${partiesToPull.length})` : ""}
                 </Button>
               ) : null}
-              <DocumentoAviso
-                id={`ob-consulta-${index}-doc-aviso`}
-                value={empresa.documento}
-                kind="cpf_cnpj"
-                className="sm:col-span-full"
-              />
             </div>
-          ))}
-          {!readOnly ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => update((d) => void d.cadastro.empresasConsulta.push({ razaoSocial: "", documento: "" }))}
-            >
-              <Plus className="size-3.5" aria-hidden />
-              Adicionar empresa
-            </Button>
           ) : null}
         </div>
-        <Field label="Informações adicionais" htmlFor="ob-info">
-          <Textarea
-            id="ob-info"
-            rows={3}
-            value={cadastro.informacoesAdicionais}
-            disabled={disabled}
-            onChange={(e) => update((d) => void (d.cadastro.informacoesAdicionais = e.target.value))}
-          />
-        </Field>
+        {cadastro.informacoesAdicionais ? (
+          // Campo antigo: só o processo do RD preenchia (sócios e consulta em texto livre).
+          <div className="space-y-1 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-3">
+            <p className="text-v2-caption-medium text-muted-foreground">Anotações trazidas do RD</p>
+            <p className="whitespace-pre-wrap text-v2-body-sm text-foreground">{cadastro.informacoesAdicionais}</p>
+          </div>
+        ) : null}
       </Section>
+      </>
+      ) : null}
 
+      {showFaturamento ? (
       <Section
         title="Dados para o faturamento"
         description="O Financeiro usa estes dados para incluir o contrato no gerenciamento de contratos."
       >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Razão social para faturamento" htmlFor="ob-fat-razao" required source={src["financeiro.faturamento"]}>
+        {!readOnly && billingOptions.length > 0 ? (
+          <Field label="Usar dados de" htmlFor="ob-fat-origem">
+            <Select
+              value={null}
+              onValueChange={(value) => {
+                const party = billingOptions.find((p) => partyKey(p) === value);
+                if (!party) return;
+                update((d) => {
+                  d.financeiro.faturamento = {
+                    tipo: partyTipo(party),
+                    razaoSocial: party.razaoSocial,
+                    documento: maskDocument(party.documento, partyTipo(party)),
+                  };
+                });
+              }}
+            >
+              <SelectTrigger id="ob-fat-origem" className="w-full">
+                <span className="text-muted-foreground">Escolha uma empresa ou pessoa já informada no lead</span>
+              </SelectTrigger>
+              <CrmSelectContent inModal={inModal}>
+                {billingOptions.map((party) => (
+                  <CrmSelectItem key={partyKey(party)} value={partyKey(party)}>
+                    {partyLabel(party)}
+                  </CrmSelectItem>
+                ))}
+              </CrmSelectContent>
+            </Select>
+          </Field>
+        ) : null}
+        <div className="grid gap-4 sm:grid-cols-[200px_1.4fr_1fr]">
+          <Field label="Faturar para" htmlFor="ob-fat-tipo" required source={src["financeiro.faturamento"]}>
+            <PartyTipoSelect
+              id="ob-fat-tipo"
+              value={billingTipo}
+              disabled={disabled}
+              inModal={inModal}
+              label="Faturar para empresa ou pessoa"
+              onChange={(next) =>
+                update((d) => {
+                  d.financeiro.faturamento.tipo = next;
+                  d.financeiro.faturamento.documento = maskDocument(d.financeiro.faturamento.documento, next);
+                })
+              }
+            />
+          </Field>
+          <Field label={billingTipo === "CPF" ? "Nome para faturamento" : "Razão social para faturamento"} htmlFor="ob-fat-razao" required>
             <Input
               id="ob-fat-razao"
               value={financeiro.faturamento.razaoSocial}
@@ -446,20 +710,31 @@ export function ClientOnboardingForm({
               onChange={(e) => update((d) => void (d.financeiro.faturamento.razaoSocial = e.target.value))}
             />
           </Field>
-          <Field label="CPF/CNPJ para faturamento" htmlFor="ob-fat-doc" required>
+          <Field label={`${billingTipo} para faturamento`} htmlFor="ob-fat-doc" required>
             <Input
               id="ob-fat-doc"
               inputMode="numeric"
-              value={financeiro.faturamento.documento}
+              placeholder={billingTipo === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"}
+              value={maskDocument(financeiro.faturamento.documento, billingTipo)}
               disabled={disabled}
-              aria-invalid={documentoInvalido(financeiro.faturamento.documento, "cpf_cnpj") || undefined}
+              aria-invalid={documentoInvalido(financeiro.faturamento.documento, billingTipo === "CPF" ? "cpf" : "cpf_cnpj") || undefined}
               aria-describedby={
-                documentoInvalido(financeiro.faturamento.documento, "cpf_cnpj") ? "ob-fat-doc-aviso" : undefined
+                documentoInvalido(financeiro.faturamento.documento, billingTipo === "CPF" ? "cpf" : "cpf_cnpj")
+                  ? "ob-fat-doc-aviso"
+                  : undefined
               }
-              onChange={(e) => update((d) => void (d.financeiro.faturamento.documento = maskCpfCnpj(e.target.value)))}
+              onChange={(e) =>
+                update((d) => void (d.financeiro.faturamento.documento = maskDocument(e.target.value, billingTipo)))
+              }
             />
-            <DocumentoAviso id="ob-fat-doc-aviso" value={financeiro.faturamento.documento} kind="cpf_cnpj" />
+            <DocumentoAviso
+              id="ob-fat-doc-aviso"
+              value={financeiro.faturamento.documento}
+              kind={billingTipo === "CPF" ? "cpf" : "cpf_cnpj"}
+            />
           </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Início da vigência" htmlFor="ob-vig" required source={src["financeiro.inicioVigencia"]}>
             <DateInputBr
               id="ob-vig"
@@ -646,6 +921,7 @@ export function ClientOnboardingForm({
           />
         </Field>
       </Section>
+      ) : null}
     </div>
   );
 }

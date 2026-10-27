@@ -39,6 +39,8 @@ export type OnboardingRow = {
   concluded_by: string | null;
   cliente_id: string | null;
   grupo_id: string | null;
+  /** Migration 20261027120000; ausente antes dela. */
+  ajustes_solicitados?: unknown;
   updated_at: string;
 };
 
@@ -179,6 +181,7 @@ export async function loadOnboardingContext(
     proposalAddress,
     startRule: engine?.startRule ?? null,
     payment: engine?.payment ?? null,
+    proposalFirstDueDate: fieldByCode.cp_primeiro_vencimento ?? null,
     signedOn: signedRaw ? signedRaw.slice(0, 10) : null,
     areaAmounts: areaAmountsFromEscopo(fieldByCode.cp_escopo_detalhe_json ?? ""),
     focal: {

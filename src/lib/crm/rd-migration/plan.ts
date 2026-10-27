@@ -4,7 +4,11 @@ import {
 } from "@/components/crm/confeccao-proposta-transition";
 import { comContratantesPadrao } from "@/lib/crm/proposta-contratantes";
 import { parsePropostaEmpresasJson } from "@/lib/crm/proposta-empresas";
-import { listMissingOnboardingFields, type ClientOnboardingPayload } from "@/modules/crm/domain/client-onboarding";
+import {
+  listMissingCadastroFields,
+  listMissingOnboardingFields,
+  type ClientOnboardingPayload,
+} from "@/modules/crm/domain/client-onboarding";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
 import { RD_LABELS } from "./prefill";
@@ -137,9 +141,9 @@ export function rdMigrationFieldValues(values: RdMigrationValues): Array<{ code:
 
 function onboardingStatusFor(stage: OpportunityStage, payload: ClientOnboardingPayload): RdMigrationOnboardingStatus | null {
   if (!stageBetween(stage, "aguardando_cadastro", "inclusao_faturamento")) return null;
-  const complete = listMissingOnboardingFields(payload).length === 0;
-  if (stage === "cadastro_novo_cliente") return complete ? "enviado" : "rascunho";
-  if (stage === "inclusao_faturamento") return complete ? "concluido" : "rascunho";
+  // Com Operações Legais basta o cadastro; o faturamento é pedido depois da conclusão.
+  if (stage === "cadastro_novo_cliente") return listMissingCadastroFields(payload).length === 0 ? "enviado" : "rascunho";
+  if (stage === "inclusao_faturamento") return listMissingOnboardingFields(payload).length === 0 ? "concluido" : "rascunho";
   return "rascunho";
 }
 

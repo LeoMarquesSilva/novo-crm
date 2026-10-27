@@ -7,6 +7,7 @@ import type { OpportunityStage } from "./entities";
  * - `send_dialog`: envio do contrato para assinatura (D4Sign).
  * - `system`: assinatura concluída na D4Sign (webhook/sync).
  * - `onboarding_submit` / `onboarding_return` / `onboarding_conclude`: cadastro do cliente.
+ * - `onboarding_billing`: dados do faturamento enviados pelo responsável (cadastro já concluído).
  * - `contract_activation`: ativação do contrato no gerenciamento de contratos.
  * - `contract_review`: conclusão da revisão do contrato.
  */
@@ -17,6 +18,7 @@ export type StageTransitionChannel =
   | "onboarding_submit"
   | "onboarding_return"
   | "onboarding_conclude"
+  | "onboarding_billing"
   | "contract_activation"
   | "contract_review";
 
@@ -25,6 +27,7 @@ export type StageActionKind =
   | "open_send_dialog"
   | "open_onboarding"
   | "open_ops_panel"
+  | "open_billing"
   | "open_contract_setup";
 
 export type StageTransitionRole = "admin" | "comercial" | "controladoria" | "financeiro";
@@ -99,12 +102,15 @@ export const STAGE_TRANSITION_RULES: readonly StageTransitionRule[] = [
     allow: ["admin", OPS],
     actionKind: "open_ops_panel",
   },
+  // Operações Legais conclui o cadastro sem mudar a etapa; o responsável avança enviando os
+  // dados do faturamento (27/10/2026). `onboarding_conclude` só vale sem a migration
+  // 20261027120000, quando a conclusão ainda leva o lead para Inclusão.
   {
     from: "cadastro_novo_cliente",
     to: "inclusao_faturamento",
-    channels: ["onboarding_conclude"],
-    allow: ["admin", OPS],
-    actionKind: "open_ops_panel",
+    channels: ["onboarding_billing"],
+    allow: ["admin", "comercial", "lead_owner"],
+    actionKind: "open_billing",
   },
   { from: "inclusao_faturamento", to: "cadastro_novo_cliente", channels: ["manual"], allow: ["admin"] },
   {
@@ -214,6 +220,8 @@ function dedicatedActionReason(rule: StageTransitionRule): string {
       return "Preencha o cadastro do cliente e envie para Operações Legais.";
     case "open_ops_panel":
       return "Use o painel de Operações Legais para devolver ou concluir o cadastro.";
+    case "open_billing":
+      return "Preencha os dados do faturamento: o lead vai para Inclusão no Faturamento ao enviar.";
     case "open_contract_setup":
       return "Ative o contrato no gerenciamento de contratos: o lead vai para Boas-vindas ao ativar.";
     default:

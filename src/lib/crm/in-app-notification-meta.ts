@@ -61,6 +61,7 @@ export const CRM_IN_APP_NOTIFICATION_TIPO_LABELS: Record<string, string> = {
   cadastro_cliente_pendente:      "Cadastro de cliente pendente",
   cadastro_cliente_devolvido:     "Cadastro devolvido para ajuste",
   cadastro_cliente_concluido:     "Cadastro de cliente concluído",
+  faturamento_dados_pendentes:    "Preencher dados do faturamento",
   faturamento_inclusao_pendente:  "Inclusão no faturamento",
   contrato_ativado:               "Contrato ativado",
 };
@@ -72,6 +73,7 @@ export const POST_SALE_NOTIFICATION_TIPOS = new Set<string>([
   "cadastro_cliente_pendente",
   "cadastro_cliente_devolvido",
   "cadastro_cliente_concluido",
+  "faturamento_dados_pendentes",
   "faturamento_inclusao_pendente",
   "contrato_ativado",
 ]);

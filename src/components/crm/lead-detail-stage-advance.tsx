@@ -23,7 +23,10 @@ import {
   DynamicField,
   type FieldDefinition,
 } from "@/components/crm/dynamic-form";
-import { ClientOnboardingSubmitDialog } from "@/components/crm/client-onboarding-submit-dialog";
+import {
+  ClientOnboardingSubmitDialog,
+  type OnboardingDialogStep,
+} from "@/components/crm/client-onboarding-submit-dialog";
 import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
 import { LeadStageDurationStrip } from "@/components/crm/lead-stage-duration-strip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -120,7 +123,7 @@ export function LeadDetailStageAdvance({
   const [blocker, setBlocker] = useState<TransitionBlocker | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
-  const [onboardingDialogOpen, setOnboardingDialogOpen] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingDialogStep | null>(null);
 
   const requestAdvance = async (
     targetStage: OpportunityStage,
@@ -187,10 +190,16 @@ export function LeadDetailStageAdvance({
           setSendDialogOpen(true);
           return;
         }
-        // Aguardando Cadastro → Cadastro de Novo Cliente: o cadastro do cliente abre num modal.
+        // Pós-venda: cadastro do cliente (→ Cadastro de Novo Cliente) e dados do faturamento
+        // (→ Inclusão no Faturamento) abrem num modal.
         if (payload.transitionBlocker.actionKind === "open_onboarding") {
           setOpen(false);
-          setOnboardingDialogOpen(true);
+          setOnboardingStep("cadastro");
+          return;
+        }
+        if (payload.transitionBlocker.actionKind === "open_billing") {
+          setOpen(false);
+          setOnboardingStep("faturamento");
           return;
         }
         setBlocker(payload.transitionBlocker);
@@ -397,13 +406,18 @@ export function LeadDetailStageAdvance({
         onSent={() => router.refresh()}
       />
 
-      <ClientOnboardingSubmitDialog
-        open={onboardingDialogOpen}
-        onOpenChange={setOnboardingDialogOpen}
-        leadId={leadId}
-        leadName={leadName}
-        onSubmitted={() => router.refresh()}
-      />
+      {onboardingStep ? (
+        <ClientOnboardingSubmitDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setOnboardingStep(null);
+          }}
+          leadId={leadId}
+          leadName={leadName}
+          step={onboardingStep}
+          onSubmitted={() => router.refresh()}
+        />
+      ) : null}
 
       <Dialog
         modal={false}
