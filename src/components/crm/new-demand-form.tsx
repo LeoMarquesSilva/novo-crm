@@ -132,10 +132,6 @@ const PLATFORM_SELECT_ITEMS: Record<string, string> = Object.fromEntries(
   leadDigitalPlatforms.map((item) => [item, item]),
 );
 
-const AREA_SELECT_ITEMS: Record<string, string> = Object.fromEntries(
-  leadAreas.map((item) => [item, item]),
-);
-
 const LEAD_TYPE_HELP: Record<(typeof leadTypes)[number], string> = {
   Indicacao:
     "Lead vindo de recomendação direta de cliente, parceiro, consultor ou relacionamento.",
@@ -372,7 +368,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [tipoLead, setTipoLead] = useState<(typeof leadTypes)[number]>("Indicacao");
   const [tipoIndicacao, setTipoIndicacao] = useState("");
   const [plataforma, setPlataforma] = useState("");
-  const [areaCrossSelling, setAreaCrossSelling] = useState("");
+  const [areasCrossSelling, setAreasCrossSelling] = useState<string[]>([]);
   const [decisor, setDecisor] = useState("");
   const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<"existing" | "new" | "colaborador">(
     "existing",
@@ -428,12 +424,12 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     }
     if (isLeadDigital) return Boolean(plataforma);
     if (isCrossSelling) {
-      return Boolean(aditivoClientId && areaCrossSelling);
+      return Boolean(aditivoClientId && areasCrossSelling.length > 0);
     }
     return true;
   }, [
     aditivoClientId,
-    areaCrossSelling,
+    areasCrossSelling,
     isCrossSelling,
     isLeadDigital,
     nomeIndicacaoColaboradorId,
@@ -727,7 +723,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setTipoLead("Indicacao");
     setTipoIndicacao("");
     setPlataforma("");
-    setAreaCrossSelling("");
+    setAreasCrossSelling([]);
     setDecisor("");
     setNomeIndicacaoMode("existing");
     setNomeIndicacaoExisting("");
@@ -813,8 +809,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       if (isCrossSelling && !aditivoClientId) {
         return issue("crossCliente", "Selecione um cliente existente para o fluxo de cross selling.");
       }
-      if (isCrossSelling && !areaCrossSelling) {
-        return issue("crossArea", "Selecione a área do cross selling.");
+      if (isCrossSelling && areasCrossSelling.length === 0) {
+        return issue("crossArea", "Selecione ao menos uma área do cross selling.");
       }
       return null;
     }
@@ -1012,8 +1008,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       return false;
     }
 
-    if (isCrossSelling && !areaCrossSelling) {
-      setError("Selecione a área do cross selling.");
+    if (isCrossSelling && areasCrossSelling.length === 0) {
+      setError("Selecione ao menos uma área do cross selling.");
       return false;
     }
 
@@ -1090,7 +1086,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
           : null,
       plataforma: isLeadDigital ? (plataforma as NewLeadPayload["plataforma"]) : null,
       area_cross_selling: isCrossSelling
-        ? (areaCrossSelling as NewLeadPayload["area_cross_selling"])
+        ? ((areasCrossSelling[0] ?? null) as NewLeadPayload["area_cross_selling"])
+        : null,
+      areas_cross_selling: isCrossSelling
+        ? (areasCrossSelling as NonNullable<NewLeadPayload["areas_cross_selling"]>)
         : null,
       decisor: decisor.trim() || null,
       contexto_comercial: null,
@@ -1270,7 +1269,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       // Outra origem abre outros campos: não herdar os erros da tentativa anterior.
                       setValidatedStep(null);
                       if (item !== "Lead Digital") setPlataforma("");
-                      if (item !== "Cross Selling") setAreaCrossSelling("");
+                      if (item !== "Cross Selling") setAreasCrossSelling([]);
                     }}
                     icon={LEAD_TYPE_ICONS[item]}
                     title={leadTypeLabel(item)}
@@ -1493,34 +1492,34 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         disabled={loadingClients}
                       />
                     </FormField>
-                    <FormField label="Área" {...formFieldProps("crossArea")}>
-                      <Select
-                        modal={false}
-                        items={AREA_SELECT_ITEMS}
-                        value={areaCrossSelling}
-                        onValueChange={(value) => setAreaCrossSelling(value ?? "")}
+                    {/* Mais de uma área no cross selling (03/11/2026). */}
+                    <FormField
+                      label="Áreas"
+                      hint="Marque uma ou mais áreas."
+                      className="md:col-span-2"
+                      {...formFieldProps("crossArea")}
+                    >
+                      <div
+                        {...controlProps("crossArea", { hasHint: true })}
+                        role="group"
+                        aria-label="Áreas do cross selling"
+                        className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
                       >
-                        <SelectTrigger
-                          {...controlProps("crossArea")}
-                          className={cn(
-                            newLeadModalFieldClass,
-                            "h-10 w-full justify-between font-normal",
-                          )}
-                        >
-                          <CrmSelectValue
-                            value={areaCrossSelling}
-                            labels={AREA_SELECT_ITEMS}
-                            placeholder="Selecione"
-                          />
-                        </SelectTrigger>
-                        <CrmSelectContent inModal>
-                          {leadAreas.map((item) => (
-                            <CrmSelectItem key={item} value={item}>
-                              {item}
-                            </CrmSelectItem>
-                          ))}
-                        </CrmSelectContent>
-                      </Select>
+                        {leadAreas.map((area) => (
+                          <TagSelectable
+                            key={area}
+                            checked={areasCrossSelling.includes(area)}
+                            onToggle={() =>
+                              setAreasCrossSelling((prev) =>
+                                prev.includes(area) ? prev.filter((item) => item !== area) : [...prev, area],
+                              )
+                            }
+                            icon={AREA_ICONS[area] ?? Scale}
+                          >
+                            {area}
+                          </TagSelectable>
+                        ))}
+                      </div>
                     </FormField>
                   </div>
                 ) : null}
@@ -1635,29 +1634,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         ) : null}
                       </div>
 
-                      <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-4 md:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)]">
-                        <FormField
-                          label="Razão social / nome completo"
-                          htmlFor={razaoIds.id}
-                          errorId={razaoIds.errorId}
-                          error={razaoError}
-                          className="col-span-2 md:col-span-1"
-                        >
-                          <Input
-                            id={razaoIds.id}
-                            aria-invalid={Boolean(razaoError) || undefined}
-                            aria-describedby={describedBy(razaoError && razaoIds.errorId)}
-                            value={company.razao_social}
-                            onChange={(e) =>
-                              updateCompany(index, {
-                                razao_social: e.target.value.toUpperCase(),
-                              })
-                            }
-                            placeholder="NOME DA EMPRESA/PESSOA"
-                            className={newLeadModalFieldClass}
-                          />
-                        </FormField>
-
+                      <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-4 md:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)]">
                         <FormField label="Tipo" htmlFor={tipoIds.id}>
                           <Select
                             open={companyTypeOpenIndex === index}
@@ -1715,6 +1692,28 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                                 : "00.000.000/0000-00"
                             }
                             className={cn(newLeadModalFieldClass, "tabular-nums")}
+                          />
+                        </FormField>
+
+                        <FormField
+                          label="Razão social / nome completo"
+                          htmlFor={razaoIds.id}
+                          errorId={razaoIds.errorId}
+                          error={razaoError}
+                          className="col-span-2 md:col-span-1"
+                        >
+                          <Input
+                            id={razaoIds.id}
+                            aria-invalid={Boolean(razaoError) || undefined}
+                            aria-describedby={describedBy(razaoError && razaoIds.errorId)}
+                            value={company.razao_social}
+                            onChange={(e) =>
+                              updateCompany(index, {
+                                razao_social: e.target.value.toUpperCase(),
+                              })
+                            }
+                            placeholder="NOME DA EMPRESA/PESSOA"
+                            className={newLeadModalFieldClass}
                           />
                         </FormField>
                       </div>
@@ -1985,7 +1984,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       : isLeadDigital
                         ? plataforma || "Plataforma não selecionada"
                         : isCrossSelling
-                          ? `${selectedClient?.razao_social ?? "Cliente não selecionado"} · ${areaCrossSelling || "Área não selecionada"}`
+                          ? `${selectedClient?.razao_social ?? "Cliente não selecionado"} · ${areasCrossSelling.join(", ") || "Área não selecionada"}`
                           : "Sem dados adicionais"
                   }
                   onEdit={() => selectWizardStep("origem")}
@@ -2107,8 +2106,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               Confirmar cadastro do novo lead?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              O lead será criado e, se houver due diligence, o CRM enviará a
-              notificação no WhatsApp configurado e criará o agendamento no SharePoint.
+              O lead será criado e o CRM avisará o grupo da DUE no WhatsApp. Se houver due
+              diligence, também criará as tarefas das áreas e o agendamento no SharePoint.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:space-x-0">

@@ -4,6 +4,7 @@ import type { NewLeadPayload } from "@/modules/crm/application/services/new-lead
 import {
   WHATSAPP_TEMPLATE_DEFS,
   renderWhatsappTemplate,
+  type WhatsappTemplateKey,
   type WhatsappTemplateValues,
 } from "@/lib/crm/whatsapp/templates";
 
@@ -20,9 +21,31 @@ function fmtHora(v: string | null | undefined): string {
   return /^\d{2}:\d{2}:\d{2}$/.test(s) ? s.slice(0, 5) : s;
 }
 
-export interface BuildDueWhatsappMessageInput extends NewLeadPayload {
+export interface BuildDueWhatsappMessageInput
+  extends Omit<NewLeadPayload, "area_cross_selling" | "areas_cross_selling"> {
   razao_social_completa: string;
   cnpj_completo: string;
+  /** Área do cross-selling: uma (formato antigo) ou várias. */
+  area_cross_selling?: string | string[] | null;
+  /** Áreas do cross-selling (formato multiárea); somadas a `area_cross_selling`, sem repetir. */
+  areas_cross_selling?: string[] | null;
+}
+
+/** Modelo do aviso de lead novo no grupo da DUE: com due diligence `novo_lead_due`, sem `novo_lead`. */
+export function newLeadWhatsappTemplateKey(
+  data: Pick<NewLeadPayload, "due_diligence">,
+): Extract<WhatsappTemplateKey, "novo_lead" | "novo_lead_due"> {
+  return data.due_diligence === "Sim" ? "novo_lead_due" : "novo_lead";
+}
+
+/** Áreas do cross-selling, na ordem informada, sem vazias nem repetidas. */
+export function crossSellingAreas(
+  data: Pick<BuildDueWhatsappMessageInput, "area_cross_selling" | "areas_cross_selling">,
+): string[] {
+  const single = data.area_cross_selling;
+  const fromSingle = single == null ? [] : typeof single === "string" ? [single] : single;
+  const all = [...fromSingle, ...(data.areas_cross_selling ?? [])];
+  return [...new Set(all.map((area) => String(area ?? "").trim()).filter(Boolean))];
 }
 
 function joinEmpresas(data: BuildDueWhatsappMessageInput, field: "razao_social" | "documento") {
@@ -48,7 +71,10 @@ function buildOrigemLeadSection(data: BuildDueWhatsappMessageInput) {
   }
 
   if (data.tipo_de_lead === "Cross Selling") {
-    if (data.area_cross_selling) lines.push(`*Área do Cross-selling:* ${data.area_cross_selling}`);
+    const areas = crossSellingAreas(data);
+    if (areas.length > 0) {
+      lines.push(`*${areas.length > 1 ? "Áreas" : "Área"} do Cross-selling:* ${areas.join(", ")}`);
+    }
     const contexto = data.contexto_comercial?.trim();
     lines.push(`*Origem do Cross-selling:* ${contexto || "Cliente da base / relacionamento existente"}`);
   }
@@ -57,7 +83,8 @@ function buildOrigemLeadSection(data: BuildDueWhatsappMessageInput) {
 }
 
 /**
- * Valores do modelo `novo_lead_due` (texto padrão e versão editável em Integrações → WhatsApp).
+ * Valores dos modelos `novo_lead` e `novo_lead_due` (texto padrão e versão editável em Integrações → WhatsApp).
+ * `novo_lead` não usa `prazo_due` nem `avisos`.
  * `avisos`: alerta de área sem responsável no cadastro de usuários (vazio quando está tudo certo).
  */
 export function buildDueWhatsappValues(
@@ -82,10 +109,13 @@ export function buildDueWhatsappValues(
   };
 }
 
-/** Texto padrão (sem a sobrescrita do banco), usado em testes e quando não há Supabase à mão. */
+/**
+ * Texto padrão (sem a sobrescrita do banco), usado em testes e quando não há Supabase à mão.
+ * Escolhe o modelo como o envio: `novo_lead_due` com due diligence, `novo_lead` sem.
+ */
 export function buildDueWhatsappMessage(data: BuildDueWhatsappMessageInput) {
   return renderWhatsappTemplate(
-    WHATSAPP_TEMPLATE_DEFS.novo_lead_due.defaultBody,
+    WHATSAPP_TEMPLATE_DEFS[newLeadWhatsappTemplateKey(data)].defaultBody,
     buildDueWhatsappValues(data),
   );
 }

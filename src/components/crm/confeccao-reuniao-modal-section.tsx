@@ -487,7 +487,7 @@ export function ConfeccaoReuniaoModalSection({
       <SectionCard
         icon={Target}
         title="Escopo e prazo"
-        subtitle="Marque as áreas, indique um ou mais tipos de escopo por área e a data de entrega."
+        subtitle="Marque as áreas, indique um ou mais tipos de escopo por área e a data limite de preenchimento."
       >
         <div className="space-y-2">
           <Label className="text-xs font-medium text-[#111827]">Escopo da proposta *</Label>
@@ -518,7 +518,7 @@ export function ConfeccaoReuniaoModalSection({
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-[#111827]">Prazo para entrega *</Label>
+          <Label className="text-xs font-medium text-[#111827]">Data limite de preenchimento *</Label>
           <DateInputBr
             value={typeof customValues.cp_prazo_entrega === "string" ? customValues.cp_prazo_entrega : ""}
             onChange={(ymd) => patchField("cp_prazo_entrega", ymd)}

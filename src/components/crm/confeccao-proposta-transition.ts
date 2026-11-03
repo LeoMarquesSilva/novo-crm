@@ -123,7 +123,7 @@ export function validateReuniaoConfeccaoValues(params: {
     }
   }
   if (!String(customValues.cp_prazo_entrega ?? "").trim()) {
-    return "Informe o prazo para entrega.";
+    return "Informe a data limite de preenchimento.";
   }
   if (empresasIntake.length === 0) {
     const ok = empresasPayload.extras.some(

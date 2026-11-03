@@ -43,6 +43,8 @@ function adjustmentIndexFromOnboarding(indice: string): string | null {
 export function buildLeadExtraction(input: {
   onboarding: ClientOnboardingPayload | null;
   prefill: ContractPrefillResult;
+  /** Vigência do contrato montado no CRM; sem ele (lead antigo), prazo indeterminado. */
+  indefinite?: boolean;
 }): ContractImportExtraction {
   const onboarding = input.onboarding;
   const areas = new Map<string, ContractImportExtraction["areas"][number]>();
@@ -111,7 +113,7 @@ export function buildLeadExtraction(input: {
     parties: contratante,
     startsAt: onboarding?.financeiro.inicioVigencia || null,
     signedAt: null,
-    indefinite: true,
+    indefinite: input.indefinite ?? true,
     dueDay: null,
     firstInvoiceAt,
     firstInvoiceConditioned: onboarding?.financeiro.primeiroFaturamentoCondicionado ?? false,

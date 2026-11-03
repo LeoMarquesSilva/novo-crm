@@ -51,6 +51,8 @@ export const newLeadPayloadSchema = z
     nome_indicacao: z.string().optional().nullable(),
     plataforma: z.enum(leadDigitalPlatforms).optional().nullable(),
     area_cross_selling: z.enum(leadAreas).optional().nullable(),
+    /** Cross selling pode envolver mais de uma área (03/11/2026); `area_cross_selling` fica com a primeira. */
+    areas_cross_selling: z.array(z.enum(leadAreas)).optional().nullable(),
     decisor: z.string().trim().optional().nullable(),
     contexto_comercial: z.string().optional().nullable(),
     /** Cliente da carteira quando o CNPJ/CPF já existe na base. */
@@ -140,16 +142,25 @@ export const newLeadPayloadSchema = z
       });
     }
 
-    if (value.tipo_de_lead === "Cross Selling" && !value.area_cross_selling) {
+    if (value.tipo_de_lead === "Cross Selling" && crossSellingAreas(value).length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["area_cross_selling"],
+        path: ["areas_cross_selling"],
         message: "Área é obrigatória para Cross Selling.",
       });
     }
   });
 
 export type NewLeadPayload = z.infer<typeof newLeadPayloadSchema>;
+
+/** Áreas do cross selling: a lista nova ou, de quem ainda manda uma só, `area_cross_selling`. */
+export function crossSellingAreas(value: {
+  area_cross_selling?: string | null;
+  areas_cross_selling?: readonly string[] | null;
+}): string[] {
+  const areas = value.areas_cross_selling?.length ? [...value.areas_cross_selling] : value.area_cross_selling ? [value.area_cross_selling] : [];
+  return [...new Set(areas)];
+}
 
 /**
  * Primeira empresa com CPF/CNPJ cujo dígito verificador não confere: mensagem para a tela, ou `null`.

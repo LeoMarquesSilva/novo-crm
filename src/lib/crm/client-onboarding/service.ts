@@ -15,6 +15,7 @@ import {
   listMissingCadastroFields,
   listMissingChecklistItems,
   listMissingFaturamentoFields,
+  todayYmdSaoPaulo,
   onlyDigits,
   parseClientOnboardingPayload,
   type ClientOnboardingPayload,
@@ -827,7 +828,7 @@ export async function submitBilling(
   const { ctx, actor } = input;
   if (ctx.migrationPending) throw MIGRATION_PENDING;
   const payload = mergeSections(savedPayload(ctx), input.payload, { cadastro: false, financeiro: true });
-  const missing = listMissingFaturamentoFields(payload, { indicacao: Boolean(ctx.indicacao) });
+  const missing = listMissingFaturamentoFields(payload, { indicacao: Boolean(ctx.indicacao), today: todayYmdSaoPaulo() });
   if (missing.length > 0) {
     throw new PublicError(`Preencha antes de enviar: ${missing.join(", ")}.`, 422, "BILLING_INCOMPLETE");
   }

@@ -29,9 +29,12 @@ const date = (value: string | null) => formatDateYmdBr(value) || "—";
 export function ContractDetailShell({
   contract,
   canConfigure,
+  canViewSignedDocument = false,
 }: {
   contract: ContractDetailViewModel;
   canConfigure: boolean;
+  /** `canViewD4SignDocument`: mostra o PDF assinado pela rota do CRM (`/api/crm/d4sign/documents/[uuid]/view`). */
+  canViewSignedDocument?: boolean;
 }) {
   const searchParams = useSearchParams();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
@@ -209,17 +212,30 @@ export function ContractDetailShell({
                 <article key={document.id} className="rounded-xl border border-[#dfe5ee] bg-white p-4 shadow-sm">
                   <strong className="text-[#102033]">{document.name}</strong>
                   <p className="mt-1 text-sm text-slate-500">{document.status ?? "Sem status"}</p>
-                  {document.link ? (
-                    <a
-                      href={document.link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-sm text-teal-700"
-                    >
-                      Abrir
-                      <ExternalLink className="size-3" />
-                    </a>
-                  ) : null}
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                    {canViewSignedDocument && document.signed ? (
+                      <a
+                        href={`/api/crm/d4sign/documents/${encodeURIComponent(document.id)}/view`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-teal-700"
+                      >
+                        Ver PDF assinado
+                        <ExternalLink className="size-3" />
+                      </a>
+                    ) : null}
+                    {document.link ? (
+                      <a
+                        href={document.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-teal-700"
+                      >
+                        Abrir na D4Sign
+                        <ExternalLink className="size-3" />
+                      </a>
+                    ) : null}
+                  </div>
                 </article>
               ))}
             </Collection>

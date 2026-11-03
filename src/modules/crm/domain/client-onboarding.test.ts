@@ -9,7 +9,9 @@ import {
   listMissingOnboardingFields,
   parseClientOnboardingPayload,
   parseOpsChecklist,
+  passaDoDiaCorte,
   rateioTotal,
+  todayYmdSaoPaulo,
 } from "./client-onboarding";
 
 function complete() {
@@ -127,6 +129,24 @@ describe("client onboarding", () => {
     expect(isLeadIndicacao("Indicação")).toBe(true);
     expect(isLeadIndicacao("Lead Passiva")).toBe(false);
     expect(isLeadIndicacao(null)).toBe(false);
+  });
+
+  it("no envio, vigência e primeiro faturamento não ficam no passado (03/11/2026)", () => {
+    const p = complete(); // vigência 15/10/2026, primeiro faturamento 10/11/2026
+    expect(listMissingFaturamentoFields(p)).toEqual([]);
+    expect(listMissingFaturamentoFields(p, { today: "2026-11-03" })).toEqual(["Início da vigência a partir de hoje"]);
+    expect(listMissingFaturamentoFields(p, { today: "2026-11-11" })).toEqual([
+      "Início da vigência a partir de hoje",
+      "Primeiro faturamento a partir de hoje",
+    ]);
+    p.financeiro.inicioVigencia = "2026-11-03";
+    expect(listMissingFaturamentoFields(p, { today: "2026-11-03" })).toEqual([]);
+    p.financeiro.primeiroFaturamentoCondicionado = true;
+    p.financeiro.condicaoPrimeiroFaturamento = "Após a entrega";
+    expect(listMissingFaturamentoFields(p, { today: "2026-11-11" })).toEqual(["Início da vigência a partir de hoje"]);
+    expect(todayYmdSaoPaulo(new Date("2026-11-04T01:30:00Z"))).toBe("2026-11-03");
+    expect(passaDoDiaCorte("2026-11-21")).toBe(true);
+    expect(passaDoDiaCorte("2026-11-20")).toBe(false);
   });
 
   it("payload inválido vira rascunho vazio sem quebrar", () => {

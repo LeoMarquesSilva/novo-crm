@@ -189,7 +189,8 @@ export async function PATCH(
       expectedVersionUpdatedAt: body.data.expectedVersionUpdatedAt,
       configuration: body.data.configuration as ContractConfigurationInput,
     });
-    return json({ ok: true, updatedAt: result.updatedAt }, 200);
+    // `warnings`: o que não impede salvar o rascunho, mas barra a ativação (ex.: sócios fora de 100%).
+    return json({ ok: true, updatedAt: result.updatedAt, warnings: result.warnings }, 200);
   } catch (error) {
     if (error instanceof ContractConfigurationError) {
       const status = error.code === "CONTRACT_CONFIGURATION_INVALID" ? 422

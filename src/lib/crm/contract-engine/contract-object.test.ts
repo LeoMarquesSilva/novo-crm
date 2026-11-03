@@ -459,6 +459,14 @@ describe("várias áreas", () => {
       scope: { ...trab!, placeholders: { "QTD DE PROCESSOS": "30", "Vlr adcional de processo": "R$ 500,00" } },
     });
     expect(contencioso.value).toBe("30");
+
+    // Cível 1 processo (03/11/2026): número e vara/tribunal vêm do próprio escopo Cível da proposta.
+    const civel = { ...trab!, placeholders: { "NUM. DO PROCESSO": "1000123-45.2026.8.26.0114", "VARA/TRIBUNAL": "2ª Vara Cível de Campinas" } };
+    const numero = resolveFieldFromSources({ field: { key: "numero_processo_civel", label: "", type: "text", required: true, sourceHints: [] }, scope: civel });
+    const vara = resolveFieldFromSources({ field: { key: "vara_tribunal_civel", label: "", type: "text", required: true, sourceHints: [] }, scope: civel });
+    expect([numero.value, numero.source, vara.value]).toEqual(["1000123-45.2026.8.26.0114", "proposal", "2ª Vara Cível de Campinas"]);
+    // Outro escopo (ex.: processo trabalhista) não preenche o processo cível.
+    expect(resolveFieldFromSources({ field: { key: "numero_processo_civel", label: "", type: "text", required: true, sourceHints: [] }, scope: trab }).value).toBe("");
   });
 });
 

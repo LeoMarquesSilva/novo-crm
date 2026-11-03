@@ -271,22 +271,40 @@ export function isLeadIndicacao(tipoLead: string | null | undefined): boolean {
   return (tipoLead ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase().startsWith("indica");
 }
 
+/** Data de hoje em São Paulo (YYYY-MM-DD), para comparar com as datas do cadastro. */
+export function todayYmdSaoPaulo(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(now);
+}
+
+/** Dia de corte do faturamento: data depois dele pede conferir se uma parcela é paga no ato. */
+export const FATURAMENTO_DIA_CORTE = 20;
+
+export function passaDoDiaCorte(ymd: string): boolean {
+  return ISO_DATE.test(ymd) && Number(ymd.slice(8, 10)) > FATURAMENTO_DIA_CORTE;
+}
+
 /**
  * Rótulos dos campos obrigatórios que faltam para enviar os dados do faturamento ao Financeiro.
  * `indicacao`: o repasse acordado é pedido só em lead de indicação (29/10/2026).
+ * `today`: no envio pelo responsável, início da vigência e primeiro faturamento não podem ficar
+ * no passado (03/11/2026). A migração do RD não passa a data: contrato antigo tem data passada.
  */
 export function listMissingFaturamentoFields(
   payload: ClientOnboardingPayload,
-  opts: { indicacao?: boolean } = {},
+  opts: { indicacao?: boolean; today?: string } = {},
 ): string[] {
   const missing: string[] = [];
   const { financeiro } = payload;
+  const noPassado = (ymd: string) => !opts.today || ymd >= opts.today;
 
   if (!financeiro.faturamento.razaoSocial) missing.push("Razão social ou nome para faturamento");
   if (!isValidPartyDocument(financeiro.faturamento)) missing.push(`${partyTipo(financeiro.faturamento)} para faturamento`);
   if (!ISO_DATE.test(financeiro.inicioVigencia)) missing.push("Início da vigência");
+  else if (!noPassado(financeiro.inicioVigencia)) missing.push("Início da vigência a partir de hoje");
   if (!financeiro.primeiroFaturamentoCondicionado && !ISO_DATE.test(financeiro.primeiroFaturamento)) {
     missing.push("Primeiro faturamento");
+  } else if (!financeiro.primeiroFaturamentoCondicionado && !noPassado(financeiro.primeiroFaturamento)) {
+    missing.push("Primeiro faturamento a partir de hoje");
   }
   if (financeiro.primeiroFaturamentoCondicionado && !financeiro.condicaoPrimeiroFaturamento) {
     missing.push("Condição do primeiro faturamento");

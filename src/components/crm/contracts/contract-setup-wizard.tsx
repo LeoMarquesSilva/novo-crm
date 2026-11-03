@@ -28,6 +28,7 @@ import {
   type ProjectionRun,
 } from "@/modules/contracts/domain/variable-usage-projection";
 import { reattachOptionalAreaIds, reattachRequiredAreaIds } from "@/modules/contracts/domain/reattach-area-ids";
+import { validatePartnerShareTotals } from "@/modules/contracts/domain/contract-validation";
 import type {
   ContractConfigurationDraft,
   ContractDetailViewModel,
@@ -81,7 +82,15 @@ const sourceLabels: Record<ContractSource, string> = {
 };
 
 type Issue = { path?: string | Array<string | number>; message: string };
-type ApiResult = { ok: boolean; code?: string; updatedAt?: string; error?: string; issues?: Issue[] };
+type ApiResult = {
+  ok: boolean;
+  code?: string;
+  updatedAt?: string;
+  error?: string;
+  issues?: Issue[];
+  /** Salvar rascunho: o que não impede salvar, mas barra a ativação. */
+  warnings?: Issue[];
+};
 
 function issuePath(issue: Issue): string {
   if (Array.isArray(issue.path)) return issue.path.map(String).join(".") || "Configuração";
@@ -164,6 +173,7 @@ export function ContractSetupWizard({
   const [configuration, setConfiguration] = useState(contract.configuration);
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(contract.expectedVersionUpdatedAt);
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [warnings, setWarnings] = useState<Issue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sioeUsage, setSioeUsage] = useState(contract.sioeUsage);
@@ -288,12 +298,14 @@ export function ContractSetupWizard({
   const patch = (next: Partial<ContractConfigurationDraft>) => {
     setConfiguration((current) => (current ? { ...current, ...next } : current));
     setMessage(null);
+    setWarnings([]);
   };
   const patchVersion = (next: Partial<ContractConfigurationDraft["version"]>) => {
     setConfiguration((current) =>
       current ? { ...current, version: { ...current.version, ...next } } : current,
     );
     setMessage(null);
+    setWarnings([]);
   };
 
   function currentProvenanceValue(field: string): string | null {
@@ -363,6 +375,7 @@ export function ContractSetupWizard({
     const currentConfiguration = configuration;
     if (!currentConfiguration) return null;
     setIssues([]);
+    setWarnings([]);
     setMessage(null);
     if (identityChanges.length && (!overrideConfirmed || !overrideReason.trim())) {
       setMessage("Confirme a substituição e informe o motivo para alterar dados sugeridos.");
@@ -398,6 +411,7 @@ export function ContractSetupWizard({
       }
       setExpectedUpdatedAt(result.updatedAt);
       setBaseline(stringify(configuration));
+      setWarnings(result.warnings ?? []);
       setMessage("Rascunho salvo.");
       router.refresh();
       return result.updatedAt;
@@ -425,6 +439,23 @@ export function ContractSetupWizard({
       setIssues([{ path: "version.startMonthBilling", message: "Escolha como cobrar a mensalidade do mês de início." }]);
       setMessage("A configuração contratual contém erros. Escolha como cobrar a mensalidade na etapa de identificação.");
       setStep(0);
+      return;
+    }
+    // O rascunho salva com a divisão incompleta; a ativação exige 100% (o servidor confere de novo).
+    const componentLabels = new Map(
+      currentConfiguration.version.components.map((component) => [component.id, component.description]),
+    );
+    const shareIssues = validatePartnerShareTotals(
+      currentConfiguration.version.partnerShares.filter(
+        (share) => !share.componentId || componentLabels.has(share.componentId),
+      ),
+      { componentLabel: (componentId) => componentLabels.get(componentId) },
+    );
+    if (shareIssues.length) {
+      setIssues(shareIssues);
+      setWarnings([]);
+      setMessage("Para ativar, a participação dos sócios precisa fechar 100% (etapa Origem e comissões).");
+      setStep(4);
       return;
     }
     const updatedAt = dirty ? await saveDraft() : expectedUpdatedAt;
@@ -782,6 +813,7 @@ export function ContractSetupWizard({
           <ContractSharesCommissionsEditor
             partnerShares={configuration.version.partnerShares}
             commissions={configuration.version.commissions}
+            components={configuration.version.components}
             users={contract.users}
             disabled={!canConfigure}
             onPartnerSharesChange={(partnerShares) => patchVersion({ partnerShares })}
@@ -916,6 +948,16 @@ export function ContractSetupWizard({
           <p role="status" className="mt-4 rounded-xl bg-zinc-100 p-3 text-sm text-zinc-700">
             {message}
           </p>
+        ) : null}
+        {warnings.length ? (
+          <ul className="mt-2 space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {warnings.map((warning, index) => (
+              <li key={`${issuePath(warning)}-${index}`} className="flex gap-2">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span>{warning.message}</span>
+              </li>
+            ))}
+          </ul>
         ) : null}
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-2">

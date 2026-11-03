@@ -10,6 +10,7 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  CircleAlert,
   ChevronDown,
   ExternalLink,
   FileSignature,
@@ -20,8 +21,10 @@ import {
   Presentation,
   ShieldCheck,
   UserRound,
+  X,
   type LucideIcon,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CrmEntityHeader } from "@/components/crm/crm-entity-header";
@@ -111,6 +114,12 @@ export function LeadDetailView({
   const hasRdHistory = Boolean(lead.rdDealId || lead.rdDealUrl || lead.filledFields.length > 0);
   /** Lead do RD só leitura: ainda não convertido na virada. */
   const isRdLead = hasRdHistory && !lead.rdMigradoEm;
+  /**
+   * A aba Contrato continua no pós-venda (Financeiro trabalha de Inclusão no Faturamento em diante)
+   * para consultar o contrato; editar segue exigindo `contract.edit` (builder e rotas).
+   * `isContractStage` continua decidindo a aba que abre por padrão.
+   */
+  const showContractTab = isContractStage || (!isRdLead && isPosVendaPipelineStage(lead.etapa));
   const isOnboardingStage = ["aguardando_cadastro", "cadastro_novo_cliente"].includes(lead.etapa);
   const showOnboardingTab =
     !isRdLead &&
@@ -150,17 +159,21 @@ export function LeadDetailView({
 
   useLeadDetailRealtime(lead.id, () => router.refresh());
 
-  const visibleTab = resolveLeadDetailTab({
-    requested: searchParams.get("tab") ?? initialTab,
-    hasDueDiligence: lead.haveraDueDiligence,
-    isProposalStage,
-    isContractStage,
-    showBilling: showBillingTab,
-    isRdLead: hasRdHistory,
-    showOnboarding: showOnboardingTab,
-    isOnboardingStage,
-    isBillingStage: lead.etapa === "inclusao_faturamento",
-  });
+  const requestedTab = searchParams.get("tab") ?? initialTab;
+  const visibleTab: LeadDetailTab =
+    requestedTab === "contract" && showContractTab
+      ? "contract"
+      : resolveLeadDetailTab({
+          requested: requestedTab,
+          hasDueDiligence: lead.haveraDueDiligence,
+          isProposalStage,
+          isContractStage,
+          showBilling: showBillingTab,
+          isRdLead: hasRdHistory,
+          showOnboarding: showOnboardingTab,
+          isOnboardingStage,
+          isBillingStage: lead.etapa === "inclusao_faturamento",
+        });
 
   const handleTabChange = (tab: LeadDetailTab) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -220,7 +233,7 @@ export function LeadDetailView({
                 <TabsTrigger value="proposal" className="h-10 px-3 text-sm font-medium">
                   Proposta
                 </TabsTrigger>
-                {isContractStage ? (
+                {showContractTab ? (
                   <TabsTrigger value="contract" className="h-10 px-3 text-sm font-medium">
                     Contrato
                   </TabsTrigger>
@@ -321,7 +334,7 @@ export function LeadDetailView({
               </section>
             </TabsContent>
 
-            {isContractStage ? (
+            {showContractTab ? (
               <TabsContent value="contract" className="mt-4 space-y-5">
                 <section id="contrato" className="scroll-mt-6">
                   <ContratoDocumentBuilder
@@ -1394,6 +1407,8 @@ function DueAreaTasksCard({
   const [semDialogTaskId, setSemDialogTaskId] = useState<string | null>(null);
   const [semObs, setSemObs] = useState("");
   const [planilhasAnexadas, setPlanilhasAnexadas] = useState<Record<string, string[]>>({});
+  // Aviso dentro do cartão (03/11/2026): antes era popup do navegador (window.alert).
+  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const total = lead.dueAreaTasks.length;
   const done = lead.dueAreaTasks.filter((task) =>
     isDueAreaTaskDelivered({
@@ -1407,6 +1422,7 @@ function DueAreaTasksCard({
 
   async function patchTask(taskId: string, body: Record<string, unknown>) {
     setSavingTaskId(taskId);
+    setNotice(null);
     try {
       const res = await fetch(`/api/crm/leads/${encodeURIComponent(lead.id)}/due-area-tasks`, {
         method: "PATCH",
@@ -1418,13 +1434,14 @@ function DueAreaTasksCard({
         throw new Error(payload.error ?? "Não foi possível atualizar a tarefa DUE.");
       }
       if (payload.autoAdvancedToCompilacao) {
-        window.alert(
-          "Todas as áreas concluíram o levantamento. A negociação foi movida automaticamente para Compilação.",
-        );
+        setNotice({
+          tone: "success",
+          text: "Todas as áreas concluíram o levantamento. A negociação foi movida automaticamente para Compilação.",
+        });
       }
       onUpdated();
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Erro ao atualizar a tarefa DUE.");
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : "Erro ao atualizar a tarefa DUE." });
     } finally {
       setSavingTaskId(null);
     }
@@ -1446,11 +1463,12 @@ function DueAreaTasksCard({
     const area = dueAreaFromCrmKey(task.areaKey);
     if (!area) return;
     setSavingTaskId(task.id);
+    setNotice(null);
     try {
       await uploadDueFile(lead.id, file, "planilha_area", area);
       setPlanilhasAnexadas((cur) => ({ ...cur, [task.id]: [...(cur[task.id] ?? []), file.name] }));
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Falha ao anexar a planilha.");
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : "Falha ao anexar a planilha." });
       return;
     } finally {
       setSavingTaskId(null);
@@ -1494,6 +1512,29 @@ function DueAreaTasksCard({
             </div>
           </CardHeader>
           <CardContent className="space-y-4 px-0 pb-0">
+            {notice ? (
+              <Alert
+                role={notice.tone === "error" ? "alert" : "status"}
+                className={
+                  notice.tone === "error"
+                    ? "border-danger-border bg-danger-bg text-danger-text"
+                    : "border-success-border bg-success-bg text-success-text"
+                }
+              >
+                {notice.tone === "error" ? <CircleAlert aria-hidden /> : <CheckCircle2 aria-hidden />}
+                <AlertDescription className="flex items-start justify-between gap-3 text-current">
+                  <span>{notice.text}</span>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-sm opacity-70 hover:opacity-100"
+                    aria-label="Fechar aviso"
+                    onClick={() => setNotice(null)}
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                </AlertDescription>
+              </Alert>
+            ) : null}
             {total > 0 ? (
               <>
                 <div className="rounded-2xl border border-[#dfe5ee] bg-[#f8fafc] p-4">

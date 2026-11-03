@@ -18,6 +18,7 @@ import { dialogSelectOutsideHandlers } from "@/lib/ui/base-ui-select-dialog";
 import {
   listMissingCadastroFields,
   listMissingFaturamentoFields,
+  todayYmdSaoPaulo,
   type ClientOnboardingPayload,
   type ClientOnboardingStatus,
   type LeadIndicacao,
@@ -184,7 +185,7 @@ export function ClientOnboardingSubmitDialog({
   const missing = payload
     ? step === "cadastro"
       ? listMissingCadastroFields(payload)
-      : listMissingFaturamentoFields(payload, { indicacao: Boolean(state?.indicacao) })
+      : listMissingFaturamentoFields(payload, { indicacao: Boolean(state?.indicacao), today: todayYmdSaoPaulo() })
     : [];
 
   async function saveDraft(): Promise<boolean> {

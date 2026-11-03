@@ -10,7 +10,8 @@ import { mapExtractionToConfiguration } from "@/lib/contract-import/map-to-confi
 import { writeImportedVersionContents } from "@/lib/contract-import/persist-draft";
 import type { ContractImportExtraction } from "@/lib/contract-import/schemas";
 import { applyAnnualRenewalDefaults } from "@/lib/crm/contract-renewal-date";
-import { loadPipelineFieldByCode } from "@/lib/crm/proposta-document-data";
+import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
+import { loadDefaultContratoTemplate, loadPipelineFieldByCode } from "@/lib/crm/proposta-document-data";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { loadSignedContractPdf } from "@/lib/d4sign/signed-pdf-cache";
 import { logServerError, publicErrorMessage, PublicError } from "@/lib/http/api-errors";
@@ -190,13 +191,33 @@ export async function includeLeadContract(
   const alreadyPrefilled = (componentCount ?? 0) > 0;
 
   // Cadastro do cliente (fonte confirmada) + sugestões da proposta/contrato do CRM.
-  const [{ data: onboardingRow }, fieldByCode] = await Promise.all([
+  const [{ data: onboardingRow }, fieldByCode, template] = await Promise.all([
     supabase.from("lead_client_onboarding").select("payload").eq("oportunidade_id", opportunityId).maybeSingle(),
     loadPipelineFieldByCode(supabase as never, opportunityId),
+    loadDefaultContratoTemplate(supabase as never),
   ]);
   const onboarding = onboardingRow ? parseClientOnboardingPayload((onboardingRow as { payload: unknown }).payload) : null;
   const prefill = buildContractPrefill({ fieldValues: fieldByCode });
-  const leadExtraction = buildLeadExtraction({ onboarding, prefill });
+  // Vigência do contrato montado no CRM (12 meses por padrão desde 03/11/2026).
+  const { data: contratoDoc } = template
+    ? await supabase
+        .from("document_instances")
+        .select("data_json")
+        .eq("oportunidade_id", opportunityId)
+        .eq("template_id", template.id)
+        .maybeSingle()
+    : { data: null };
+  const contratoJson = (contratoDoc as { data_json?: unknown } | null)?.data_json;
+  const engine = readStoredEngine(
+    contratoJson && typeof contratoJson === "object" && !Array.isArray(contratoJson)
+      ? (contratoJson as Record<string, unknown>)
+      : {},
+  ).build?.data;
+  const leadExtraction = buildLeadExtraction({
+    onboarding,
+    prefill,
+    indefinite: engine ? engine.term.kind === "indefinite" : undefined,
+  });
 
   const pdfRead = await readSignedPdfWithAi(o.d4sign_document_uuid);
   const { extraction, divergences, fromProposal } = mergeLeadAndPdfExtraction(leadExtraction, pdfRead.extraction);

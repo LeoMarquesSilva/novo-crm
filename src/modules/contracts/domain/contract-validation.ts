@@ -88,6 +88,59 @@ function validatePercentageGroups(
   return issues;
 }
 
+const FULL_SHARE_BASIS_POINTS = 10_000;
+
+type PartnerShareAmount = { componentId?: string | null; percentageBasisPoints: number };
+
+/** `8050` → `80,5%`. */
+function basisPointsLabel(basisPoints: number): string {
+  return `${String(Math.round(basisPoints) / 100).replace(".", ",")}%`;
+}
+
+/**
+ * Soma das participações de sócios por grupo, na ordem em que aparecem. O grupo é o
+ * componente de cobrança; sem componente (`null`) vale para todos os elegíveis.
+ */
+export function summarizePartnerShareTotals(
+  shares: PartnerShareAmount[],
+): Array<{ componentId: string | null; totalBasisPoints: number }> {
+  const totals = new Map<string | null, number>();
+  for (const share of shares) {
+    const key = share.componentId || null;
+    totals.set(key, (totals.get(key) ?? 0) + share.percentageBasisPoints);
+  }
+  return [...totals].map(([componentId, totalBasisPoints]) => ({ componentId, totalBasisPoints }));
+}
+
+/**
+ * Cada grupo de participações de sócios precisa fechar 100%. É a única regra de percentual
+ * de sócios: bloqueia a ativação (`severity: "error"`) e só avisa no rascunho (`"warning"`).
+ */
+export function validatePartnerShareTotals(
+  shares: PartnerShareAmount[],
+  options?: {
+    severity?: ContractValidationIssue["severity"];
+    componentLabel?: (componentId: string) => string | null | undefined;
+  },
+): ContractValidationIssue[] {
+  const severity = options?.severity ?? "error";
+  return summarizePartnerShareTotals(shares)
+    .filter((group) => group.totalBasisPoints !== FULL_SHARE_BASIS_POINTS)
+    .map((group) => {
+      const label = group.componentId ? options?.componentLabel?.(group.componentId) : null;
+      const scope = label ? ` do componente “${label}”` : "";
+      const total = basisPointsLabel(group.totalBasisPoints);
+      return {
+        code: "partner_share_total_invalid",
+        path: "version.partnerShares",
+        severity,
+        message: severity === "error"
+          ? `A participação dos sócios${scope} deve fechar em 100% (soma atual: ${total}).`
+          : `A participação dos sócios${scope} soma ${total}; precisa fechar em 100% para ativar o contrato.`,
+      };
+    });
+}
+
 function validateFixedAllocations(
   allocations: Extract<AreaAllocationRule, { mode: "valor" }>[],
   components: BillingComponent[],
@@ -112,9 +165,19 @@ function validateFixedAllocations(
   return issues;
 }
 
+export type ContractValidationOptions = {
+  /** Rascunho vindo do PDF: dados internos ausentes viram aviso. */
+  imported?: boolean;
+  /**
+   * Salvar rascunho (não ativa): participação de sócios que ainda não fecha 100% vira aviso.
+   * A ativação continua exigindo 100% (`validatePartnerShareTotals` no repositório).
+   */
+  draft?: boolean;
+};
+
 export function validateContractConfiguration(
   input: ContractConfigurationInput,
-  options?: { imported?: boolean },
+  options?: ContractValidationOptions,
 ): ContractValidationIssue[] {
   const issues: ContractValidationIssue[] = [];
   const imported = options?.imported === true;
@@ -233,12 +296,46 @@ export function validateContractConfiguration(
       "O rateio percentual deve fechar em 100%.",
     ));
   }
+  // O RPC apaga e recria os componentes: participação/comissão ligada a um componente que não
+  // está mais na versão quebrava a FK e voltava 500 genérico.
+  input.version.partnerShares.forEach((share, index) => {
+    if (share.componentId && !componentIds.has(share.componentId)) {
+      issues.push(error(
+        "partner_share_component_not_found",
+        `version.partnerShares[${index}].componentId`,
+        "Há participação de sócio ligada a um componente de cobrança que não existe mais (removido ou recriado em Componentes e condições). Em Origem e comissões, aplique-a a todos os componentes ou remova-a.",
+      ));
+    }
+    // Espelha o CHECK (0 a 100) de `contrato_participacoes_socios.percentual`.
+    if (share.percentageBasisPoints < 0 || share.percentageBasisPoints > FULL_SHARE_BASIS_POINTS) {
+      issues.push(error(
+        "partner_share_percentage_out_of_range",
+        `version.partnerShares[${index}].percentageBasisPoints`,
+        "Cada participação de sócio deve ficar entre 0% e 100%.",
+      ));
+    }
+  });
+  input.version.commissions.forEach((commission, index) => {
+    if (commission.componentId && !componentIds.has(commission.componentId)) {
+      issues.push(error(
+        "commission_component_not_found",
+        `version.commissions[${index}].componentId`,
+        "Há comissão ligada a um componente de cobrança que não existe mais (removido ou recriado em Componentes e condições). Em Origem e comissões, aplique-a a todos os componentes ou remova-a.",
+      ));
+    }
+  });
+
   if (!imported || input.version.partnerShares.length > 0) {
-    issues.push(...validatePercentageGroups(
-      input.version.partnerShares,
-      "partner_share_total_invalid",
-      "version.partnerShares",
-      "A participação dos sócios deve fechar em 100%.",
+    const componentLabels = new Map(
+      input.version.components.map((component) => [component.id, component.description]),
+    );
+    issues.push(...validatePartnerShareTotals(
+      // Grupo de componente inexistente já tem o erro acima.
+      input.version.partnerShares.filter((share) => !share.componentId || componentIds.has(share.componentId)),
+      {
+        severity: options?.draft ? "warning" : "error",
+        componentLabel: (componentId) => componentLabels.get(componentId),
+      },
     ));
   }
   issues.push(...validateFixedAllocations(

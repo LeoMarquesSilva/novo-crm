@@ -11,7 +11,7 @@ import {
   type ContractVersionConfigurationContext,
 } from "../application/services/save-contract-configuration";
 import { isMonthlyFeeStartingMidMonth } from "../domain/competency";
-import type { ContractValidationIssue } from "../domain/contract-validation";
+import { validatePartnerShareTotals, type ContractValidationIssue } from "../domain/contract-validation";
 import { loadStartMonthBilling } from "./start-month-billing";
 
 const knownCodes = [
@@ -140,7 +140,7 @@ export class SupabaseContractRepository implements ContractConfigurationReposito
 
   async activateVersionAtomic(input: ActivateContractVersionInput): Promise<ActivateContractVersionResult> {
     const supabase = createSupabaseAdminClient();
-    const [{ data: contract }, { data: version }, { count: responsibleCount }, { data: componentRows }, startMonthBilling] = await Promise.all([
+    const [{ data: contract }, { data: version }, { count: responsibleCount }, { data: componentRows }, startMonthBilling, partnerSharesResult] = await Promise.all([
       supabase
         .from("contratos")
         .select("cliente_id, vigente_de, primeiro_vencimento, primeiro_faturamento_condicionado")
@@ -158,10 +158,15 @@ export class SupabaseContractRepository implements ContractConfigurationReposito
         .eq("contrato_id", input.contractId),
       supabase
         .from("contrato_componentes_cobranca")
-        .select("tipo, periodo_inicio")
+        .select("id, descricao, tipo, periodo_inicio")
         .eq("versao_id", input.versionId),
       loadStartMonthBilling(supabase, input.versionId),
+      supabase
+        .from("contrato_participacoes_socios")
+        .select("componente_id, percentual")
+        .eq("versao_id", input.versionId),
     ]);
+    if (partnerSharesResult.error) throw new Error(partnerSharesResult.error.message);
     const componentCount = componentRows?.length ?? 0;
     const issues: ContractValidationIssue[] = [];
     if (!contract?.cliente_id) {
@@ -216,6 +221,16 @@ export class SupabaseContractRepository implements ContractConfigurationReposito
         message: "Escolha como cobrar a mensalidade que começa no meio do mês (etapa Identificação e vigência).",
       });
     }
+    // O rascunho salva com a divisão incompleta (só aviso); ativar exige cada grupo em 100%.
+    // O RPC de ativação não confere participações, então a regra fica aqui.
+    const componentLabels = new Map((componentRows ?? []).map((row) => [row.id, row.descricao]));
+    issues.push(...validatePartnerShareTotals(
+      (partnerSharesResult.data ?? []).map((row) => ({
+        componentId: row.componente_id,
+        percentageBasisPoints: Math.round(Number(row.percentual ?? 0) * 100),
+      })),
+      { severity: "error", componentLabel: (componentId) => componentLabels.get(componentId) },
+    ));
     if (issues.length) {
       throw new ContractConfigurationError(
         "CONTRACT_CONFIGURATION_INVALID",

@@ -19,12 +19,15 @@ import { formatNumberPtBr2, maskBrlCurrencyFromInput, parseBrlUserInput } from "
 import { isValidCpf, isValidCpfOrCnpj } from "@/lib/crm/rd-migration/documents";
 import { cn } from "@/lib/utils";
 import {
+  FATURAMENTO_DIA_CORTE,
   onlyDigits,
+  passaDoDiaCorte,
   partyTipo,
   rateioPercent,
   rateioTotal,
   REAJUSTE_INDICES,
   SOCIO_POSICOES,
+  todayYmdSaoPaulo,
   type ClientOnboardingPayload,
   type LeadIndicacao,
   type OnboardingAdjustment,
@@ -132,6 +135,12 @@ function Section({
 }
 
 type Updater = (mutate: (draft: ClientOnboardingPayload) => void) => void;
+
+/** Data no passado: o envio do faturamento recusa (início da vigência e primeiro faturamento). */
+function DataPassadaAviso({ ymd, hidden }: { ymd: string; hidden: boolean }) {
+  if (hidden || !/^\d{4}-\d{2}-\d{2}$/.test(ymd) || ymd >= todayYmdSaoPaulo()) return null;
+  return <p className="text-v2-caption text-danger-text">A data não pode ser anterior a hoje.</p>;
+}
 
 /** Documento completo com dígito verificador errado (o envio só confere o tamanho; aqui é aviso). */
 function documentoInvalido(value: string, kind: "cpf" | "cpf_cnpj"): boolean {
@@ -284,15 +293,7 @@ function RateioPorArea({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-v2-body-sm-medium text-foreground">
-          Rateio por área<span className="text-danger-text"> *</span>
-        </p>
-        <SourceChip source={sourceRateio} />
-      </div>
-      <p className="text-v2-caption text-muted-foreground">
-        Divida os honorários entre as áreas que vão atender o cliente. O total precisa fechar 100%.
-      </p>
+      {sourceRateio ? <SourceChip source={sourceRateio} /> : null}
 
       <Field label="Valor a ratear (R$)" htmlFor={fid("ob-valor-rateio")} source={sourceValor} className="sm:max-w-xs">
         <Input
@@ -945,6 +946,13 @@ export function ClientOnboardingForm({
               disabled={disabled}
               onChange={(ymd) => update((d) => void (d.financeiro.inicioVigencia = ymd))}
             />
+            <DataPassadaAviso ymd={financeiro.inicioVigencia} hidden={readOnly} />
+            {passaDoDiaCorte(financeiro.inicioVigencia) ? (
+              <p role="status" className="flex items-start gap-1.5 text-v2-caption text-warning-text">
+                <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                Começa depois do dia {FATURAMENTO_DIA_CORTE}: confira se o cliente vai pagar uma parcela no ato.
+              </p>
+            ) : null}
           </Field>
           <Field
             label="Primeiro faturamento"
@@ -958,6 +966,7 @@ export function ClientOnboardingForm({
               disabled={disabled || financeiro.primeiroFaturamentoCondicionado}
               onChange={(ymd) => update((d) => void (d.financeiro.primeiroFaturamento = ymd))}
             />
+            <DataPassadaAviso ymd={financeiro.primeiroFaturamento} hidden={readOnly || financeiro.primeiroFaturamentoCondicionado} />
           </Field>
         </div>
         <label className="flex items-center gap-2 text-v2-body-sm text-foreground">
@@ -1073,6 +1082,23 @@ export function ClientOnboardingForm({
           ) : null}
         </div>
 
+        <Field label="Observações para o financeiro" htmlFor={fid("ob-obs")}>
+          <Textarea
+            id={fid("ob-obs")}
+            rows={3}
+            value={financeiro.observacoes}
+            disabled={disabled}
+            onChange={(e) => update((d) => void (d.financeiro.observacoes = e.target.value))}
+          />
+        </Field>
+      </Section>
+      ) : null}
+
+      {showFaturamento ? (
+      <Section
+        title="Rateio por área"
+        description="Obrigatório. Divida os honorários entre as áreas que vão atender o cliente; o total precisa fechar 100%."
+      >
         <RateioPorArea
           rows={financeiro.rateioPorArea}
           valorRateio={financeiro.valorRateio}
@@ -1083,16 +1109,6 @@ export function ClientOnboardingForm({
           update={update}
           fid={fid}
         />
-
-        <Field label="Observações para o financeiro" htmlFor={fid("ob-obs")}>
-          <Textarea
-            id={fid("ob-obs")}
-            rows={3}
-            value={financeiro.observacoes}
-            disabled={disabled}
-            onChange={(e) => update((d) => void (d.financeiro.observacoes = e.target.value))}
-          />
-        </Field>
       </Section>
       ) : null}
     </div>

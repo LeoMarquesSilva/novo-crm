@@ -2,10 +2,30 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCrmSessionUser } from "@/components/crm/crm-session-context";
+import { canViewD4SignDocument } from "@/lib/auth/crm-access-policy";
+
+/**
+ * PDF do documento pelo CRM (`GET /api/crm/d4sign/documents/[uuid]/view`, mesma autorização
+ * de `canViewD4SignDocument`), em nova aba. Finalizado (status "1") sai do cache do bucket.
+ */
+function D4SignPdfLink({ uuid, status }: { uuid: string; status: string | null }) {
+  return (
+    <a
+      href={`/api/crm/d4sign/documents/${encodeURIComponent(uuid)}/view`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 font-medium text-interactive-700 underline-offset-2 hover:underline"
+    >
+      {status === "1" ? "Ver PDF assinado" : "Ver PDF do documento"}
+      <ExternalLink className="size-3.5" aria-hidden />
+    </a>
+  );
+}
 
 export function LeadD4SignPanel({
   opportunityId,
@@ -70,14 +90,21 @@ export function LeadD4SignPanel({
     }
   }
 
+  const canViewPdf = Boolean(
+    d4signDocumentUuid && sessionUser?.role && canViewD4SignDocument({ role: sessionUser.role }),
+  );
+
   // Envio avulso (arquivo à mão) é só para admin; o contrato do CRM vai pelo
   // botão "Enviar para assinatura" da aba Contrato.
   if (sessionUser?.role !== "admin") {
     return (
       <div className="space-y-2 text-sm text-muted-foreground">
         {d4signDocumentUuid ? (
-          <p>
-            Último documento D4Sign: <span className="font-mono text-xs">{d4signDocumentUuid}</span>
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>
+              Último documento D4Sign: <span className="font-mono text-xs">{d4signDocumentUuid}</span>
+            </span>
+            {canViewPdf ? <D4SignPdfLink uuid={d4signDocumentUuid} status={d4signStatus} /> : null}
           </p>
         ) : null}
         <p>O contrato é enviado para assinatura pela aba Contrato, no botão Enviar para assinatura.</p>
@@ -88,14 +115,17 @@ export function LeadD4SignPanel({
   return (
     <div className="space-y-4">
       {d4signDocumentUuid ? (
-        <p className="text-sm text-muted-foreground">
-          Último documento D4Sign: <span className="font-mono text-xs">{d4signDocumentUuid}</span>
-          {d4signStatus ? (
-            <>
-              {" "}
-              — estado webhook: <span className="font-medium">{d4signStatus}</span>
-            </>
-          ) : null}
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <span>
+            Último documento D4Sign: <span className="font-mono text-xs">{d4signDocumentUuid}</span>
+            {d4signStatus ? (
+              <>
+                {" "}
+                — estado webhook: <span className="font-medium">{d4signStatus}</span>
+              </>
+            ) : null}
+          </span>
+          {canViewPdf ? <D4SignPdfLink uuid={d4signDocumentUuid} status={d4signStatus} /> : null}
         </p>
       ) : null}
       <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">

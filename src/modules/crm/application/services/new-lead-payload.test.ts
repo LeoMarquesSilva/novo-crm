@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  crossSellingAreas,
   invalidCompanyDocumentMessage,
   newLeadPayloadSchema,
 } from "@/modules/crm/application/services/new-lead-payload";
@@ -117,6 +118,26 @@ describe("newLeadPayloadSchema", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+
+  it("cross selling aceita várias áreas e exige ao menos uma (03/11/2026)", () => {
+    const base = {
+      ...validPayload,
+      due_diligence: "Nao" as const,
+      data_entrega_due: null,
+      horario_entrega_due: null,
+      data_reuniao: null,
+      horario_reuniao: null,
+      tipo_de_lead: "Cross Selling" as const,
+      tipo_indicacao: null,
+      nome_indicacao: null,
+    };
+    const many = newLeadPayloadSchema.safeParse({ ...base, areas_cross_selling: ["Cível", "Tributário"] });
+    expect(many.success).toBe(true);
+    if (many.success) expect(crossSellingAreas(many.data)).toEqual(["Cível", "Tributário"]);
+    expect(newLeadPayloadSchema.safeParse({ ...base, areas_cross_selling: [] }).success).toBe(false);
+    expect(newLeadPayloadSchema.safeParse({ ...base, areas_cross_selling: ["Marketing"] }).success).toBe(false);
+    expect(crossSellingAreas({ area_cross_selling: "Cível", areas_cross_selling: null })).toEqual(["Cível"]);
   });
 });
 

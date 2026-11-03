@@ -1,0 +1,150 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { syncDueAreaTasksForOpportunity } from "@/lib/crm/due-area-tasks";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
+import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
+import { mockCrmSession } from "@/test/mock-crm-auth";
+import { createSupabaseFake } from "@/test/supabase-fake";
+import { POST } from "./route";
+
+// Nada sai de verdade: Evolution, SharePoint e e-mail são falsos.
+const { sendText, createListItem } = vi.hoisted(() => ({ sendText: vi.fn(), createListItem: vi.fn() }));
+vi.mock("@/modules/crm/infrastructure/integrations/evolution-whatsapp", () => ({
+  EvolutionWhatsappConnector: vi.fn(function EvolutionWhatsappConnectorFake() {
+    return { sendText };
+  }),
+}));
+vi.mock("@/modules/crm/infrastructure/integrations/sharepoint-graph", () => ({
+  SharePointGraphClient: { fromEnv: vi.fn(() => ({ createListItem })) },
+}));
+vi.mock("@/lib/crm/due-area-tasks", () => ({ syncDueAreaTasksForOpportunity: vi.fn() }));
+vi.mock("@/lib/auth/server", () => ({ requireAuthApi: vi.fn() }));
+vi.mock("@/lib/auth/module-access", () => ({ listUserModules: vi.fn() }));
+vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
+vi.mock("@/lib/crm/record-lead-activity", () => ({ recordLeadActivityEvent: vi.fn() }));
+vi.mock("@/modules/crm/application/services/send-lead-notification-email", () => ({
+  sendLeadNotificationEmail: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
+const DESTINO = "120363000000000000@g.us";
+
+const payload = (extra: Record<string, unknown> = {}) => ({
+  solicitante: "Pessoa Comercial",
+  email: "contato@cliente.com.br",
+  cadastrado_por: "comercial@bp.com.br",
+  due_diligence: "Nao",
+  empresas: [{ tipo_documento: "CNPJ", razao_social: "ACME Ltda", documento: "11.222.333/0001-81" }],
+  areas_analise: ["Cível"],
+  local_reuniao: "Online",
+  tipo_de_lead: "Lead Ativa",
+  ...extra,
+});
+
+function setupDb(options: { destination?: string | null; semResponsavel?: string[] } = {}) {
+  const fake = createSupabaseFake({
+    tables: {
+      oportunidades: { single: { data: { id: "op-1" }, error: null } },
+      whatsapp_due_config: {
+        maybeSingle: {
+          data: options.destination === null ? null : { destination: options.destination ?? DESTINO, is_active: true },
+          error: null,
+        },
+      },
+      due_area_tasks: {
+        awaited: { data: (options.semResponsavel ?? []).map((area_key) => ({ area_key })), error: null },
+      },
+    },
+  });
+  vi.mocked(createSupabaseAdminClient).mockReturnValue(fake.client as never);
+  return fake;
+}
+
+async function criar(body: Record<string, unknown>) {
+  const res = await POST(new Request("http://localhost/api/leads/new", { method: "POST", body: JSON.stringify(body) }));
+  return { status: res.status, json: (await res.json()) as { ok: boolean; warning: string | null } };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  sendText.mockResolvedValue(undefined);
+  createListItem.mockResolvedValue({ id: "sp-1", webUrl: null });
+  mockCrmSession({ role: "comercial" });
+});
+
+describe("POST /api/leads/new — aviso no grupo da DUE", () => {
+  it("lead sem DUE também avisa o grupo, com o modelo novo_lead, sem tarefas nem SharePoint", async () => {
+    const fake = setupDb();
+    const { status, json } = await criar(payload());
+
+    expect(status).toBe(201);
+    expect(json.warning).toBeNull();
+    expect(sendText).toHaveBeenCalledTimes(1);
+    const { destination, text } = sendText.mock.calls[0]![0] as { destination: string; text: string };
+    expect(destination).toBe(DESTINO);
+    expect(text.startsWith("*Novo Lead*\n")).toBe(true);
+    expect(text).not.toContain("Due Diligence*");
+    expect(text).not.toContain("Prazo de Entrega");
+    expect(text).toContain("*Due Diligence:* Não");
+    // Modelo lido do banco pela chave do lead sem DUE.
+    expect(
+      fake.calls.some((c) => c.table === "whatsapp_message_templates" && c.method === "eq" && c.args[1] === "novo_lead"),
+    ).toBe(true);
+    expect(syncDueAreaTasksForOpportunity).not.toHaveBeenCalled();
+    expect(SharePointGraphClient.fromEnv).not.toHaveBeenCalled();
+    expect(fake.calls.some((c) => c.table === "due_area_tasks")).toBe(false);
+  });
+
+  it("lead com DUE segue com novo_lead_due, tarefas, alerta de área e SharePoint", async () => {
+    setupDb({ semResponsavel: ["Recuperação de Créditos"] });
+    const { status, json } = await criar(
+      payload({
+        due_diligence: "Sim",
+        data_entrega_due: "2026-11-09",
+        horario_entrega_due: "18:00",
+        data_reuniao: "2026-11-10",
+        horario_reuniao: "12:00",
+      }),
+    );
+
+    expect(status).toBe(201);
+    expect(json.warning).toBeNull();
+    expect(syncDueAreaTasksForOpportunity).toHaveBeenCalledWith(expect.anything(), "op-1");
+    expect(sendText).toHaveBeenCalledTimes(1);
+    const { text } = sendText.mock.calls[0]![0] as { text: string };
+    expect(text.startsWith("*Novo Lead com Due Diligence*\n")).toBe(true);
+    expect(text).toContain("- *Prazo de Entrega:* 09/11/2026 às 18:00");
+    expect(text).toContain("nenhum usuário cadastrado na área Recuperação de Créditos");
+    expect(createListItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha no WhatsApp não derruba o cadastro: volta como aviso", async () => {
+    setupDb();
+    sendText.mockRejectedValueOnce(new Error("Evolution fora do ar"));
+    const { status, json } = await criar(payload());
+
+    expect(status).toBe(201);
+    expect(json.ok).toBe(true);
+    expect(json.warning).toMatch(/^WhatsApp DUE: .*\(ref /);
+  });
+
+  it("sem destino ativo: lead sem DUE não avisa na tela; lead com DUE avisa como antes", async () => {
+    setupDb({ destination: null });
+    const semDue = await criar(payload());
+    expect(semDue.status).toBe(201);
+    expect(semDue.json.warning).toBeNull();
+
+    const comDue = await criar(
+      payload({
+        due_diligence: "Sim",
+        data_entrega_due: "2026-11-09",
+        horario_entrega_due: "18:00",
+        data_reuniao: "2026-11-10",
+      }),
+    );
+    expect(comDue.status).toBe(201);
+    expect(comDue.json.warning).toContain("WhatsApp DUE: Configuração de destino WhatsApp não encontrada ou inativa.");
+    expect(sendText).not.toHaveBeenCalled();
+    expect(EvolutionWhatsappConnector).not.toHaveBeenCalled();
+  });
+});

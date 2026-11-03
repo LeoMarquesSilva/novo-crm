@@ -46,10 +46,11 @@ const FIELD_ALIASES: Record<string, string[]> = {
   // Alias list própria (sem sobrepor com "numero_processo"/"vara_tribunal"
   // acima): mesmo motivo do qtd_horas_trabalhista/societario logo abaixo — dois
   // escopos (Trabalhista e Cível) podem estar no mesmo contrato, cada um com seu
-  // próprio processo. Sem fonte cível distinta ainda, fica só manual/campo cc_
-  // próprio — nunca reaproveita o valor do processo trabalhista sem querer.
-  numero_processo_civel: ["numero_processo_civel", "NUMERO_PROCESSO_CIVEL", "cc_civel_numero_processo"],
-  vara_tribunal_civel: ["vara_tribunal_civel", "VARA_TRIBUNAL_CIVEL", "cc_civel_vara_tribunal"],
+  // próprio processo. Os nomes da proposta ("NUM. DO PROCESSO", "VARA/TRIBUNAL",
+  // 03/11/2026) são lidos só nos placeholders do próprio escopo Cível
+  // (`resolveFieldFromSources`), nunca no processo trabalhista.
+  numero_processo_civel: ["numero_processo_civel", "NUMERO_PROCESSO_CIVEL", "cc_civel_numero_processo", "NUM. DO PROCESSO"],
+  vara_tribunal_civel: ["vara_tribunal_civel", "VARA_TRIBUNAL_CIVEL", "cc_civel_vara_tribunal", "VARA/TRIBUNAL"],
   // Recuperação de crédito em RJ: nomes dos campos que a proposta pede para esse subtipo.
   empresa_recuperanda_rj: [
     "empresa_recuperanda_rj",

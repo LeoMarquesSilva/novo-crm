@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { moneyCents } from "./money";
 import {
   type ContractConfigurationInput,
+  summarizePartnerShareTotals,
   validateContractConfiguration,
+  validatePartnerShareTotals,
 } from "./contract-validation";
 
 function validConfiguration(): ContractConfigurationInput {
@@ -239,6 +241,124 @@ describe("validateContractConfiguration", () => {
     expect(issues.map((issue) => issue.code)).not.toEqual(
       expect.arrayContaining(["area_percentage_total_invalid", "partner_share_total_invalid"]),
     );
+  });
+
+  describe("participação dos sócios", () => {
+    const totalIssue = (issues: ReturnType<typeof validateContractConfiguration>) =>
+      issues.find((issue) => issue.code === "partner_share_total_invalid");
+
+    it("fora de 100% é erro na validação completa, com a soma atual", () => {
+      const input = validConfiguration();
+      input.version.partnerShares[1]!.percentageBasisPoints = 2_050;
+
+      expect(totalIssue(validateContractConfiguration(input))).toMatchObject({
+        severity: "error",
+        path: "version.partnerShares",
+        message: expect.stringContaining("80,5%"),
+      });
+    });
+
+    it("no rascunho (draft) só avisa: a divisão parcial não impede salvar", () => {
+      const input = validConfiguration();
+      input.version.partnerShares[1]!.percentageBasisPoints = 0;
+
+      const issues = validateContractConfiguration(input, { draft: true });
+      expect(totalIssue(issues)).toMatchObject({ severity: "warning", message: expect.stringContaining("ativar") });
+      expect(issues.filter((issue) => issue.severity === "error")).toEqual([]);
+    });
+
+    it("rascunho que fecha 100% não gera aviso", () => {
+      expect(totalIssue(validateContractConfiguration(validConfiguration(), { draft: true }))).toBeUndefined();
+    });
+
+    it("recusa participação ligada a componente que não existe mais, mesmo no rascunho", () => {
+      const input = validConfiguration();
+      input.version.partnerShares = [
+        { id: "share-1", componentId: "recreated-component", beneficiaryId: "gustavo", percentageBasisPoints: 6_000 },
+      ];
+
+      const issues = validateContractConfiguration(input, { draft: true });
+      expect(issues).toContainEqual(expect.objectContaining({
+        code: "partner_share_component_not_found",
+        path: "version.partnerShares[0].componentId",
+        severity: "error",
+      }));
+      // O grupo do componente inexistente não gera também o aviso de soma.
+      expect(totalIssue(issues)).toBeUndefined();
+    });
+
+    it("recusa comissão ligada a componente que não existe mais", () => {
+      const input = validConfiguration();
+      input.version.commissions = [
+        { id: "commission-1", componentId: "gone", beneficiaryId: "ricardo", mode: "percentual", percentageBasisPoints: 500 },
+      ];
+
+      expect(validateContractConfiguration(input, { draft: true })).toContainEqual(expect.objectContaining({
+        code: "commission_component_not_found",
+        path: "version.commissions[0].componentId",
+        severity: "error",
+      }));
+    });
+
+    it("aceita participação ligada a componente existente e soma por componente", () => {
+      const input = validConfiguration();
+      input.version.partnerShares = [
+        { id: "share-1", componentId: "monthly-1", beneficiaryId: "gustavo", percentageBasisPoints: 10_000 },
+        { id: "share-2", beneficiaryId: "ricardo", percentageBasisPoints: 10_000 },
+      ];
+
+      expect(validateContractConfiguration(input)).toEqual([]);
+    });
+
+    it("recusa participação acima de 100% (CHECK do banco), mesmo no rascunho", () => {
+      const input = validConfiguration();
+      input.version.partnerShares = [
+        { id: "share-1", beneficiaryId: "gustavo", percentageBasisPoints: 15_000 },
+      ];
+
+      expect(validateContractConfiguration(input, { draft: true })).toContainEqual(expect.objectContaining({
+        code: "partner_share_percentage_out_of_range",
+        path: "version.partnerShares[0].percentageBasisPoints",
+        severity: "error",
+      }));
+    });
+
+    it("sem participações não há regra de soma", () => {
+      const input = validConfiguration();
+      input.version.partnerShares = [];
+      expect(totalIssue(validateContractConfiguration(input))).toBeUndefined();
+    });
+  });
+
+  describe("summarizePartnerShareTotals / validatePartnerShareTotals", () => {
+    it("soma por componente, com o grupo sem componente valendo para todos", () => {
+      expect(summarizePartnerShareTotals([
+        { percentageBasisPoints: 6_000 },
+        { componentId: "c-1", percentageBasisPoints: 2_500 },
+        { componentId: null, percentageBasisPoints: 3_000 },
+        { componentId: "c-1", percentageBasisPoints: 2_500 },
+      ])).toEqual([
+        { componentId: null, totalBasisPoints: 9_000 },
+        { componentId: "c-1", totalBasisPoints: 5_000 },
+      ]);
+    });
+
+    it("na ativação, cada grupo fora de 100% é erro e cita o componente", () => {
+      const issues = validatePartnerShareTotals(
+        [
+          { componentId: null, percentageBasisPoints: 10_000 },
+          { componentId: "c-1", percentageBasisPoints: 12_000 },
+        ],
+        { componentLabel: (id) => (id === "c-1" ? "Mensalidade" : null) },
+      );
+      expect(issues).toEqual([
+        expect.objectContaining({
+          code: "partner_share_total_invalid",
+          severity: "error",
+          message: "A participação dos sócios do componente “Mensalidade” deve fechar em 100% (soma atual: 120%).",
+        }),
+      ]);
+    });
   });
 
   describe("mensalidade que começa no meio do mês", () => {

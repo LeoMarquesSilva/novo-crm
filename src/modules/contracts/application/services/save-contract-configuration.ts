@@ -139,10 +139,14 @@ export function assertContractActivationOpportunityPolicy(input: {
   }
 }
 
+/**
+ * Salva a versão em rascunho. Valida como rascunho (`draft`): o que só a ativação exige
+ * (participação de sócios fechando 100%) volta em `warnings` e não impede salvar.
+ */
 export async function saveContractConfiguration(
   repository: ContractConfigurationRepository,
   input: SaveContractConfigurationInput,
-): Promise<{ updatedAt: string }> {
+): Promise<{ updatedAt: string; warnings: ContractValidationIssue[] }> {
   // Financeiro configura só o contrato do lead em Inclusão no Faturamento (checado com o contexto).
   if (!canAccessContractCapability({ role: input.role, capability: "configure" }) && input.role !== "financeiro") {
     throw new ContractConfigurationError(
@@ -152,9 +156,9 @@ export async function saveContractConfiguration(
   }
 
   const configuration = bindOrphanedAreaIdsToSingleArea(input.configuration);
-  const issues = validateContractConfiguration(configuration).filter(
-    (issue) => issue.severity === "error",
-  );
+  const validation = validateContractConfiguration(configuration, { draft: true });
+  const issues = validation.filter((issue) => issue.severity === "error");
+  const warnings = validation.filter((issue) => issue.severity === "warning");
   if (issues.length > 0) {
     throw new ContractConfigurationError(
       "CONTRACT_CONFIGURATION_INVALID",
@@ -207,11 +211,12 @@ export async function saveContractConfiguration(
     );
   }
 
-  return repository.saveConfigurationAtomic({
+  const saved = await repository.saveConfigurationAtomic({
     actorId: input.actorId,
     contractId: input.contractId,
     versionId,
     expectedVersionUpdatedAt: context.updatedAt,
     configuration,
   });
+  return { updatedAt: saved.updatedAt, warnings };
 }

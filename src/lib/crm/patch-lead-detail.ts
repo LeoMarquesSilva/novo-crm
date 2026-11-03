@@ -734,15 +734,31 @@ async function patchIntakeField(
   }
 
   if (key === "area_cross_selling") {
-    if (trimmed && !(leadAreas as readonly string[]).includes(trimmed)) {
-      return { ok: false, error: "Área inválida.", status: 400 };
+    // Várias áreas (03/11/2026): a coluna antiga fica com a primeira, a lista em `areas_cross_selling`.
+    const parts = [
+      ...new Set(
+        (trimmed ? trimmed.split(/[,;\n]+/) : []).map((s) => normalizePracticeAreaKey(s.trim())).filter(Boolean),
+      ),
+    ];
+    const allowed = new Set(leadAreas as readonly string[]);
+    const invalid = parts.filter((p) => !allowed.has(p));
+    if (invalid.length) {
+      return { ok: false, error: `Área inválida: ${invalid.join(", ")}.`, status: 400 };
     }
     const { error } = await supabase
       .from("lead_intakes")
-      .update({ area_cross_selling: trimmed || null })
+      .update({ area_cross_selling: parts[0] ?? null })
       .eq("oportunidade_id", oportunidadeId);
     if (error) return { ok: false, error: error.message };
-    await logIntakeFieldChange(supabase, oportunidadeId, key, trimmed || "—", viewer);
+    const { error: areasError } = await supabase
+      .from("lead_intakes")
+      .update({ areas_cross_selling: parts } as never)
+      .eq("oportunidade_id", oportunidadeId);
+    // Sem a coluna nova (migration 20261103133000 pendente), só uma área cabe.
+    if (areasError && parts.length > 1) {
+      return { ok: false, error: "Por enquanto só uma área pode ser gravada: falta aplicar a migration de várias áreas.", status: 409 };
+    }
+    await logIntakeFieldChange(supabase, oportunidadeId, key, parts.join(", ") || "—", viewer);
     return { ok: true };
   }
 

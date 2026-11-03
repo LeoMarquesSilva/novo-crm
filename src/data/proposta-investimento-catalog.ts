@@ -107,24 +107,8 @@ export const PROPOSTA_INVESTIMENTO_TIPOS_CATALOG: InvestimentoTipoDef[] = [
       ),
     ],
   },
-  {
-    tipoId: "honorarios_hibridos",
-    label: "Honorários híbridos",
-    subtipos: [
-      inv(
-        "mensal_mais_exito",
-        "Mensal + Êxito",
-        "Combinação entre remuneração mensal recorrente e honorários condicionados ao resultado obtido.",
-        "Pela prestação dos serviços objeto desta proposta, será devido o valor mensal de R$ [VALORMENSAL], já incluídos os tributos incidentes, acrescido de honorários de êxito de [PORCENTAGEMHONORARIOS]% sobre [BASECALCULO].",
-      ),
-      inv(
-        "spot_mais_exito",
-        "SPOT + Êxito",
-        "Valor fixo inicial para atuação específica, acrescido de remuneração variável em caso de sucesso.",
-        "Para atuação no escopo descrito, serão devidos honorários iniciais de R$ [VALORSPOT], acrescidos de honorários de êxito de [PORCENTAGEMHONORARIOS]% sobre [BASECALCULO], caso atingido o resultado previsto.",
-      ),
-    ],
-  },
+  // "Honorários híbridos" (Mensal + Êxito, SPOT + Êxito) saiu em 03/11/2026: monta-se com dois tipos
+  // (contratuais + êxito). Prefill e consolidado seguem lendo os subtipos antigos de propostas já feitas.
 ];
 
 export function getInvestimentoSubtipoDef(

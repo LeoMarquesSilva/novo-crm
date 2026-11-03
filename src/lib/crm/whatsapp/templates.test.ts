@@ -55,6 +55,37 @@ describe("modelos padrão", () => {
 
   it("reconhece só as chaves conhecidas", () => {
     expect(isWhatsappTemplateKey("due_revisao_inicio")).toBe(true);
+    expect(isWhatsappTemplateKey("novo_lead")).toBe(true);
+    expect(isWhatsappTemplateKey("novo_lead_due")).toBe(true);
     expect(isWhatsappTemplateKey("qualquer")).toBe(false);
+  });
+
+  it("toda chave tem definição com a mesma chave", () => {
+    for (const key of WHATSAPP_TEMPLATE_KEYS) expect(WHATSAPP_TEMPLATE_DEFS[key].key).toBe(key);
+  });
+});
+
+describe("novo lead sem e com DUE", () => {
+  it("novo_lead: mesmo grupo, sem título de DUE, sem prazo da base e sem avisos de área", () => {
+    const def = WHATSAPP_TEMPLATE_DEFS.novo_lead;
+    expect(def.label).toBe("Novo lead");
+    expect(def.destination).toBe(WHATSAPP_TEMPLATE_DEFS.novo_lead_due.destination);
+    expect(def.defaultBody.split("\n")[0]).toBe("*Novo Lead*");
+    expect(def.defaultBody).not.toContain("Due Diligence*");
+    expect(def.defaultBody).not.toContain("Detalhes da Due Diligence");
+    expect(def.defaultBody).not.toMatch(/\{\{\s*(prazo_due|avisos)\s*\}\}/);
+    expect(def.placeholders.map((p) => p.name)).not.toContain("prazo_due");
+  });
+
+  it("novo_lead tem os campos do novo_lead_due, menos o bloco da DUE", () => {
+    const names = (key: "novo_lead" | "novo_lead_due") =>
+      WHATSAPP_TEMPLATE_DEFS[key].placeholders.map((p) => p.name);
+    expect(names("novo_lead")).toEqual(names("novo_lead_due").filter((n) => n !== "prazo_due" && n !== "avisos"));
+  });
+
+  it("novo_lead_due continua com o título e o bloco da DUE", () => {
+    const body = WHATSAPP_TEMPLATE_DEFS.novo_lead_due.defaultBody;
+    expect(body.split("\n")[0]).toBe("*Novo Lead com Due Diligence*");
+    expect(body).toContain("*Detalhes da Due Diligence:*\n- *Prazo de Entrega:* {{prazo_due}}\n- *Áreas de Análise:* {{areas}}");
   });
 });

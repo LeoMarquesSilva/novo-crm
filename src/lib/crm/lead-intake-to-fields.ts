@@ -89,8 +89,12 @@ export function filledFieldsFromLeadIntake(
   push("tipo_lead", "Origem do Lead", asString(intake.tipo_lead));
   const plataforma = asString(intake.plataforma);
   if (plataforma) push("plataforma", "Plataforma", plataforma);
-  const areaCross = asString(intake.area_cross_selling);
-  if (areaCross) push("area_cross_selling", "Área", areaCross);
+  // Várias áreas desde 03/11/2026 (`areas_cross_selling`); lead antigo só tem `area_cross_selling`.
+  const areasCross = Array.isArray(intake.areas_cross_selling)
+    ? intake.areas_cross_selling.map((a) => String(a)).filter(Boolean)
+    : [];
+  const areaCross = areasCross.length ? areasCross.join(", ") : asString(intake.area_cross_selling);
+  if (areaCross) push("area_cross_selling", areasCross.length > 1 ? "Áreas" : "Área", areaCross);
   const decisor = asString(intake.decisor);
   if (decisor) push("decisor", "Decisor", decisor);
   const ti = asString(intake.tipo_indicacao);

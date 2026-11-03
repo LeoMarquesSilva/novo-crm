@@ -4,11 +4,17 @@ import { internalErrorResponse, logServerError, publicErrorMessage } from "@/lib
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { buildDueSharePointAgendamentoFields } from "@/modules/crm/application/services/build-due-sharepoint-agendamento-fields";
-import { buildDueWhatsappValues } from "@/modules/crm/application/services/build-due-whatsapp-message";
+import {
+  buildDueWhatsappValues,
+  newLeadWhatsappTemplateKey,
+  type BuildDueWhatsappMessageInput,
+} from "@/modules/crm/application/services/build-due-whatsapp-message";
 import { buildWhatsappMessage } from "@/lib/crm/whatsapp/template-store";
 import {
+  crossSellingAreas,
   invalidCompanyDocumentMessage,
   newLeadPayloadSchema,
+  type NewLeadPayload,
 } from "@/modules/crm/application/services/new-lead-payload";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
@@ -43,6 +49,83 @@ async function updateSharePointAudit(
 function safeWarning(scope: string, error: unknown, fallback: string): string {
   const ref = logServerError(`leads/new/${scope}`, error);
   return `${publicErrorMessage(error, fallback)} (ref ${ref})`;
+}
+
+/**
+ * Aviso de lead novo no grupo da DUE (Integrações → WhatsApp, `whatsapp_due_config` use_case
+ * `due_diligence`), para todo lead: modelo `novo_lead_due` com due diligence, `novo_lead` sem.
+ * Sem trava de envio (`whatsapp_enviado`): o cadastro roda uma vez por oportunidade e nada reenvia
+ * esta mensagem. Falha não derruba o cadastro; volta como aviso para a tela (ou `null` quando saiu,
+ * quando o admin desligou o modelo, ou lead sem DUE sem destino ativo).
+ */
+async function notifyNewLeadWhatsapp(
+  supabase: SupabaseAdminClient,
+  oportunidadeId: string,
+  input: BuildDueWhatsappMessageInput,
+): Promise<string | null> {
+  const hasDue = input.due_diligence === "Sim";
+  const { data: whatsappConfig, error: configError } = await supabase
+    .from("whatsapp_due_config")
+    .select("destination, is_active")
+    .eq("is_active", true)
+    .eq("use_case", "due_diligence")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (configError) {
+    return `WhatsApp DUE: ${safeWarning("whatsapp-config", configError, "Não foi possível ler o destino do WhatsApp.")}`;
+  }
+  if (!whatsappConfig?.destination) {
+    // Sem destino ativo o aviso está desligado. Lead com DUE avisa na tela (como antes); lead sem DUE
+    // só registra no log: quem cadastra não resolve a configuração e o lead com DUE já aponta a falta.
+    if (hasDue) return "WhatsApp DUE: Configuração de destino WhatsApp não encontrada ou inativa.";
+    console.warn("[leads/new] Aviso de novo lead no WhatsApp não enviado: destino da DUE não configurado ou inativo.");
+    return null;
+  }
+
+  try {
+    const connector = new EvolutionWhatsappConnector(
+      process.env.EVOLUTION_API_URL ?? "",
+      process.env.EVOLUTION_API_KEY ?? "",
+      process.env.EVOLUTION_INSTANCE ?? process.env.EVOLUTION_INSTANCE_NAME ?? "BP",
+    );
+
+    // Área do lead sem ninguém no cadastro de usuários: o alerta vai nesta mensagem (não numa à parte).
+    // Só existe com due diligence (as tarefas por área são da DUE).
+    let avisos = "";
+    if (hasDue) {
+      const { data: semResponsavel } = await supabase
+        .from("due_area_tasks")
+        .select("area_key")
+        .eq("oportunidade_id", oportunidadeId)
+        .is("responsavel_app_user_id", null);
+      const areasSemResponsavel = (semResponsavel ?? []).map((row) => String(row.area_key)).filter(Boolean);
+      avisos = areasSemResponsavel.length
+        ? `*Atenção:* nenhum usuário cadastrado na área ${areasSemResponsavel.join(", ")}. Defina no cadastro de usuários quem faz o levantamento.`
+        : "";
+    }
+
+    const message = await buildWhatsappMessage(
+      supabase,
+      newLeadWhatsappTemplateKey(input),
+      buildDueWhatsappValues(input, avisos),
+    );
+
+    if (message) {
+      await connector.sendText({
+        destination: whatsappConfig.destination,
+        text: message,
+      });
+    }
+    return null;
+  } catch (error) {
+    return `WhatsApp DUE: ${safeWarning(
+      "whatsapp",
+      error,
+      hasDue ? "Falha ao enviar mensagem de due diligence." : "Falha ao enviar o aviso de novo lead.",
+    )}`;
+  }
 }
 
 export async function POST(request: Request) {
@@ -147,10 +230,11 @@ export async function POST(request: Request) {
 
     // Colunas da migration 20261008183000 (ainda não aplicada no remoto): sem elas o
     // lead é criado, mas o usuário precisa saber que esses campos não ficaram gravados.
+    const areasCrossSelling = payload.tipo_de_lead === "Cross Selling" ? crossSellingAreas(payload) : [];
     const extraFields = {
       plataforma: payload.tipo_de_lead === "Lead Digital" ? payload.plataforma ?? null : null,
-      area_cross_selling:
-        payload.tipo_de_lead === "Cross Selling" ? payload.area_cross_selling ?? null : null,
+      // Coluna antiga (uma área) fica com a primeira; a lista vai em `areas_cross_selling` abaixo.
+      area_cross_selling: (areasCrossSelling[0] as NewLeadPayload["area_cross_selling"]) ?? null,
       decisor: payload.decisor?.trim() || null,
     };
     const filledExtraLabels = [
@@ -171,6 +255,21 @@ export async function POST(request: Request) {
           missingColumn
             ? `O lead foi criado, mas ${fields} não ${filledExtraLabels.length > 1 ? "foram gravados" : "foi gravado"}: o banco ainda não tem ${filledExtraLabels.length > 1 ? "esses campos" : "esse campo"} (migration 20261008183000 pendente). Avise o administrador e anote a informação na ficha do lead.`
             : `Campos extras do lead: ${safeWarning("extra-fields", extraFieldsError, "não foram gravados.")}`,
+        );
+      }
+    }
+    // Várias áreas de cross selling (03/11/2026). Update à parte: sem a coluna (migration
+    // 20261103133000 pendente) a primeira área já ficou em `area_cross_selling`.
+    if (areasCrossSelling.length > 0) {
+      const { error: areasError } = await supabase
+        .from("lead_intakes")
+        .update({ areas_cross_selling: areasCrossSelling } as never)
+        .eq("oportunidade_id", oportunidade.id);
+      if (areasError && areasCrossSelling.length > 1) {
+        warnings.push(
+          /areas_cross_selling/.test(areasError.message)
+            ? `O lead foi criado, mas só a primeira área do cross selling (${areasCrossSelling[0]}) foi gravada: o banco ainda não tem o campo de várias áreas (migration 20261103133000 pendente). Anote as outras na ficha do lead.`
+            : `Áreas do cross selling: ${safeWarning("cross-selling-areas", areasError, "não foram gravadas.")}`,
         );
       }
     }
@@ -201,7 +300,10 @@ export async function POST(request: Request) {
       });
     }
 
-    if (payload.due_diligence === "Sim") {
+    const hasDue = payload.due_diligence === "Sim";
+
+    // Antes do WhatsApp: o aviso de área sem responsável lê as tarefas criadas aqui.
+    if (hasDue) {
       try {
         await syncDueAreaTasksForOpportunity(supabase, oportunidade.id);
       } catch (error) {
@@ -209,69 +311,17 @@ export async function POST(request: Request) {
           `Tarefas DUE: ${safeWarning("due-tasks", error, "Falha ao gerar tarefas automáticas por área.")}`,
         );
       }
+    }
 
-      const { data: whatsappConfig, error: configError } = await supabase
-        .from("whatsapp_due_config")
-        .select("destination, is_active")
-        .eq("is_active", true)
-        .eq("use_case", "due_diligence")
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    // Todo lead novo avisa o grupo da DUE: `novo_lead_due` com due diligence, `novo_lead` sem.
+    const whatsappWarning = await notifyNewLeadWhatsapp(supabase, oportunidade.id, {
+      ...payload,
+      razao_social_completa: firstCompany.razao_social,
+      cnpj_completo: firstCompany.documento,
+    });
+    if (whatsappWarning) warnings.push(whatsappWarning);
 
-      if (!configError && whatsappConfig?.destination) {
-        try {
-          const connector = new EvolutionWhatsappConnector(
-            process.env.EVOLUTION_API_URL ?? "",
-            process.env.EVOLUTION_API_KEY ?? "",
-            process.env.EVOLUTION_INSTANCE ?? process.env.EVOLUTION_INSTANCE_NAME ?? "BP",
-          );
-
-          // Área do lead sem ninguém no cadastro de usuários: o alerta vai nesta mensagem (não numa à parte).
-          const { data: semResponsavel } = await supabase
-            .from("due_area_tasks")
-            .select("area_key")
-            .eq("oportunidade_id", oportunidade.id)
-            .is("responsavel_app_user_id", null);
-          const areasSemResponsavel = (semResponsavel ?? []).map((row) => String(row.area_key)).filter(Boolean);
-          const avisos = areasSemResponsavel.length
-            ? `*Atenção:* nenhum usuário cadastrado na área ${areasSemResponsavel.join(", ")}. Defina no cadastro de usuários quem faz o levantamento.`
-            : "";
-
-          const message = await buildWhatsappMessage(
-            supabase,
-            "novo_lead_due",
-            buildDueWhatsappValues(
-              {
-                ...payload,
-                razao_social_completa: firstCompany.razao_social,
-                cnpj_completo: firstCompany.documento,
-              },
-              avisos,
-            ),
-          );
-
-          if (message) {
-            await connector.sendText({
-              destination: whatsappConfig.destination,
-              text: message,
-            });
-          }
-        } catch (error) {
-          warnings.push(
-            `WhatsApp DUE: ${safeWarning("whatsapp", error, "Falha ao enviar mensagem de due diligence.")}`,
-          );
-        }
-      } else {
-        warnings.push(
-          `WhatsApp DUE: ${
-            configError
-              ? safeWarning("whatsapp-config", configError, "Não foi possível ler o destino do WhatsApp.")
-              : "Configuração de destino WhatsApp não encontrada ou inativa."
-          }`,
-        );
-      }
-
+    if (hasDue) {
       try {
         const sharePointClient = SharePointGraphClient.fromEnv();
         const fields = buildDueSharePointAgendamentoFields(payload);

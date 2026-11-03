@@ -3,7 +3,8 @@ import type { ContractStartRule, ContractTermRule } from "./types";
 export function renderTermText(rule: ContractTermRule): string {
   switch (rule.kind) {
     case "fixed_months":
-      return `O presente Contrato terá vigência de ${rule.months ?? 12} (${extensoMeses(rule.months ?? 12)}) meses, podendo ser renovado mediante aditivo contratual.`;
+      // Padrão desde 03/11/2026: 12 meses contados da assinatura (antes, prazo indeterminado).
+      return `O presente Contrato terá vigência de ${rule.months ?? 12} (${extensoMeses(rule.months ?? 12)}) meses, contados da data de sua assinatura, podendo ser renovado mediante aditivo contratual.`;
     case "fixed_days":
       return `O presente Contrato terá vigência de ${rule.days ?? 30} dias.`;
     case "until_deliverable":

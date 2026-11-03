@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils";
 /** Surface do hub na tab — §15.1, sem card decorativo nem sombra. */
 export const documentBuilderHubClass = cn(crmSurfaceCardClass, "overflow-hidden");
 
-/** Dialog fullscreen do builder — raio 16px, sombra de overlay, sem glass. */
+/** Dialog fullscreen do builder — raio 16px, sombra de overlay, sem glass.
+ * `overflow-clip` (não `hidden`): recorta igual, mas não vira contêiner de rolagem, então
+ * foco/scrollIntoView dentro dos painéis não conseguem deslocar o shell (bug da meia tela). */
 export const documentBuilderDialogClass = cn(
-  "flex h-[95vh] w-[98vw] max-w-[98vw] flex-col gap-0 overflow-hidden p-0",
+  "flex h-[95vh] w-[98vw] max-w-[98vw] flex-col gap-0 overflow-clip p-0",
   "fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]",
   "z-(--z-nested-dialog) rounded-(--radius-v2-2xl) border border-border bg-white shadow-(--shadow-v2-lg)",
 );

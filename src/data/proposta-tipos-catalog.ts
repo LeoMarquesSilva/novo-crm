@@ -69,7 +69,7 @@ export type PropostaInvestimentoDocumento = {
 /** Preenchido no CRM; no Word usa-se `[RESUMO]` (rótulo «Síntese da demanda:» fica só no modelo). */
 export const PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO = "RESUMO_DO_PROCESSO";
 
-const ESCOPO_UM_PROCESSO = `Visando a atender as necessidades atuais, nossa proposta abrangerá serviços advocatícios especializados em Direito Civil, buscando a defesa da [NOME EMPRESA] nos autos da [TIPO DA AÇÃO] sob o n.º [NUM. DO PROCESSO], movida por [PARTE_CONTRÁRIA], cujo valor da causa, segundo a parte autora, é [VALOR_CAUSA]`;
+const ESCOPO_UM_PROCESSO = `Visando a atender as necessidades atuais, nossa proposta abrangerá serviços advocatícios especializados em Direito Civil, buscando a defesa da [NOME EMPRESA] nos autos da [TIPO DA AÇÃO] sob o n.º [NUM. DO PROCESSO], em trâmite perante [VARA/TRIBUNAL], movida por [PARTE_CONTRÁRIA], cujo valor da causa, segundo a parte autora, é [VALOR_CAUSA]`;
 
 const ESCOPO_MAIS_PROCESSOS = `Prestação de serviços advocatícios em favor de [NOME EMPRESA], abrangendo [QTD DE PROCESSOS] processos judiciais, com escopo de representação processual, análise de riscos e acompanhamento estratégico conforme detalhamento a ser alinhado em ata.
 
@@ -132,14 +132,15 @@ export const PROPOSTA_TIPOS_CATALOG: PropostaTiposCatalog = {
       subtipos: [
         st("um_processo", "1 processo", ESCOPO_UM_PROCESSO, [PROPOSTA_PLACEHOLDER_RESUMO_PROCESSO]),
         st("mais_um_processo", "+1 processo", ESCOPO_MAIS_PROCESSOS),
-        st("carteira_processos", "Carteira de processos", ""),
+        // "Carteira de processos" saiu (03/11/2026): sem texto nem campos, contava como preenchido.
       ],
     },
     {
       tipoId: "familia",
       label: "Família",
       subtipos: [
-        st("divorcio_guarda_alimentos", "Divórcio, guarda e alimentos", ""),
+        // Mesma chave do banco: com "divorcio_guarda_alimentos" o subtipo aparecia duas vezes.
+        st("divorcio_guarda_e_alimentos", "Divórcio, guarda e alimentos", ""),
       ],
     },
     {

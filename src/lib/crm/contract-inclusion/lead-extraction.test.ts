@@ -105,6 +105,11 @@ describe("lead × PDF", () => {
     ]);
   });
 
+  it("prazo do lead vem do contrato montado no CRM (12 meses → não é indeterminado)", () => {
+    expect(buildLeadExtraction({ onboarding: onboarding(), prefill: emptyPrefill, indefinite: false }).indefinite).toBe(false);
+    expect(buildLeadExtraction({ onboarding: onboarding(), prefill: emptyPrefill }).indefinite).toBe(true);
+  });
+
   it("sem PDF lido, usa só o lead", () => {
     const lead = buildLeadExtraction({ onboarding: onboarding(), prefill: emptyPrefill });
     expect(mergeLeadAndPdfExtraction(lead, null).extraction).toBe(lead);

@@ -513,7 +513,7 @@ export function buildTransitionWarnings(params: {
   if (n === null) return warnings;
   if (n < 2) {
     warnings.push(
-      "O prazo para entrega é menor que 2 dias úteis a partir de hoje. Sinalize exceções e motivos junto ao time responsável.",
+      "A data limite de preenchimento é menor que 2 dias úteis a partir de hoje. Sinalize exceções e motivos junto ao time responsável.",
     );
   }
   return warnings;

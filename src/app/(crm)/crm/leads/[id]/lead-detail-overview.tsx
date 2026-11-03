@@ -201,9 +201,9 @@ export function LeadDetailOverview({
                 leadId={lead.id}
                 scope="intake"
                 fieldKey="area_cross_selling"
-                label="Área *"
+                label="Áreas *"
                 value={lead.intakeFields.find((field) => field.key === "area_cross_selling")?.value ?? ""}
-                kind="select"
+                kind="multiselect"
                 selectOptions={[...leadAreas]}
                 displayVariant="row"
                 className="border-t border-neutral-200"

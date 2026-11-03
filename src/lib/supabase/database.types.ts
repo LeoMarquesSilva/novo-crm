@@ -2875,6 +2875,7 @@ export type Database = {
           id: string
           local_reuniao: string
           area_cross_selling: string | null
+          areas_cross_selling: string[] | null
           decisor: string | null
           nome_indicacao: string | null
           oportunidade_id: string
@@ -2901,6 +2902,7 @@ export type Database = {
           id?: string
           local_reuniao: string
           area_cross_selling?: string | null
+          areas_cross_selling?: string[] | null
           decisor?: string | null
           nome_indicacao?: string | null
           oportunidade_id: string
@@ -2927,6 +2929,7 @@ export type Database = {
           id?: string
           local_reuniao?: string
           area_cross_selling?: string | null
+          areas_cross_selling?: string[] | null
           decisor?: string | null
           nome_indicacao?: string | null
           oportunidade_id?: string

@@ -78,6 +78,7 @@ import { evaluateCondition, type FieldCondition } from "@/lib/crm/field-conditio
 import { usePaginatedBlocks, type PreviewBlock } from "@/lib/crm/document-pagination";
 import {
   buildContratoDocumentPagePreview,
+  type ContratoBuilderSectionId,
   type ContratoDocumentPagePreview,
   type ContratoPendingField,
 } from "@/lib/crm/contrato-docx-data";
@@ -119,6 +120,11 @@ import { applyObjectOverride } from "@/lib/crm/contract-engine/object-engine";
 import { appendContractEngineEvent } from "@/lib/crm/contract-engine/object-events";
 import { resolveContractScopes } from "@/lib/crm/contract-engine/proposal-snapshot";
 import { contractPartyGrammar } from "@/lib/crm/contract-engine/party-language";
+import {
+  listDraftTokenIssues,
+  listDraftTokensInText,
+  type DraftTokenIssue,
+} from "@/lib/crm/contract-engine/placeholders";
 import type { ContractObjectDraft } from "@/lib/crm/contract-engine/persist";
 import type {
   CanonicalContractBuildResult,
@@ -373,6 +379,60 @@ function ContractWorkflowRail({
   );
 }
 
+// ─── Marcações de rascunho (travam o "Gerar Word") ───────────────────────────
+
+type DraftTokenSectionId = Extract<
+  ContratoBuilderSectionId,
+  "section-objeto" | "section-condicoes" | "section-clausulas"
+>;
+
+/** Seção do builder onde a marcação aparece e se resolve. */
+function draftTokenIssueSection(issue: DraftTokenIssue): DraftTokenSectionId {
+  if (issue.source === "object") return "section-objeto";
+  if (issue.origin === "payment_engine") return "section-condicoes";
+  return "section-clausulas";
+}
+
+function groupDraftTokenIssues(issues: DraftTokenIssue[]): Record<DraftTokenSectionId, DraftTokenIssue[]> {
+  const grouped: Record<DraftTokenSectionId, DraftTokenIssue[]> = {
+    "section-objeto": [],
+    "section-condicoes": [],
+    "section-clausulas": [],
+  };
+  for (const issue of issues) grouped[draftTokenIssueSection(issue)].push(issue);
+  return grouped;
+}
+
+/** Cláusula adicionada à mão vai crua para o Word — marcação nela também precisa ser preenchida. */
+function selectedClauseDraftTokens(clause: Pick<SelectedClause, "title" | "content">): string[] {
+  return listDraftTokensInText(`${clause.title}\n${clause.content}`);
+}
+
+/** Pendências de marcação a partir do build gravado (o mesmo que o generate-docx confere). */
+function draftTokenPendingItems(
+  state: ContratoState,
+  serverPending: ContratoPendingField[],
+): ContratoPendingField[] {
+  const grouped = groupDraftTokenIssues(state.engine ? listDraftTokenIssues(state.engine.data) : []);
+  const extras = (state.selectedClauses ?? []).filter((c) => selectedClauseDraftTokens(c).length > 0);
+  const items: ContratoPendingField[] = [];
+  const clausulas = grouped["section-clausulas"].length + extras.length;
+  if (clausulas > 0) {
+    items.push({
+      label: clausulas === 1 ? "1 cláusula com campo a preencher" : `${clausulas} cláusulas com campos a preencher`,
+      sectionId: "section-clausulas",
+    });
+  }
+  if (grouped["section-condicoes"].length > 0) {
+    items.push({ label: "Honorários com campo a preencher", sectionId: "section-condicoes" });
+  }
+  // Campo obrigatório do objeto vazio já aparece na lista do servidor.
+  if (grouped["section-objeto"].length > 0 && !serverPending.some((p) => p.sectionId === "section-objeto")) {
+    items.push({ label: "Objeto com campo a preencher", sectionId: "section-objeto" });
+  }
+  return items;
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function ContratoDocumentBuilder({
@@ -393,6 +453,9 @@ export function ContratoDocumentBuilder({
   const [syncingProposal, setSyncingProposal] = useState(false);
   const [syncProposalError, setSyncProposalError] = useState<string | null>(null);
   const [builderKey, setBuilderKey] = useState(0);
+  /** Seção para onde o builder rola ao abrir por uma pendência. */
+  const [builderFocusSection, setBuilderFocusSection] = useState<string | null>(null);
+  const clearBuilderFocusSection = useCallback(() => setBuilderFocusSection(null), []);
 
   const refreshState = useCallback(async () => {
     setLoading(true);
@@ -427,7 +490,13 @@ export function ContratoDocumentBuilder({
   // Realtime: atualiza lista de signatários quando webhook D4Sign marca alguém como assinado
   useOportunidadeRealtime(lead.id, () => router.refresh());
 
-  const pending = contratoState?.pending ?? [];
+  const pending = useMemo(() => contratoState?.pending ?? [], [contratoState]);
+  // Lista do card de pendências: a do servidor + marcações que travam o "Gerar Word"
+  // (o servidor só as confere no generate-docx). O gate de envio D4Sign segue com `pending`.
+  const hubPending = useMemo(
+    () => (contratoState ? [...pending, ...draftTokenPendingItems(contratoState, pending)] : pending),
+    [contratoState, pending],
+  );
   const versions = contratoState?.versions ?? [];
   const hasInstance = Boolean(contratoState?.instance);
   const currentVersion = Number(contratoState?.instance?.current_version ?? 0);
@@ -503,13 +572,10 @@ export function ContratoDocumentBuilder({
     }
   }
 
+  // O builder rola só o painel esquerdo até a seção (ver `scrollPaneToSection`).
   function goToPendingItem(item: ContratoPendingField) {
+    setBuilderFocusSection(item.sectionId);
     setBuilderOpen(true);
-    if (!item.sectionId) return;
-    const sectionId = item.sectionId;
-    window.setTimeout(() => {
-      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 150);
   }
 
   return (
@@ -533,7 +599,10 @@ export function ContratoDocumentBuilder({
             size="sm"
             className="gap-2"
             disabled={loading}
-            onClick={() => setBuilderOpen(true)}
+            onClick={() => {
+              setBuilderFocusSection(null);
+              setBuilderOpen(true);
+            }}
           >
             {contractSent ? (
               <Eye className="size-4" aria-hidden />
@@ -645,17 +714,17 @@ export function ContratoDocumentBuilder({
                   ? "Assinatura concluída"
                   : contractSent
                     ? "Documento enviado"
-                    : pending.length === 0
+                    : hubPending.length === 0
                       ? "Pronto para gerar"
                       : "Pendências"
               }
               icon={
-                contractSigned || contractSent || pending.length === 0
+                contractSigned || contractSent || hubPending.length === 0
                   ? CheckCircle2
                   : TriangleAlert
               }
               tone={
-                contractSigned || contractSent || pending.length === 0
+                contractSigned || contractSent || hubPending.length === 0
                   ? "ok"
                   : "warn"
               }
@@ -669,21 +738,21 @@ export function ContratoDocumentBuilder({
                   <p className="text-sm text-foreground">
                     A versão v{currentVersion || versions[0]?.version_number || 1} está em acompanhamento pela D4Sign.
                   </p>
-                  {pending.length > 0 ? (
+                  {hubPending.length > 0 ? (
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      O rascunho atual possui {pending.length}{" "}
-                      {pending.length === 1 ? "ajuste pendente" : "ajustes pendentes"}.
+                      O rascunho atual possui {hubPending.length}{" "}
+                      {hubPending.length === 1 ? "ajuste pendente" : "ajustes pendentes"}.
                       Eles só entram no documento após gerar e enviar uma nova versão.
                     </p>
                   ) : null}
                 </div>
-              ) : pending.length === 0 ? (
+              ) : hubPending.length === 0 ? (
                 <p className="text-sm text-foreground">
                   Todos os campos obrigatórios estão preenchidos.
                 </p>
               ) : (
                 <ul className="space-y-1">
-                  {pending.slice(0, 6).map((item) => (
+                  {hubPending.slice(0, 6).map((item) => (
                     <li key={item.label}>
                       <button
                         type="button"
@@ -699,9 +768,9 @@ export function ContratoDocumentBuilder({
                       </button>
                     </li>
                   ))}
-                  {pending.length > 6 ? (
+                  {hubPending.length > 6 ? (
                     <li className="px-1.5 text-xs text-muted-foreground">
-                      + {pending.length - 6} pendências
+                      + {hubPending.length - 6} pendências
                     </li>
                   ) : null}
                 </ul>
@@ -746,6 +815,9 @@ export function ContratoDocumentBuilder({
           onOpenChange={setBuilderOpen}
           onRefresh={refreshState}
           onContratantesChange={!contractSent && canEditContract ? salvarContratantes : undefined}
+          canEdit={canEditContract}
+          focusSectionId={builderFocusSection}
+          onFocusSectionDone={clearBuilderFocusSection}
         />
       ) : null}
     </section>
@@ -762,6 +834,9 @@ function ContratoBuilderDialog({
   onOpenChange,
   onRefresh,
   onContratantesChange,
+  canEdit,
+  focusSectionId,
+  onFocusSectionDone,
 }: {
   lead: LeadDetailData;
   propostaEmpresaPrincipalNome: string | null;
@@ -771,8 +846,25 @@ function ContratoBuilderDialog({
   onRefresh: () => Promise<void>;
   /** Ausente depois do envio para assinatura ou sem permissão de editar o contrato. */
   onContratantesChange?: (empresasJson: string) => Promise<void>;
+  /** Sem `contract.edit` (ex.: Financeiro, 03/11/2026): só leitura, sem Salvar/Gerar Word. */
+  canEdit: boolean;
+  /** Seção para rolar ao abrir (pendência clicada no hub); `onFocusSectionDone` limpa. */
+  focusSectionId?: string | null;
+  onFocusSectionDone?: () => void;
 }) {
   const router = useRouter();
+  // Painel esquerdo como state (não ref): o conteúdo do dialog monta via portal, e o
+  // efeito de foco abaixo precisa rodar quando o painel de fato existir.
+  const [leftPane, setLeftPane] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!leftPane || !focusSectionId) return;
+    const frame = window.requestAnimationFrame(() => {
+      scrollPaneToSection(leftPane, focusSectionId);
+      onFocusSectionDone?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [leftPane, focusSectionId, onFocusSectionDone]);
   const [savingContratantes, setSavingContratantes] = useState(false);
   const [contratantesError, setContratantesError] = useState<string | null>(null);
   const empresasIntake = lead.empresasIntake ?? [];
@@ -983,6 +1075,16 @@ function ContratoBuilderDialog({
         ? new Map(liveBuild.data.clauses.map((c) => [c.stableKey, c.content]))
         : undefined,
     [liveBuild],
+  );
+
+  // Marcações de rascunho que travam o "Gerar Word" (422 do generate-docx), por seção
+  // do builder — calculadas do draft ao vivo, antes de salvar.
+  const draftTokenIssues = useMemo(
+    () => groupDraftTokenIssues(liveBuild ? listDraftTokenIssues(liveBuild.data) : []),
+    [liveBuild],
+  );
+  const selectedClausesHaveDraftTokens = draftSelectedClauses.some(
+    (c) => selectedClauseDraftTokens(c).length > 0,
   );
 
   // ── Preview client-side (instantâneo, sem API) ────────────────────────────
@@ -1269,6 +1371,7 @@ function ContratoBuilderDialog({
             onClose={handleCloseAttempt}
             closeDisabled={saving || generating}
             actions={
+              canEdit ? (
               <>
                 <Button
                   type="button"
@@ -1301,6 +1404,9 @@ function ContratoBuilderDialog({
                   Gerar Word
                 </Button>
               </>
+              ) : (
+                <span className="text-v2-caption text-muted-foreground">Somente leitura</span>
+              )
             }
           />
 
@@ -1319,26 +1425,59 @@ function ContratoBuilderDialog({
           ) : null}
 
           {/* ── Body split-pane ── */}
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+          {/* overflow-clip (não hidden): contêiner sem rolagem própria, então nenhum scroll
+              programático (foco, scrollIntoView) consegue deslocar o corpo e deixar meia tela vazia. */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-clip md:flex-row">
             {/* Painel esquerdo — Formulário */}
             <aside
+              ref={setLeftPane}
               className={cn(
                 "crm-scrollbar min-h-0 w-full overflow-y-auto border-border bg-white md:w-[46%] md:flex-none md:border-r",
                 mobilePane === "edit" ? "flex-1" : "hidden md:block",
               )}
             >
               <SectionNav
+                onNavigate={(id) => {
+                  if (leftPane) scrollPaneToSection(leftPane, id);
+                }}
                 sections={[
                   { id: "section-partes", num: 1, label: "Partes", state: propostaEmpresaPrincipalNome ? "complete" : "pending" },
                   { id: "section-escopos", num: 2, label: "Escopos", state: scopesComplete ? "complete" : "pending" },
-                  { id: "section-objeto", num: 3, label: "Objeto", state: objectComplete ? "complete" : "pending" },
-                  { id: "section-condicoes", num: 4, label: "Condições", state: valsComplete ? "complete" : "pending" },
+                  {
+                    id: "section-objeto",
+                    num: 3,
+                    label: "Objeto",
+                    state: !objectComplete
+                      ? "pending"
+                      : draftTokenIssues["section-objeto"].length > 0
+                        ? "danger"
+                        : "complete",
+                  },
+                  {
+                    id: "section-condicoes",
+                    num: 4,
+                    label: "Condições",
+                    state:
+                      draftTokenIssues["section-condicoes"].length > 0
+                        ? "danger"
+                        : valsComplete
+                          ? "complete"
+                          : "pending",
+                  },
                   { id: "section-vigencia", num: 5, label: "Vigência", state: prazComplete || Boolean(liveBuild) ? "complete" : "pending" },
-                  { id: "section-clausulas", num: 6, label: "Cláusulas", state: "neutral" },
+                  {
+                    id: "section-clausulas",
+                    num: 6,
+                    label: "Cláusulas",
+                    state:
+                      draftTokenIssues["section-clausulas"].length > 0 || selectedClausesHaveDraftTokens
+                        ? "danger"
+                        : "neutral",
+                  },
                   { id: "section-assinaturas", num: 7, label: "Assinaturas", state: "neutral" },
                 ]}
               />
-              <div className="space-y-8 px-5 py-6 sm:px-6">
+              <div className="space-y-8 px-5 pt-6 sm:px-6">
                 {/* Seção: Partes (read-only) */}
                 <FormSection id="section-partes" num={1} title="Partes" isComplete={Boolean(propostaEmpresaPrincipalNome)}>
                   {propostaEmpresaPrincipalNome ? (
@@ -1429,6 +1568,15 @@ function ContratoBuilderDialog({
                       setSaveFeedback(null);
                     }}
                   />
+                  {/* Campo obrigatório vazio já aparece no próprio Objeto; aqui só o que sobra. */}
+                  {objectComplete ? (
+                    <DraftTokenNotice
+                      className="ml-10 mt-3"
+                      title="Objeto com campo a preencher"
+                      hint="O “Gerar Word” fica bloqueado até estas marcações saírem do texto do Objeto."
+                      issues={draftTokenIssues["section-objeto"]}
+                    />
+                  ) : null}
                 </div>
 
                 {/* Seção: Condições comerciais */}
@@ -1447,6 +1595,11 @@ function ContratoBuilderDialog({
                       disabled={saving || generating}
                     />
                   ) : null}
+                  <DraftTokenNotice
+                    title="Honorários com campo a preencher"
+                    hint="O texto vem do investimento da proposta; o “Gerar Word” fica bloqueado até corrigir lá."
+                    issues={draftTokenIssues["section-condicoes"]}
+                  />
                   {(SECTION_VALORES as readonly string[]).map((code) => {
                     if (!isVisible(code)) return null;
                     // Motor ativo: valores e vencimentos saem do investimento da proposta.
@@ -1557,27 +1710,29 @@ function ContratoBuilderDialog({
                     onChange={setDraftSelectedClauses}
                     disabled={saving || generating}
                     engineClauseContent={engineClauseContent}
+                    engineDraftTokenIssues={draftTokenIssues["section-clausulas"]}
                   />
                 </div>
+              </div>
 
-                {/* Seção 7: Posicionar Assinaturas (rubrica/pin) */}
-                <div id="section-assinaturas" className="scroll-mt-16">
-                  <PinsSection
-                    pins={draftPins}
-                    onChange={setDraftPins}
-                    pinMode={pinMode}
-                    onPinModeChange={setPinMode}
-                    disabled={saving || generating}
-                  />
-                </div>
-
+              {/* Seção 7: Posicionar Assinaturas (rubrica/pin). Filha direta do painel com
+                  min-h-full (altura do painel): sem isso o índice não consegue levar
+                  "Cláusulas"/"Assinaturas" até o topo — a rolagem acaba antes. */}
+              <div id="section-assinaturas" className="mt-8 min-h-full px-5 pb-6 sm:px-6">
+                <PinsSection
+                  pins={draftPins}
+                  onChange={setDraftPins}
+                  pinMode={pinMode}
+                  onPinModeChange={setPinMode}
+                  disabled={saving || generating}
+                />
               </div>
             </aside>
 
             {/* Painel direito — Preview ao vivo */}
             <main
               className={cn(
-                "relative min-h-0 w-full flex-1 flex-col overflow-hidden bg-canvas md:w-[54%] md:flex-none",
+                "relative min-h-0 min-w-0 w-full flex-1 flex-col overflow-clip bg-canvas md:w-[54%] md:flex-none",
                 mobilePane === "preview" ? "flex" : "hidden md:flex",
               )}
             >
@@ -2378,18 +2533,24 @@ type ClauseRow = {
    * Sem isso, um grupo cheio de cláusulas travadas (geradas pelo motor)
    * aparecia como "vazio" e ficava fechado, escondendo tudo. */
   isIncludedInContract: boolean;
+  /** Marcações de rascunho no texto que vai para o Word (`[CHAVE]`, `R$ X`…). Nas do
+   * motor travam o "Gerar Word"; nas adicionadas aqui iriam cruas para o documento. */
+  draftTokens: string[];
 };
 
 type ClauseGroup = {
   title: string;
   rows: ClauseRow[];
   addedCount: number;
+  /** Linhas com marcação a preencher. */
+  issueCount: number;
 };
 
 function groupClausesBySection(
   available: ClauseTemplate[],
   selected: SelectedClause[],
   engineClauseContent?: ReadonlyMap<string, string>,
+  engineDraftTokens?: ReadonlyMap<string, string[]>,
 ): ClauseGroup[] {
   const selectedById = new Map(selected.map((c) => [c.id, c]));
   const availableIds = new Set(available.map((t) => t.id));
@@ -2405,15 +2566,21 @@ function groupClausesBySection(
     const sel = selectedById.get(tpl.id) ?? null;
     const engineContent = tpl.stable_key ? engineClauseContent?.get(tpl.stable_key) ?? null : null;
     const isAdded = Boolean(sel);
+    const isEngineControlled = Boolean(tpl.is_required) || engineContent !== null;
     pushRow(resolveClauseSectionTitle(tpl.role), {
       id: tpl.id,
       title: tpl.title,
       templateContent: tpl.content,
       isAdded,
       selectedClause: sel,
-      isEngineControlled: Boolean(tpl.is_required) || engineContent !== null,
+      isEngineControlled,
       engineContent,
       isIncludedInContract: isAdded || engineContent !== null,
+      draftTokens: isEngineControlled
+        ? (tpl.stable_key ? engineDraftTokens?.get(tpl.stable_key) : undefined) ?? []
+        : sel
+          ? selectedClauseDraftTokens(sel)
+          : [],
     });
   }
   // Cláusulas adicionadas cujo template não existe mais na biblioteca ativa
@@ -2429,6 +2596,7 @@ function groupClausesBySection(
       isEngineControlled: false,
       engineContent: null,
       isIncludedInContract: true,
+      draftTokens: selectedClauseDraftTokens(sel),
     });
   }
 
@@ -2437,13 +2605,22 @@ function groupClausesBySection(
     .filter((title) => bySection.has(title))
     .map((title) => {
       const rows = bySection.get(title)!;
-      return { title, rows, addedCount: rows.filter((r) => r.isIncludedInContract).length };
+      return {
+        title,
+        rows,
+        addedCount: rows.filter((r) => r.isIncludedInContract).length,
+        issueCount: rows.filter((r) => r.draftTokens.length > 0).length,
+      };
     });
   // Grupos com cláusula(s) já adicionada(s) primeiro — mais relevante pra quem
   // está revisando o que já foi incluído do que a ordem em que a seção aparece
   // no documento final. `.sort` é estável, então a ordem de documento é mantida
-  // dentro de cada bucket (com added / sem added).
-  return groups.sort((a, b) => Number(b.addedCount > 0) - Number(a.addedCount > 0));
+  // dentro de cada bucket (com added / sem added). Grupo com marcação a preencher vem antes de tudo.
+  return groups.sort(
+    (a, b) =>
+      Number(b.issueCount > 0) - Number(a.issueCount > 0) ||
+      Number(b.addedCount > 0) - Number(a.addedCount > 0),
+  );
 }
 
 function ClausulasSection({
@@ -2452,6 +2629,7 @@ function ClausulasSection({
   onChange,
   disabled,
   engineClauseContent,
+  engineDraftTokenIssues,
 }: {
   available: ClauseTemplate[];
   selected: SelectedClause[];
@@ -2461,10 +2639,27 @@ function ClausulasSection({
    * gerando pra este contrato agora, por chave estável — ver `liveBuild` no
    * dialog pai. Usado tanto pra travar a linha quanto pro "Visualizar". */
   engineClauseContent?: ReadonlyMap<string, string>;
+  /** Cláusulas do motor com marcação de rascunho — travam o "Gerar Word". */
+  engineDraftTokenIssues: DraftTokenIssue[];
 }) {
+  const engineDraftTokens = useMemo(
+    () => new Map(engineDraftTokenIssues.map((issue) => [issue.stableKey, issue.tokens])),
+    [engineDraftTokenIssues],
+  );
   const groups = useMemo(
-    () => groupClausesBySection(available, selected, engineClauseContent),
-    [available, selected, engineClauseContent],
+    () => groupClausesBySection(available, selected, engineClauseContent, engineDraftTokens),
+    [available, selected, engineClauseContent, engineDraftTokens],
+  );
+  // Resumo no topo: inclui cláusula do motor que não tem linha na biblioteca (ex.: só no catálogo fixo).
+  const summaryIssues = useMemo(
+    () => [
+      ...engineDraftTokenIssues.map((issue) => ({ key: `motor:${issue.stableKey}`, title: issue.title, tokens: issue.tokens })),
+      ...selected.flatMap((clause) => {
+        const tokens = selectedClauseDraftTokens(clause);
+        return tokens.length > 0 ? [{ key: `extra:${clause.id}`, title: `${clause.title} (adicionada)`, tokens }] : [];
+      }),
+    ],
+    [engineDraftTokenIssues, selected],
   );
 
   function addClause(row: ClauseRow) {
@@ -2495,18 +2690,36 @@ function ClausulasSection({
         <h3 className="text-sm font-bold tracking-[-0.01em] text-foreground">
           Cláusulas Adicionais
         </h3>
+        {summaryIssues.length > 0 ? (
+          <span className="rounded-(--radius-v2-full) border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-semibold text-danger-text">
+            {summaryIssues.length} a preencher
+          </span>
+        ) : null}
         {selected.length > 0 ? (
           <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
             {selected.length} adicionada{selected.length > 1 ? "s" : ""}
           </span>
-        ) : (
+        ) : summaryIssues.length === 0 ? (
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
             Opcional
           </span>
-        )}
+        ) : null}
       </div>
 
       <div className="ml-10 space-y-2.5">
+        <DraftTokenNotice
+          title={
+            summaryIssues.length === 1
+              ? "1 cláusula com campo a preencher"
+              : `${summaryIssues.length} cláusulas com campos a preencher`
+          }
+          hint={
+            engineDraftTokenIssues.length > 0
+              ? "O “Gerar Word” fica bloqueado enquanto o texto do contrato tiver estas marcações."
+              : "Estas marcações iriam como estão para o Word. Edite o texto da cláusula."
+          }
+          issues={summaryIssues}
+        />
         {available.length === 0 && selected.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nenhuma cláusula cadastrada. Acesse{" "}
@@ -2544,7 +2757,14 @@ function ClauseGroupBlock({
   onRemove: (id: string) => void;
   onUpdateContent: (id: string, content: string) => void;
 }) {
-  const [open, setOpen] = useState(group.addedCount > 0);
+  const hasIssues = group.issueCount > 0;
+  const [open, setOpen] = useState(group.addedCount > 0 || hasIssues);
+  // Abre sozinho quando aparece marcação a preencher (ajuste de state no render, sem efeito).
+  const [prevHasIssues, setPrevHasIssues] = useState(hasIssues);
+  if (hasIssues !== prevHasIssues) {
+    setPrevHasIssues(hasIssues);
+    if (hasIssues) setOpen(true);
+  }
   const isEngineControlled = ENGINE_CONTROLLED_SECTION_TITLES.has(group.title);
   const isExclusionMerge = group.title === EXCLUSION_MERGE_SECTION_TITLE;
 
@@ -2563,6 +2783,11 @@ function ClauseGroupBlock({
         <span className="flex-1 truncate text-[11px] font-bold uppercase tracking-[0.1em] text-slate-600">
           {group.title}
         </span>
+        {hasIssues ? (
+          <span className="shrink-0 rounded-(--radius-v2-full) border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-semibold text-danger-text">
+            {group.issueCount} a preencher
+          </span>
+        ) : null}
         {group.addedCount > 0 ? (
           <span className="shrink-0 rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
             {group.addedCount} no contrato
@@ -2621,6 +2846,7 @@ function ClauseRowItem({
   onUpdateContent: (content: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const hasDraftTokens = row.draftTokens.length > 0;
 
   if (row.isEngineControlled) {
     // Presente de verdade no contrato AGORA (o motor já resolveu essa chave
@@ -2632,7 +2858,11 @@ function ClauseRowItem({
       <div
         className={cn(
           "rounded-lg border p-2.5",
-          inContractNow ? "border-success-border bg-success-bg" : "border-warning-border bg-warning-bg",
+          hasDraftTokens
+            ? "border-danger-border bg-danger-bg"
+            : inContractNow
+              ? "border-success-border bg-success-bg"
+              : "border-warning-border bg-warning-bg",
         )}
       >
         <div className="flex items-center gap-2">
@@ -2675,6 +2905,11 @@ function ClauseRowItem({
             {editing ? "Ocultar" : "Visualizar"}
           </Button>
         </div>
+        {hasDraftTokens ? (
+          <p className="mt-1.5 text-[11px] font-medium leading-relaxed text-danger-text">
+            Falta preencher: {row.draftTokens.join(", ")}. O texto vem do modelo da cláusula (Admin → Cláusulas).
+          </p>
+        ) : null}
         {editing ? (
           <p
             className={cn(
@@ -2693,7 +2928,7 @@ function ClauseRowItem({
     <div
       className={cn(
         "rounded-lg border bg-white p-2.5",
-        row.isAdded ? "border-success-border" : "border-border",
+        hasDraftTokens ? "border-danger-border" : row.isAdded ? "border-success-border" : "border-border",
       )}
     >
       <div className="flex items-center gap-2">
@@ -2741,6 +2976,11 @@ function ClauseRowItem({
           </Button>
         )}
       </div>
+      {hasDraftTokens ? (
+        <p className="mt-1.5 text-[11px] font-medium leading-relaxed text-danger-text">
+          Falta preencher: {row.draftTokens.join(", ")}. Em &ldquo;Editar&rdquo;, troque pelo texto final.
+        </p>
+      ) : null}
       {row.isAdded && editing ? (
         <Textarea
           value={row.selectedClause?.content ?? ""}
@@ -3071,32 +3311,59 @@ function ClickablePreview({
 
 // ─── Índice fixo de seções (navegação rápida no painel esquerdo) ─────────────
 
-type NavSectionState = "complete" | "pending" | "neutral";
+/** "danger" = a seção tem marcação que trava o "Gerar Word". */
+type NavSectionState = "complete" | "pending" | "danger" | "neutral";
 
-function scrollToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+/** Folga entre o índice fixo e o topo da seção. */
+const SECTION_SCROLL_GAP = 12;
+
+/**
+ * Rola só o painel esquerdo até a seção. `scrollIntoView` também rolava os ancestrais
+ * `overflow-hidden` (dialog, split) e a tela ficava pela metade quando a seção estava
+ * perto do fim do painel.
+ */
+function scrollPaneToSection(pane: HTMLElement, sectionId: string) {
+  const target = document.getElementById(sectionId);
+  if (!target || !pane.contains(target)) return;
+  const paneRect = pane.getBoundingClientRect();
+  // Na animação de abertura (zoom) o rect vem escalado; offsetHeight não.
+  const scale = pane.offsetHeight > 0 ? paneRect.height / pane.offsetHeight : 1;
+  const offset = (target.getBoundingClientRect().top - paneRect.top) / (scale || 1) - pane.clientTop;
+  const navHeight = pane.querySelector<HTMLElement>("[data-section-nav]")?.offsetHeight ?? 0;
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  pane.scrollTo({
+    top: Math.max(0, pane.scrollTop + offset - navHeight - SECTION_SCROLL_GAP),
+    behavior: reduceMotion ? "auto" : "smooth",
+  });
 }
 
 function SectionNav({
   sections,
+  onNavigate,
 }: {
   sections: Array<{ id: string; num: number; label: string; state: NavSectionState }>;
+  onNavigate: (id: string) => void;
 }) {
   return (
-    <div className="sticky top-0 z-(--z-sticky) flex gap-1 overflow-x-auto border-b border-border bg-white px-5 py-2 sm:px-6">
+    <div
+      data-section-nav
+      className="sticky top-0 z-(--z-sticky) flex gap-1 overflow-x-auto border-b border-border bg-white px-5 py-2 sm:px-6"
+    >
       {sections.map((s) => (
         <button
           key={s.id}
           type="button"
-          title={s.label}
-          onClick={() => scrollToSection(s.id)}
+          title={s.state === "danger" ? `${s.label}: há campo a preencher` : s.label}
+          onClick={() => onNavigate(s.id)}
           className={cn(
             "flex shrink-0 items-center gap-1.5 rounded-(--radius-v2-full) border px-2.5 py-1 text-[11px] font-medium transition-colors",
             s.state === "complete"
               ? "border-success-border bg-success-bg text-success-text hover:bg-success-bg"
               : s.state === "pending"
                 ? "border-warning-border bg-warning-bg text-warning-text hover:bg-warning-bg"
-                : "border-border bg-surface-subtle text-text-muted-v2 hover:bg-surface-hover",
+                : s.state === "danger"
+                  ? "border-danger-border bg-danger-bg text-danger-text hover:bg-danger-bg"
+                  : "border-border bg-surface-subtle text-text-muted-v2 hover:bg-surface-hover",
           )}
         >
           <span
@@ -3106,7 +3373,9 @@ function SectionNav({
                 ? "bg-emerald-600 text-white"
                 : s.state === "pending"
                   ? "bg-amber-500 text-white"
-                  : "bg-slate-300 text-white",
+                  : s.state === "danger"
+                    ? "bg-danger-text text-white"
+                    : "bg-slate-300 text-white",
             )}
           >
             {s.state === "complete" ? <Check className="size-2.5" aria-hidden /> : s.num}
@@ -3114,6 +3383,42 @@ function SectionNav({
           <span className="hidden md:inline">{s.label}</span>
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Lista de marcações de rascunho (`[CHAVE]`, `R$ X`…) que travam o "Gerar Word". */
+function DraftTokenNotice({
+  title,
+  hint,
+  issues,
+  className,
+}: {
+  title: string;
+  hint?: string;
+  issues: Array<{ key?: string; stableKey?: string; title: string; tokens: string[] }>;
+  className?: string;
+}) {
+  if (issues.length === 0) return null;
+  return (
+    <div
+      className={cn(
+        "rounded-(--radius-v2-md) border border-danger-border bg-danger-bg p-3 text-xs text-danger-text",
+        className,
+      )}
+    >
+      <p className="flex items-start gap-1.5 font-semibold">
+        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        {title}
+      </p>
+      {hint ? <p className="mt-1 leading-relaxed">{hint}</p> : null}
+      <ul className="mt-1.5 space-y-0.5">
+        {issues.map((issue, index) => (
+          <li key={issue.key ?? issue.stableKey ?? index} className="leading-relaxed">
+            <span className="font-semibold">{issue.title}</span>: {issue.tokens.join(", ")}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

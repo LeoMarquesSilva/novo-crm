@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { ContractDetailShell } from "@/components/crm/contracts/contract-detail-shell";
-import { canConfigureContract } from "@/lib/auth/crm-access-policy";
+import { canConfigureContract, canViewD4SignDocument } from "@/lib/auth/crm-access-policy";
 import { requireAuth } from "@/lib/auth/server";
 import { maybeBackfillImportedDraftRateio } from "@/lib/contract-import/persist-draft";
 import { getContractDetail } from "@/modules/contracts/infrastructure/contract-queries";
@@ -17,15 +17,25 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
   }
   const contract = await getContractDetail(id);
   if (!contract) notFound();
+  const editableVersionId = contract.configuration?.version.id ?? null;
   const canConfigure = canConfigureContract({
     role: profile.role,
     contract: {
       opportunityId: contract.opportunityId,
       opportunityStage: contract.opportunityStage,
-      versionNumber: contract.configuration ? 1 : null,
+      // Número real da versão em edição (o Financeiro só configura a v1); antes era 1 fixo.
+      versionNumber: editableVersionId
+        ? contract.versions.find((version) => version.id === editableVersionId)?.number ?? null
+        : null,
       // O status real da versão: com "rascunho" fixo, a versão ativa parecia editável.
       versionStatus: contract.configuration ? contract.editableVersionStatus : null,
     },
   });
-  return <ContractDetailShell contract={contract} canConfigure={canConfigure} />;
+  return (
+    <ContractDetailShell
+      contract={contract}
+      canConfigure={canConfigure}
+      canViewSignedDocument={canViewD4SignDocument({ role: profile.role })}
+    />
+  );
 }

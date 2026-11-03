@@ -164,7 +164,11 @@ export type ContractDetailViewModel = {
   }>;
   addenda: Array<{ id: string; title: string; status: string; signedAt: string | null; link: string | null }>;
   closings: Array<{ id: string; competency: string; status: string; revision: number }>;
-  documents: Array<{ id: string; name: string; status: string | null; link: string | null; updatedAt: string }>;
+  /**
+   * Documento D4Sign do contrato (`contratos.d4sign_document_id`; sem ele, o do lead em
+   * `oportunidades.d4sign_document_uuid`). `id` é o `uuid_doc`; `signed` = finalizado (status "1").
+   */
+  documents: Array<{ id: string; name: string; status: string | null; link: string | null; updatedAt: string; signed: boolean }>;
   events: Array<{ id: string; title: string; detail: string | null; type: string; origin: string | null; createdAt: string }>;
 };
 
@@ -496,7 +500,7 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
 
   const [clientResult, opportunityResult, versionsResult, responsiblesResult, usersResult, clientsResult, addendaResult, closingsResult, eventsResult, documentResult] = await Promise.all([
     contract.cliente_id ? supabase.from("clientes").select("id, razao_social, grupo_id").eq("id", contract.cliente_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    contract.oportunidade_id ? supabase.from("oportunidades").select("id, solicitante_nome, etapa").eq("id", contract.oportunidade_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    contract.oportunidade_id ? supabase.from("oportunidades").select("id, solicitante_nome, etapa, d4sign_document_uuid").eq("id", contract.oportunidade_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     supabase.from("contrato_versoes").select("id, numero, status, vigente_de, vigente_ate, origem_snapshot, ativada_em, updated_at").eq("contrato_id", contractId).order("numero", { ascending: false }),
     supabase.from("contrato_responsaveis").select("id, papel, app_user_id, nome").eq("contrato_id", contractId),
     supabase.from("app_users").select("id, full_name, role, avatar_url").order("full_name"),
@@ -649,7 +653,13 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
   ]);
   if (loadError) throw new Error(loadError);
 
-  const document = documentResult.data;
+  // Contrato criado na assinatura nem sempre tem `d4sign_document_id`: usa o documento do lead.
+  const leadDocumentUuid = opportunityResult.data?.d4sign_document_uuid?.trim() || null;
+  const leadDocumentResult = !documentResult.data && leadDocumentUuid
+    ? await supabase.from("d4sign_documents").select("id, uuid_doc, name_document, status_name, d4sign_status, link_contrato, updated_at").eq("uuid_doc", leadDocumentUuid).maybeSingle()
+    : { data: null, error: null };
+  if (leadDocumentResult.error) throw new Error(leadDocumentResult.error.message);
+  const document = documentResult.data ?? leadDocumentResult.data;
   const groupId = contract.grupo_id ?? clientResult.data?.grupo_id ?? null;
   const groupResult = groupId
     ? await supabase.from("grupos_economicos").select("nome").eq("id", groupId).maybeSingle()
@@ -710,7 +720,7 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     versions: versions.map((version) => ({ id: version.id, number: version.numero, status: version.status, startsAt: version.vigente_de, endsAt: version.vigente_ate, activatedAt: version.ativada_em })),
     addenda: (addendaResult.data ?? []).map((addendum) => ({ id: addendum.id, title: addendum.titulo, status: addendum.status, signedAt: null, link: null })),
     closings: (closingsResult.data ?? []).map((closing) => ({ id: closing.id, competency: closing.competencia, status: closing.status, revision: closing.revisao_atual_id ? 1 : 0 })),
-    documents: document ? [{ id: document.uuid_doc, name: document.name_document ?? "Documento D4Sign", status: document.status_name ?? document.d4sign_status, link: document.link_contrato, updatedAt: document.updated_at }] : [],
+    documents: document ? [{ id: document.uuid_doc, name: document.name_document ?? "Documento D4Sign", status: document.status_name ?? document.d4sign_status, link: document.link_contrato, updatedAt: document.updated_at, signed: document.d4sign_status === "1" }] : [],
     events: (eventsResult.data ?? []).map((event) => ({ id: event.id, title: event.titulo, detail: event.detalhe, type: event.tipo, origin: event.origem, createdAt: event.created_at })),
   };
 }

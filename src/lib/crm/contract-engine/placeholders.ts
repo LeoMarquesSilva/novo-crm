@@ -1,5 +1,5 @@
 import { applyPartyPlaceholders, resolvePartyAlternatives, type PartyGrammar } from "./party-language";
-import type { CanonicalContractData } from "./types";
+import type { CanonicalContractData, ClauseOrigin, ClauseRole } from "./types";
 
 const BRACKET_RE = /\[([A-Z0-9_]+)\]/g;
 const MUSTACHE_RE = /\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g;
@@ -118,4 +118,79 @@ export function listForbiddenDraftTokens(data: CanonicalContractData): string[] 
     if (matches) for (const m of matches) found.add(m);
   }
   return [...found];
+}
+
+/** `{{ chave }}` e `{{chave}}` são a mesma marcação. */
+function normalizeDraftToken(token: string): string {
+  return token.replace(/^\{\{\s*([\s\S]*?)\s*\}\}$/, "{{$1}}");
+}
+
+/**
+ * Marcações de rascunho de um texto: placeholders não resolvidos (`[CHAVE]`, `{{chave}}`)
+ * e tokens proibidos (`[...]`, `XX/XX`, `R$ X`). Mesmo critério de
+ * `listUnresolvedPlaceholders` + `listForbiddenDraftTokens`, só que por texto.
+ */
+export function listDraftTokensInText(text: string): string[] {
+  const found = new Set(listPlaceholderTokens(text).map(normalizeDraftToken));
+  for (const m of text.match(new RegExp(FORBIDDEN_DRAFT_TOKEN_RE, "gi")) ?? []) {
+    found.add(normalizeDraftToken(m));
+  }
+  return [...found];
+}
+
+export type DraftTokenIssue = {
+  /** `ResolvedContractClause.stableKey` ou `ContractObjectBlock.stableKey`. */
+  stableKey: string;
+  title: string;
+  /** "object" = texto do Objeto do Contrato (blocos/linhas numeradas); "clause" = demais cláusulas. */
+  source: "clause" | "object";
+  role?: ClauseRole;
+  origin?: ClauseOrigin;
+  tokens: string[];
+};
+
+/**
+ * Por cláusula, as marcações que travam "Gerar Word" (pendência "Placeholders
+ * resolvidos" e o 422 de generate-docx). Uma entrada por `source`+`stableKey`; a
+ * união dos `tokens` cobre o que as duas listas globais acham (exceto a grafia de `{{ }}`).
+ */
+export function listDraftTokenIssues(
+  data: Pick<CanonicalContractData, "clauses"> & {
+    contractObject?: Pick<CanonicalContractData["contractObject"], "blocks"> | null;
+  },
+): DraftTokenIssue[] {
+  const objectKeys = new Set((data.contractObject?.blocks ?? []).map((b) => b.stableKey));
+  const byKey = new Map<string, DraftTokenIssue>();
+  const add = (issue: Omit<DraftTokenIssue, "tokens">, texts: Array<string | undefined>) => {
+    const tokens = texts.flatMap((t) => (t ? listDraftTokensInText(t) : []));
+    if (tokens.length === 0) return;
+    const key = `${issue.source}:${issue.stableKey}`;
+    const prev = byKey.get(key);
+    if (prev) {
+      prev.tokens = [...new Set([...prev.tokens, ...tokens])];
+      return;
+    }
+    byKey.set(key, { ...issue, tokens: [...new Set(tokens)] });
+  };
+
+  for (const clause of data.clauses) {
+    add(
+      {
+        stableKey: clause.stableKey,
+        title: clause.title,
+        // Linhas numeradas do Objeto entram em `clauses` com a chave do bloco.
+        source: objectKeys.has(clause.stableKey) ? "object" : "clause",
+        role: clause.role,
+        origin: clause.origin,
+      },
+      [clause.content, clause.title],
+    );
+  }
+  for (const block of data.contractObject?.blocks ?? []) {
+    add(
+      { stableKey: block.stableKey, title: block.title ?? block.sourceLabel, source: "object" },
+      [block.content, block.intro, ...(block.items ?? [])],
+    );
+  }
+  return [...byKey.values()];
 }

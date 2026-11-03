@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, CircleAlert, Plus, Trash2, Unlink } from "lucide-react";
 
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
@@ -15,19 +15,24 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
+import { cn } from "@/lib/utils";
+import { summarizePartnerShareTotals } from "@/modules/contracts/domain/contract-validation";
 import type { ContractConfigurationDraft } from "@/modules/contracts/infrastructure/contract-queries";
 
 import { ContractMoneyInput, ContractPercentInput } from "./contract-money-percent-inputs";
-import { newContractDraftId } from "./contract-setup-form-helpers";
+import { basisPointsToPercentText, newContractDraftId } from "./contract-setup-form-helpers";
 
 type PartnerShare = ContractConfigurationDraft["version"]["partnerShares"][number];
 type Commission = ContractConfigurationDraft["version"]["commissions"][number];
+type ComponentOption = Pick<ContractConfigurationDraft["version"]["components"][number], "id" | "description">;
 type UserOption = { id: string; name: string; role: string; avatarUrl?: string | null };
 type AddTarget = "partner" | "commission" | null;
 
 type Props = {
   partnerShares: PartnerShare[];
   commissions: Commission[];
+  /** Componentes da versão: rótulo do grupo e aviso de vínculo com componente que não existe mais. */
+  components: ComponentOption[];
   users: UserOption[];
   disabled?: boolean;
   onPartnerSharesChange: (next: PartnerShare[]) => void;
@@ -35,10 +40,19 @@ type Props = {
 };
 
 const MODE_LABELS = { percentual: "Percentual", valor: "Valor fixo" } as const;
+const FULL_SHARE = 10_000;
+
+/** Tira o vínculo com o componente: a regra passa a valer para todos os componentes elegíveis. */
+function withoutComponent<T extends { componentId?: string }>(entry: T): T {
+  const next = { ...entry };
+  delete next.componentId;
+  return next;
+}
 
 export function ContractSharesCommissionsEditor({
   partnerShares,
   commissions,
+  components,
   users,
   disabled,
   onPartnerSharesChange,
@@ -46,6 +60,7 @@ export function ContractSharesCommissionsEditor({
 }: Props) {
   const userLabels = Object.fromEntries(users.map((user) => [user.id, user.name]));
   const usersById = new Map(users.map((user) => [user.id, user]));
+  const componentsById = new Map(components.map((component) => [component.id, component]));
   const [addTarget, setAddTarget] = useState<AddTarget>(null);
   const [draftUserId, setDraftUserId] = useState("");
 
@@ -57,9 +72,17 @@ export function ContractSharesCommissionsEditor({
   function confirmAdd() {
     if (!draftUserId || !addTarget) return;
     if (addTarget === "partner") {
+      // O novo sócio já vem com o que falta para 100% (grupo sem componente, o que o botão cria).
+      const assigned = partnerShares
+        .filter((share) => !share.componentId)
+        .reduce((sum, share) => sum + share.percentageBasisPoints, 0);
       onPartnerSharesChange([
         ...partnerShares,
-        { id: newContractDraftId(), beneficiaryId: draftUserId, percentageBasisPoints: 0 },
+        {
+          id: newContractDraftId(),
+          beneficiaryId: draftUserId,
+          percentageBasisPoints: Math.max(0, FULL_SHARE - assigned),
+        },
       ]);
     } else {
       onCommissionsChange([
@@ -161,6 +184,19 @@ export function ContractSharesCommissionsEditor({
                       />
                     </Field>
                   </div>
+                  <ComponentScope
+                    componentId={entry.componentId}
+                    componentsById={componentsById}
+                    kind="participação"
+                    disabled={disabled}
+                    onDetach={() =>
+                      onPartnerSharesChange(
+                        partnerShares.map((item, itemIndex) =>
+                          itemIndex === index ? withoutComponent(item) : item,
+                        ),
+                      )
+                    }
+                  />
                   {disabled ? null : (
                     <Button
                       type="button"
@@ -180,6 +216,9 @@ export function ContractSharesCommissionsEditor({
             })}
           </ul>
         )}
+        {partnerShares.length > 0 ? (
+          <PartnerShareTotals partnerShares={partnerShares} componentsById={componentsById} />
+        ) : null}
       </section>
 
       <section className="space-y-3">
@@ -330,6 +369,19 @@ export function ContractSharesCommissionsEditor({
                       </Field>
                     )}
                   </div>
+                  <ComponentScope
+                    componentId={entry.componentId}
+                    componentsById={componentsById}
+                    kind="comissão"
+                    disabled={disabled}
+                    onDetach={() =>
+                      onCommissionsChange(
+                        commissions.map((item, itemIndex) =>
+                          itemIndex === index ? withoutComponent(item) : item,
+                        ),
+                      )
+                    }
+                  />
                   {disabled ? null : (
                     <Button
                       type="button"
@@ -425,6 +477,122 @@ export function ContractSharesCommissionsEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * Soma das participações por grupo (como o rateio do cadastro: "Fecha 100%", "Faltam X%",
+ * "Passou X%"). O rascunho salva fora de 100%; a ativação exige 100% em cada grupo.
+ */
+function PartnerShareTotals({
+  partnerShares,
+  componentsById,
+}: {
+  partnerShares: PartnerShare[];
+  componentsById: Map<string, ComponentOption>;
+}) {
+  // Grupo de componente que não existe mais já tem o aviso no cartão; fica fora da soma.
+  const groups = summarizePartnerShareTotals(
+    partnerShares.filter((share) => !share.componentId || componentsById.has(share.componentId)),
+  );
+  if (groups.length === 0) return null;
+  const showGroupLabels = groups.length > 1 || groups[0]!.componentId !== null;
+  const anyOpen = groups.some((group) => group.totalBasisPoints !== FULL_SHARE);
+
+  return (
+    <div className="space-y-2">
+      <div
+        className="overflow-hidden rounded-2xl border border-[#dfe5ee] bg-[#f8f9fb]"
+        aria-live="polite"
+      >
+        {groups.map((group) => {
+          const diff = FULL_SHARE - group.totalBasisPoints;
+          const label = group.componentId
+            ? `Componente “${componentsById.get(group.componentId)?.description ?? "—"}”`
+            : "Todos os componentes elegíveis";
+          return (
+            <div
+              key={group.componentId ?? "__default"}
+              className="flex items-center justify-between gap-3 border-t border-[#dfe5ee] px-4 py-2.5 first:border-t-0"
+            >
+              <div className="min-w-0">
+                {showGroupLabels ? <p className="truncate text-xs text-slate-500">{label}</p> : null}
+                <span
+                  className={cn(
+                    "flex items-center gap-1.5 text-sm font-medium",
+                    diff === 0 ? "text-success-text" : diff > 0 ? "text-warning-text" : "text-danger-text",
+                  )}
+                >
+                  {diff === 0 ? (
+                    <CheckCircle2 className="size-3.5 shrink-0" aria-hidden />
+                  ) : (
+                    <CircleAlert className="size-3.5 shrink-0" aria-hidden />
+                  )}
+                  {diff === 0
+                    ? "Fecha 100%"
+                    : diff > 0
+                      ? `Faltam ${basisPointsToPercentText(diff)}%`
+                      : `Passou ${basisPointsToPercentText(-diff)}%`}
+                </span>
+              </div>
+              <span className="shrink-0 text-sm font-semibold tabular-nums text-[#102033]">
+                Total {basisPointsToPercentText(group.totalBasisPoints)}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {anyOpen ? (
+        <p className="text-xs text-slate-500">
+          O rascunho pode ser salvo assim; para ativar o contrato a participação precisa fechar 100%.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Vínculo da regra com um componente: rótulo, ou aviso quando o componente não existe mais. */
+function ComponentScope({
+  componentId,
+  componentsById,
+  kind,
+  disabled,
+  onDetach,
+}: {
+  componentId?: string;
+  componentsById: Map<string, ComponentOption>;
+  kind: "participação" | "comissão";
+  disabled?: boolean;
+  onDetach: () => void;
+}) {
+  if (!componentId) return null;
+  const component = componentsById.get(componentId);
+  if (component) {
+    return (
+      <p className="text-xs text-slate-500">
+        Só sobre o componente <span className="font-medium text-[#102033]">{component.description}</span>
+      </p>
+    );
+  }
+  return (
+    <div
+      role="alert"
+      className="flex flex-col gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5 text-sm text-warning-text sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="flex gap-1.5">
+        <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <span>
+          Esta {kind} está ligada a um componente que não existe mais (removido ou recriado em
+          Componentes e condições). O rascunho não salva assim.
+        </span>
+      </p>
+      {disabled ? null : (
+        <Button type="button" size="sm" variant="outline" className="shrink-0 bg-white" onClick={onDetach}>
+          <Unlink className="size-3.5" aria-hidden />
+          Aplicar a todos os componentes
+        </Button>
+      )}
     </div>
   );
 }

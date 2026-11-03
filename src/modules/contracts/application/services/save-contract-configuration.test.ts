@@ -191,7 +191,7 @@ describe("saveContractConfiguration", () => {
       configuration,
     });
 
-    expect(result).toEqual({ updatedAt: "2026-08-12T15:05:00.000Z" });
+    expect(result).toEqual({ updatedAt: "2026-08-12T15:05:00.000Z", warnings: [] });
     expect(writes).toEqual([{
       actorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       contractId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -199,6 +199,43 @@ describe("saveContractConfiguration", () => {
       expectedVersionUpdatedAt: expectedUpdatedAt,
       configuration,
     }]);
+  });
+
+  it("salva o rascunho com a participação dos sócios incompleta e devolve o aviso", async () => {
+    const { saveContractConfiguration, repository, writes } = await subject();
+    const configuration = validConfiguration();
+    configuration.version.partnerShares[0]!.percentageBasisPoints = 6_000;
+
+    const result = await saveContractConfiguration(repository, {
+      role: "controladoria",
+      actorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      contractId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      expectedVersionUpdatedAt: expectedUpdatedAt,
+      configuration,
+    });
+
+    expect(writes).toHaveLength(1);
+    expect(result.warnings).toEqual([
+      expect.objectContaining({ code: "partner_share_total_invalid", severity: "warning" }),
+    ]);
+  });
+
+  it("recusa (422, sem gravar) participação ligada a componente recriado", async () => {
+    const { saveContractConfiguration, repository, writes } = await subject();
+    const configuration = validConfiguration();
+    configuration.version.partnerShares[0]!.componentId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+    await expect(saveContractConfiguration(repository, {
+      role: "controladoria",
+      actorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      contractId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      expectedVersionUpdatedAt: expectedUpdatedAt,
+      configuration,
+    })).rejects.toMatchObject({
+      code: "CONTRACT_CONFIGURATION_INVALID",
+      issues: [expect.objectContaining({ code: "partner_share_component_not_found" })],
+    });
+    expect(writes).toEqual([]);
   });
 
   it("religa componentes órfãos à única área da versão antes de validar", async () => {
