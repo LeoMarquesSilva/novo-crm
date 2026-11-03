@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CONTATO_FINANCEIRO_POSICOES,
   emptyClientOnboardingPayload,
   isLeadIndicacao,
   listMissingCadastroFields,
@@ -10,6 +11,7 @@ import {
   parseClientOnboardingPayload,
   parseOpsChecklist,
   passaDoDiaCorte,
+  posicaoOptions,
   rateioTotal,
   todayYmdSaoPaulo,
 } from "./client-onboarding";
@@ -157,5 +159,13 @@ describe("client onboarding", () => {
   it("checklist de Operações Legais (o código do VIOS vem da pessoa do grupo, não é digitado)", () => {
     const checklist = parseOpsChecklist({ dadosConferidos: true, viosCadastrado: true });
     expect(listMissingChecklistItems(checklist)).toEqual(["Grupo econômico", "Sistemas legados atualizados"]);
+  });
+});
+
+describe("posição em lista fechada (03/11/2026)", () => {
+  it("responsável financeiro tem lista própria e mantém o valor antigo fora dela", () => {
+    expect(posicaoOptions(CONTATO_FINANCEIRO_POSICOES, "")).toEqual([...CONTATO_FINANCEIRO_POSICOES]);
+    expect(posicaoOptions(CONTATO_FINANCEIRO_POSICOES, "Gerente financeiro")).toEqual([...CONTATO_FINANCEIRO_POSICOES]);
+    expect(posicaoOptions(CONTATO_FINANCEIRO_POSICOES, "Tesoureiro").at(-1)).toBe("Tesoureiro");
   });
 });

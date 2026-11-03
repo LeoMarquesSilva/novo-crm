@@ -29,6 +29,24 @@ export const SOCIO_POSICOES = [
   "Outro",
 ] as const;
 
+/** Posição do responsável financeiro do cliente (03/11/2026; texto livre antigo continua aparecendo). */
+export const CONTATO_FINANCEIRO_POSICOES = [
+  "Sócio",
+  "Sócio-administrador",
+  "Diretor",
+  "Diretor financeiro",
+  "Gerente financeiro",
+  "Controller",
+  "Analista financeiro",
+  "Contador",
+  "Outro",
+] as const;
+
+/** Opções do seletor de posição: a lista fechada mais o valor já gravado fora dela. */
+export function posicaoOptions(lista: readonly string[], atual: string): string[] {
+  return atual && !lista.includes(atual) ? [...lista, atual] : [...lista];
+}
+
 const text = (max = 500) => z.string().trim().max(max).catch("").default("");
 
 const addressSchema = z

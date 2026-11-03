@@ -19,10 +19,12 @@ import { formatNumberPtBr2, maskBrlCurrencyFromInput, parseBrlUserInput } from "
 import { isValidCpf, isValidCpfOrCnpj } from "@/lib/crm/rd-migration/documents";
 import { cn } from "@/lib/utils";
 import {
+  CONTATO_FINANCEIRO_POSICOES,
   FATURAMENTO_DIA_CORTE,
   onlyDigits,
   passaDoDiaCorte,
   partyTipo,
+  posicaoOptions,
   rateioPercent,
   rateioTotal,
   REAJUSTE_INDICES,
@@ -510,8 +512,7 @@ export function ClientOnboardingForm({
     billingOptions.push({ ...party, tipo: partyTipo(party) });
   }
   const billingTipo = partyTipo(financeiro.faturamento);
-  const socioPosicoes = (atual: string): string[] =>
-    atual && !(SOCIO_POSICOES as readonly string[]).includes(atual) ? [...SOCIO_POSICOES, atual] : [...SOCIO_POSICOES];
+  const socioPosicoes = (atual: string): string[] => posicaoOptions(SOCIO_POSICOES, atual);
 
   return (
     <div className="space-y-4">
@@ -1006,12 +1007,24 @@ export function ClientOnboardingForm({
               />
             </Field>
             <Field label="Posição" htmlFor={fid("ob-cf-pos")}>
-              <Input
-                id={fid("ob-cf-pos")}
-                value={financeiro.contatoFinanceiro.posicao}
+              <Select
+                value={financeiro.contatoFinanceiro.posicao || null}
+                onValueChange={(value) => update((d) => void (d.financeiro.contatoFinanceiro.posicao = String(value ?? "")))}
                 disabled={disabled}
-                onChange={(e) => update((d) => void (d.financeiro.contatoFinanceiro.posicao = e.target.value))}
-              />
+              >
+                <SelectTrigger id={fid("ob-cf-pos")} className="w-full">
+                  <span className={financeiro.contatoFinanceiro.posicao ? "truncate" : "text-muted-foreground"}>
+                    {financeiro.contatoFinanceiro.posicao || "Selecione"}
+                  </span>
+                </SelectTrigger>
+                <CrmSelectContent inModal={inModal}>
+                  {posicaoOptions(CONTATO_FINANCEIRO_POSICOES, financeiro.contatoFinanceiro.posicao).map((posicao) => (
+                    <CrmSelectItem key={posicao} value={posicao}>
+                      {posicao}
+                    </CrmSelectItem>
+                  ))}
+                </CrmSelectContent>
+              </Select>
             </Field>
             <Field label="E-mail" htmlFor={fid("ob-cf-email")} required>
               <Input
