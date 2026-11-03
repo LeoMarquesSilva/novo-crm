@@ -79,7 +79,12 @@ export function previewFromCanonical(data: CanonicalContractData): ContratoDocum
   return {
     qualificacoesPartes: qualificacoes.length > 0 ? qualificacoes : ["…"],
     objeto: objeto || "…",
-    valores: data.payment.clauseText || "…",
+    // A seção de honorários sai daqui (não de `data.sections`): o reajuste escolhido na
+    // etapa de contrato entra como mais um parágrafo dela (03/11/2026).
+    valores:
+      [data.payment.clauseText, data.clauses.find((c) => c.stableKey === "payment_adjustment")?.content]
+        .filter(Boolean)
+        .join("\n") || "…",
     investimento: data.investment.totalExtenso,
     // A página de assinaturas já escreve "Campinas/SP, …."; aqui vai só a data
     // (o rótulo do motor é "Campinas, 22 de outubro de 2026." e saía duplicado).

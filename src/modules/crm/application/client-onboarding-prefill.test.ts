@@ -102,6 +102,60 @@ describe("buildClientOnboardingPrefill", () => {
       { area: "Cível", percentual: "75" },
       { area: "Trabalhista", percentual: "25" },
     ]);
+    // A soma da proposta é a base do R$ de cada área.
+    expect(p.financeiro.valorRateio).toBe("R$ 4.000,00");
+    expect(p.sources["financeiro.valorRateio"]).toBe("proposta");
+  });
+
+  it("honorário consolidado na proposta: o valor a ratear vem do total do contrato (03/11/2026)", () => {
+    const p = buildClientOnboardingPrefill(
+      sources({ areaAmounts: [{ area: "Trabalhista", amount: null }, { area: "Cível", amount: null }], investmentTotal: 12000 }),
+    );
+    expect(p.financeiro.valorRateio).toBe("R$ 12.000,00");
+  });
+
+  it("condição do 1º faturamento vem do contrato (29/10/2026)", () => {
+    const soExito = buildClientOnboardingPrefill(sources({ investmentSubtypes: ["exito_percentual"] }));
+    expect(soExito.financeiro.primeiroFaturamentoCondicionado).toBe(true);
+    expect(soExito.financeiro.condicaoPrimeiroFaturamento).toMatch(/êxito/);
+    expect(soExito.sources["financeiro.primeiroFaturamento"]).toBe("contrato");
+
+    const condicionado = buildClientOnboardingPrefill(sources({ investmentSubtypes: ["spot_condicionado"] }));
+    expect(condicionado.financeiro.condicaoPrimeiroFaturamento).toMatch(/solicitação formal/);
+
+    const evento = buildClientOnboardingPrefill(
+      sources({ payment: { firstDueDate: "após a entrega do parecer" }, investmentSubtypes: ["spot"] }),
+    );
+    expect(evento.financeiro.primeiroFaturamentoCondicionado).toBe(true);
+    expect(evento.financeiro.condicaoPrimeiroFaturamento).toBe("após a entrega do parecer");
+
+    // Com data no contrato, não há condição; êxito junto de mensal também não.
+    const mensal = buildClientOnboardingPrefill(
+      sources({ payment: { firstDueDate: "em 10/11/2026" }, investmentSubtypes: ["mensal_fixo", "exito_percentual"] }),
+    );
+    expect(mensal.financeiro.primeiroFaturamentoCondicionado).toBe(false);
+    expect(mensal.financeiro.primeiroFaturamento).toBe("2026-11-10");
+  });
+
+  it("índice e periodicidade de reajuste vêm do contrato (03/11/2026)", () => {
+    const p = buildClientOnboardingPrefill(sources({ adjustment: { index: "IGP-M", periodMonths: 24 } }));
+    expect(p.financeiro.reajuste).toEqual({ indice: "IGP-M", periodicidadeMeses: "24" });
+    expect(p.sources["financeiro.reajuste"]).toBe("contrato");
+    const sem = buildClientOnboardingPrefill(sources({ adjustment: { index: "Sem reajuste", periodMonths: null } }));
+    expect(sem.financeiro.reajuste).toEqual({ indice: "Sem reajuste", periodicidadeMeses: "" });
+  });
+
+  it("vigência que começa no 1º pagamento usa a data dele; sem ela, fica para o responsável", () => {
+    const comData = buildClientOnboardingPrefill(
+      sources({ startRule: { kind: "on_first_payment" }, payment: { firstDueDate: "em 10/11/2026" }, signedOn: "2026-10-20" }),
+    );
+    expect(comData.financeiro.inicioVigencia).toBe("2026-11-10");
+    expect(comData.sources["financeiro.inicioVigencia"]).toBe("contrato");
+
+    const semData = buildClientOnboardingPrefill(
+      sources({ startRule: { kind: "on_first_payment" }, investmentSubtypes: ["exito_percentual"], signedOn: "2026-10-20" }),
+    );
+    expect(semData.financeiro.inicioVigencia).toBe("");
   });
 
   it("ponto focal vira sugestão de contato financeiro, contato da carteira prevalece", () => {

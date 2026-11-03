@@ -23,6 +23,7 @@ import {
   listMissingCadastroFields,
   type ClientOnboardingPayload,
   type ClientOnboardingStatus,
+  type LeadIndicacao,
   type OnboardingAdjustment,
   type OnboardingParty,
   type OpsChecklist,
@@ -53,6 +54,7 @@ type OnboardingResponse = {
   checklist: OpsChecklist;
   leadParties?: OnboardingParty[];
   ajustes?: OnboardingAdjustment[];
+  indicacao?: LeadIndicacao | null;
   permissions: {
     editDraft: boolean;
     editCadastro?: boolean;
@@ -404,7 +406,13 @@ export function ClientOnboardingTab({ leadId, stage }: { leadId: string; stage?:
           </button>
           {showBilling ? (
             <div className="border-t border-neutral-200 p-3">
-              <ClientOnboardingForm payload={payload} readOnly sections="faturamento" onChange={() => undefined} />
+              <ClientOnboardingForm
+                payload={payload}
+                readOnly
+                sections="faturamento"
+                indicacao={data.indicacao ?? null}
+                onChange={() => undefined}
+              />
             </div>
           ) : null}
         </div>

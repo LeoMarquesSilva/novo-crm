@@ -345,7 +345,7 @@ export const CONTRACT_OBJECT_CATALOG: ContractObjectTemplate[] = [
     "object.societario.consultivo_contratual",
     "Objeto",
     "paragraph",
-    "Consultoria jurídica mensal com limitação de até [QTD_HORAS_SOCIETARIO] (por extenso) horas técnicas mensais, envolvendo a elaboração, revisão e negociação de contratos empresariais relacionados à atividade [DA_CONTRATANTE], tais como contratos de prestação de serviços, fornecimento e manutenção de equipamentos, acordos de confidencialidade (NDA), termos de parceria, representação, comodato, atas societárias, contrato social, acordo de sócios, entre outros. Compreende ainda a análise de riscos contratuais, com apresentação de sugestões de ajustes e medidas de mitigação, e a criação e revisão de modelos contratuais padronizados para uso interno. Horas excedentes ao limite mensal serão cobradas ao valor de [VALOR_EXCEDENTE_SOCIETARIO] por hora.",
+    "Consultoria jurídica mensal com limitação de até [QTD_HORAS_SOCIETARIO] horas técnicas mensais, envolvendo a elaboração, revisão e negociação de contratos empresariais relacionados à atividade [DA_CONTRATANTE], tais como contratos de prestação de serviços, fornecimento e manutenção de equipamentos, acordos de confidencialidade (NDA), termos de parceria, representação, comodato, atas societárias, contrato social, acordo de sócios, entre outros. Compreende ainda a análise de riscos contratuais, com apresentação de sugestões de ajustes e medidas de mitigação, e a criação e revisão de modelos contratuais padronizados para uso interno. Horas excedentes ao limite mensal serão cobradas ao valor de [VALOR_EXCEDENTE_SOCIETARIO] por hora.",
     {
       requiredPlaceholders: ["QTD_HORAS_SOCIETARIO", "VALOR_EXCEDENTE_SOCIETARIO"],
       order: 10,

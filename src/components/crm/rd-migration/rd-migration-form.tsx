@@ -59,6 +59,7 @@ import {
   leadDigitalPlatforms,
   leadTypes,
 } from "@/modules/crm/application/services/new-lead-payload";
+import { isLeadIndicacao } from "@/modules/crm/domain/client-onboarding";
 
 type Patch = (mutate: (draft: RdMigrationValues) => void) => void;
 
@@ -1139,6 +1140,11 @@ export function RdMigrationForm({ initial }: { initial: RdMigrationDetail }) {
                     <ClientOnboardingForm
                       payload={values.onboarding}
                       readOnly={disabled}
+                      indicacao={
+                        isLeadIndicacao(values.cadastro.tipoLead)
+                          ? { tipo: values.cadastro.tipoIndicacao || null, nome: values.cadastro.nomeIndicacao || null }
+                          : null
+                      }
                       onChange={(next) =>
                         patch((d) => {
                           d.onboarding = next;

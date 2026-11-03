@@ -295,6 +295,7 @@ export async function PATCH(
         engineEvents: draft.engineEvents,
         clauseLibrary,
         scopeLabels,
+        adjustment: draft.adjustment,
       });
       const rebuiltPatch = engineToDataJsonPatch(rebuilt, stored.snapshot, draft);
       // `rebuiltPatch.clausulas_selecionadas` é um retrato das cláusulas que o

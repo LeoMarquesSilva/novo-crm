@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   emptyClientOnboardingPayload,
+  isLeadIndicacao,
   listMissingCadastroFields,
   listMissingChecklistItems,
   listMissingFaturamentoFields,
   listMissingOnboardingFields,
   parseClientOnboardingPayload,
   parseOpsChecklist,
+  rateioTotal,
 } from "./client-onboarding";
 
 function complete() {
@@ -28,6 +30,7 @@ function complete() {
   p.financeiro.primeiroFaturamento = "2026-11-10";
   p.financeiro.contatoFinanceiro = { nome: "Ana", posicao: "CFO", email: "ana@acme.com", telefone: "" };
   p.financeiro.reajuste = { indice: "IPCA", periodicidadeMeses: "12" };
+  p.financeiro.rateioPorArea = [{ area: "Cível", percentual: "100" }];
   return p;
 }
 
@@ -83,6 +86,47 @@ describe("client onboarding", () => {
     expect(listMissingOnboardingFields(p)).toEqual(["Rateio por área somando 100%"]);
     p.financeiro.rateioPorArea[1]!.percentual = "40";
     expect(listMissingOnboardingFields(p)).toEqual([]);
+    // Percentual com vírgula e três áreas que fecham 100%.
+    p.financeiro.rateioPorArea = [
+      { area: "Cível", percentual: "33,33" },
+      { area: "Trabalhista", percentual: "33,33" },
+      { area: "Tributário", percentual: "33,34" },
+    ];
+    expect(rateioTotal(p.financeiro.rateioPorArea)).toBe(100);
+    expect(listMissingOnboardingFields(p)).toEqual([]);
+  });
+
+  it("rateio é obrigatório, com área e percentual em cada linha e sem área repetida (29/10/2026)", () => {
+    const p = complete();
+    p.financeiro.rateioPorArea = [];
+    expect(listMissingFaturamentoFields(p)).toEqual(["Rateio por área"]);
+    p.financeiro.rateioPorArea = [
+      { area: "Cível", percentual: "100" },
+      { area: "", percentual: "" },
+    ];
+    // Linha vazia (área e % em branco) é ignorada.
+    expect(listMissingFaturamentoFields(p)).toEqual([]);
+    p.financeiro.rateioPorArea[1] = { area: "", percentual: "0" };
+    expect(listMissingFaturamentoFields(p)).toEqual(["Área e percentual de cada linha do rateio"]);
+    p.financeiro.rateioPorArea = [
+      { area: "Cível", percentual: "50" },
+      { area: "Cível", percentual: "50" },
+    ];
+    expect(listMissingFaturamentoFields(p)).toEqual(["Rateio sem área repetida"]);
+  });
+
+  it("repasse acordado só é pedido em lead de indicação (29/10/2026)", () => {
+    const p = complete();
+    expect(listMissingFaturamentoFields(p)).toEqual([]);
+    expect(listMissingFaturamentoFields(p, { indicacao: true })).toEqual(["Repasse acordado com a indicação (%)"]);
+    p.financeiro.repassePercentual = "0";
+    expect(listMissingFaturamentoFields(p, { indicacao: true })).toEqual([]);
+    p.financeiro.repassePercentual = "120";
+    expect(listMissingFaturamentoFields(p, { indicacao: true })).toEqual(["Repasse (0 a 100%)"]);
+    expect(isLeadIndicacao("Indicacao")).toBe(true);
+    expect(isLeadIndicacao("Indicação")).toBe(true);
+    expect(isLeadIndicacao("Lead Passiva")).toBe(false);
+    expect(isLeadIndicacao(null)).toBe(false);
   });
 
   it("payload inválido vira rascunho vazio sem quebrar", () => {

@@ -588,7 +588,7 @@ export const CONTRACT_CLAUSE_CATALOG: ContractClauseTemplate[] = [
   clause(
     "object_societario_contratual",
     "Objeto — Consultivo, Revisão e Elaboração de Contratos",
-    "Consultoria jurídica mensal com limitação de até [QTD_HORAS_SOCIETARIO] (por extenso) horas técnicas mensais, envolvendo a elaboração, revisão e negociação de contratos empresariais relacionados à atividade [DA_CONTRATANTE], tais como contratos de prestação de serviços, fornecimento e manutenção de equipamentos, acordos de confidencialidade (NDA), termos de parceria, representação, comodato, atas societárias, contrato social, acordo de sócios, entre outros. Compreende ainda a análise de riscos contratuais, com apresentação de sugestões de ajustes e medidas de mitigação, e a criação e revisão de modelos contratuais padronizados para uso interno. Horas excedentes ao limite mensal serão cobradas ao valor de [VALOR_EXCEDENTE_SOCIETARIO] por hora.",
+    "Consultoria jurídica mensal com limitação de até [QTD_HORAS_SOCIETARIO] horas técnicas mensais, envolvendo a elaboração, revisão e negociação de contratos empresariais relacionados à atividade [DA_CONTRATANTE], tais como contratos de prestação de serviços, fornecimento e manutenção de equipamentos, acordos de confidencialidade (NDA), termos de parceria, representação, comodato, atas societárias, contrato social, acordo de sócios, entre outros. Compreende ainda a análise de riscos contratuais, com apresentação de sugestões de ajustes e medidas de mitigação, e a criação e revisão de modelos contratuais padronizados para uso interno. Horas excedentes ao limite mensal serão cobradas ao valor de [VALOR_EXCEDENTE_SOCIETARIO] por hora.",
     "object",
     {
       category: "SOCIETÁRIO",
@@ -629,6 +629,19 @@ export const CONTRACT_CLAUSE_CATALOG: ContractClauseTemplate[] = [
     "O pagamento poderá ser realizado via PIX para a chave institucional [PIX_FIRMA].",
     "special",
     { category: "PAGAMENTO", sortOrder: 182, placeholders: ["[PIX_FIRMA]"] },
+  ),
+  clause(
+    "payment_adjustment",
+    "Reajuste",
+    "Os valores dos honorários serão reajustados a cada [PERIODICIDADE_REAJUSTE], contados do início da vigência deste Contrato, pela variação positiva acumulada do [INDICE_REAJUSTE] no período, ou pelo índice oficial que vier a substituí-lo.",
+    "special",
+    {
+      category: "PAGAMENTO",
+      sortOrder: 183,
+      placeholders: ["[INDICE_REAJUSTE]", "[PERIODICIDADE_REAJUSTE]"],
+      legalReviewNote:
+        "Redação nova (03/11/2026) para o índice e a periodicidade escolhidos na etapa de contrato — REQUIRES LEGAL DECISION na revisão da equipe Societário.",
+    },
   ),
 ];
 

@@ -1,6 +1,8 @@
 import type { Json } from "@/lib/supabase/database.types";
+import { parseContractAdjustment } from "./adjustment";
 import type {
   CanonicalContractBuildResult,
+  ContractAdjustment,
   ContractEngineEvent,
   ContractObjectOverride,
   ContractScopeAdjustment,
@@ -17,6 +19,7 @@ export const CONTRACT_ENGINE_JSON_KEYS = {
   scopeAdjustment: "contract_scope_adjustments",
   events: "contract_engine_events",
   compositionKey: "explicit_composition_key",
+  adjustment: "contract_adjustment",
 } as const;
 
 /**
@@ -39,6 +42,8 @@ export type ContractObjectDraft = {
   scopeAdjustment: ContractScopeAdjustment | null;
   engineEvents: ContractEngineEvent[];
   explicitCompositionKey: string | null;
+  /** Reajuste escolhido na etapa de contrato (03/11/2026). */
+  adjustment: ContractAdjustment | null;
 };
 
 export function readStoredEngine(dataJson: Record<string, unknown> | null): {
@@ -82,6 +87,7 @@ export function readObjectDraft(dataJson: Record<string, unknown> | null): Contr
       scopeAdjustment: null,
       engineEvents: [],
       explicitCompositionKey: null,
+      adjustment: null,
     };
   }
   const composition = dataJson[CONTRACT_ENGINE_JSON_KEYS.compositionKey];
@@ -99,6 +105,7 @@ export function readObjectDraft(dataJson: Record<string, unknown> | null): Contr
       ? (dataJson[CONTRACT_ENGINE_JSON_KEYS.events] as ContractEngineEvent[])
       : [],
     explicitCompositionKey: typeof composition === "string" && composition.trim() ? composition : null,
+    adjustment: parseContractAdjustment(dataJson[CONTRACT_ENGINE_JSON_KEYS.adjustment]),
   };
 }
 
@@ -125,6 +132,7 @@ export function engineToDataJsonPatch(
     [CONTRACT_ENGINE_JSON_KEYS.events]: (draft?.engineEvents ?? build.data.engineEvents) as unknown as Json,
     [CONTRACT_ENGINE_JSON_KEYS.compositionKey]: (draft?.explicitCompositionKey ??
       build.data.contractObject.compositionKey) as unknown as Json,
+    [CONTRACT_ENGINE_JSON_KEYS.adjustment]: (draft?.adjustment ?? build.data.adjustment ?? null) as unknown as Json,
     clausulas_selecionadas: build.data.clauses.map((clause, index) => ({
       id: `${clause.stableKey}-${index}`,
       title: clause.title,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Loader2, Plus, Search, X } from "lucide-react";
+import { CheckCircle2, CircleAlert, Download, Loader2, Plus, Search, X } from "lucide-react";
 
 import { CrmSelectContent, CrmSelectItem } from "@/components/crm/crm-select";
 import { Badge } from "@/components/ui/badge";
@@ -13,15 +13,20 @@ import { Select, SelectTrigger } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { maskCpf, maskCpfCnpj, maskDocument, maskPhoneBr } from "@/lib/crm/br-document-mask";
+import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
 import { formatCepDisplay } from "@/lib/crm/proposta-empresas";
+import { formatNumberPtBr2, maskBrlCurrencyFromInput, parseBrlUserInput } from "@/lib/crm/proposta-valor-brl-extenso";
 import { isValidCpf, isValidCpfOrCnpj } from "@/lib/crm/rd-migration/documents";
 import { cn } from "@/lib/utils";
 import {
   onlyDigits,
   partyTipo,
+  rateioPercent,
+  rateioTotal,
   REAJUSTE_INDICES,
   SOCIO_POSICOES,
   type ClientOnboardingPayload,
+  type LeadIndicacao,
   type OnboardingAdjustment,
   type OnboardingParty,
   type PartyTipo,
@@ -213,6 +218,194 @@ function PartyTipoSelect({
   );
 }
 
+/** Percentual no formato da tela ("33,33"). */
+function percentText(value: number): string {
+  return String(Math.round(value * 100) / 100).replace(".", ",");
+}
+
+function brl(value: number): string {
+  return `R$ ${formatNumberPtBr2(value)}`;
+}
+
+/**
+ * Rateio dos honorários entre as áreas do escritório: área da lista, % de cada uma (100% no
+ * total) e, com o valor a ratear, quanto cabe a cada área em R$.
+ */
+function RateioPorArea({
+  rows: allRows,
+  valorRateio,
+  sourceRateio,
+  sourceValor,
+  readOnly,
+  inModal,
+  update,
+  fid,
+}: {
+  rows: ClientOnboardingPayload["financeiro"]["rateioPorArea"];
+  valorRateio: string;
+  sourceRateio?: string;
+  sourceValor?: string;
+  readOnly: boolean;
+  inModal: boolean;
+  update: Updater;
+  fid: (id: string) => string;
+}) {
+  // Só leitura: linha em branco que sobrou da edição não aparece.
+  const rows = readOnly ? allRows.filter((r) => r.area || r.percentual) : allRows;
+  const base = parseBrlUserInput(valorRateio);
+  const total = rateioTotal(rows);
+  const diff = Math.round((100 - total) * 100) / 100;
+  const usadas = new Set(rows.map((r) => r.area).filter(Boolean));
+  const livres = CRM_PRACTICE_AREAS.filter((area) => !usadas.has(area));
+  const opcoes = (atual: string): string[] => [
+    ...(atual && !(CRM_PRACTICE_AREAS as readonly string[]).includes(atual) ? [atual] : []),
+    ...CRM_PRACTICE_AREAS.filter((area) => area === atual || !usadas.has(area)),
+  ];
+  const valorDe = (percentual: string) => (base != null && base > 0 ? brl((base * rateioPercent(percentual)) / 100) : "—");
+
+  function adicionar() {
+    update((d) => {
+      // A nova área já vem com o que falta para 100%.
+      const resto = Math.round((100 - rateioTotal(d.financeiro.rateioPorArea)) * 100) / 100;
+      d.financeiro.rateioPorArea.push({ area: "", percentual: resto > 0 ? percentText(resto) : "" });
+    });
+  }
+
+  function dividirIgualmente() {
+    update((d) => {
+      const linhas = d.financeiro.rateioPorArea;
+      const parte = Math.floor((100 / linhas.length) * 100) / 100;
+      linhas.forEach((linha, i) => {
+        // A última fica com o arredondamento, para fechar 100%.
+        linha.percentual = percentText(i === linhas.length - 1 ? 100 - parte * (linhas.length - 1) : parte);
+      });
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-v2-body-sm-medium text-foreground">
+          Rateio por área<span className="text-danger-text"> *</span>
+        </p>
+        <SourceChip source={sourceRateio} />
+      </div>
+      <p className="text-v2-caption text-muted-foreground">
+        Divida os honorários entre as áreas que vão atender o cliente. O total precisa fechar 100%.
+      </p>
+
+      <Field label="Valor a ratear (R$)" htmlFor={fid("ob-valor-rateio")} source={sourceValor} className="sm:max-w-xs">
+        <Input
+          id={fid("ob-valor-rateio")}
+          inputMode="numeric"
+          placeholder="R$ 0,00"
+          value={valorRateio}
+          disabled={readOnly}
+          onChange={(e) => update((d) => void (d.financeiro.valorRateio = maskBrlCurrencyFromInput(e.target.value)))}
+        />
+        <p className="text-v2-caption text-muted-foreground">Valor dos honorários; mostra quanto cabe a cada área.</p>
+      </Field>
+
+      {rows.length > 0 ? (
+        <div className="overflow-hidden rounded-(--radius-v2-md) border border-border">
+          <div className="hidden grid-cols-[minmax(0,1fr)_112px_150px_32px] gap-3 bg-surface-subtle px-3 py-2 text-v2-caption font-medium text-muted-foreground sm:grid">
+            <span>Área</span>
+            <span>Percentual</span>
+            <span className="text-right">Valor</span>
+            <span />
+          </div>
+          {rows.map((linha, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-[minmax(0,1fr)_96px_32px] items-center gap-x-3 gap-y-1 border-t border-border px-3 py-2 max-sm:[&:nth-child(2)]:border-t-0 sm:grid-cols-[minmax(0,1fr)_112px_150px_32px]"
+            >
+              <Select
+                value={linha.area || null}
+                onValueChange={(value) => update((d) => void (d.financeiro.rateioPorArea[index]!.area = String(value ?? "")))}
+                disabled={readOnly}
+              >
+                <SelectTrigger className="w-full" aria-label={`Área ${index + 1} do rateio`}>
+                  <span className={linha.area ? "truncate" : "text-muted-foreground"}>{linha.area || "Selecione a área"}</span>
+                </SelectTrigger>
+                <CrmSelectContent inModal={inModal}>
+                  {opcoes(linha.area).map((area) => (
+                    <CrmSelectItem key={area} value={area}>
+                      {area}
+                    </CrmSelectItem>
+                  ))}
+                </CrmSelectContent>
+              </Select>
+              <div className="relative">
+                <Input
+                  value={linha.percentual}
+                  inputMode="decimal"
+                  placeholder="0"
+                  aria-label={`Percentual da área ${index + 1}`}
+                  className="pr-7 text-right tabular-nums"
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    update((d) => void (d.financeiro.rateioPorArea[index]!.percentual = apenasNumeroDecimal(e.target.value)))
+                  }
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground">
+                  %
+                </span>
+              </div>
+              <span className="col-span-2 row-start-2 text-v2-caption tabular-nums text-muted-foreground sm:col-span-1 sm:row-start-auto sm:text-right sm:text-sm sm:text-foreground">
+                {valorDe(linha.percentual)}
+              </span>
+              {!readOnly ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="col-start-3 row-start-1 sm:col-start-auto sm:row-start-auto"
+                  aria-label={`Remover área ${index + 1}`}
+                  onClick={() => update((d) => void d.financeiro.rateioPorArea.splice(index, 1))}
+                >
+                  <X className="size-4" aria-hidden />
+                </Button>
+              ) : (
+                <span />
+              )}
+            </div>
+          ))}
+          <div className="grid grid-cols-[minmax(0,1fr)_96px_32px] items-center gap-3 border-t border-border bg-surface-subtle px-3 py-2 sm:grid-cols-[minmax(0,1fr)_112px_150px_32px]">
+            <span
+              className={cn(
+                "flex items-center gap-1.5 text-v2-caption font-medium",
+                diff === 0 ? "text-success-text" : diff > 0 ? "text-warning-text" : "text-danger-text",
+              )}
+            >
+              {diff === 0 ? <CheckCircle2 className="size-3.5" aria-hidden /> : <CircleAlert className="size-3.5" aria-hidden />}
+              {diff === 0 ? "Fecha 100%" : diff > 0 ? `Faltam ${percentText(diff)}%` : `Passou ${percentText(-diff)}%`}
+            </span>
+            <span className="pr-2.5 text-right text-sm font-semibold tabular-nums text-foreground">{percentText(total)}%</span>
+            <span className="hidden text-right text-sm font-semibold tabular-nums text-foreground sm:block">
+              {base != null && base > 0 ? brl((base * total) / 100) : "—"}
+            </span>
+            <span />
+          </div>
+        </div>
+      ) : null}
+
+      {!readOnly ? (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={adicionar} disabled={livres.length === 0}>
+            <Plus className="size-3.5" aria-hidden />
+            Adicionar área
+          </Button>
+          {rows.length > 1 ? (
+            <Button type="button" variant="ghost" size="sm" onClick={dividirIgualmente}>
+              Dividir igualmente
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** Seções do formulário: o cadastro vai antes (Aguardando Cadastro), o faturamento depois. */
 export type ClientOnboardingFormSections = "cadastro" | "faturamento" | "all";
 
@@ -228,6 +421,8 @@ export function ClientOnboardingForm({
   sections = "all",
   leadParties = [],
   ajustes = [],
+  indicacao = null,
+  idPrefix = "",
 }: {
   payload: ClientOnboardingPayload;
   onChange: (next: ClientOnboardingPayload) => void;
@@ -239,7 +434,15 @@ export function ClientOnboardingForm({
   leadParties?: OnboardingParty[];
   /** Campos que Operações Legais pediu para ajustar (ficam destacados). */
   ajustes?: OnboardingAdjustment[];
+  /** Lead de indicação: mostra (e exige) o repasse acordado. */
+  indicacao?: LeadIndicacao | null;
+  /**
+   * Prefixo dos ids dos campos. A aba usa os ids puros (os avisos de ajuste levam a eles);
+   * o modal aberto por cima da aba usa outro, senão o rótulo focava o campo de trás.
+   */
+  idPrefix?: string;
 }) {
+  const fid = (id: string) => `${idPrefix}${id}`;
   const ajusteDe = (campo: OnboardingAdjustment["campo"]) => ajustes.find((a) => a.campo === campo);
   const showCadastro = sections !== "faturamento";
   const showFaturamento = sections !== "cadastro";
@@ -315,38 +518,38 @@ export function ClientOnboardingForm({
       <>
       <Section title="Dados do cliente" description="Operações Legais confere e cadastra no VIOS e nos sistemas legados.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Razão social" htmlFor="ob-razao" required source={src["cadastro.razaoSocial"]} ajuste={ajusteDe("cadastro.razaoSocial")}>
+          <Field label="Razão social" htmlFor={fid("ob-razao")} required source={src["cadastro.razaoSocial"]} ajuste={ajusteDe("cadastro.razaoSocial")}>
             <Input
-              id="ob-razao"
+              id={fid("ob-razao")}
               value={cadastro.razaoSocial}
               disabled={disabled}
               onChange={(e) => update((d) => void (d.cadastro.razaoSocial = e.target.value))}
             />
           </Field>
-          <Field label="CPF/CNPJ" htmlFor="ob-doc" required source={src["cadastro.documento"]} ajuste={ajusteDe("cadastro.documento")}>
+          <Field label="CPF/CNPJ" htmlFor={fid("ob-doc")} required source={src["cadastro.documento"]} ajuste={ajusteDe("cadastro.documento")}>
             <Input
-              id="ob-doc"
+              id={fid("ob-doc")}
               inputMode="numeric"
               value={maskCpfCnpj(cadastro.documento)}
               disabled={disabled}
               aria-invalid={documentoInvalido(cadastro.documento, "cpf_cnpj") || undefined}
-              aria-describedby={documentoInvalido(cadastro.documento, "cpf_cnpj") ? "ob-doc-aviso" : undefined}
+              aria-describedby={documentoInvalido(cadastro.documento, "cpf_cnpj") ? fid("ob-doc-aviso") : undefined}
               onChange={(e) => update((d) => void (d.cadastro.documento = maskCpfCnpj(e.target.value)))}
             />
-            <DocumentoAviso id="ob-doc-aviso" value={cadastro.documento} kind="cpf_cnpj" />
+            <DocumentoAviso id={fid("ob-doc-aviso")} value={cadastro.documento} kind="cpf_cnpj" />
           </Field>
-          <Field label="E-mail do cliente" htmlFor="ob-email" source={src["cadastro.email"]} ajuste={ajusteDe("cadastro.email")}>
+          <Field label="E-mail do cliente" htmlFor={fid("ob-email")} source={src["cadastro.email"]} ajuste={ajusteDe("cadastro.email")}>
             <Input
-              id="ob-email"
+              id={fid("ob-email")}
               type="email"
               value={cadastro.email}
               disabled={disabled}
               onChange={(e) => update((d) => void (d.cadastro.email = e.target.value))}
             />
           </Field>
-          <Field label="Telefone" htmlFor="ob-tel" source={src["cadastro.telefone"]} ajuste={ajusteDe("cadastro.telefone")}>
+          <Field label="Telefone" htmlFor={fid("ob-tel")} source={src["cadastro.telefone"]} ajuste={ajusteDe("cadastro.telefone")}>
             <Input
-              id="ob-tel"
+              id={fid("ob-tel")}
               type="tel"
               inputMode="tel"
               placeholder="(00) 00000-0000"
@@ -371,10 +574,10 @@ export function ClientOnboardingForm({
           </div>
           <AjusteNota ajuste={ajusteDe("cadastro.endereco")} />
           <div className="grid gap-3 sm:grid-cols-6">
-            <Field label="CEP" htmlFor="ob-cep" required className="sm:col-span-2">
+            <Field label="CEP" htmlFor={fid("ob-cep")} required className="sm:col-span-2">
               <div className="flex gap-2">
                 <Input
-                  id="ob-cep"
+                  id={fid("ob-cep")}
                   className="min-w-0 flex-1"
                   inputMode="numeric"
                   placeholder="00000-000"
@@ -405,49 +608,49 @@ export function ClientOnboardingForm({
               </div>
               {cepStatus ? <p className="text-v2-caption text-muted-foreground">{cepStatus}</p> : null}
             </Field>
-            <Field label="Logradouro" htmlFor="ob-log" required className="sm:col-span-3">
+            <Field label="Logradouro" htmlFor={fid("ob-log")} required className="sm:col-span-3">
               <Input
-                id="ob-log"
+                id={fid("ob-log")}
                 value={cadastro.endereco.logradouro}
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.cadastro.endereco.logradouro = e.target.value))}
               />
             </Field>
-            <Field label="Número" htmlFor="ob-num" required className="sm:col-span-1">
+            <Field label="Número" htmlFor={fid("ob-num")} required className="sm:col-span-1">
               <Input
-                id="ob-num"
+                id={fid("ob-num")}
                 value={cadastro.endereco.numero}
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.cadastro.endereco.numero = e.target.value))}
               />
             </Field>
-            <Field label="Complemento" htmlFor="ob-comp" className="sm:col-span-2">
+            <Field label="Complemento" htmlFor={fid("ob-comp")} className="sm:col-span-2">
               <Input
-                id="ob-comp"
+                id={fid("ob-comp")}
                 value={cadastro.endereco.complemento}
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.cadastro.endereco.complemento = e.target.value))}
               />
             </Field>
-            <Field label="Bairro" htmlFor="ob-bairro" className="sm:col-span-2">
+            <Field label="Bairro" htmlFor={fid("ob-bairro")} className="sm:col-span-2">
               <Input
-                id="ob-bairro"
+                id={fid("ob-bairro")}
                 value={cadastro.endereco.bairro}
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.cadastro.endereco.bairro = e.target.value))}
               />
             </Field>
-            <Field label="Cidade" htmlFor="ob-cidade" required className="sm:col-span-1">
+            <Field label="Cidade" htmlFor={fid("ob-cidade")} required className="sm:col-span-1">
               <Input
-                id="ob-cidade"
+                id={fid("ob-cidade")}
                 value={cadastro.endereco.cidade}
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.cadastro.endereco.cidade = e.target.value))}
               />
             </Field>
-            <Field label="UF" htmlFor="ob-uf" required className="sm:col-span-1">
+            <Field label="UF" htmlFor={fid("ob-uf")} required className="sm:col-span-1">
               <Input
-                id="ob-uf"
+                id={fid("ob-uf")}
                 maxLength={2}
                 value={cadastro.endereco.uf}
                 disabled={disabled}
@@ -458,7 +661,7 @@ export function ClientOnboardingForm({
         </div>
       </Section>
 
-      <Section id="ob-socios" title="Qualificação dos sócios" description="Nome, posição e CPF de quem representa o cliente." ajuste={ajusteDe("cadastro.socios")}>
+      <Section id={fid("ob-socios")} title="Qualificação dos sócios" description="Nome, posição e CPF de quem representa o cliente." ajuste={ajusteDe("cadastro.socios")}>
         <div className="space-y-2">
           {cadastro.socios.map((socio, index) => (
             <div key={index} className="grid gap-2 sm:grid-cols-[1.4fr_1fr_1fr_auto] sm:items-center">
@@ -492,7 +695,7 @@ export function ClientOnboardingForm({
                 aria-label={`CPF do sócio ${index + 1}`}
                 disabled={disabled}
                 aria-invalid={documentoInvalido(socio.cpf, "cpf") || undefined}
-                aria-describedby={documentoInvalido(socio.cpf, "cpf") ? `ob-socio-${index}-cpf-aviso` : undefined}
+                aria-describedby={documentoInvalido(socio.cpf, "cpf") ? fid(`ob-socio-${index}-cpf-aviso`) : undefined}
                 onChange={(e) => update((d) => void (d.cadastro.socios[index]!.cpf = maskCpf(e.target.value)))}
               />
               {!readOnly ? (
@@ -507,7 +710,7 @@ export function ClientOnboardingForm({
                 </Button>
               ) : null}
               <DocumentoAviso
-                id={`ob-socio-${index}-cpf-aviso`}
+                id={fid(`ob-socio-${index}-cpf-aviso`)}
                 value={socio.cpf}
                 kind="cpf"
                 className="sm:col-span-full"
@@ -532,7 +735,7 @@ export function ClientOnboardingForm({
       </Section>
 
       <Section
-        id="ob-consulta"
+        id={fid("ob-consulta")}
         title="Empresas para incluir na busca de novas demandas"
         description="Nomes e CPF/CNPJ de todas as empresas (e pessoas) do cliente que entram no monitoramento."
         ajuste={ajusteDe("cadastro.empresasConsulta")}
@@ -571,7 +774,7 @@ export function ClientOnboardingForm({
                   aria-label={`${tipo} ${index + 1}`}
                   disabled={disabled}
                   aria-invalid={documentoInvalido(empresa.documento, kind) || undefined}
-                  aria-describedby={documentoInvalido(empresa.documento, kind) ? `ob-consulta-${index}-doc-aviso` : undefined}
+                  aria-describedby={documentoInvalido(empresa.documento, kind) ? fid(`ob-consulta-${index}-doc-aviso`) : undefined}
                   onChange={(e) =>
                     update((d) => void (d.cadastro.empresasConsulta[index]!.documento = maskDocument(e.target.value, tipo)))
                   }
@@ -588,7 +791,7 @@ export function ClientOnboardingForm({
                   </Button>
                 ) : null}
                 <DocumentoAviso
-                  id={`ob-consulta-${index}-doc-aviso`}
+                  id={fid(`ob-consulta-${index}-doc-aviso`)}
                   value={empresa.documento}
                   kind={kind}
                   className="sm:col-span-full"
@@ -658,7 +861,7 @@ export function ClientOnboardingForm({
         description="O Financeiro usa estes dados para incluir o contrato no gerenciamento de contratos."
       >
         {!readOnly && billingOptions.length > 0 ? (
-          <Field label="Usar dados de" htmlFor="ob-fat-origem">
+          <Field label="Usar dados de" htmlFor={fid("ob-fat-origem")}>
             <Select
               value={null}
               onValueChange={(value) => {
@@ -673,7 +876,7 @@ export function ClientOnboardingForm({
                 });
               }}
             >
-              <SelectTrigger id="ob-fat-origem" className="w-full">
+              <SelectTrigger id={fid("ob-fat-origem")} className="w-full">
                 <span className="text-muted-foreground">Escolha uma empresa ou pessoa já informada no lead</span>
               </SelectTrigger>
               <CrmSelectContent inModal={inModal}>
@@ -687,9 +890,9 @@ export function ClientOnboardingForm({
           </Field>
         ) : null}
         <div className="grid gap-4 sm:grid-cols-[200px_1.4fr_1fr]">
-          <Field label="Faturar para" htmlFor="ob-fat-tipo" required source={src["financeiro.faturamento"]}>
+          <Field label="Faturar para" htmlFor={fid("ob-fat-tipo")} required source={src["financeiro.faturamento"]}>
             <PartyTipoSelect
-              id="ob-fat-tipo"
+              id={fid("ob-fat-tipo")}
               value={billingTipo}
               disabled={disabled}
               inModal={inModal}
@@ -702,17 +905,17 @@ export function ClientOnboardingForm({
               }
             />
           </Field>
-          <Field label={billingTipo === "CPF" ? "Nome para faturamento" : "Razão social para faturamento"} htmlFor="ob-fat-razao" required>
+          <Field label={billingTipo === "CPF" ? "Nome para faturamento" : "Razão social para faturamento"} htmlFor={fid("ob-fat-razao")} required>
             <Input
-              id="ob-fat-razao"
+              id={fid("ob-fat-razao")}
               value={financeiro.faturamento.razaoSocial}
               disabled={disabled}
               onChange={(e) => update((d) => void (d.financeiro.faturamento.razaoSocial = e.target.value))}
             />
           </Field>
-          <Field label={`${billingTipo} para faturamento`} htmlFor="ob-fat-doc" required>
+          <Field label={`${billingTipo} para faturamento`} htmlFor={fid("ob-fat-doc")} required>
             <Input
-              id="ob-fat-doc"
+              id={fid("ob-fat-doc")}
               inputMode="numeric"
               placeholder={billingTipo === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"}
               value={maskDocument(financeiro.faturamento.documento, billingTipo)}
@@ -720,7 +923,7 @@ export function ClientOnboardingForm({
               aria-invalid={documentoInvalido(financeiro.faturamento.documento, billingTipo === "CPF" ? "cpf" : "cpf_cnpj") || undefined}
               aria-describedby={
                 documentoInvalido(financeiro.faturamento.documento, billingTipo === "CPF" ? "cpf" : "cpf_cnpj")
-                  ? "ob-fat-doc-aviso"
+                  ? fid("ob-fat-doc-aviso")
                   : undefined
               }
               onChange={(e) =>
@@ -728,16 +931,16 @@ export function ClientOnboardingForm({
               }
             />
             <DocumentoAviso
-              id="ob-fat-doc-aviso"
+              id={fid("ob-fat-doc-aviso")}
               value={financeiro.faturamento.documento}
               kind={billingTipo === "CPF" ? "cpf" : "cpf_cnpj"}
             />
           </Field>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Início da vigência" htmlFor="ob-vig" required source={src["financeiro.inicioVigencia"]}>
+          <Field label="Início da vigência" htmlFor={fid("ob-vig")} required source={src["financeiro.inicioVigencia"]}>
             <DateInputBr
-              id="ob-vig"
+              id={fid("ob-vig")}
               value={financeiro.inicioVigencia}
               disabled={disabled}
               onChange={(ymd) => update((d) => void (d.financeiro.inicioVigencia = ymd))}
@@ -745,12 +948,12 @@ export function ClientOnboardingForm({
           </Field>
           <Field
             label="Primeiro faturamento"
-            htmlFor="ob-primeiro"
+            htmlFor={fid("ob-primeiro")}
             required={!financeiro.primeiroFaturamentoCondicionado}
             source={src["financeiro.primeiroFaturamento"]}
           >
             <DateInputBr
-              id="ob-primeiro"
+              id={fid("ob-primeiro")}
               value={financeiro.primeiroFaturamento}
               disabled={disabled || financeiro.primeiroFaturamentoCondicionado}
               onChange={(ymd) => update((d) => void (d.financeiro.primeiroFaturamento = ymd))}
@@ -769,9 +972,9 @@ export function ClientOnboardingForm({
           Primeiro faturamento depende de uma condição (ex.: entrega, êxito)
         </label>
         {financeiro.primeiroFaturamentoCondicionado ? (
-          <Field label="Condição do primeiro faturamento" htmlFor="ob-cond" required>
+          <Field label="Condição do primeiro faturamento" htmlFor={fid("ob-cond")} required>
             <Input
-              id="ob-cond"
+              id={fid("ob-cond")}
               value={financeiro.condicaoPrimeiroFaturamento}
               disabled={disabled}
               onChange={(e) => update((d) => void (d.financeiro.condicaoPrimeiroFaturamento = e.target.value))}
@@ -785,34 +988,34 @@ export function ClientOnboardingForm({
             <SourceChip source={src["financeiro.contatoFinanceiro"]} />
           </div>
           <div className="grid gap-3 sm:grid-cols-4">
-            <Field label="Nome" htmlFor="ob-cf-nome" required>
+            <Field label="Nome" htmlFor={fid("ob-cf-nome")} required>
               <Input
-                id="ob-cf-nome"
+                id={fid("ob-cf-nome")}
                 value={financeiro.contatoFinanceiro.nome}
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.financeiro.contatoFinanceiro.nome = e.target.value))}
               />
             </Field>
-            <Field label="Posição" htmlFor="ob-cf-pos">
+            <Field label="Posição" htmlFor={fid("ob-cf-pos")}>
               <Input
-                id="ob-cf-pos"
+                id={fid("ob-cf-pos")}
                 value={financeiro.contatoFinanceiro.posicao}
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.financeiro.contatoFinanceiro.posicao = e.target.value))}
               />
             </Field>
-            <Field label="E-mail" htmlFor="ob-cf-email" required>
+            <Field label="E-mail" htmlFor={fid("ob-cf-email")} required>
               <Input
-                id="ob-cf-email"
+                id={fid("ob-cf-email")}
                 type="email"
                 value={financeiro.contatoFinanceiro.email}
                 disabled={disabled}
                 onChange={(e) => update((d) => void (d.financeiro.contatoFinanceiro.email = e.target.value))}
               />
             </Field>
-            <Field label="Telefone" htmlFor="ob-cf-tel">
+            <Field label="Telefone" htmlFor={fid("ob-cf-tel")}>
               <Input
-                id="ob-cf-tel"
+                id={fid("ob-cf-tel")}
                 type="tel"
                 inputMode="tel"
                 placeholder="(00) 00000-0000"
@@ -824,14 +1027,14 @@ export function ClientOnboardingForm({
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Índice de reajuste" htmlFor="ob-indice" required>
+        <div className={cn("grid gap-4", indicacao ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+          <Field label="Índice de reajuste" htmlFor={fid("ob-indice")} required source={src["financeiro.reajuste"]}>
             <Select
               value={financeiro.reajuste.indice || null}
               onValueChange={(value) => update((d) => void (d.financeiro.reajuste.indice = String(value ?? "")))}
               disabled={disabled}
             >
-              <SelectTrigger id="ob-indice" className="w-full">
+              <SelectTrigger id={fid("ob-indice")} className="w-full">
                 <span>{financeiro.reajuste.indice || "Selecione"}</span>
               </SelectTrigger>
               <CrmSelectContent inModal={inModal}>
@@ -843,77 +1046,47 @@ export function ClientOnboardingForm({
               </CrmSelectContent>
             </Select>
           </Field>
-          <Field label="Periodicidade do reajuste (meses)" htmlFor="ob-period">
+          <Field label="Periodicidade do reajuste (meses)" htmlFor={fid("ob-period")}>
             <Input
-              id="ob-period"
+              id={fid("ob-period")}
               inputMode="numeric"
               value={financeiro.reajuste.periodicidadeMeses}
               disabled={disabled}
               onChange={(e) => update((d) => void (d.financeiro.reajuste.periodicidadeMeses = e.target.value.replace(/\D/g, "").slice(0, 3)))}
             />
           </Field>
-          <Field label="Repasse acordado (%)" htmlFor="ob-repasse">
-            <Input
-              id="ob-repasse"
-              inputMode="decimal"
-              value={financeiro.repassePercentual}
-              disabled={disabled}
-              onChange={(e) => update((d) => void (d.financeiro.repassePercentual = apenasNumeroDecimal(e.target.value)))}
-            />
-          </Field>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <p className="text-v2-body-sm-medium text-foreground">Rateio por área (%)</p>
-            <SourceChip source={src["financeiro.rateioPorArea"]} />
-          </div>
-          {financeiro.rateioPorArea.map((linha, index) => (
-            <div key={index} className="grid gap-2 sm:grid-cols-[1.6fr_120px_auto] sm:items-center">
+          {indicacao ? (
+            <Field label="Repasse acordado com a indicação (%)" htmlFor={fid("ob-repasse")} required source={src["financeiro.repassePercentual"]}>
               <Input
-                value={linha.area}
-                placeholder="Área"
-                aria-label={`Área ${index + 1}`}
-                disabled={disabled}
-                onChange={(e) => update((d) => void (d.financeiro.rateioPorArea[index]!.area = e.target.value))}
-              />
-              <Input
-                value={linha.percentual}
+                id={fid("ob-repasse")}
                 inputMode="decimal"
-                placeholder="%"
-                aria-label={`Percentual da área ${index + 1}`}
+                placeholder="Ex.: 10"
+                value={financeiro.repassePercentual}
                 disabled={disabled}
-                onChange={(e) => update((d) => void (d.financeiro.rateioPorArea[index]!.percentual = apenasNumeroDecimal(e.target.value)))}
+                onChange={(e) => update((d) => void (d.financeiro.repassePercentual = apenasNumeroDecimal(e.target.value)))}
               />
-              {!readOnly ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Remover área ${index + 1}`}
-                  onClick={() => update((d) => void d.financeiro.rateioPorArea.splice(index, 1))}
-                >
-                  <X className="size-4" aria-hidden />
-                </Button>
-              ) : null}
-            </div>
-          ))}
-          {!readOnly ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => update((d) => void d.financeiro.rateioPorArea.push({ area: "", percentual: "" }))}
-            >
-              <Plus className="size-3.5" aria-hidden />
-              Adicionar área
-            </Button>
+              <p className="text-v2-caption text-muted-foreground">
+                {indicacao.nome ? `Indicação de ${indicacao.nome}${indicacao.tipo ? ` (${indicacao.tipo})` : ""}. ` : "Lead de indicação. "}
+                Sem repasse, informe 0.
+              </p>
+            </Field>
           ) : null}
         </div>
 
-        <Field label="Observações para o financeiro" htmlFor="ob-obs">
+        <RateioPorArea
+          rows={financeiro.rateioPorArea}
+          valorRateio={financeiro.valorRateio}
+          sourceRateio={src["financeiro.rateioPorArea"]}
+          sourceValor={src["financeiro.valorRateio"]}
+          readOnly={readOnly}
+          inModal={inModal}
+          update={update}
+          fid={fid}
+        />
+
+        <Field label="Observações para o financeiro" htmlFor={fid("ob-obs")}>
           <Textarea
-            id="ob-obs"
+            id={fid("ob-obs")}
             rows={3}
             value={financeiro.observacoes}
             disabled={disabled}

@@ -86,6 +86,7 @@ export async function initializeContractFromProposal(params: {
       }),
       clauseLibrary,
       scopeLabels,
+      adjustment: draft.adjustment,
     });
     const nextJson = {
       ...currentData,
@@ -157,6 +158,7 @@ export async function initializeContractFromProposal(params: {
     }),
     clauseLibrary,
     scopeLabels,
+    adjustment: existingDraft.adjustment,
   });
   const nextJson = {
     ...currentData,

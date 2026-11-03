@@ -248,6 +248,7 @@ export function listContratoPendingFields(
   empresa: string,
   engine?: {
     scopes: Array<{ label: string; missingProfile: boolean }>;
+    adjustment?: unknown;
     contractObject?: {
       missingScopeIds: string[];
       missingRequiredFields: string[];
@@ -279,6 +280,8 @@ export function listContratoPendingFields(
   }
 
   if (engine?.contractObject) {
+    // Índice de reajuste obrigatório com o motor (03/11/2026): vai para a cláusula e para o faturamento.
+    if (!engine.adjustment) push("Índice de reajuste", "section-vigencia");
     if (engine.scopes.some((s) => s.missingProfile) || engine.contractObject.missingScopeIds.length > 0) {
       push("Objeto do Contrato incompleto — há escopo sem redação contratual", "section-objeto");
     }

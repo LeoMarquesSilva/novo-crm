@@ -111,6 +111,7 @@ import {
 } from "@/lib/crm/contract-engine/inherit-areas";
 import { buildCanonicalContract } from "@/lib/crm/contract-engine/build-canonical";
 import { describeTermRule } from "@/lib/crm/contract-engine/term";
+import { CONTRACT_ADJUSTMENT_INDICES, CONTRACT_ADJUSTMENT_PERIODS } from "@/lib/crm/contract-engine/adjustment";
 import { SECTION_ORDER } from "@/lib/crm/contract-engine/clause-engine";
 import { buildCanonicalContratoPage } from "@/lib/crm/contract-engine/legacy-preview";
 import { investmentItemHasValue } from "@/lib/crm/contract-engine/payment";
@@ -121,6 +122,7 @@ import { contractPartyGrammar } from "@/lib/crm/contract-engine/party-language";
 import type { ContractObjectDraft } from "@/lib/crm/contract-engine/persist";
 import type {
   CanonicalContractBuildResult,
+  ContractAdjustment,
   ContractClauseTemplate,
   ContractEngineEvent,
   ContractObjectOverride,
@@ -885,7 +887,12 @@ function ContratoBuilderDialog({
     scopeAdjustment: null as ContractScopeAdjustment | null,
     engineEvents: [] as ContractEngineEvent[],
     explicitCompositionKey: null as string | null,
+    adjustment: null as ContractAdjustment | null,
   };
+  const [adjustment, setAdjustment] = useState<ContractAdjustment | null>(initialObjectDraft.adjustment ?? null);
+  const [savedAdjustment, setSavedAdjustment] = useState<ContractAdjustment | null>(
+    initialObjectDraft.adjustment ?? null,
+  );
   const [objectFields, setObjectFields] = useState<Record<string, string>>(
     initialObjectDraft.objectFieldValues,
   );
@@ -916,7 +923,8 @@ function ContratoBuilderDialog({
     JSON.stringify(draftPins) !== JSON.stringify(savedPins) ||
     JSON.stringify(objectFields) !== JSON.stringify(savedObjectFields) ||
     JSON.stringify(objectOverrides) !== JSON.stringify(savedObjectOverrides) ||
-    JSON.stringify(scopeAdjustment) !== JSON.stringify(savedScopeAdjustment);
+    JSON.stringify(scopeAdjustment) !== JSON.stringify(savedScopeAdjustment) ||
+    JSON.stringify(adjustment) !== JSON.stringify(savedAdjustment);
 
   const fieldByCode = Object.fromEntries(
     contratoState.ccFieldDefs.map((f) => [f.fieldCode, f]),
@@ -946,8 +954,10 @@ function ContratoBuilderDialog({
       engineEvents,
       clauseLibrary,
       scopeLabels: contratoState.scopeLabels,
+      adjustment,
     });
   }, [
+    adjustment,
     clauseLibrary,
     contratoState.engine,
     contratoState.proposalSnapshot,
@@ -1130,6 +1140,7 @@ function ContratoBuilderDialog({
           contract_scope_adjustments: scopeAdjustment,
           contract_engine_events: nextEvents,
           explicit_composition_key: initialObjectDraft.explicitCompositionKey,
+          contract_adjustment: adjustment,
         },
       }),
     });
@@ -1158,6 +1169,7 @@ function ContratoBuilderDialog({
     setSavedObjectFields({ ...objectFields });
     setSavedObjectOverrides([...objectOverrides]);
     setSavedScopeAdjustment(scopeAdjustment);
+    setSavedAdjustment(adjustment);
   }
 
   async function handleSave() {
@@ -1480,7 +1492,15 @@ function ContratoBuilderDialog({
                 </FormSection>
 
                 {/* Seção 5: Vigência e início */}
-                <FormSection id="section-vigencia" num={5} title="Vigência e Início" isComplete={prazComplete || Boolean(liveBuild)}>
+                <FormSection
+                  id="section-vigencia"
+                  num={5}
+                  title={liveBuild ? "Vigência, Início e Reajuste" : "Vigência e Início"}
+                  isComplete={liveBuild ? Boolean(adjustment) : prazComplete}
+                >
+                  {liveBuild ? (
+                    <ReajusteFields value={adjustment} onChange={setAdjustment} disabled={saving || generating} />
+                  ) : null}
                   {liveBuild ? (
                     <div className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3 text-xs text-foreground">
                       <p>
@@ -3140,6 +3160,81 @@ const CC_FIELD_PLACEHOLDER_HINTS: Record<string, string> = {
 
 function ccFieldPlaceholder(field: CcFieldDef, label: string): string {
   return CC_FIELD_PLACEHOLDER_HINTS[field.fieldCode] ?? `Preencha: ${label.toLowerCase()}`;
+}
+
+/** Índice e periodicidade do reajuste: viram a cláusula de reajuste e vêm preenchidos no faturamento. */
+function ReajusteFields({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: ContractAdjustment | null;
+  onChange: (next: ContractAdjustment) => void;
+  disabled?: boolean;
+}) {
+  const comPeriodo = value && value.index !== "Sem reajuste";
+  return (
+    <div id="contrato-reajuste" className="space-y-2">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="contrato-reajuste-indice" className="flex items-center gap-1 text-xs font-medium text-foreground">
+            Índice de reajuste
+            <span className="text-rose-500" aria-hidden>*</span>
+            <span className="sr-only"> (obrigatório)</span>
+          </Label>
+          <Select
+            value={value?.index ?? null}
+            onValueChange={(v) => {
+              const index = CONTRACT_ADJUSTMENT_INDICES.find((i) => i === v);
+              if (!index) return;
+              onChange({ index, periodMonths: index === "Sem reajuste" ? null : (value?.periodMonths ?? 12) });
+            }}
+            disabled={disabled}
+          >
+            <SelectTrigger id="contrato-reajuste-indice" className="h-10 border-slate-200 bg-white text-sm">
+              <CrmSelectValue value={value?.index ?? ""} placeholder="Selecionar..." />
+            </SelectTrigger>
+            <CrmSelectContent>
+              {CONTRACT_ADJUSTMENT_INDICES.map((index) => (
+                <CrmSelectItem key={index} value={index}>
+                  {index}
+                </CrmSelectItem>
+              ))}
+            </CrmSelectContent>
+          </Select>
+        </div>
+        {comPeriodo ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="contrato-reajuste-periodo" className="text-xs font-medium text-foreground">
+              Periodicidade
+            </Label>
+            <Select
+              value={String(value.periodMonths ?? 12)}
+              onValueChange={(v) => {
+                const months = Number(v);
+                if (months > 0) onChange({ index: value.index, periodMonths: months });
+              }}
+              disabled={disabled}
+            >
+              <SelectTrigger id="contrato-reajuste-periodo" className="h-10 border-slate-200 bg-white text-sm">
+                <CrmSelectValue value={`A cada ${value.periodMonths ?? 12} meses`} placeholder="Selecionar..." />
+              </SelectTrigger>
+              <CrmSelectContent>
+                {CONTRACT_ADJUSTMENT_PERIODS.map((months) => (
+                  <CrmSelectItem key={months} value={String(months)}>
+                    A cada {months} meses
+                  </CrmSelectItem>
+                ))}
+              </CrmSelectContent>
+            </Select>
+          </div>
+        ) : null}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Entra na cláusula de reajuste do contrato e vem preenchido nos dados do faturamento.
+      </p>
+    </div>
+  );
 }
 
 function CcFieldInput({

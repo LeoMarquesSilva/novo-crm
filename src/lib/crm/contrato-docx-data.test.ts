@@ -166,6 +166,19 @@ describe("listContratoPendingFields", () => {
     expect(labels(pending)).not.toContain("Escopos contratados (nenhum escopo herdado da proposta)");
   });
 
+  it("com o motor, o índice de reajuste é obrigatório e aponta para Vigência (03/11/2026)", () => {
+    const sem = listContratoPendingFields({ cc_tipo_pagamento: "Fixo" }, "ACME", engineWithObject());
+    expect(sectionOf(sem, "Índice de reajuste")).toBe("section-vigencia");
+    const com = listContratoPendingFields(
+      { cc_tipo_pagamento: "Fixo" },
+      "ACME",
+      { ...engineWithObject(), adjustment: { index: "Sem reajuste", periodMonths: null } },
+    );
+    expect(labels(com)).not.toContain("Índice de reajuste");
+    // Sem o motor (contrato legado) não há o campo.
+    expect(labels(listContratoPendingFields({ cc_tipo_pagamento: "Fixo" }, "ACME", null))).not.toContain("Índice de reajuste");
+  });
+
   it("nunca retorna itens com label duplicado", () => {
     const pending = listContratoPendingFields({}, "", null);
     expect(pending.length).toBe(new Set(labels(pending)).size);
