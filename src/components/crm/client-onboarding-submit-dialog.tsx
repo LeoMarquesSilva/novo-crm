@@ -20,6 +20,7 @@ import {
   listMissingFaturamentoFields,
   type ClientOnboardingPayload,
   type ClientOnboardingStatus,
+  type LeadIndicacao,
   type OnboardingParty,
 } from "@/modules/crm/domain/client-onboarding";
 
@@ -37,6 +38,8 @@ type OnboardingState = {
   returnComment: string | null;
   updatedAt: string | null;
   leadParties: OnboardingParty[];
+  /** Lead de indicação: o faturamento pede o repasse acordado. */
+  indicacao: LeadIndicacao | null;
   permissions: { editCadastro: boolean; editFaturamento: boolean; submit: boolean; submitBilling: boolean };
 };
 
@@ -132,6 +135,7 @@ export function ClientOnboardingSubmitDialog({
           onboarding?: { status: ClientOnboardingStatus; returnComment: string | null; updatedAt: string } | null;
           payload?: ClientOnboardingPayload;
           leadParties?: OnboardingParty[];
+          indicacao?: LeadIndicacao | null;
           permissions?: {
             editDraft: boolean;
             editCadastro?: boolean;
@@ -152,6 +156,7 @@ export function ClientOnboardingSubmitDialog({
           returnComment: json.onboarding?.returnComment ?? null,
           updatedAt: json.onboarding?.updatedAt ?? null,
           leadParties: json.leadParties ?? [],
+          indicacao: json.indicacao ?? null,
           permissions: {
             editCadastro: Boolean(json.permissions?.editCadastro ?? json.permissions?.editDraft),
             editFaturamento: Boolean(json.permissions?.editFaturamento),
@@ -179,7 +184,7 @@ export function ClientOnboardingSubmitDialog({
   const missing = payload
     ? step === "cadastro"
       ? listMissingCadastroFields(payload)
-      : listMissingFaturamentoFields(payload)
+      : listMissingFaturamentoFields(payload, { indicacao: Boolean(state?.indicacao) })
     : [];
 
   async function saveDraft(): Promise<boolean> {
@@ -284,6 +289,8 @@ export function ClientOnboardingSubmitDialog({
               inModal
               sections={step}
               leadParties={state.leadParties}
+              indicacao={state.indicacao}
+              idPrefix="dlg-"
               onChange={(next) => {
                 setPayload(next);
                 setDirty(true);

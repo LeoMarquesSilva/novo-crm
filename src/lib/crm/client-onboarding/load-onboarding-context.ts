@@ -14,8 +14,10 @@ import {
   mergeOnboardingDraft,
 } from "@/modules/crm/application/client-onboarding-prefill";
 import {
+  isLeadIndicacao,
   parseClientOnboardingPayload,
   parseOpsChecklist,
+  type LeadIndicacao,
   type ClientOnboardingPayload,
   type ClientOnboardingStatus,
   type OpsChecklist,
@@ -63,6 +65,8 @@ export type OnboardingContext = {
   checklist: OpsChecklist;
   /** Partes do contrato pelo cadastro do lead e a escolha da proposta (todas as contratantes). */
   contractParties?: ContractingParty[];
+  /** Lead de indicação: pede o repasse acordado no faturamento. */
+  indicacao?: LeadIndicacao | null;
 };
 
 export function isMissingTableError(error: { code?: string } | null | undefined): boolean {
@@ -181,6 +185,13 @@ export async function loadOnboardingContext(
     proposalAddress,
     startRule: engine?.startRule ?? null,
     payment: engine?.payment ?? null,
+    investmentSubtypes: engine?.investment.items.map((item) => item.subtipoId).filter(Boolean) ?? [],
+    adjustment: engine?.adjustment ?? null,
+    // Sem o êxito: ele não entra na base mensal do rateio.
+    investmentTotal:
+      engine?.investment.items
+        .filter((item) => !item.subtipoId.startsWith("exito"))
+        .reduce((acc, item) => acc + (item.amount ?? 0), 0) ?? null,
     proposalFirstDueDate: fieldByCode.cp_primeiro_vencimento ?? null,
     signedOn: signedRaw ? signedRaw.slice(0, 10) : null,
     areaAmounts: areaAmountsFromEscopo(fieldByCode.cp_escopo_detalhe_json ?? ""),
@@ -229,5 +240,15 @@ export async function loadOnboardingContext(
     row,
     payload: mergeOnboardingDraft(row ? parseClientOnboardingPayload(row.payload) : null, prefill),
     checklist: parseOpsChecklist(row?.ops_checklist),
+    indicacao: indicacaoFromIntake(intake as Record<string, unknown> | null),
+  };
+}
+
+/** Quem indicou, quando o lead veio de indicação (o repasse acordado só existe nesse caso). */
+export function indicacaoFromIntake(intake: Record<string, unknown> | null): LeadIndicacao | null {
+  if (!intake || !isLeadIndicacao(intake.tipo_lead as string | null)) return null;
+  return {
+    tipo: (intake.tipo_indicacao as string | null)?.trim() || null,
+    nome: (intake.nome_indicacao as string | null)?.trim() || null,
   };
 }

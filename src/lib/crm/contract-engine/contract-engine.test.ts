@@ -9,6 +9,8 @@ import {
   mergeInheritedContractAreaToggles,
 } from "./inherit-areas";
 import { createProposalContractSnapshot } from "./proposal-snapshot";
+import { parseContractAdjustment } from "./adjustment";
+import { engineToDataJsonPatch, readObjectDraft } from "./persist";
 
 const ADDRESS = {
   cp_cliente_logradouro: "Rua A",
@@ -174,6 +176,46 @@ describe("múltiplas empresas", () => {
     const result = buildCanonicalContract({ snapshot: snap });
     expect(result.data.contractingParties).toHaveLength(2);
     expect(result.data.clauses.some((c) => c.content.includes("as CONTRATANTES"))).toBe(true);
+  });
+});
+
+describe("reajuste escolhido na etapa de contrato (03/11/2026)", () => {
+  const snap = () => snapshot({ Trabalhista: [entry(SCOPE_IDS.consultivo)] });
+
+  it("gera a cláusula de reajuste em Preço e forma de pagamento e grava o reajuste", () => {
+    const result = buildCanonicalContract({ snapshot: snap(), adjustment: { index: "IPCA", periodMonths: 12 } });
+    const clause = result.data.clauses.find((c) => c.stableKey === "payment_adjustment");
+    expect(clause?.content).toContain("a cada 12 (doze) meses");
+    expect(clause?.content).toContain("(IPCA/IBGE)");
+    expect(clause?.content).not.toMatch(/\[[A-Z_]+\]/);
+    const section = result.data.sections.find((s) => s.clauses.some((c) => c.stableKey === "payment_adjustment"));
+    expect(section?.title).toBe("PREÇO E FORMA DE PAGAMENTO");
+    expect(result.data.adjustment).toEqual({ index: "IPCA", periodMonths: 12 });
+    expect(result.pendencias.find((p) => p.code === "adjustment")?.ok).toBe(true);
+    // O documento (prévia, Word e D4Sign) mostra o reajuste junto dos honorários.
+    expect(previewFromCanonical(result.data).valores).toContain("serão reajustados a cada 12 (doze) meses");
+  });
+
+  it("sem reajuste não gera cláusula; sem escolha fica pendente", () => {
+    const sem = buildCanonicalContract({ snapshot: snap(), adjustment: { index: "Sem reajuste", periodMonths: null } });
+    expect(sem.data.clauses.some((c) => c.stableKey === "payment_adjustment")).toBe(false);
+    expect(sem.pendencias.find((p) => p.code === "adjustment")?.ok).toBe(true);
+
+    const pendente = buildCanonicalContract({ snapshot: snap() });
+    expect(pendente.data.clauses.some((c) => c.stableKey === "payment_adjustment")).toBe(false);
+    expect(pendente.pendencias.find((p) => p.code === "adjustment")?.ok).toBe(false);
+  });
+
+  it("o rascunho guarda e relê o reajuste; valor inválido conta como não escolhido", () => {
+    const result = buildCanonicalContract({ snapshot: snap(), adjustment: { index: "IGP-M", periodMonths: 24 } });
+    const patch = engineToDataJsonPatch(result, snap(), { adjustment: { index: "IGP-M", periodMonths: 24 } });
+    expect(readObjectDraft(patch as Record<string, unknown>).adjustment).toEqual({ index: "IGP-M", periodMonths: 24 });
+    expect(parseContractAdjustment({ index: "Outro" })).toBeNull();
+    expect(parseContractAdjustment({ index: "INPC", periodMonths: "x" })).toEqual({ index: "INPC", periodMonths: 12 });
+    expect(parseContractAdjustment({ index: "Sem reajuste", periodMonths: 12 })).toEqual({
+      index: "Sem reajuste",
+      periodMonths: null,
+    });
   });
 });
 

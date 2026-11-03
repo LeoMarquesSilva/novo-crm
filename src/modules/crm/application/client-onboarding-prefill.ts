@@ -1,5 +1,12 @@
-import type { ContractingParty, ContractingPartyAddress, ContractPayment, ContractStartRule } from "@/lib/crm/contract-engine/types";
+import type {
+  ContractAdjustment,
+  ContractingParty,
+  ContractingPartyAddress,
+  ContractPayment,
+  ContractStartRule,
+} from "@/lib/crm/contract-engine/types";
 import { parseDueDateText } from "@/lib/crm/due-date-text";
+import { formatNumberPtBr2 } from "@/lib/crm/proposta-valor-brl-extenso";
 import {
   emptyClientOnboardingPayload,
   onlyDigits,
@@ -16,6 +23,12 @@ export type OnboardingPrefillSources = {
   proposalAddress: ContractingPartyAddress | null;
   startRule: ContractStartRule | null;
   payment: Pick<ContractPayment, "firstDueDate"> | null;
+  /** Subtipos de honorário do contrato montado (`spot_condicionado`, `exito_percentual`…). */
+  investmentSubtypes?: string[];
+  /** Reajuste escolhido na etapa de contrato (03/11/2026). */
+  adjustment?: Pick<ContractAdjustment, "index" | "periodMonths"> | null;
+  /** Soma dos honorários do contrato montado; base do rateio quando a proposta não traz valor por área. */
+  investmentTotal?: number | null;
   /** "Data do primeiro vencimento" pedida na proposta (`cp_primeiro_vencimento`, AAAA-MM-DD). */
   proposalFirstDueDate?: string | null;
   /** Quando a venda foi fechada (assinatura), AAAA-MM-DD. */
@@ -49,6 +62,24 @@ function normalizeAddress(a: ContractingPartyAddress): ClientOnboardingPayload["
     uf: (a.uf ?? "").trim().toUpperCase().slice(0, 2),
   };
 }
+
+const EXITO_SUBTYPES = new Set(["exito_percentual", "exito_valor_fixo"]);
+
+/** Condição do 1º faturamento como ficou no contrato; null quando há data ou nada a dizer. */
+function firstBillingCondition(firstDueText: string, subtypes: string[]): string | null {
+  if (subtypes.length > 0 && subtypes.every((s) => EXITO_SUBTYPES.has(s))) {
+    return "Honorários só de êxito: o primeiro faturamento ocorre no êxito.";
+  }
+  if (subtypes.includes("spot_condicionado") && !firstDueText) {
+    return "Honorários condicionados: o primeiro faturamento ocorre mediante solicitação formal da Cliente.";
+  }
+  // Vencimento escrito como evento ("após a entrega do parecer"). Data em aberto ("a combinar") ou
+  // "na assinatura" sem data conhecida não é condição: o responsável informa a data.
+  if (CONDITION_TEXT.test(firstDueText) && !/assinatura/i.test(firstDueText)) return firstDueText;
+  return null;
+}
+
+const CONDITION_TEXT = /\b(após|apos|mediante|quando|depois|entrega|êxito|exito|conclus|protocol|solicita|homologa|deferimento|tr[aâ]nsito)/i;
 
 function formatPercent(value: number): string {
   return String(Math.round(value * 100) / 100);
@@ -130,24 +161,47 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
     origin["financeiro.faturamento"] = origin["cadastro.razaoSocial"] ?? "lead";
   }
 
-  if (sources.startRule?.kind === "on_defined_date" && sources.startRule.date) {
-    payload.financeiro.inicioVigencia = sources.startRule.date.slice(0, 10);
+  // O vencimento do contrato é texto livre ("na data de assinatura do Contrato"): vira data
+  // quando dá para ler uma; honorário condicionado, só êxito ou vencimento sem data viram a
+  // condição do 1º faturamento, como foi feito o contrato (29/10/2026).
+  const firstDueText = sources.payment?.firstDueDate?.trim() ?? "";
+  const firstDue = parseDueDateText(firstDueText, { signedOn: sources.signedOn });
+  const condicao = firstDue ? null : firstBillingCondition(firstDueText, sources.investmentSubtypes ?? []);
+  const proposalFirstDue = sources.proposalFirstDueDate?.trim() ?? "";
+  if (firstDue) {
+    payload.financeiro.primeiroFaturamento = firstDue.date;
+    origin["financeiro.primeiroFaturamento"] = firstDue.basis === "assinatura" ? "assinatura" : "contrato";
+  } else if (condicao) {
+    payload.financeiro.primeiroFaturamentoCondicionado = true;
+    payload.financeiro.condicaoPrimeiroFaturamento = condicao;
+    origin["financeiro.primeiroFaturamento"] = "contrato";
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(proposalFirstDue)) {
+    payload.financeiro.primeiroFaturamento = proposalFirstDue;
+    origin["financeiro.primeiroFaturamento"] = "proposta";
+  }
+
+  // Início da vigência pela regra do contrato: data definida, assinatura ou 1º pagamento.
+  const startRule = sources.startRule;
+  if (startRule?.kind === "on_defined_date" && startRule.date) {
+    payload.financeiro.inicioVigencia = startRule.date.slice(0, 10);
     origin["financeiro.inicioVigencia"] = "contrato";
+  } else if (startRule?.kind === "on_first_payment") {
+    // Começa no 1º pagamento: sem data dele (condicionado), o responsável informa.
+    if (payload.financeiro.primeiroFaturamento) {
+      payload.financeiro.inicioVigencia = payload.financeiro.primeiroFaturamento;
+      origin["financeiro.inicioVigencia"] = "contrato";
+    }
   } else if (sources.signedOn) {
     payload.financeiro.inicioVigencia = sources.signedOn;
     origin["financeiro.inicioVigencia"] = "assinatura";
   }
 
-  // O vencimento da proposta é texto livre ("na data de assinatura do Contrato"): só vira
-  // data quando dá para ler uma; senão o responsável informa.
-  const firstDue = parseDueDateText(sources.payment?.firstDueDate, { signedOn: sources.signedOn });
-  const proposalFirstDue = sources.proposalFirstDueDate?.trim() ?? "";
-  if (firstDue) {
-    payload.financeiro.primeiroFaturamento = firstDue.date;
-    origin["financeiro.primeiroFaturamento"] = firstDue.basis === "assinatura" ? "assinatura" : "contrato";
-  } else if (/^\d{4}-\d{2}-\d{2}$/.test(proposalFirstDue)) {
-    payload.financeiro.primeiroFaturamento = proposalFirstDue;
-    origin["financeiro.primeiroFaturamento"] = "proposta";
+  if (sources.adjustment) {
+    payload.financeiro.reajuste = {
+      indice: sources.adjustment.index,
+      periodicidadeMeses: sources.adjustment.periodMonths ? String(sources.adjustment.periodMonths) : "",
+    };
+    origin["financeiro.reajuste"] = "contrato";
   }
 
   if (sources.contatoFinanceiro) {
@@ -181,6 +235,13 @@ export function buildClientOnboardingPrefill(sources: OnboardingPrefillSources):
     }));
     origin["financeiro.rateioPorArea"] = "proposta";
   }
+  // Soma do investimento das áreas da proposta (ou, com honorário consolidado, o total do
+  // contrato): base para o R$ de cada área do rateio.
+  const valorProposta = areas.reduce((acc, a) => acc + (a.amount ?? 0), 0) || (sources.investmentTotal ?? 0);
+  if (valorProposta > 0) {
+    payload.financeiro.valorRateio = `R$ ${formatNumberPtBr2(valorProposta)}`;
+    origin["financeiro.valorRateio"] = "proposta";
+  }
 
   payload.sources = origin;
   return payload;
@@ -209,6 +270,11 @@ function fillEmptyFinanceiro(
   if (!f.inicioVigencia && p.inicioVigencia) take("financeiro.inicioVigencia", () => void (f.inicioVigencia = p.inicioVigencia));
   if (!f.primeiroFaturamento && !f.primeiroFaturamentoCondicionado && p.primeiroFaturamento) {
     take("financeiro.primeiroFaturamento", () => void (f.primeiroFaturamento = p.primeiroFaturamento));
+  } else if (!f.primeiroFaturamento && !f.primeiroFaturamentoCondicionado && p.primeiroFaturamentoCondicionado) {
+    take("financeiro.primeiroFaturamento", () => {
+      f.primeiroFaturamentoCondicionado = true;
+      f.condicaoPrimeiroFaturamento = p.condicaoPrimeiroFaturamento;
+    });
   }
   const contato = f.contatoFinanceiro;
   if (!contato.nome && !contato.email && !contato.telefone && (p.contatoFinanceiro.nome || p.contatoFinanceiro.email)) {
@@ -217,6 +283,8 @@ function fillEmptyFinanceiro(
   if (f.rateioPorArea.length === 0 && p.rateioPorArea.length > 0) {
     take("financeiro.rateioPorArea", () => void (f.rateioPorArea = p.rateioPorArea.map((r) => ({ ...r }))));
   }
+  if (!f.valorRateio && p.valorRateio) take("financeiro.valorRateio", () => void (f.valorRateio = p.valorRateio));
+  if (!f.reajuste.indice && p.reajuste.indice) take("financeiro.reajuste", () => void (f.reajuste = { ...p.reajuste }));
   out.sources = sources;
   return out;
 }

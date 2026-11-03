@@ -15,6 +15,7 @@ import {
 import { mergeStartRules, mergeTermRules, renderStartText, renderTermText } from "./term";
 import type {
   CanonicalContractBuildResult,
+  ContractAdjustment,
   ContractClauseTemplate,
   ContractEngineEvent,
   ContractEnginePendencia,
@@ -40,6 +41,8 @@ export function buildCanonicalContract(input: {
   clauseLibrary?: Map<string, ContractClauseTemplate>;
   /** Rótulos dos subtipos de escopo do catálogo do banco. */
   scopeLabels?: ScopeSubtypeLabels;
+  /** Índice e periodicidade de reajuste escolhidos na etapa de contrato. */
+  adjustment?: ContractAdjustment | null;
 }): CanonicalContractBuildResult {
   const generatedAt = input.generatedAt ?? new Date();
   const firm = getContractedFirm();
@@ -90,6 +93,7 @@ export function buildCanonicalContract(input: {
     },
     contractObject,
     clauseLibrary: input.clauseLibrary,
+    adjustment: input.adjustment,
   });
 
   const data = {
@@ -102,6 +106,7 @@ export function buildCanonicalContract(input: {
     payment,
     term,
     startRule,
+    adjustment: input.adjustment ?? null,
     clauses,
     sections,
     signers: firm.representatives,
@@ -176,6 +181,11 @@ function collectPendencias(
       code: "due_date",
       label: "Primeiro vencimento",
       ok: Boolean(data.payment.firstDueDate),
+    },
+    {
+      code: "adjustment",
+      label: "Índice de reajuste",
+      ok: Boolean(data.adjustment),
     },
     {
       code: "payment_method",

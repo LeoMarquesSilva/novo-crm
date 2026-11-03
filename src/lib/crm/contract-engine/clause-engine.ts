@@ -2,11 +2,13 @@ import {
   getClauseTemplate,
   listRequiredStandardClauses,
 } from "./clause-catalog";
+import { adjustmentPlaceholders } from "./adjustment";
 import { applyPartyPlaceholders, type PartyGrammar } from "./party-language";
 import { renderStartText, renderTermText } from "./term";
 import type {
   CanonicalContractObject,
   ClauseOrigin,
+  ContractAdjustment,
   ContractClauseTemplate,
   ContractPayment,
   ContractScope,
@@ -34,6 +36,8 @@ export function resolveContractClauses(params: {
   contractObject?: CanonicalContractObject;
   /** Biblioteca carregada do banco (admin de cláusulas); cai no catálogo fixo quando ausente. */
   clauseLibrary?: Map<string, ContractClauseTemplate>;
+  /** Reajuste escolhido na etapa de contrato; sem ele (ou "Sem reajuste") não há cláusula. */
+  adjustment?: ContractAdjustment | null;
 }): { clauses: ResolvedContractClause[]; sections: NumberedContractSection[] } {
   const selected = new Set(
     params.scopes.filter((s) => !s.missingProfile).map((s) => s.subtypeId),
@@ -49,6 +53,7 @@ export function resolveContractClauses(params: {
     origin: ClauseOrigin,
     sourceLabel: string,
     profileSubtypeId?: string,
+    extraPlaceholders: Record<string, string> = {},
   ) => {
     if (!template) return;
     if (seen.has(template.stableKey)) return;
@@ -62,7 +67,7 @@ export function resolveContractClauses(params: {
         vigenciaTexto: params.vigenciaTexto,
         inicioTexto: params.inicioTexto,
         tributacao: params.tributacao,
-        firm: params.firmPlaceholders,
+        firm: { ...params.firmPlaceholders, ...extraPlaceholders },
       }),
       role: template.role,
       origin,
@@ -160,6 +165,8 @@ export function resolveContractClauses(params: {
   if (params.payment.method === "pix" || params.payment.method === "combinado") {
     push(resolveTemplate("payment_pix"), "standard", "PAGAMENTO");
   }
+  const reajuste = adjustmentPlaceholders(params.adjustment);
+  if (reajuste) push(resolveTemplate("payment_adjustment"), "standard", "REAJUSTE", undefined, reajuste);
 
   for (const required of listRequiredStandardClauses()) {
     if (

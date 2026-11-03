@@ -167,6 +167,7 @@ describe("leitura do negócio do RD", () => {
         { area: "Cível", percentual: "25" },
       ],
       origin: "financeiro",
+      valorTotal: 4000,
     });
   });
 });

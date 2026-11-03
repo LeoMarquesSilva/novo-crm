@@ -1,5 +1,6 @@
 import { CRM_PRACTICE_AREAS, type CrmPracticeArea } from "@/lib/crm/crm-areas";
 import { isValidIsoDateString } from "@/lib/crm/date-br";
+import { formatNumberPtBr2 } from "@/lib/crm/proposta-valor-brl-extenso";
 import {
   indicationTypes,
   leadDigitalPlatforms,
@@ -375,6 +376,8 @@ export function coerceToFieldOption(raw: string, options: string[] | null | unde
 export function rdRateioPorArea(deal: RdDealSnapshot): {
   rows: Array<{ area: string; percentual: string }>;
   origin: "cc" | "financeiro" | null;
+  /** Soma dos valores em R$ por área do [FINANCEIRO] (base do R$ de cada área); 0 sem eles. */
+  valorTotal: number;
 } {
   const percent: Array<{ area: string; percentual: string }> = [];
   const money: Array<{ area: string; valor: number }> = [];
@@ -393,8 +396,8 @@ export function rdRateioPorArea(deal: RdDealSnapshot): {
       if (area && value && value > 0) money.push({ area, valor: value });
     }
   }
-  if (percent.length > 0) return { rows: percent, origin: "cc" };
   const total = money.reduce((acc, r) => acc + r.valor, 0);
+  if (percent.length > 0) return { rows: percent, origin: "cc", valorTotal: total };
   if (money.length > 0 && total > 0) {
     return {
       rows: money.map((r) => ({
@@ -402,9 +405,10 @@ export function rdRateioPorArea(deal: RdDealSnapshot): {
         percentual: String(Math.round((r.valor / total) * 10_000) / 100).replace(".", ","),
       })),
       origin: "financeiro",
+      valorTotal: total,
     };
   }
-  return { rows: [], origin: null };
+  return { rows: [], origin: null, valorTotal: 0 };
 }
 
 /**
@@ -605,6 +609,10 @@ export function buildRdMigrationPrefill(input: RdMigrationPrefillInput): RdMigra
   if (rateio.origin === "cc") sources["onboarding.financeiro.rateioPorArea"] = "RD: RATEIO - PORCENTAGEM % [CC]";
   if (rateio.origin === "financeiro") {
     sources["onboarding.financeiro.rateioPorArea"] = "RD: RATEIO - VALOR R$ [FINANCEIRO], convertido em %";
+  }
+  if (rateio.valorTotal > 0) {
+    ob.financeiro.valorRateio = `R$ ${formatNumberPtBr2(rateio.valorTotal)}`;
+    sources["onboarding.financeiro.valorRateio"] = "RD: soma de RATEIO - VALOR R$ [FINANCEIRO]";
   }
   ob.financeiro.reajuste.indice = mapRdReajusteIndex(take("onboarding.financeiro.reajuste.indice", RD_LABELS.finIndice));
   ob.financeiro.reajuste.periodicidadeMeses = mapRdPeriodicidade(

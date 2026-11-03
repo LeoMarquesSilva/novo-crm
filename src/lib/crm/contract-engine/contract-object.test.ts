@@ -8,6 +8,7 @@ import {
   toRomanListMarker,
 } from "./object-engine";
 import { appendContractEngineEvent } from "./object-events";
+import { horasComExtenso, resolveFieldFromSources } from "./object-fields";
 import { createProposalContractSnapshot } from "./proposal-snapshot";
 import type { ContractObjectBlock } from "./types";
 
@@ -408,6 +409,56 @@ describe("várias áreas", () => {
     expect(joined).toMatch(/dez \(10\)/);
     expect(joined).toMatch(/R\$ 450,00/);
     expect(joined).toMatch(/joint venture/i);
+    expect(joined).not.toMatch(/por extenso/);
+
+    // Só o número: o contrato escreve por extenso; "horas" digitado não repete na frase (03/11/2026).
+    const soNumero = buildCanonicalContract({
+      snapshot: snapshot({
+        "Societário e Contratos": [
+          entry("consultivo_revisao_e_elaboracao_de_contratos", "assessoria_contratual_empresarial"),
+        ],
+      }),
+      fieldByCode: { QTD_HORAS_SOCIETARIO: "8", VALOR_EXCEDENTE_SOCIETARIO: "R$ 400,00" },
+    });
+    expect(soNumero.data.contractObject.numberedLines.map((l) => l.content).join("\n")).toContain(
+      "limitação de até 8 (oito) horas técnicas mensais",
+    );
+    expect(horasComExtenso("8 (oito) horas")).toBe("8 (oito)");
+    expect(horasComExtenso("12")).toBe("12 (doze)");
+  });
+
+  it("herda horas e valor excedente com os nomes que a proposta grava (teste E2E 03/11/2026)", () => {
+    const result = buildCanonicalContract({
+      snapshot: snapshot({
+        Trabalhista: [entry("consultivo", "assessoria_juridica_trabalhista", { HORAS_MES: "10", "Valor da Hora Adicional": "R$ 350,00" })],
+        "Societário e Contratos": [
+          entry("consultivo_revisao_e_elaboracao_de_contratos", "assessoria_contratual_empresarial", {
+            LIMITE_HORAS: "8",
+            VALORHORAEXCEDENTE: "R$ 400,00",
+          }),
+        ],
+      }),
+    });
+    const object = result.data.contractObject;
+    expect(object.missingRequiredFields).toHaveLength(0);
+    expect(object.fieldValues.filter((f) => f.source === "proposal").map((f) => f.key).sort()).toEqual([
+      "qtd_horas_societario",
+      "valor_excedente_societario",
+    ]);
+    const joined = object.numberedLines.map((l) => l.content).join("\n");
+    expect(joined).toContain("limitação de até 8 (oito) horas técnicas mensais");
+    expect(joined).toContain("R$ 400,00 por hora");
+
+    // Trabalhista: os campos só entram no texto do Full Service, mas já vêm da proposta.
+    const trab = result.data.scopes.find((s) => s.subtypeId === "consultivo");
+    const horas = resolveFieldFromSources({ field: { key: "qtd_horas_trabalhista", label: "", type: "text", required: false, sourceHints: [] }, scope: trab });
+    const valor = resolveFieldFromSources({ field: { key: "valor_excedente_trabalhista_consultivo", label: "", type: "currency", required: false, sourceHints: [] }, scope: trab });
+    expect([horas.value, horas.source, valor.value]).toEqual(["10", "proposal", "R$ 350,00"]);
+    const contencioso = resolveFieldFromSources({
+      field: { key: "qtd_acoes", label: "", type: "text", required: false, sourceHints: [] },
+      scope: { ...trab!, placeholders: { "QTD DE PROCESSOS": "30", "Vlr adcional de processo": "R$ 500,00" } },
+    });
+    expect(contencioso.value).toBe("30");
   });
 });
 

@@ -71,6 +71,15 @@ export type ContractStartRule = {
   date?: string;
 };
 
+export type ContractAdjustmentIndex = "IPCA" | "IGP-M" | "INPC" | "Sem reajuste";
+
+/** Reajuste dos honorários escolhido na etapa de contrato (vai para a cláusula e para o faturamento). */
+export type ContractAdjustment = {
+  index: ContractAdjustmentIndex;
+  /** Meses entre reajustes; null em "Sem reajuste". */
+  periodMonths: number | null;
+};
+
 export type ClauseRole =
   | "object"
   | "scope"
@@ -359,6 +368,8 @@ export type CanonicalContractData = {
   payment: ContractPayment;
   term: ContractTermRule;
   startRule: ContractStartRule;
+  /** Ausente nos contratos montados antes de 03/11/2026. */
+  adjustment?: ContractAdjustment | null;
   clauses: ResolvedContractClause[];
   sections: NumberedContractSection[];
   signers: FirmRepresentative[];

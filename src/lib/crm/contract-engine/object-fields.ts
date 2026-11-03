@@ -1,9 +1,20 @@
+import { extensoInteiroPtBr } from "@/lib/crm/proposta-valor-brl-extenso";
+
 import type {
   ContractObjectFieldSource,
   ContractObjectFieldValue,
   ContractRequiredField,
   ContractScope,
 } from "./types";
+
+/**
+ * Carga horária no texto do contrato: "8" vira "8 (oito)"; texto já escrito fica como está,
+ * sem o "horas" final, que a frase do contrato já traz.
+ */
+export function horasComExtenso(raw: string): string {
+  const value = raw.trim().replace(/\s*horas?\.?$/i, "").trim();
+  return /^\d+$/.test(value) ? `${Number(value)} (${extensoInteiroPtBr(Number(value))})` : value;
+}
 
 const FIELD_ALIASES: Record<string, string[]> = {
   numero_processo: [
@@ -48,7 +59,10 @@ const FIELD_ALIASES: Record<string, string[]> = {
   numero_processo_rj: ["numero_processo_rj", "NUMERO_PROCESSO_RJ", "NÚMERO DO PROCESSO"],
   vara_rj: ["vara_rj", "VARA_RJ", "VARA/COMARCA/UF"],
   valor_causa: ["valor_causa", "VALOR_CAUSA", "VALOR DA CAUSA", "cc_valor_causa"],
-  qtd_acoes: ["qtd_acoes", "QTD_ACOES", "QUANTIDADE_ACOES", "cc_qtd_acoes"],
+  // Os nomes "da proposta" abaixo (QTD DE PROCESSOS, HORAS_MES, LIMITE_HORAS…) são as chaves que o
+  // escopo da proposta grava para o subtipo; sem eles o contrato pedia de novo o que a proposta já
+  // tinha (teste E2E de 03/11/2026).
+  qtd_acoes: ["qtd_acoes", "QTD_ACOES", "QUANTIDADE_ACOES", "cc_qtd_acoes", "QTD DE PROCESSOS"],
   // Cada contexto de "N horas mensais" tem chave própria (não um "qtd_horas"
   // genérico compartilhado): full service Trabalhista e Consultivo Societário
   // podem coexistir no mesmo contrato, e um mapa de placeholders só tem um slot
@@ -59,26 +73,31 @@ const FIELD_ALIASES: Record<string, string[]> = {
     "qtd_horas",
     "QTD_HORAS",
     "cc_qtd_horas_trabalhista",
+    "HORAS_MES",
   ],
   qtd_horas_societario: [
     "qtd_horas_societario",
     "QTD_HORAS_SOCIETARIO",
     "cc_qtd_horas_societario",
+    "LIMITE_HORAS",
   ],
   valor_excedente_trabalhista_contencioso: [
     "valor_excedente_trabalhista_contencioso",
     "VALOR_EXCEDENTE_TRABALHISTA_CONTENCIOSO",
     "cc_valor_excedente_trabalhista_contencioso",
+    "Vlr adcional de processo",
   ],
   valor_excedente_trabalhista_consultivo: [
     "valor_excedente_trabalhista_consultivo",
     "VALOR_EXCEDENTE_TRABALHISTA_CONSULTIVO",
     "cc_valor_excedente_trabalhista_consultivo",
+    "Valor da Hora Adicional",
   ],
   valor_excedente_societario: [
     "valor_excedente_societario",
     "VALOR_EXCEDENTE_SOCIETARIO",
     "cc_valor_excedente_societario",
+    "VALORHORAEXCEDENTE",
   ],
 };
 
@@ -203,6 +222,10 @@ export function fieldValuesToPlaceholderMap(
 
   const pontosParecerRj = map.pontos_parecer_rj || map.PONTOS_PARECER_RJ || "";
   map.PONTOS_PARECER_RJ_CLAUSE = pontosParecerRj ? `, especialmente quanto ${pontosParecerRj}` : "";
+
+  // O modelo do Consultivo Societário escrevia "(por extenso)" literal depois do número (03/11/2026).
+  const qtdHorasSocietario = map.qtd_horas_societario || map.QTD_HORAS_SOCIETARIO || "";
+  if (qtdHorasSocietario) map.QTD_HORAS_SOCIETARIO = horasComExtenso(qtdHorasSocietario);
 
   const qtdHorasTrabalhista = map.qtd_horas_trabalhista || map.QTD_HORAS_TRABALHISTA || "";
   const valorExcedenteConsultivoTrab =

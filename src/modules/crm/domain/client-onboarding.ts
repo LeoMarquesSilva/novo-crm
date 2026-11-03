@@ -101,6 +101,8 @@ export const clientOnboardingPayloadSchema = z.object({
         .array(z.object({ area: text(120), percentual: text(10) }))
         .max(20)
         .default([]),
+      /** Valor dos honorários a ratear ("R$ 10.000,00"), para mostrar o R$ de cada área; vazio = só %. */
+      valorRateio: text(30),
       reajuste: z
         .object({ indice: text(40), periodicidadeMeses: text(4) })
         .default({ indice: "", periodicidadeMeses: "" }),
@@ -115,6 +117,7 @@ export const clientOnboardingPayloadSchema = z.object({
       contatoFinanceiro: { nome: "", posicao: "", email: "", telefone: "" },
       repassePercentual: "",
       rateioPorArea: [],
+      valorRateio: "",
       reajuste: { indice: "", periodicidadeMeses: "" },
       observacoes: "",
     }),
@@ -245,8 +248,37 @@ export function listMissingCadastroFields(payload: ClientOnboardingPayload): str
   return missing;
 }
 
-/** Rótulos dos campos obrigatórios que faltam para enviar os dados do faturamento ao Financeiro. */
-export function listMissingFaturamentoFields(payload: ClientOnboardingPayload): string[] {
+/** Percentual digitado no rateio ("33,5") como número; vazio ou inválido = 0. */
+export function rateioPercent(raw: string): number {
+  const n = Number(raw.replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Soma dos percentuais do rateio, arredondada em centésimos. */
+export function rateioTotal(rows: { percentual: string }[]): number {
+  return Math.round(rows.reduce((acc, r) => acc + rateioPercent(r.percentual), 0) * 100) / 100;
+}
+
+export function rateioFecha100(rows: { percentual: string }[]): boolean {
+  return Math.abs(rateioTotal(rows) - 100) <= 0.01;
+}
+
+/** Quem indicou o lead (`lead_intakes.tipo_indicacao` / `nome_indicacao`). */
+export type LeadIndicacao = { tipo: string | null; nome: string | null };
+
+/** Lead que veio de indicação (`lead_intakes.tipo_lead`): só ele tem repasse acordado. */
+export function isLeadIndicacao(tipoLead: string | null | undefined): boolean {
+  return (tipoLead ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase().startsWith("indica");
+}
+
+/**
+ * Rótulos dos campos obrigatórios que faltam para enviar os dados do faturamento ao Financeiro.
+ * `indicacao`: o repasse acordado é pedido só em lead de indicação (29/10/2026).
+ */
+export function listMissingFaturamentoFields(
+  payload: ClientOnboardingPayload,
+  opts: { indicacao?: boolean } = {},
+): string[] {
   const missing: string[] = [];
   const { financeiro } = payload;
 
@@ -263,12 +295,20 @@ export function listMissingFaturamentoFields(payload: ClientOnboardingPayload): 
   if (!EMAIL.test(financeiro.contatoFinanceiro.email)) missing.push("E-mail do contato financeiro");
   if (!financeiro.reajuste.indice) missing.push("Índice de reajuste");
 
-  const rateio = financeiro.rateioPorArea.filter((r) => r.area);
-  if (rateio.length > 0) {
-    const total = rateio.reduce((acc, r) => acc + (Number(r.percentual.replace(",", ".")) || 0), 0);
-    if (Math.abs(total - 100) > 0.01) missing.push("Rateio por área somando 100%");
+  // Rateio obrigatório (29/10/2026): ao menos uma área, cada linha com área e %, sem repetir área, 100% no total.
+  const rateio = financeiro.rateioPorArea.filter((r) => r.area || r.percentual);
+  if (rateio.length === 0) {
+    missing.push("Rateio por área");
+  } else {
+    if (rateio.some((r) => !r.area || !(rateioPercent(r.percentual) > 0))) missing.push("Área e percentual de cada linha do rateio");
+    if (new Set(rateio.map((r) => r.area).filter(Boolean)).size < rateio.filter((r) => r.area).length) {
+      missing.push("Rateio sem área repetida");
+    }
+    if (!rateioFecha100(rateio)) missing.push("Rateio por área somando 100%");
   }
-  if (financeiro.repassePercentual) {
+  if (opts.indicacao && !financeiro.repassePercentual) {
+    missing.push("Repasse acordado com a indicação (%)");
+  } else if (financeiro.repassePercentual) {
     const repasse = Number(financeiro.repassePercentual.replace(",", "."));
     if (!Number.isFinite(repasse) || repasse < 0 || repasse > 100) missing.push("Repasse (0 a 100%)");
   }
@@ -277,6 +317,9 @@ export function listMissingFaturamentoFields(payload: ClientOnboardingPayload): 
 }
 
 /** Cadastro e faturamento completos (lead que chega em Inclusão no Faturamento). */
-export function listMissingOnboardingFields(payload: ClientOnboardingPayload): string[] {
-  return [...listMissingCadastroFields(payload), ...listMissingFaturamentoFields(payload)];
+export function listMissingOnboardingFields(
+  payload: ClientOnboardingPayload,
+  opts: { indicacao?: boolean } = {},
+): string[] {
+  return [...listMissingCadastroFields(payload), ...listMissingFaturamentoFields(payload, opts)];
 }
