@@ -129,6 +129,23 @@ export function buildLeadExtraction(input: {
 export type InclusionDivergence = { field: string; leadValue: string; pdfValue: string };
 
 const SUCCESS_KINDS = new Set<ExtractionComponent["kind"]>(["exito_percentual", "exito_valor_fixo"]);
+/** Despesa (km rodado) e reembolso não são honorário: ficam fora do total comparado. */
+const EXPENSE_KINDS = new Set<ExtractionComponent["kind"]>(["despesa_km", "reembolso"]);
+const PAYMENT_TERMS = /venc|pagament|fatur|parcela|boleto|nota fiscal|cobran/i;
+
+function feeTotalCents(components: ExtractionComponent[]): number | null {
+  const fees = components.filter((component) => !EXPENSE_KINDS.has(component.kind));
+  return fees.length ? fees.reduce((acc, component) => acc + (component.amountCents ?? 0), 0) : null;
+}
+
+/**
+ * O PDF só traz primeiro faturamento quando a IA citou trecho de pagamento/vencimento.
+ * Sem isso a data é palpite (o contrato gerado no CRM não traz vencimento e a IA usa a
+ * assinatura/início), e não vale como divergência.
+ */
+function pdfStatesFirstInvoice(pdf: ContractImportExtraction): boolean {
+  return pdf.evidence.some((item) => item.field === "firstInvoiceAt" && PAYMENT_TERMS.test(item.quote));
+}
 
 function hasValue(component: ExtractionComponent): boolean {
   return component.kind === "exito_percentual"
@@ -213,16 +230,16 @@ export function mergeLeadAndPdfExtraction(
     if (a && b && a.trim() !== b.trim()) divergences.push({ field, leadValue: a, pdfValue: b });
   };
   compare("startsAt", lead.startsAt, pdf.startsAt);
-  compare("firstInvoiceAt", lead.firstInvoiceAt, pdf.firstInvoiceAt);
+  if (pdfStatesFirstInvoice(pdf)) compare("firstInvoiceAt", lead.firstInvoiceAt, pdf.firstInvoiceAt);
   compare(
     "adjustmentIndex",
     normalizeAdjustmentIndex(lead.adjustmentIndex) ?? lead.adjustmentIndex,
     normalizeAdjustmentIndex(pdf.adjustmentIndex) ?? pdf.adjustmentIndex,
   );
 
-  const leadTotal = lead.components.reduce((acc, c) => acc + (c.amountCents ?? 0), 0);
-  const pdfTotal = pdf.components.reduce((acc, c) => acc + (c.amountCents ?? 0), 0);
-  if (lead.components.length > 0 && pdf.components.length > 0 && leadTotal !== pdfTotal) {
+  const leadTotal = feeTotalCents(lead.components);
+  const pdfTotal = feeTotalCents(pdf.components);
+  if (leadTotal !== null && pdfTotal !== null && leadTotal !== pdfTotal) {
     divergences.push({
       field: "components",
       leadValue: `R$ ${(leadTotal / 100).toFixed(2)}`,

@@ -64,6 +64,47 @@ describe("lead × PDF", () => {
     expect(divergences).toEqual([{ field: "startsAt", leadValue: "2026-10-15", pdfValue: "2026-10-01" }]);
   });
 
+  it("despesa por km e reembolso ficam fora do total de honorários comparado", () => {
+    const prefill = {
+      ...emptyPrefill,
+      billingComponents: [{ value: { kind: "mensal_fixo", description: "Mensalidade", amountCents: 500000 } }],
+    } as never;
+    const lead = buildLeadExtraction({ onboarding: onboarding(), prefill });
+    const { extraction, divergences } = mergeLeadAndPdfExtraction(
+      lead,
+      pdf({
+        startsAt: "2026-10-15",
+        components: [
+          { kind: "mensal_fixo", description: "Mensalidade", amountCents: 500000 },
+          { kind: "despesa_km", description: "R$ 2,00 por quilômetro rodado", amountCents: 200 },
+          { kind: "reembolso", description: "Custas", amountCents: 1500 },
+        ],
+      }),
+    );
+    expect(divergences).toEqual([]);
+    expect(extraction.components.map((c) => c.kind)).toEqual(["mensal_fixo", "despesa_km", "reembolso"]);
+  });
+
+  it("primeiro faturamento do PDF só diverge quando o contrato traz o vencimento", () => {
+    const lead = buildLeadExtraction({ onboarding: onboarding(), prefill: emptyPrefill });
+    const guessed = pdf({
+      startsAt: "2026-10-15",
+      firstInvoiceAt: "2026-10-15",
+      evidence: [{ field: "firstInvoiceAt", quote: "A prestação dos serviços se iniciará na ocasião da assinatura do Contrato." }],
+    });
+    expect(mergeLeadAndPdfExtraction(lead, guessed).divergences).toEqual([]);
+    expect(mergeLeadAndPdfExtraction(lead, guessed).extraction.firstInvoiceAt).toBe("2026-11-10");
+
+    const stated = pdf({
+      startsAt: "2026-10-15",
+      firstInvoiceAt: "2026-10-20",
+      evidence: [{ field: "firstInvoiceAt", quote: "O primeiro vencimento ocorrerá em 20/10/2026." }],
+    });
+    expect(mergeLeadAndPdfExtraction(lead, stated).divergences).toEqual([
+      { field: "firstInvoiceAt", leadValue: "2026-11-10", pdfValue: "2026-10-20" },
+    ]);
+  });
+
   it("sem PDF lido, usa só o lead", () => {
     const lead = buildLeadExtraction({ onboarding: onboarding(), prefill: emptyPrefill });
     expect(mergeLeadAndPdfExtraction(lead, null).extraction).toBe(lead);
