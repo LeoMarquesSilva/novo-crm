@@ -97,7 +97,7 @@ interface SystemUserOption {
   id: string;
   name: string;
   email: string;
-  avatarUrl: string;
+  avatarUrl: string | null;
 }
 
 interface ClientOption {
@@ -250,7 +250,7 @@ function CurrentUserSummary({
       ) : user ? (
         <div className="flex items-center gap-3 rounded-(--radius-v2-md) border border-border bg-surface-subtle px-3 py-2.5">
           <Avatar className="h-9 w-9 border border-border">
-            <AvatarImage src={user.avatarUrl} alt="" />
+            <AvatarImage src={user.avatarUrl ?? undefined} alt="" />
             <AvatarFallback>{initialsFromName(user.name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
@@ -369,6 +369,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [tipoIndicacao, setTipoIndicacao] = useState("");
   const [plataforma, setPlataforma] = useState("");
   const [areasCrossSelling, setAreasCrossSelling] = useState<string[]>([]);
+  // Áreas de análise (passo 4) seguem as do cross selling até a pessoa mexer nelas (04/11/2026).
+  const [areasAnaliseEditadas, setAreasAnaliseEditadas] = useState(false);
+  // Documento que o cliente do cross selling pôs na empresa 1: sai junto se a origem mudar (04/11/2026).
+  const [docDoCrossSelling, setDocDoCrossSelling] = useState<string | null>(null);
   const [decisor, setDecisor] = useState("");
   const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<"existing" | "new" | "colaborador">(
     "existing",
@@ -677,9 +681,16 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   }, [empresas[0]?.documento, isCrossSelling]);
 
   function toggleArea(area: string) {
+    setAreasAnaliseEditadas(true);
     setAreasAnalise((prev) =>
       prev.includes(area) ? prev.filter((item) => item !== area) : [...prev, area],
     );
+  }
+
+  /** Cross selling: as áreas marcadas já vêm no passo 4, enquanto ninguém editou as de análise. */
+  function changeAreasCrossSelling(next: string[]) {
+    setAreasCrossSelling(next);
+    if (!areasAnaliseEditadas) setAreasAnalise(next);
   }
 
   function updateCompany(
@@ -715,6 +726,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setHorarioDue("");
     setEmpresas([{ ...EMPTY_COMPANY }]);
     setAreasAnalise([]);
+    setAreasAnaliseEditadas(false);
+    setDocDoCrossSelling(null);
     setAditivoClientId("");
     setLocalReuniao("");
     setDataReuniao("");
@@ -762,15 +775,28 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     return { cliente_id: null, relacao_contrato: null, contrato_base_id: null };
   }
 
+  /** Empresa 1 que veio do cliente do cross selling (e não foi mudada à mão) volta a ficar vazia. */
+  function limparEmpresaDoCrossSelling() {
+    if (!docDoCrossSelling) return;
+    setEmpresas((prev) =>
+      prev[0]?.documento === docDoCrossSelling ? [{ ...EMPTY_COMPANY }, ...prev.slice(1)] : prev,
+    );
+    setDocDoCrossSelling(null);
+  }
+
   function handleAditivoClientChange(clientId: string | null) {
     const id = clientId ?? "";
     setAditivoClientId(id);
-    if (!id) return;
+    if (!id) {
+      limparEmpresaDoCrossSelling();
+      return;
+    }
     const client = clients.find((item) => item.id === id);
     if (!client) return;
 
     const inferredType: "CPF" | "CNPJ" =
       client.documento.replace(/\D/g, "").length <= 11 ? "CPF" : "CNPJ";
+    setDocDoCrossSelling(maskDocument(client.documento, inferredType));
 
     setEmpresas((prev) => {
       const first = prev[0] ?? { ...EMPTY_COMPANY };
@@ -1269,7 +1295,12 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       // Outra origem abre outros campos: não herdar os erros da tentativa anterior.
                       setValidatedStep(null);
                       if (item !== "Lead Digital") setPlataforma("");
-                      if (item !== "Cross Selling") setAreasCrossSelling([]);
+                      if (item !== "Cross Selling") {
+                        // Saindo do cross selling: cliente, empresa que veio dele e áreas não ficam para trás.
+                        changeAreasCrossSelling([]);
+                        setAditivoClientId("");
+                        limparEmpresaDoCrossSelling();
+                      }
                     }}
                     icon={LEAD_TYPE_ICONS[item]}
                     title={leadTypeLabel(item)}
@@ -1510,8 +1541,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                             key={area}
                             checked={areasCrossSelling.includes(area)}
                             onToggle={() =>
-                              setAreasCrossSelling((prev) =>
-                                prev.includes(area) ? prev.filter((item) => item !== area) : [...prev, area],
+                              changeAreasCrossSelling(
+                                areasCrossSelling.includes(area)
+                                  ? areasCrossSelling.filter((item) => item !== area)
+                                  : [...areasCrossSelling, area],
                               )
                             }
                             icon={AREA_ICONS[area] ?? Scale}
@@ -1796,6 +1829,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                     : areasAnalise.length === 1
                       ? "1 área selecionada."
                       : `${areasAnalise.length} áreas selecionadas.`}
+                  {isCrossSelling && !areasAnaliseEditadas && areasAnalise.length > 0
+                    ? " Já marcadas com as áreas do cross selling; ajuste se a análise envolver outras."
+                    : ""}
                 </p>
               )}
             </SectionCard>

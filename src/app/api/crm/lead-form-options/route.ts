@@ -66,12 +66,8 @@ export async function GET() {
           id: user.id,
           name: user.full_name,
           email,
-          avatarUrl:
-            officialAvatarById.get(user.id) ||
-            user.avatar_url ||
-            `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(
-              user.full_name,
-            )}`,
+          // Sem foto: a tela mostra as iniciais (04/11/2026; antes, avatar de desenho do DiceBear).
+          avatarUrl: officialAvatarById.get(user.id) || user.avatar_url || null,
         };
       })
       .filter((user): user is NonNullable<typeof user> => user !== null);
@@ -82,25 +78,21 @@ export async function GET() {
           id: profile.id,
           name: profile.full_name,
           email: auth.user.email?.trim().toLowerCase() ?? "",
-          avatarUrl:
-            profile.avatar_url ||
-            `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(
-              profile.full_name,
-            )}`,
+          avatarUrl: profile.avatar_url || null,
         }
       : null;
 
     // Quadro real de colaboradores (RH do ORQESTRAI) para o seletor de indicação
     // "Colaborador" — inclui gente sem login no CRM, ao contrário de `systemUsers`.
     // Só ativos: não faz sentido indicar por alguém que já saiu do escritório.
-    // Sem foto própria no RH; cai no mesmo placeholder que `systemUsers` usa.
+    // Sem foto própria no RH: a tela mostra as iniciais, como em `systemUsers` sem foto.
     const orqestraiActiveCollaborators = (orqestraiCollaborators ?? [])
       .filter((c) => c.isActive)
       .map((c) => ({
         id: c.id,
         name: c.fullName,
         email: c.email ?? "",
-        avatarUrl: `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(c.fullName)}`,
+        avatarUrl: null,
       }));
 
     return NextResponse.json({

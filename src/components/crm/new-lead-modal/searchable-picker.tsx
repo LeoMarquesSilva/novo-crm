@@ -377,7 +377,7 @@ export type SystemUserOption = {
   id: string;
   name: string;
   email: string;
-  avatarUrl: string;
+  avatarUrl: string | null;
 };
 
 export function UserPickerField({
@@ -413,7 +413,7 @@ export function UserPickerField({
         user ? (
         <span className="inline-flex min-w-0 items-center gap-2.5">
           <Avatar className="h-8 w-8 border border-border">
-            <AvatarImage src={user.avatarUrl} alt="" className="object-cover" />
+            <AvatarImage src={user.avatarUrl ?? undefined} alt="" className="object-cover" />
             <AvatarFallback className="text-[10px] font-bold">
               {initialsFromName(user.name)}
             </AvatarFallback>
@@ -425,7 +425,7 @@ export function UserPickerField({
       renderOption={(user) => (
         <>
           <Avatar className="h-8 w-8 shrink-0 border border-border">
-            <AvatarImage src={user.avatarUrl} alt="" className="object-cover" />
+            <AvatarImage src={user.avatarUrl ?? undefined} alt="" className="object-cover" />
             <AvatarFallback className="text-[10px] font-bold">
               {initialsFromName(user.name)}
             </AvatarFallback>
