@@ -54,7 +54,7 @@ function TextoComNegrito({ texto }: { texto: string }) {
 }
 
 /** Rascunho com só esta área ligada (mantém capa, formato e textos já salvos). */
-function draftSoDaArea(base: DueApresentacaoDraft, areaId: DueAreaId): DueApresentacaoDraft {
+export function draftSoDaArea(base: DueApresentacaoDraft, areaId: DueAreaId): DueApresentacaoDraft {
   const d = draftSchema.parse(JSON.parse(JSON.stringify(base)));
   for (const id of DUE_AREA_IDS) {
     const atual = d.areas[id] ?? { incluir: false, variante: "auto" as const, textos: {} };

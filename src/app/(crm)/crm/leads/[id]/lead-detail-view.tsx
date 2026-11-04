@@ -27,6 +27,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PracticeAreaIconBadge } from "@/lib/crm/area-lucide-icon";
 import { DueAreaPreviaRelatorio, type PreviaDocumento } from "@/components/crm/due-apresentacao/due-area-previa";
+import { DueReestruturacaoNoCartao } from "@/components/crm/due-apresentacao/due-reestruturacao-cartao";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CrmEntityHeader } from "@/components/crm/crm-entity-header";
@@ -193,11 +194,11 @@ export function LeadDetailView({
     return () => window.cancelAnimationFrame(frame);
   }, [visibleTab, lead.id]);
 
-  // Apresentação automática recolhida durante o levantamento (04/11/2026): quem abre a aba nessa etapa é
-  // quase sempre a área, que anexa o relatório no próprio cartão. Abre pelo botão ou pelo atalho da
-  // Reestruturação, e fica aberta nas etapas seguintes.
+  // Apresentação automática só para admin (MKT monta e anexa o PPT, 04/11/2026): as áreas ficam com o
+  // cartão delas (relatório, prévia, textos e, na Reestruturação, os dados da RJ). No levantamento ela
+  // fica recolhida, porque o trabalho do MKT começa na Compilação; abre pelo botão.
   const [apresentacaoAberta, setApresentacaoAberta] = useState(false);
-  const podeVerApresentacao = viewer?.role === "admin" || viewer?.role === "comercial";
+  const podeVerApresentacao = viewer?.role === "admin";
   const apresentacaoRecolhida = lead.etapa === "levantamento_dados" && !apresentacaoAberta;
   const abrirApresentacao = () => {
     setApresentacaoAberta(true);
@@ -307,19 +308,13 @@ export function LeadDetailView({
 
             {lead.haveraDueDiligence ? (
               <TabsContent value="due" className="mt-4 space-y-5">
-                <DueAreaTasksCard
-                  lead={lead}
-                  viewer={viewer}
-                  onUpdated={() => router.refresh()}
-                  onAbrirApresentacao={podeVerApresentacao ? abrirApresentacao : undefined}
-                />
+                <DueAreaTasksCard lead={lead} viewer={viewer} onUpdated={() => router.refresh()} />
                 {podeVerApresentacao ? (
                   apresentacaoRecolhida ? (
                     <DueApresentacaoRecolhida onAbrir={abrirApresentacao} />
                   ) : (
-                    <section id="due-apresentacao" className="scroll-mt-6">
-                      <DueApresentacaoPanel leadId={lead.id} etapa={lead.etapa} onGenerated={() => router.refresh()} />
-                    </section>
+                    // O painel já é a <section id="due-apresentacao">.
+                    <DueApresentacaoPanel leadId={lead.id} etapa={lead.etapa} onGenerated={() => router.refresh()} />
                   )
                 ) : null}
                 <DueCompilacaoSection lead={lead} viewer={viewer} onUpdated={() => router.refresh()} />
@@ -1462,13 +1457,10 @@ function DueAreaTasksCard({
   lead,
   viewer,
   onUpdated,
-  onAbrirApresentacao,
 }: {
   lead: LeadDetailData;
   viewer: LeadDetailViewer | null;
   onUpdated: () => void;
-  /** Abre a Apresentação automática (Reestruturação preenche lá os dados da recuperação judicial). */
-  onAbrirApresentacao?: () => void;
 }) {
   const isMinhaTarefa = (task: LeadDetailData["dueAreaTasks"][number]) =>
     Boolean(viewer?.appUserId) && viewer?.appUserId === task.responsavelAppUserId;
@@ -1737,6 +1729,14 @@ function DueAreaTasksCard({
                             <span className="min-w-0 break-words">Relatório anexado: {relatorios.join(", ")}</span>
                           </p>
                         ) : null}
+                        {!usaPlanilha && areaDue === "reestruturacao" && canUpdate ? (
+                          <DueReestruturacaoNoCartao
+                            leadId={lead.id}
+                            razaoSocial={capaRazao}
+                            cnpj={capaCnpj}
+                            abertoInicial={isMine && !delivered}
+                          />
+                        ) : null}
                         {usaPlanilha && areaDue && relatorios.length ? (
                           <DueAreaPreviaRelatorio
                             leadId={lead.id}
@@ -1779,24 +1779,10 @@ function DueAreaTasksCard({
                                   />
                                 )
                               ) : (
-                                <>
-                                  {onAbrirApresentacao ? (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={isSaving}
-                                      onClick={onAbrirApresentacao}
-                                    >
-                                      <Presentation className="h-3.5 w-3.5" aria-hidden />
-                                      Preencher dados da recuperação judicial
-                                    </Button>
-                                  ) : null}
-                                  <Button type="button" size="sm" disabled={isSaving} onClick={entregar}>
-                                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                                    Marcar levantamento como entregue
-                                  </Button>
-                                </>
+                                <Button type="button" size="sm" disabled={isSaving} onClick={entregar}>
+                                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                                  Marcar levantamento como entregue
+                                </Button>
                               )}
                               <Button
                                 type="button"
@@ -1816,7 +1802,7 @@ function DueAreaTasksCard({
                                 ? relatorios.length
                                   ? "Confira o arquivo e marque como entregue. Dá para anexar mais de um."
                                   : "O relatório já entra na apresentação automática da due."
-                                : "Os dados da recuperação judicial vão direto para a apresentação."}
+                                : "Preencha os dados da recuperação judicial acima e marque como entregue."}
                               {task.status === "pendente" ? (
                                 <>
                                   {" "}
@@ -1893,8 +1879,8 @@ function DueApresentacaoRecolhida({ onAbrir }: { onAbrir: () => void }) {
           <div className="min-w-0">
             <p className="text-lg font-semibold tracking-tight text-foreground">Apresentação automática</p>
             <p className="mt-1 text-sm text-slate-500">
-              Usada por quem monta a apresentação, na Compilação. Os relatórios que as áreas anexam acima já
-              entram aqui.
+              Só para o MKT (admin): na Compilação, revisa capa, formato e textos e gera o PPT da compilação. Os
+              relatórios e os textos que as áreas mandam pelo cartão já entram aqui.
             </p>
           </div>
           <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onAbrir}>
