@@ -79,6 +79,7 @@ import {
   type RelacaoContratoChoice,
 } from "@/components/crm/cliente-documento-match-panel";
 import type { ClienteCadastroRow } from "@/lib/crm/cliente-cadastro-cp-fields";
+import type { CnpjLookupResult } from "@/lib/crm/cnpj-lookup";
 import type { ClienteContratoResumo } from "@/lib/crm/lookup-cliente-by-document";
 
 interface NewDemandFormProps {
@@ -118,6 +119,33 @@ const EMPTY_COMPANY: CompanyFormItem = {
   tipo_documento: "CNPJ",
   documento: "",
 };
+
+type ReceitaCnpjEstado = { status: "loading" } | CnpjLookupResult;
+
+/** Resultado da consulta do CNPJ na Receita, embaixo do campo (04/11/2026). */
+function ReceitaCnpjAviso({ estado }: { estado: ReceitaCnpjEstado | undefined }) {
+  if (!estado) return null;
+  if (estado.status === "loading") {
+    return <p className="text-v2-caption text-muted-foreground">Consultando a Receita…</p>;
+  }
+  if (estado.status === "not_found") {
+    return <p className="text-v2-caption text-warning-text">CNPJ não encontrado na Receita: confira os números.</p>;
+  }
+  if (estado.status === "error") {
+    return (
+      <p className="text-v2-caption text-muted-foreground">
+        Não deu para consultar a Receita agora; preencha a razão social.
+      </p>
+    );
+  }
+  const ativa = !estado.situacao || estado.situacao.toUpperCase() === "ATIVA";
+  const local = [estado.municipio, estado.uf].filter(Boolean).join("/");
+  return ativa ? (
+    <p className="text-v2-caption text-muted-foreground">Receita: ativa{local ? ` · ${local}` : ""}</p>
+  ) : (
+    <p className="text-v2-caption text-warning-text">Situação na Receita: {estado.situacao}</p>
+  );
+}
 
 const DOCUMENTO_TIPO_ITEMS: Record<"CPF" | "CNPJ", string> = {
   CPF: "CPF",
@@ -373,6 +401,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [areasAnaliseEditadas, setAreasAnaliseEditadas] = useState(false);
   // Documento que o cliente do cross selling pôs na empresa 1: sai junto se a origem mudar (04/11/2026).
   const [docDoCrossSelling, setDocDoCrossSelling] = useState<string | null>(null);
+  // Razão social da Receita ao digitar um CNPJ (04/11/2026): uma consulta por CNPJ; só preenche
+  // razão social vazia ou que a própria Receita pôs (nome digitado ou do cliente do CRM fica).
+  const [receitaCnpj, setReceitaCnpj] = useState<Record<string, ReceitaCnpjEstado>>({});
+  const razoesDaReceita = useRef(new Set<string>());
   const [decisor, setDecisor] = useState("");
   const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<"existing" | "new" | "colaborador">(
     "existing",
@@ -679,6 +711,51 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       clearTimeout(timer);
     };
   }, [empresas[0]?.documento, isCrossSelling]);
+
+  const cnpjsDigitados = [
+    ...new Set(
+      empresas
+        .filter((item) => item.tipo_documento === "CNPJ")
+        .map((item) => item.documento.replace(/\D/g, ""))
+        .filter((digits) => digits.length === 14 && isValidCnpj(digits)),
+    ),
+  ].join(",");
+
+  useEffect(() => {
+    const pendentes = cnpjsDigitados ? cnpjsDigitados.split(",").filter((cnpj) => !receitaCnpj[cnpj]) : [];
+    if (pendentes.length === 0) return;
+    const timer = setTimeout(() => {
+      for (const cnpj of pendentes) {
+        setReceitaCnpj((prev) => ({ ...prev, [cnpj]: { status: "loading" } }));
+        fetch(`/api/crm/cnpj/${cnpj}`, { cache: "no-store" })
+          .then(async (res) => {
+            const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: CnpjLookupResult } | null;
+            if (!res.ok || !json?.ok || !json.data) throw new Error(json?.error ?? "Falha ao consultar o CNPJ.");
+            return json.data;
+          })
+          .catch((error: unknown): CnpjLookupResult => ({
+            status: "error",
+            cnpj,
+            message: error instanceof Error ? error.message : "Falha ao consultar o CNPJ.",
+          }))
+          .then((result) => {
+            setReceitaCnpj((prev) => ({ ...prev, [cnpj]: result }));
+            if (result.status !== "found") return;
+            const razao = result.razaoSocial.trim().toUpperCase();
+            razoesDaReceita.current.add(razao);
+            setEmpresas((prev) =>
+              prev.map((item) => {
+                if (item.tipo_documento !== "CNPJ" || item.documento.replace(/\D/g, "") !== cnpj) return item;
+                const atual = item.razao_social.trim();
+                if (atual === razao || (atual && !razoesDaReceita.current.has(atual))) return item;
+                return { ...item, razao_social: razao };
+              }),
+            );
+          });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [cnpjsDigitados, receitaCnpj]);
 
   function toggleArea(area: string) {
     setAreasAnaliseEditadas(true);
@@ -1726,6 +1803,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                             }
                             className={cn(newLeadModalFieldClass, "tabular-nums")}
                           />
+                          {company.tipo_documento === "CNPJ" ? (
+                            <ReceitaCnpjAviso estado={receitaCnpj[company.documento.replace(/\D/g, "")]} />
+                          ) : null}
                         </FormField>
 
                         <FormField
