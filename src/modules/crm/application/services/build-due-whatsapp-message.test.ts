@@ -41,8 +41,7 @@ describe("buildDueWhatsappMessage", () => {
       cnpj_completo: "00.000.000/0001-00",
     });
 
-    expect(message).toContain("EMPRESA A, EMPRESA B");
-    expect(message).toContain("00.000.000/0001-00, 11.111.111/0001-11");
+    expect(message).toContain("- *EMPRESA A* · CNPJ 00.000.000/0001-00\n- *EMPRESA B* · CNPJ 11.111.111/0001-11");
   });
 
   it("renders all sections and interpolated values", () => {
@@ -72,11 +71,13 @@ describe("buildDueWhatsappMessage", () => {
       contexto_comercial: "Contexto",
     });
 
-    expect(message).toContain("*Novo Lead com Due Diligence*");
-    expect(message).toContain("*Solicitante:* Aline Ferreira");
-    expect(message).toContain("*Tipo de Lead:* Indicação");
+    expect(message).toContain("*NOVO LEAD · DUE DILIGENCE*");
+    expect(message).toContain(
+      "*Captador*\nAline Ferreira\naline.ferreira@bismarchipires.com.br · cadastrado por bruno.martins@bismarchipires.com.br",
+    );
+    expect(message).toContain("- *Tipo:* Indicação");
     expect(message).not.toContain("Indicacao");
-    expect(message).toContain("- *Áreas de Análise:* Cível, Tributário");
+    expect(message).toContain("- *Áreas de análise:* Cível, Tributário");
     expect(message).toContain("20/05/2026");
     expect(message).toContain("22/05/2026");
   });
@@ -108,9 +109,9 @@ describe("buildDueWhatsappMessage", () => {
       contexto_comercial: null,
     });
 
-    expect(message).toContain("*Tipo de Lead:* Lead Ativa");
+    expect(message).toContain("- *Tipo:* Lead Ativa");
     expect(message).not.toContain("*Indicação:*");
-    expect(message).not.toContain("*Nome da Indicação:*");
+    expect(message).not.toContain("*Nome da indicação:*");
   });
 
   it("renders a specific origin line for cross-selling leads", () => {
@@ -140,10 +141,10 @@ describe("buildDueWhatsappMessage", () => {
       contexto_comercial: "Cliente já atendido pelo Tributário",
     });
 
-    expect(message).toContain("*Tipo de Lead:* Cross Selling");
-    expect(message).toContain("*Origem do Cross-selling:* Cliente já atendido pelo Tributário");
+    expect(message).toContain("- *Tipo:* Cross Selling");
+    expect(message).toContain("- *Origem do cross-selling:* Cliente já atendido pelo Tributário");
     expect(message).not.toContain("*Indicação:*");
-    expect(message).not.toContain("*Nome da Indicação:*");
+    expect(message).not.toContain("*Nome da indicação:*");
   });
 
   it("mostra valores legíveis: plataforma, área do cross-selling, horário sem segundos e Não com acento", () => {
@@ -171,9 +172,9 @@ describe("buildDueWhatsappMessage", () => {
       tipo_de_lead: "Lead Digital",
       plataforma: "Instagram",
     });
-    expect(digital).toContain("*Plataforma:* Instagram");
-    expect(digital).toContain("*Due Diligence:* Não");
-    expect(digital).toContain("- *Horário:* 12:00\n");
+    expect(digital).toContain("- *Plataforma:* Instagram");
+    expect(digital).toContain("*Due diligence:* Não");
+    expect(digital).toContain("- *Quando:* 14/05/2026 às 12:00\n");
 
     const cross = buildDueWhatsappMessage({
       ...base,
@@ -181,13 +182,16 @@ describe("buildDueWhatsappMessage", () => {
       tipo_de_lead: "Cross Selling",
       area_cross_selling: "Tributário",
     });
-    expect(cross).toContain("- *Prazo de Entrega:* 13/05/2026 às 18:00\n");
-    expect(cross).toContain("*Área do Cross-selling:* Tributário");
-    expect(cross).toContain("*Origem do Cross-selling:* Cliente da base / relacionamento existente");
+    expect(cross).toContain("- *Prazo de entrega:* 13/05/2026 às 18:00\n");
+    expect(cross).toContain("- *Área do cross-selling:* Tributário");
+    expect(cross).toContain("- *Origem do cross-selling:* Cliente da base / relacionamento existente");
   });
 });
 
-const RODAPE = "_Esta mensagem foi gerada automaticamente pelo sistema de Gestão de Leads do Bismarchi | Pires._";
+const RODAPE = "_Mensagem automática do CRM · Bismarchi | Pires_";
+/** 04/11/2026 14:30 em Brasília. */
+const AGORA = new Date("2026-11-04T17:30:00Z");
+const LINK = "https://crm.exemplo.com.br/crm/leads/abc";
 
 function lead(overrides: Partial<BuildDueWhatsappMessageInput> = {}): BuildDueWhatsappMessageInput {
   return {
@@ -216,33 +220,54 @@ describe("aviso de lead novo no grupo da DUE", () => {
     expect(newLeadWhatsappTemplateKey({ due_diligence: "Nao" })).toBe("novo_lead");
   });
 
-  it("lead com DUE: texto de sempre (novo_lead_due)", () => {
-    expect(buildDueWhatsappMessage(lead())).toBe(
+  it("lead com DUE: modelo novo_lead_due com a formatação do WhatsApp", () => {
+    const text = buildDueWhatsappMessage(
+      lead({
+        empresas: [
+          { tipo_documento: "CNPJ", razao_social: "ACME", documento: "00.000.000/0001-00" },
+          { tipo_documento: "CPF", razao_social: "JOÃO DA SILVA", documento: "123.456.789-09" },
+        ],
+      }),
+      { now: AGORA, link: LINK, avisos: "*Atenção:* nenhum usuário cadastrado na área Cível." },
+    );
+    expect(text).toBe(
       [
-        "*Novo Lead com Due Diligence*",
-        "*Solicitante:* Ana",
-        "*Cadastrado por:* ana@x.com",
-        "*E-mail:* ana@x.com",
+        "*NOVO LEAD · DUE DILIGENCE*",
+        "_Cadastrado em 04/11/2026 às 14:30_",
         "",
-        "*Empresa/Pessoa:* ACME",
-        "*CNPJ/CPF:* 00.000.000/0001-00",
+        "*Empresas e pessoas*",
+        "- *ACME* · CNPJ 00.000.000/0001-00",
+        "- *JOÃO DA SILVA* · CPF 123.456.789-09",
         "",
-        "*Tipo de Lead:* Lead Ativa",
+        "*Due diligence*",
+        "- *Prazo de entrega:* 26/10/2026 às 18:00",
+        "- *Áreas de análise:* Cível",
         "",
-        "*Detalhes da Due Diligence:*",
-        "- *Prazo de Entrega:* 26/10/2026 às 18:00",
-        "- *Áreas de Análise:* Cível",
+        "*Origem do lead*",
+        "- *Tipo:* Lead Ativa",
         "",
-        "*Detalhes da Reunião:*",
+        "*Reunião*",
+        "- *Quando:* 27/10/2026 às 12:00",
         "- *Local:* A definir",
-        "- *Data:* 27/10/2026",
-        "- *Horário:* 12:00",
         "",
-        "*Due Diligence:* Sim",
+        "*Captador*",
+        "Ana",
+        "ana@x.com",
+        "",
+        "> *Atenção:* nenhum usuário cadastrado na área Cível.",
+        "",
+        `*Abrir no CRM:* ${LINK}`,
         "",
         RODAPE,
       ].join("\n"),
     );
+  });
+
+  it("sem link público nem avisos, as linhas somem", () => {
+    const text = buildDueWhatsappMessage(lead(), { now: AGORA, link: "/crm/leads/abc" });
+    expect(text).not.toContain("Abrir no CRM");
+    expect(text).not.toContain(">");
+    expect(text).toContain("ana@x.com\n\n" + RODAPE);
   });
 
   it("lead sem DUE: modelo novo_lead, sem título de DUE nem bloco de prazo", () => {
@@ -254,35 +279,41 @@ describe("aviso de lead novo no grupo da DUE", () => {
         data_reuniao: null,
         horario_reuniao: null,
         areas_analise: ["Cível", "Tributário"],
+        cadastrado_por: "bruno@x.com",
       }),
+      { now: AGORA, link: LINK },
     );
     expect(text).toBe(
       [
-        "*Novo Lead*",
-        "*Solicitante:* Ana",
-        "*Cadastrado por:* ana@x.com",
-        "*E-mail:* ana@x.com",
+        "*NOVO LEAD*",
+        "_Cadastrado em 04/11/2026 às 14:30_",
         "",
-        "*Empresa/Pessoa:* ACME",
-        "*CNPJ/CPF:* 00.000.000/0001-00",
+        "*Empresas e pessoas*",
+        "- *ACME* · CNPJ 00.000.000/0001-00",
         "",
-        "*Tipo de Lead:* Lead Ativa",
+        "*Áreas de análise*",
+        "Cível, Tributário",
         "",
-        "*Áreas de Análise:* Cível, Tributário",
+        "*Origem do lead*",
+        "- *Tipo:* Lead Ativa",
         "",
-        "*Detalhes da Reunião:*",
+        "*Reunião*",
+        "- *Quando:* A definir",
         "- *Local:* A definir",
-        "- *Data:* Não informado",
-        "- *Horário:* Não informado",
         "",
-        "*Due Diligence:* Não",
+        "*Captador*",
+        "Ana",
+        "ana@x.com · cadastrado por bruno@x.com",
+        "",
+        "*Due diligence:* Não",
+        "",
+        `*Abrir no CRM:* ${LINK}`,
         "",
         RODAPE,
       ].join("\n"),
     );
-    expect(text).not.toContain("Novo Lead com Due Diligence");
-    expect(text).not.toContain("Detalhes da Due Diligence");
-    expect(text).not.toContain("Prazo de Entrega");
+    expect(text).not.toContain("DUE DILIGENCE");
+    expect(text).not.toContain("Prazo de entrega");
   });
 
   it("lead sem DUE ignora avisos de área sem responsável", () => {
@@ -295,20 +326,20 @@ describe("aviso de lead novo no grupo da DUE", () => {
     const cross = { due_diligence: "Nao" as const, tipo_de_lead: "Cross Selling" as const };
 
     const lista = buildDueWhatsappMessage(lead({ ...cross, area_cross_selling: ["Tributário", "Trabalhista"] }));
-    expect(lista).toContain("*Áreas do Cross-selling:* Tributário, Trabalhista\n");
-    expect(lista).not.toContain("*Área do Cross-selling:*");
+    expect(lista).toContain("- *Áreas do cross-selling:* Tributário, Trabalhista\n");
+    expect(lista).not.toContain("*Área do cross-selling:*");
 
     const separadas = buildDueWhatsappMessage(
       lead({ ...cross, area_cross_selling: "Tributário", areas_cross_selling: ["Tributário", " Cível ", ""] }),
     );
-    expect(separadas).toContain("*Áreas do Cross-selling:* Tributário, Cível\n");
+    expect(separadas).toContain("- *Áreas do cross-selling:* Tributário, Cível\n");
 
     const uma = buildDueWhatsappMessage(lead({ ...cross, area_cross_selling: null, areas_cross_selling: ["Cível"] }));
-    expect(uma).toContain("*Área do Cross-selling:* Cível\n");
+    expect(uma).toContain("- *Área do cross-selling:* Cível\n");
 
     const nenhuma = buildDueWhatsappMessage(lead({ ...cross, area_cross_selling: [], areas_cross_selling: null }));
-    expect(nenhuma).not.toMatch(/Áreas? do Cross-selling/);
-    expect(nenhuma).toContain("*Origem do Cross-selling:*");
+    expect(nenhuma).not.toMatch(/Áreas? do cross-selling/);
+    expect(nenhuma).toContain("- *Origem do cross-selling:*");
   });
 
   it("crossSellingAreas junta os dois formatos sem repetir", () => {

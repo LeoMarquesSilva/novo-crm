@@ -18,7 +18,10 @@ import {
 } from "@/modules/crm/application/services/new-lead-payload";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
-import { sendLeadNotificationEmail } from "@/modules/crm/application/services/send-lead-notification-email";
+import {
+  buildLeadDetailUrl,
+  sendLeadNotificationEmail,
+} from "@/modules/crm/application/services/send-lead-notification-email";
 import { syncDueAreaTasksForOpportunity } from "@/lib/crm/due-area-tasks";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { requestIndicatorApprovalIfNew } from "@/lib/crm/ensure-pending-indicator";
@@ -109,7 +112,7 @@ async function notifyNewLeadWhatsapp(
     const message = await buildWhatsappMessage(
       supabase,
       newLeadWhatsappTemplateKey(input),
-      buildDueWhatsappValues(input, avisos),
+      buildDueWhatsappValues(input, avisos, { link: buildLeadDetailUrl(oportunidadeId) }),
     );
 
     if (message) {

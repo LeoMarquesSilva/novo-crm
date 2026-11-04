@@ -194,7 +194,7 @@ describe("levantamento concluído e escopo", () => {
 });
 
 describe("novo lead com DUE", () => {
-  it("o texto padrão continua igual ao de antes (sem a linha de avisos vazia)", () => {
+  it("sem avisos, a citação some e o captador vem logo antes do rodapé", () => {
     const text = buildDueWhatsappMessage({
       solicitante: "Ana",
       cadastrado_por: "ana@x.com",
@@ -212,8 +212,9 @@ describe("novo lead com DUE", () => {
       razao_social_completa: "ACME",
       cnpj_completo: "00.000.000/0001-00",
     } as never);
-    expect(text).toContain("*Due Diligence:* Sim\n\n_Esta mensagem foi gerada automaticamente");
-    expect(text).toContain("- *Prazo de Entrega:* 26/10/2026 às 18:00");
+    expect(text).toContain("*Captador*\nAna\nana@x.com\n\n_Mensagem automática do CRM");
+    expect(text).not.toContain(">");
+    expect(text).toContain("- *Prazo de entrega:* 26/10/2026 às 18:00");
   });
 });
 

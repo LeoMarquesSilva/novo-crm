@@ -4,8 +4,12 @@ import type { NewLeadPayload } from "./new-lead-payload";
 import { escapeHtml } from "./lead-email-interpolate";
 import {
   joinLeadEmailEmpresas,
+  leadEmailAreaChips,
+  leadEmailEmpresasLista,
   leadEmailField,
+  leadEmailLogo,
   leadEmailNowSaoPaulo,
+  leadEmailOrigemLinhas,
 } from "./lead-email-html-utils";
 
 export type LeadEmailTemplatePayload = LeadEmailTemplateFields & {
@@ -29,7 +33,8 @@ type LeadEmailTemplateFields = Pick<
   | "tipo_indicacao"
   | "nome_indicacao"
   | "due_diligence"
->;
+> &
+  Partial<Pick<NewLeadPayload, "plataforma" | "area_cross_selling" | "areas_cross_selling">>;
 
 function plainOneLine(s: string): string {
   return s.replace(/\r?\n/g, " ").trim();
@@ -117,6 +122,22 @@ export function buildLeadEmailHtmlVars(payload: LeadEmailTemplatePayload): Recor
     frag_tipo_indicacao_due: fragTipoIndicacaoDue,
     frag_nome_indicacao_sem: fragNomeIndicacaoSem,
     frag_tipo_indicacao_sem: fragTipoIndicacaoSem,
+    // E-mail com a identidade do escritório (04/11/2026): blocos já em HTML.
+    logo_html: leadEmailLogo(),
+    empresas_lista: leadEmailEmpresasLista(payload.empresas),
+    areas_chips: leadEmailAreaChips(Array.isArray(payload.areas_analise) ? payload.areas_analise : []),
+    origem_linhas: leadEmailOrigemLinhas(payload),
+    // "cadastrado por" só quando quem cadastrou não é o próprio captador.
+    captador_contato: escapeHtml(
+      [
+        payload.email || "",
+        payload.cadastrado_por && payload.cadastrado_por.trim().toLowerCase() !== (payload.email ?? "").trim().toLowerCase()
+          ? `cadastrado por ${payload.cadastrado_por}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ") || "Não informado",
+    ),
   };
 }
 
@@ -133,6 +154,11 @@ export function buildLeadEmailSubjectVars(payload: LeadEmailTemplatePayload): Re
     frag_tipo_indicacao_due: "",
     frag_nome_indicacao_sem: "",
     frag_tipo_indicacao_sem: "",
+    logo_html: "",
+    empresas_lista: "",
+    areas_chips: "",
+    origem_linhas: "",
+    captador_contato: "",
   };
 
   const d = datasDoLead(payload);

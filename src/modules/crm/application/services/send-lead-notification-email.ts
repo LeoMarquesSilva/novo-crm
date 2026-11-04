@@ -139,12 +139,30 @@ async function sendOutlookEmailDelegated(
   }
 }
 
-async function sendOutlookEmail(
-  supabase: SupabaseClient,
+/**
+ * Ambiente de teste (04/11/2026): com `CRM_EMAIL_REDIRECT_TO` todo e-mail vai só para esse endereço,
+ * com assunto "[TESTE]" e os destinatários originais numa faixa no topo, como o
+ * `WHATSAPP_REDIRECT_TO` do WhatsApp. Sem a variável, nada muda.
+ */
+export function applyEmailRedirect(
   to: string[],
   subject: string,
   html: string,
+): { to: string[]; subject: string; html: string } {
+  const redirect = process.env.CRM_EMAIL_REDIRECT_TO?.trim();
+  if (!redirect) return { to, subject, html };
+  const original = to.length ? to.join(", ") : "nenhum";
+  const banner = `<div style="background:#FFFAEB;border:1px solid #FEDF89;color:#B54708;font-family:Arial,sans-serif;font-size:12px;padding:8px 12px;margin:0 0 12px;">TESTE · destinatários originais: ${original.replace(/</g, "&lt;")}</div>`;
+  return { to: [redirect], subject: `[TESTE] ${subject}`, html: banner + html };
+}
+
+async function sendOutlookEmail(
+  supabase: SupabaseClient,
+  originalTo: string[],
+  originalSubject: string,
+  originalHtml: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  const { to, subject, html } = applyEmailRedirect(originalTo, originalSubject, originalHtml);
   const { data: oauth } = await supabase
     .from("lead_email_microsoft_oauth")
     .select("id")

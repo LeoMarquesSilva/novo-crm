@@ -2,6 +2,7 @@
 
 import {
   type ComponentType,
+  type ReactNode,
   useEffect,
   useMemo,
   useRef,
@@ -10,25 +11,24 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
-  BadgePercent,
   Building2,
   CalendarClock,
   CheckCircle2,
   BriefcaseBusiness,
-  Gavel,
   Handshake,
   Info,
-  Landmark,
+  Loader2,
   MonitorUp,
   RefreshCcw,
   Scale,
+  Pencil,
   Plus,
   SearchCheck,
   ShieldCheck,
   Target,
   Trash2,
   UserCircle2,
-  WalletCards,
+  UserRound,
 } from "lucide-react";
 
 import {
@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAreaLucideIcon } from "@/lib/crm/area-lucide-icon";
 import { Button } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
 import { TimeInputBr } from "@/components/ui/time-input-br";
@@ -122,11 +123,37 @@ const EMPTY_COMPANY: CompanyFormItem = {
 
 type ReceitaCnpjEstado = { status: "loading" } | CnpjLookupResult;
 
-/** Resultado da consulta do CNPJ na Receita, embaixo do campo (04/11/2026). */
-function ReceitaCnpjAviso({ estado }: { estado: ReceitaCnpjEstado | undefined }) {
-  if (!estado) return null;
+const onlyDigitsDoc = (value: string) => value.replace(/\D/g, "");
+
+/**
+ * Embaixo do CNPJ (04/11/2026): CNPJ inválido, consulta em andamento, o que a Receita diz e,
+ * quando a razão social digitada difere da Receita, "Usar este nome"; falha com "Tentar de novo".
+ */
+function ReceitaCnpjAviso({
+  digits,
+  estado,
+  razaoAtual,
+  onUsarNome,
+  onTentarDeNovo,
+}: {
+  digits: string;
+  estado: ReceitaCnpjEstado | undefined;
+  razaoAtual: string;
+  onUsarNome: () => void;
+  onTentarDeNovo: () => void;
+}) {
+  const linkClass = "font-medium text-interactive-700 underline-offset-2 hover:underline";
+  if (digits.length === 14 && !isValidCnpj(digits)) {
+    return <p className="text-v2-caption text-danger-text">CNPJ inválido: confira os números.</p>;
+  }
+  if (digits.length !== 14 || !estado) return null;
   if (estado.status === "loading") {
-    return <p className="text-v2-caption text-muted-foreground">Consultando a Receita…</p>;
+    return (
+      <p className="flex items-center gap-1.5 text-v2-caption text-muted-foreground">
+        <Loader2 className="size-3 animate-spin" aria-hidden />
+        Consultando a Receita…
+      </p>
+    );
   }
   if (estado.status === "not_found") {
     return <p className="text-v2-caption text-warning-text">CNPJ não encontrado na Receita: confira os números.</p>;
@@ -134,14 +161,32 @@ function ReceitaCnpjAviso({ estado }: { estado: ReceitaCnpjEstado | undefined })
   if (estado.status === "error") {
     return (
       <p className="text-v2-caption text-muted-foreground">
-        Não deu para consultar a Receita agora; preencha a razão social.
+        Não deu para consultar a Receita.{" "}
+        <button type="button" className={linkClass} onClick={onTentarDeNovo}>
+          Tentar de novo
+        </button>
+      </p>
+    );
+  }
+  const razaoReceita = estado.razaoSocial.trim().toUpperCase();
+  // Nome digitado diferente da Receita, ou apagado: oferece o da Receita em vez de dizer que já está.
+  if (razaoAtual.trim().toUpperCase() !== razaoReceita) {
+    return (
+      <p className="text-v2-caption text-muted-foreground">
+        Na Receita: {razaoReceita}.{" "}
+        <button type="button" className={linkClass} onClick={onUsarNome}>
+          Usar este nome
+        </button>
       </p>
     );
   }
   const ativa = !estado.situacao || estado.situacao.toUpperCase() === "ATIVA";
   const local = [estado.municipio, estado.uf].filter(Boolean).join("/");
   return ativa ? (
-    <p className="text-v2-caption text-muted-foreground">Receita: ativa{local ? ` · ${local}` : ""}</p>
+    <p className="flex items-center gap-1.5 text-v2-caption text-success-text">
+      <CheckCircle2 className="size-3" aria-hidden />
+      Razão social da Receita · ativa{local ? ` · ${local}` : ""}
+    </p>
   ) : (
     <p className="text-v2-caption text-warning-text">Situação na Receita: {estado.situacao}</p>
   );
@@ -202,16 +247,14 @@ const LEAD_TYPE_ICONS: Record<
   "Cross Selling": RefreshCcw,
 };
 
-const AREA_ICONS: Record<
-  (typeof leadAreas)[number],
-  ComponentType<{ className?: string }>
-> = {
-  "Cível": Scale,
-  Trabalhista: BadgePercent,
-  "Societário e Contratos": Landmark,
-  "Recuperação de Créditos": WalletCards,
-  Tributário: Gavel,
-  "Reestruturação e Insolvência": Building2,
+/** Ícones das áreas da apresentação comercial (docs/ICONES-DAS-AREAS.md), os mesmos do resto do CRM. */
+const AREA_ICONS: Record<(typeof leadAreas)[number], ComponentType<{ className?: string }>> = {
+  "Cível": getAreaLucideIcon("Cível"),
+  Trabalhista: getAreaLucideIcon("Trabalhista"),
+  "Societário e Contratos": getAreaLucideIcon("Societário e Contratos"),
+  "Recuperação de Créditos": getAreaLucideIcon("Recuperação de Créditos"),
+  Tributário: getAreaLucideIcon("Tributário"),
+  "Reestruturação e Insolvência": getAreaLucideIcon("Reestruturação e Insolvência"),
 };
 
 const DUE_TIME_SUGGESTIONS = ["09:00", "11:00", "14:00", "16:00"];
@@ -322,43 +365,54 @@ function maskDocument(value: string, type: "CPF" | "CNPJ") {
   return type === "CPF" ? maskCpf(value) : maskCnpj(value);
 }
 
-function ReviewItem({
-  label,
-  value,
-  className,
+/** Revisão (04/11/2026): um cartão por etapa, com o ícone da etapa e "Alterar" no cabeçalho. */
+function ReviewSection({
+  icon: Icon,
+  title,
   onEdit,
+  className,
+  children,
 }: {
-  label: string;
-  value: string;
-  className?: string;
+  icon: ComponentType<{ className?: string }>;
+  title: string;
   /** Volta para a etapa onde o dado é preenchido. */
   onEdit?: () => void;
+  className?: string;
+  children: ReactNode;
 }) {
   return (
-    <div
-      className={cn(
-        "flex items-start justify-between gap-3 border-b border-border py-3",
-        className,
-      )}
-    >
-      <div className="min-w-0">
-        <dt className="text-v2-caption text-muted-foreground">{label}</dt>
-        <dd className="mt-0.5 text-v2-body-sm-medium break-words text-foreground">
-          {value || "Não informado"}
-        </dd>
-      </div>
-      {onEdit ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onEdit}
-          aria-label={`Alterar ${label.toLowerCase()}`}
-          className="h-7 shrink-0 px-2 text-xs font-semibold text-primary hover:text-interactive-700"
-        >
-          Alterar
-        </Button>
-      ) : null}
+    <section className={cn("min-w-0 rounded-(--radius-v2-xl) border border-border bg-white p-4", className)}>
+      <header className="mb-3 flex items-center justify-between gap-3">
+        <h4 className="flex min-w-0 items-center gap-2.5 text-v2-body-sm font-semibold text-foreground">
+          <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) border border-border bg-surface-subtle text-muted-foreground">
+            <Icon className="size-4" aria-hidden />
+          </span>
+          <span className="truncate">{title}</span>
+        </h4>
+        {onEdit ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onEdit}
+            aria-label={`Alterar ${title.toLowerCase()}`}
+            className="h-7 shrink-0 gap-1 px-2 text-xs font-semibold text-primary hover:text-interactive-700"
+          >
+            <Pencil className="size-3" aria-hidden />
+            Alterar
+          </Button>
+        ) : null}
+      </header>
+      <dl className="space-y-2.5">{children}</dl>
+    </section>
+  );
+}
+
+function ReviewField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-v2-caption text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-v2-body-sm-medium break-words text-foreground">{children}</dd>
     </div>
   );
 }
@@ -401,10 +455,14 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const [areasAnaliseEditadas, setAreasAnaliseEditadas] = useState(false);
   // Documento que o cliente do cross selling pôs na empresa 1: sai junto se a origem mudar (04/11/2026).
   const [docDoCrossSelling, setDocDoCrossSelling] = useState<string | null>(null);
-  // Razão social da Receita ao digitar um CNPJ (04/11/2026): uma consulta por CNPJ; só preenche
-  // razão social vazia ou que a própria Receita pôs (nome digitado ou do cliente do CRM fica).
+  // Razão social da Receita ao digitar um CNPJ (04/11/2026). A troca do CNPJ dispara a consulta:
+  // o nome que o formulário tinha posto (Receita ou cliente do CRM) sai e entra o do CNPJ novo;
+  // nome digitado à mão fica, com "Usar este nome" embaixo do CNPJ.
   const [receitaCnpj, setReceitaCnpj] = useState<Record<string, ReceitaCnpjEstado>>({});
-  const razoesDaReceita = useRef(new Set<string>());
+  const receitaRef = useRef<Record<string, ReceitaCnpjEstado>>({});
+  const razoesAutomaticas = useRef(new Set<string>());
+  // CNPJ que já é cliente no CRM (empresa 1): vale o nome cadastrado no CRM.
+  const nomeCrmPorCnpj = useRef(new Map<string, string>());
   const [decisor, setDecisor] = useState("");
   const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<"existing" | "new" | "colaborador">(
     "existing",
@@ -687,6 +745,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
           setMatchedBy(data.matchedBy);
           setMatchedContratos(data.contratos);
           setRelacaoContrato((prev) => prev ?? "novo");
+          const rsCrm = data.cliente.razao_social.trim().toUpperCase();
+          nomeCrmPorCnpj.current.set(digits, rsCrm);
+          razoesAutomaticas.current.add(rsCrm);
           setEmpresas((prev) => {
             const first = prev[0];
             if (!first) return prev;
@@ -712,50 +773,54 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     };
   }, [empresas[0]?.documento, isCrossSelling]);
 
-  const cnpjsDigitados = [
-    ...new Set(
-      empresas
-        .filter((item) => item.tipo_documento === "CNPJ")
-        .map((item) => item.documento.replace(/\D/g, ""))
-        .filter((digits) => digits.length === 14 && isValidCnpj(digits)),
-    ),
-  ].join(",");
+  function setReceita(cnpj: string, estado: ReceitaCnpjEstado) {
+    receitaRef.current = { ...receitaRef.current, [cnpj]: estado };
+    setReceitaCnpj(receitaRef.current);
+  }
 
-  useEffect(() => {
-    const pendentes = cnpjsDigitados ? cnpjsDigitados.split(",").filter((cnpj) => !receitaCnpj[cnpj]) : [];
-    if (pendentes.length === 0) return;
-    const timer = setTimeout(() => {
-      for (const cnpj of pendentes) {
-        setReceitaCnpj((prev) => ({ ...prev, [cnpj]: { status: "loading" } }));
-        fetch(`/api/crm/cnpj/${cnpj}`, { cache: "no-store" })
-          .then(async (res) => {
-            const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: CnpjLookupResult } | null;
-            if (!res.ok || !json?.ok || !json.data) throw new Error(json?.error ?? "Falha ao consultar o CNPJ.");
-            return json.data;
-          })
-          .catch((error: unknown): CnpjLookupResult => ({
-            status: "error",
-            cnpj,
-            message: error instanceof Error ? error.message : "Falha ao consultar o CNPJ.",
-          }))
-          .then((result) => {
-            setReceitaCnpj((prev) => ({ ...prev, [cnpj]: result }));
-            if (result.status !== "found") return;
-            const razao = result.razaoSocial.trim().toUpperCase();
-            razoesDaReceita.current.add(razao);
-            setEmpresas((prev) =>
-              prev.map((item) => {
-                if (item.tipo_documento !== "CNPJ" || item.documento.replace(/\D/g, "") !== cnpj) return item;
-                const atual = item.razao_social.trim();
-                if (atual === razao || (atual && !razoesDaReceita.current.has(atual))) return item;
-                return { ...item, razao_social: razao };
-              }),
-            );
-          });
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [cnpjsDigitados, receitaCnpj]);
+  /** Razão social da Receita nas empresas com esse CNPJ cujo nome está vazio ou foi posto pelo formulário. */
+  function aplicarRazaoDaReceita(cnpj: string, forcar = false) {
+    const estado = receitaRef.current[cnpj];
+    if (estado?.status !== "found") return;
+    if (!forcar && nomeCrmPorCnpj.current.has(cnpj)) return;
+    const razao = estado.razaoSocial.trim().toUpperCase();
+    razoesAutomaticas.current.add(razao);
+    setEmpresas((prev) =>
+      prev.map((item) => {
+        if (item.tipo_documento !== "CNPJ" || onlyDigitsDoc(item.documento) !== cnpj) return item;
+        const atual = item.razao_social.trim();
+        if (atual === razao) return item;
+        if (!forcar && atual && !razoesAutomaticas.current.has(atual)) return item;
+        return { ...item, razao_social: razao };
+      }),
+    );
+  }
+
+  /** Consulta o CNPJ (ou usa o que já foi consultado) e preenche a razão social. Falha pode ser repetida. */
+  function consultarReceita(cnpj: string) {
+    const atual = receitaRef.current[cnpj];
+    if (atual?.status === "loading") return;
+    if (atual && atual.status !== "error") {
+      aplicarRazaoDaReceita(cnpj);
+      return;
+    }
+    setReceita(cnpj, { status: "loading" });
+    fetch(`/api/crm/cnpj/${cnpj}`, { cache: "no-store" })
+      .then(async (res) => {
+        const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: CnpjLookupResult } | null;
+        if (!res.ok || !json?.ok || !json.data) throw new Error(json?.error ?? "Falha ao consultar o CNPJ.");
+        return json.data;
+      })
+      .catch((error: unknown): CnpjLookupResult => ({
+        status: "error",
+        cnpj,
+        message: error instanceof Error ? error.message : "Falha ao consultar o CNPJ.",
+      }))
+      .then((result) => {
+        setReceita(cnpj, result);
+        aplicarRazaoDaReceita(cnpj);
+      });
+  }
 
   function toggleArea(area: string) {
     setAreasAnaliseEditadas(true);
@@ -775,16 +840,27 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     patch: Partial<CompanyFormItem>,
     remask = false,
   ) {
-    setEmpresas((prev) =>
-      prev.map((item, itemIndex) => {
-        if (itemIndex !== index) return item;
-        const next = { ...item, ...patch };
-        if (remask) {
-          next.documento = maskDocument(next.documento, next.tipo_documento);
-        }
-        return next;
-      }),
-    );
+    const item = empresas[index];
+    if (!item) return;
+    const next = { ...item, ...patch };
+    // CNPJ não cabe em CPF: trocar o tipo apaga o número em vez de cortar dígitos sem avisar.
+    if (next.tipo_documento === "CPF" && item.tipo_documento !== "CPF" && onlyDigitsDoc(item.documento).length > 11) {
+      next.documento = "";
+    }
+    if (remask) {
+      next.documento = maskDocument(next.documento, next.tipo_documento);
+    }
+    const digits = onlyDigitsDoc(next.documento);
+    const trocouDocumento =
+      digits !== onlyDigitsDoc(item.documento) || next.tipo_documento !== item.tipo_documento;
+    // Documento trocado: o nome que o formulário tinha posto era do documento anterior.
+    if (trocouDocumento && !("razao_social" in patch) && razoesAutomaticas.current.has(item.razao_social.trim())) {
+      next.razao_social = "";
+    }
+    setEmpresas((prev) => prev.map((current, itemIndex) => (itemIndex === index ? next : current)));
+    if (trocouDocumento && next.tipo_documento === "CNPJ" && digits.length === 14 && isValidCnpj(digits)) {
+      consultarReceita(digits);
+    }
   }
 
   function addCompany() {
@@ -874,6 +950,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     const inferredType: "CPF" | "CNPJ" =
       client.documento.replace(/\D/g, "").length <= 11 ? "CPF" : "CNPJ";
     setDocDoCrossSelling(maskDocument(client.documento, inferredType));
+    razoesAutomaticas.current.add(client.razao_social.trim().toUpperCase());
 
     setEmpresas((prev) => {
       const first = prev[0] ?? { ...EMPTY_COMPANY };
@@ -931,11 +1008,13 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
         (item) => !item.razao_social.trim() || !item.documento.trim(),
       );
       if (incompleteIndex >= 0) {
-        const part = empresas[incompleteIndex]!.razao_social.trim() ? "documento" : "razao";
-        return issue(
-          `empresa-${incompleteIndex}-${part}`,
-          "Preencha razão social/nome e CPF/CNPJ de todos os itens.",
-        );
+        const item = empresas[incompleteIndex]!;
+        const part = item.documento.trim() ? "razao" : "documento";
+        const pessoa = item.tipo_documento === "CPF";
+        const quem = `${pessoa ? "Pessoa" : "Empresa"} ${incompleteIndex + 1}`;
+        const falta =
+          part === "documento" ? (pessoa ? "informe o CPF" : "informe o CNPJ") : pessoa ? "informe o nome completo" : "informe a razão social";
+        return issue(`empresa-${incompleteIndex}-${part}`, `${quem}: ${falta}.`);
       }
       // Dígito verificador (teste ponta a ponta 4: CNPJ com o último dígito errado passava para a etapa seguinte).
       const invalidIndex = empresas.findIndex((item) =>
@@ -945,7 +1024,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
         const tipo = empresas[invalidIndex]!.tipo_documento;
         return issue(
           `empresa-${invalidIndex}-documento`,
-          `${tipo} inválido: o dígito verificador não confere. Confira os números.`,
+          `${tipo === "CPF" ? "Pessoa" : "Empresa"} ${invalidIndex + 1}: ${tipo} inválido, confira os números.`,
         );
       }
       if (!isCrossSelling && matchedCliente && !relacaoContrato) {
@@ -1714,12 +1793,21 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                   const razaoIds = newLeadFieldIds(`empresa-${index}-razao`);
                   const tipoIds = newLeadFieldIds(`empresa-${index}-tipo`);
                   const documentoIds = newLeadFieldIds(`empresa-${index}-documento`);
+                  // Rótulos e mensagens seguem o tipo: CNPJ é empresa (razão social), CPF é pessoa (nome completo).
+                  const isPessoa = company.tipo_documento === "CPF";
+                  const razaoLabel = isPessoa ? "Nome completo" : "Razão social";
                   const razaoError =
                     showStepErrors && !company.razao_social.trim()
-                      ? "Informe a razão social ou o nome."
+                      ? isPessoa
+                        ? "Informe o nome completo."
+                        : "Informe a razão social."
                       : null;
                   const documentoError =
-                    showStepErrors && !company.documento.trim() ? "Informe o CPF ou o CNPJ." : null;
+                    showStepErrors && !company.documento.trim()
+                      ? isPessoa
+                        ? "Informe o CPF."
+                        : "Informe o CNPJ."
+                      : null;
 
                   return (
                     <div
@@ -1728,7 +1816,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                     >
                       <div className="mb-3 flex min-h-8 items-center justify-between gap-3">
                         <p className="text-v2-body-sm font-semibold text-foreground">
-                          Empresa/Pessoa {index + 1}
+                          {isPessoa ? "Pessoa" : "Empresa"} {index + 1}
                         </p>
                         {empresas.length > 1 ? (
                           <Button
@@ -1736,7 +1824,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                             variant="ghost"
                             size="icon-sm"
                             onClick={() => removeCompany(index)}
-                            aria-label={`Remover empresa/pessoa ${index + 1}`}
+                            aria-label={`Remover ${isPessoa ? "pessoa" : "empresa"} ${index + 1}`}
                             className="text-muted-foreground hover:text-danger-text"
                           >
                             <Trash2 aria-hidden />
@@ -1803,13 +1891,23 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                             }
                             className={cn(newLeadModalFieldClass, "tabular-nums")}
                           />
-                          {company.tipo_documento === "CNPJ" ? (
-                            <ReceitaCnpjAviso estado={receitaCnpj[company.documento.replace(/\D/g, "")]} />
-                          ) : null}
+                          {isPessoa ? (
+                            onlyDigitsDoc(company.documento).length === 11 && !isValidCpf(company.documento) ? (
+                              <p className="text-v2-caption text-danger-text">CPF inválido: confira os números.</p>
+                            ) : null
+                          ) : (
+                            <ReceitaCnpjAviso
+                              digits={onlyDigitsDoc(company.documento)}
+                              estado={receitaCnpj[onlyDigitsDoc(company.documento)]}
+                              razaoAtual={company.razao_social}
+                              onUsarNome={() => aplicarRazaoDaReceita(onlyDigitsDoc(company.documento), true)}
+                              onTentarDeNovo={() => consultarReceita(onlyDigitsDoc(company.documento))}
+                            />
+                          )}
                         </FormField>
 
                         <FormField
-                          label="Razão social / nome completo"
+                          label={razaoLabel}
                           htmlFor={razaoIds.id}
                           errorId={razaoIds.errorId}
                           error={razaoError}
@@ -1825,7 +1923,14 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                                 razao_social: e.target.value.toUpperCase(),
                               })
                             }
-                            placeholder="NOME DA EMPRESA/PESSOA"
+                            placeholder={
+                              company.tipo_documento === "CNPJ" &&
+                              receitaCnpj[onlyDigitsDoc(company.documento)]?.status === "loading"
+                                ? "Buscando na Receita…"
+                                : isPessoa
+                                  ? "NOME COMPLETO DA PESSOA"
+                                  : "PREENCHIDA PELO CNPJ OU DIGITE"
+                            }
                             className={newLeadModalFieldClass}
                           />
                         </FormField>
@@ -2086,76 +2191,134 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                 </p>
               ) : null}
 
-              <dl className="grid gap-x-8 md:grid-cols-2">
-                <ReviewItem
-                  label="Origem do lead"
-                  value={leadTypeLabel(tipoLead)}
+              <div className="grid gap-3 md:grid-cols-2">
+                <ReviewSection
+                  icon={LEAD_TYPE_ICONS[tipoLead] ?? Handshake}
+                  title="Origem"
                   onEdit={() => selectWizardStep("origem")}
-                />
-                <ReviewItem
-                  label="Dados da origem"
-                  value={
-                    tipoLead === "Indicacao"
-                      ? `${tipoIndicacao || "Sem tipo"} · ${indicationDisplay}`
-                      : isLeadDigital
-                        ? plataforma || "Plataforma não selecionada"
-                        : isCrossSelling
-                          ? `${selectedClient?.razao_social ?? "Cliente não selecionado"} · ${areasCrossSelling.join(", ") || "Área não selecionada"}`
-                          : "Sem dados adicionais"
-                  }
-                  onEdit={() => selectWizardStep("origem")}
-                />
-                <ReviewItem
-                  label="Captador"
-                  value={solicitanteUser?.name ?? "Não selecionado"}
-                  onEdit={() => selectWizardStep("solicitante")}
-                />
-                <ReviewItem
-                  label="Cadastrado por"
-                  value={currentUser?.name ?? currentUser?.email ?? "Não identificado"}
-                />
-                <ReviewItem
-                  label="Empresas/Pessoas"
-                  value={empresas
-                    .map(
-                      (empresa) =>
-                        `${empresa.razao_social || "Sem nome"} (${empresa.documento || "sem documento"})`,
-                    )
-                    .join(" · ")}
+                >
+                  <ReviewField label="Origem do lead">{leadTypeLabel(tipoLead)}</ReviewField>
+                  {tipoLead === "Indicacao" ? (
+                    <ReviewField label="Indicação">
+                      {[tipoIndicacao || "Sem tipo", indicationDisplay].filter(Boolean).join(" · ")}
+                    </ReviewField>
+                  ) : isLeadDigital ? (
+                    <ReviewField label="Plataforma">{plataforma || "Não selecionada"}</ReviewField>
+                  ) : isCrossSelling ? (
+                    <>
+                      <ReviewField label="Cliente">{selectedClient?.razao_social ?? "Não selecionado"}</ReviewField>
+                      <ReviewField label="Áreas do cross selling">
+                        {areasCrossSelling.length ? areasCrossSelling.join(", ") : "Nenhuma área selecionada"}
+                      </ReviewField>
+                    </>
+                  ) : null}
+                </ReviewSection>
+
+                <ReviewSection icon={UserCircle2} title="Captador" onEdit={() => selectWizardStep("solicitante")}>
+                  <div className="flex items-center gap-2.5">
+                    <Avatar className="size-9 border border-border">
+                      <AvatarImage src={solicitanteUser?.avatarUrl ?? undefined} alt="" className="object-cover" />
+                      <AvatarFallback className="text-[11px] font-bold">
+                        {initialsFromName(solicitanteUser?.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate text-v2-body-sm-medium text-foreground">
+                        {solicitanteUser?.name ?? "Não selecionado"}
+                      </p>
+                      <p className="truncate text-v2-caption text-muted-foreground">
+                        Cadastrado por {currentUser?.name ?? currentUser?.email ?? "não identificado"}
+                      </p>
+                    </div>
+                  </div>
+                </ReviewSection>
+
+                <ReviewSection
+                  icon={Building2}
+                  title="Empresas e pessoas"
                   onEdit={() => selectWizardStep("empresas")}
                   className="md:col-span-2"
-                />
-                <ReviewItem
-                  label="Decisor"
-                  value={decisor.trim() || "Não informado"}
-                  onEdit={() => selectWizardStep("empresas")}
-                />
-                <ReviewItem
-                  label="Áreas"
-                  value={areasAnalise.length ? areasAnalise.join(", ") : "Nenhuma área selecionada"}
-                  onEdit={() => selectWizardStep("areas")}
-                />
-                <ReviewItem
-                  label="Due diligence"
-                  value={
-                    dueDiligence === "Sim"
-                      ? `Sim · ${prazoDue ? formatDateYmdBr(prazoDue) : "sem prazo"} ${horarioDue || ""}`
-                      : "Não"
-                  }
-                  onEdit={() => selectWizardStep("agenda")}
-                />
-                <ReviewItem
-                  label="Reunião"
-                  value={[
-                    localReuniao || "Local não informado",
-                    dataReuniao ? formatDateYmdBr(dataReuniao) : null,
-                    horarioReuniao || null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  onEdit={() => selectWizardStep("agenda")}
-                />
-              </dl>
+                >
+                  <ul className="divide-y divide-border rounded-(--radius-v2-lg) border border-border">
+                    {empresas.map((empresa, index) => {
+                      const pessoa = empresa.tipo_documento === "CPF";
+                      const ItemIcon = pessoa ? UserRound : Building2;
+                      return (
+                        <li key={`review-empresa-${index}`} className="flex items-center gap-3 px-3 py-2.5">
+                          <ItemIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-v2-body-sm-medium text-foreground">
+                              {empresa.razao_social || "Sem nome"}
+                            </p>
+                            <p className="text-v2-caption tabular-nums text-muted-foreground">
+                              {empresa.tipo_documento} {empresa.documento || "não informado"}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-v2-caption text-muted-foreground">
+                            {pessoa ? "Pessoa" : "Empresa"}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <ReviewField label="Decisor">{decisor.trim() || "Não informado"}</ReviewField>
+                </ReviewSection>
+
+                <ReviewSection icon={SearchCheck} title="Áreas de análise" onEdit={() => selectWizardStep("areas")}>
+                  {areasAnalise.length ? (
+                    <ul className="flex flex-wrap gap-1.5">
+                      {areasAnalise.map((area) => {
+                        const AreaIcon = AREA_ICONS[area as (typeof leadAreas)[number]] ?? Scale;
+                        return (
+                          <li
+                            key={area}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-interactive-100 bg-interactive-50 px-2.5 py-1 text-v2-caption font-medium text-interactive-700"
+                          >
+                            <AreaIcon className="size-3.5" aria-hidden />
+                            {area}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="text-v2-body-sm text-warning-text">Nenhuma área selecionada</p>
+                  )}
+                </ReviewSection>
+
+                <ReviewSection icon={CalendarClock} title="Agenda" onEdit={() => selectWizardStep("agenda")}>
+                  <ReviewField label="Due diligence">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 text-v2-caption font-semibold",
+                          dueDiligence === "Sim"
+                            ? "border-info-border bg-info-bg text-info-text"
+                            : "border-border bg-surface-subtle text-muted-foreground",
+                        )}
+                      >
+                        {dueDiligence === "Sim" ? "Sim" : "Não"}
+                      </span>
+                      {dueDiligence === "Sim" ? (
+                        <span className="tabular-nums">
+                          {prazoDue ? `Entrega ${formatDateYmdBr(prazoDue)}` : "Sem prazo"}
+                          {horarioDue ? ` às ${horarioDue}` : ""}
+                        </span>
+                      ) : null}
+                    </span>
+                  </ReviewField>
+                  <ReviewField label="Reunião">
+                    <span className="tabular-nums">
+                      {[
+                        localReuniao || "Local a definir",
+                        dataReuniao ? formatDateYmdBr(dataReuniao) : "data a definir",
+                        horarioReuniao ? `às ${horarioReuniao}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </ReviewField>
+                </ReviewSection>
+              </div>
             </SectionCard>
           ) : null}
         </div>

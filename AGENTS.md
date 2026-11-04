@@ -12,6 +12,7 @@ Antes de qualquer mudança de comportamento, autenticação, schema ou integraç
 2. Se o código divergir do documento, atualizar o documento na mesma alteração.
 3. Migrations DDL: versionar em `supabase/migrations/` e aplicar no remoto só com pedido explícito (MCP `user-supabase-crm-new`).
 4. Programa de ajuste: `docs/superpowers/specs/2026-07-28-crm-ajuste-completo-design.md`.
+5. Ícones das áreas de atuação (Cível, Trabalhista, Societário…): sempre os de `docs/ICONES-DAS-AREAS.md` (tirados da apresentação comercial), em telas, documentos e propostas.
 
 ## Redesign visual (Design System V2)
 

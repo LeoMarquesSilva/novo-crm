@@ -1,36 +1,72 @@
-import { createElement } from "react";
+import { createElement, forwardRef, type CSSProperties } from "react";
 import type { LucideIcon } from "lucide-react";
-import {
-  Briefcase,
-  Building2,
-  Coins,
-  Gavel,
-  Handshake,
-  Landmark,
-  Layers,
-  Scale,
-  Users,
-} from "lucide-react";
+import { Briefcase, Layers, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type PracticeAreaColorTokens = { bg: string; text: string; ring: string };
 
 /**
- * Ícone sugerido para uma área de prática (nome canónico ou legado).
+ * Ícone da apresentação comercial (`public/brand/areas`, ver docs/ICONES-DAS-AREAS.md) desenhado
+ * por máscara: assume a cor do texto (`bg-current`), como os ícones Lucide, e aceita className.
+ * Tipado como LucideIcon para valer em todo lugar que já recebia o ícone da área.
+ */
+function brandAreaIcon(file: string, name: string): LucideIcon {
+  const url = `url(/brand/areas/${file})`;
+  const mask: CSSProperties = {
+    maskImage: url,
+    WebkitMaskImage: url,
+    maskSize: "contain",
+    WebkitMaskSize: "contain",
+    maskRepeat: "no-repeat",
+    WebkitMaskRepeat: "no-repeat",
+    maskPosition: "center",
+    WebkitMaskPosition: "center",
+  };
+  const Icon = forwardRef<HTMLSpanElement, { className?: string }>(function BrandAreaIcon({ className }, ref) {
+    return (
+      <span
+        ref={ref}
+        aria-hidden
+        data-area-icon={name}
+        className={cn("inline-block size-4 shrink-0 bg-current", className)}
+        style={mask}
+      />
+    );
+  });
+  Icon.displayName = `AreaIcon(${name})`;
+  return Icon as unknown as LucideIcon;
+}
+
+const AREA_ICON = {
+  civel: brandAreaIcon("civel.svg", "Cível"),
+  trabalhista: brandAreaIcon("trabalhista.svg", "Trabalhista"),
+  societario: brandAreaIcon("societario-e-contratos.svg", "Societário e Contratos"),
+  recuperacao: brandAreaIcon("recuperacao-de-creditos.svg", "Recuperação de Créditos"),
+  tributario: brandAreaIcon("tributario.svg", "Tributário"),
+  reestruturacao: brandAreaIcon("reestruturacao-e-insolvencia.svg", "Reestruturação e Insolvência"),
+  patrimonial: brandAreaIcon("estruturacao-patrimonial.svg", "Estruturação Patrimonial"),
+  empresarial: brandAreaIcon("empresarial.svg", "Empresarial"),
+};
+
+/**
+ * Ícone da área de prática (nome canônico ou legado): os da apresentação comercial
+ * (04/11/2026, docs/ICONES-DAS-AREAS.md). Nome antigo mantido: é usado em todo o CRM.
  * Fallback: `Briefcase`.
  */
 export function getAreaLucideIcon(area: string): LucideIcon {
   const a = area.trim().toLowerCase();
 
-  if (a.includes("cível") || a.includes("civel")) return Gavel;
-  if (a.includes("trabalh")) return Users;
-  if (a.includes("societ")) return Handshake;
+  if (a.includes("cível") || a.includes("civel")) return AREA_ICON.civel;
+  if (a.includes("trabalh")) return AREA_ICON.trabalhista;
+  if (a.includes("societ") || a.includes("contrato")) return AREA_ICON.societario;
   if (a.includes("recuperação") || a.includes("recuperacao") || a.includes("crédito") || a.includes("credito"))
-    return Coins;
-  if (a.includes("tribut")) return Landmark;
-  if (a.includes("reestrutura") || a.includes("insolvência") || a.includes("insolvencia")) return Building2;
-  if (a.includes("socio") || a.includes("distressed") || a.includes("operações") || a.includes("operacoes"))
-    return Scale;
+    return AREA_ICON.recuperacao;
+  if (a.includes("tribut")) return AREA_ICON.tributario;
+  if (a.includes("reestrutura") || a.includes("insolvência") || a.includes("insolvencia") || a.includes("distressed"))
+    return AREA_ICON.reestruturacao;
+  if (a.includes("patrimon")) return AREA_ICON.patrimonial;
+  if (a.includes("empresarial")) return AREA_ICON.empresarial;
+  if (a.includes("socio") || a.includes("operações") || a.includes("operacoes")) return Scale;
 
   return a.length > 0 ? Layers : Briefcase;
 }

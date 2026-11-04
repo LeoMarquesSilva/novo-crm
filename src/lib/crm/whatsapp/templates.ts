@@ -56,11 +56,29 @@ const CICLO: WhatsappTemplatePlaceholder = {
 
 const DESTINO_DUE = "Destino da DUE (Integrações → WhatsApp)";
 
-/** Campos do cadastro do lead comuns a `novo_lead` e `novo_lead_due` (valores em `buildDueWhatsappValues`). */
-const LEAD_SOLICITANTE: WhatsappTemplatePlaceholder[] = [
+/**
+ * Campos do cadastro do lead comuns a `novo_lead` e `novo_lead_due` (valores em `buildDueWhatsappValues`).
+ * Os modelos padrão (04/11/2026) usam a formatação do WhatsApp: título em negrito, seções curtas, listas
+ * com "- ", aviso em citação ("> ") e rodapé em itálico. `empresas`, `documentos`, `email`,
+ * `cadastrado_por`, `reuniao_data` e `reuniao_horario` seguem disponíveis para modelos personalizados.
+ */
+const LEAD_CABECALHO: WhatsappTemplatePlaceholder[] = [
+  { name: "data_cadastro", description: "Data e hora do cadastro (Brasília)", example: "04/11/2026 às 14:30" },
+  {
+    name: "empresas_lista",
+    description: "Uma linha por empresa/pessoa, com o documento",
+    example: "- *LE BLOG CONFECÇÕES LTDA* · CNPJ 13.030.003/0001-10\n- *PEC COMÉRCIO DO VESTUÁRIO LTDA* · CNPJ 48.030.003/0001-02",
+  },
+];
+const LEAD_CAPTADOR: WhatsappTemplatePlaceholder[] = [
   { name: "solicitante", description: "Captador do lead", example: "Leonardo Marques" },
-  { name: "cadastrado_por", description: "Quem cadastrou", example: "leonardo.marques@bismarchipires.com.br" },
+  {
+    name: "captador_contato",
+    description: "E-mail do captador e, se foi outra pessoa, quem cadastrou",
+    example: "leonardo.marques@bismarchipires.com.br",
+  },
   { name: "email", description: "E-mail do captador", example: "leonardo.marques@bismarchipires.com.br" },
+  { name: "cadastrado_por", description: "Quem cadastrou", example: "leonardo.marques@bismarchipires.com.br" },
   { name: "empresas", description: "Razões sociais, separadas por vírgula", example: "LE BLOG CONFECÇÕES LTDA, PEC COMÉRCIO DO VESTUÁRIO LTDA" },
   { name: "documentos", description: "CNPJs/CPFs, separados por vírgula", example: "13.030.003/0001-10, 48.030.003/0001-02" },
 ];
@@ -70,11 +88,31 @@ const LEAD_AREAS: WhatsappTemplatePlaceholder = {
   example: "Cível, Trabalhista, Tributário",
 };
 const LEAD_REUNIAO: WhatsappTemplatePlaceholder[] = [
-  { name: "reuniao_local", description: "Local da reunião", example: "A definir" },
+  { name: "reuniao_quando", description: "Data e horário da reunião", example: "27/10/2026 às 12:00" },
+  { name: "reuniao_local", description: "Local da reunião", example: "Escritório de Campinas" },
   { name: "reuniao_data", description: "Data da reunião", example: "27/10/2026" },
   { name: "reuniao_horario", description: "Horário da reunião", example: "12:00" },
 ];
-const LEAD_RODAPE = "_Esta mensagem foi gerada automaticamente pelo sistema de Gestão de Leads do Bismarchi | Pires._";
+const LEAD_LINK: WhatsappTemplatePlaceholder = {
+  name: "link",
+  description: "Link da ficha do lead no CRM (a linha some quando o CRM não tem endereço público)",
+  example: "https://crm.bismarchipires.com.br/crm/leads/…",
+};
+const LEAD_RODAPE = "_Mensagem automática do CRM · Bismarchi | Pires_";
+
+/** Seções iguais nos dois modelos de lead novo, depois do bloco próprio de cada um. */
+const LEAD_CORPO_FINAL = [
+  "*Origem do lead*",
+  "{{origem}}",
+  "",
+  "*Reunião*",
+  "- *Quando:* {{reuniao_quando}}",
+  "- *Local:* {{reuniao_local}}",
+  "",
+  "*Captador*",
+  "{{solicitante}}",
+  "{{captador_contato}}",
+];
 
 export const WHATSAPP_TEMPLATE_DEFS: Record<WhatsappTemplateKey, WhatsappTemplateDef> = {
   novo_lead: {
@@ -84,35 +122,33 @@ export const WHATSAPP_TEMPLATE_DEFS: Record<WhatsappTemplateKey, WhatsappTemplat
     destination: DESTINO_DUE,
     defaultEnabled: true,
     placeholders: [
-      ...LEAD_SOLICITANTE,
+      ...LEAD_CABECALHO,
       {
         name: "origem",
-        description: "Bloco da origem do lead (tipo, indicação, plataforma, áreas do cross-selling…)",
-        example: "*Tipo de Lead:* Cross Selling\n*Áreas do Cross-selling:* Tributário, Trabalhista\n*Origem do Cross-selling:* Cliente da base / relacionamento existente",
+        description: "Origem do lead em lista (tipo, indicação, plataforma, áreas do cross-selling…)",
+        example: "- *Tipo:* Cross Selling\n- *Áreas do cross-selling:* Tributário, Trabalhista\n- *Origem do cross-selling:* Cliente da base / relacionamento existente",
       },
       LEAD_AREAS,
       ...LEAD_REUNIAO,
+      ...LEAD_CAPTADOR,
       { name: "due_diligence", description: "Sim/Não (neste modelo, sempre Não)", example: "Não" },
+      LEAD_LINK,
     ],
     defaultBody: [
-      "*Novo Lead*",
-      "*Solicitante:* {{solicitante}}",
-      "*Cadastrado por:* {{cadastrado_por}}",
-      "*E-mail:* {{email}}",
+      "*NOVO LEAD*",
+      "_Cadastrado em {{data_cadastro}}_",
       "",
-      "*Empresa/Pessoa:* {{empresas}}",
-      "*CNPJ/CPF:* {{documentos}}",
+      "*Empresas e pessoas*",
+      "{{empresas_lista}}",
       "",
-      "{{origem}}",
+      "*Áreas de análise*",
+      "{{areas}}",
       "",
-      "*Áreas de Análise:* {{areas}}",
+      ...LEAD_CORPO_FINAL,
       "",
-      "*Detalhes da Reunião:*",
-      "- *Local:* {{reuniao_local}}",
-      "- *Data:* {{reuniao_data}}",
-      "- *Horário:* {{reuniao_horario}}",
+      "*Due diligence:* {{due_diligence}}",
       "",
-      "*Due Diligence:* {{due_diligence}}",
+      "*Abrir no CRM:* {{link}}",
       "",
       LEAD_RODAPE,
     ].join("\n"),
@@ -124,37 +160,40 @@ export const WHATSAPP_TEMPLATE_DEFS: Record<WhatsappTemplateKey, WhatsappTemplat
     destination: DESTINO_DUE,
     defaultEnabled: true,
     placeholders: [
-      ...LEAD_SOLICITANTE,
-      { name: "origem", description: "Bloco da origem do lead (tipo, indicação…)", example: "*Tipo de Lead:* Indicação\n*Indicação:* Outros parceiros\n*Nome da Indicação:* CAIO CIRINO" },
+      ...LEAD_CABECALHO,
+      {
+        name: "origem",
+        description: "Origem do lead em lista (tipo, indicação…)",
+        example: "- *Tipo:* Indicação\n- *Indicação:* Outros parceiros\n- *Nome da indicação:* CAIO CIRINO",
+      },
       { name: "prazo_due", description: "Prazo de entrega da base", example: "26/10/2026 às 18:00" },
       LEAD_AREAS,
       ...LEAD_REUNIAO,
+      ...LEAD_CAPTADOR,
       { name: "due_diligence", description: "Sim/Não", example: "Sim" },
-      { name: "avisos", description: "Alerta de área sem responsável (vazio quando está tudo certo)", example: "*Atenção:* nenhum usuário cadastrado na área Recuperação de Créditos. Defina no cadastro de usuários quem faz o levantamento." },
+      {
+        name: "avisos",
+        description: "Alerta de área sem responsável (vazio quando está tudo certo)",
+        example: "*Atenção:* nenhum usuário cadastrado na área Recuperação de Créditos. Defina no cadastro de usuários quem faz o levantamento.",
+      },
+      LEAD_LINK,
     ],
     defaultBody: [
-      "*Novo Lead com Due Diligence*",
-      "*Solicitante:* {{solicitante}}",
-      "*Cadastrado por:* {{cadastrado_por}}",
-      "*E-mail:* {{email}}",
+      "*NOVO LEAD · DUE DILIGENCE*",
+      "_Cadastrado em {{data_cadastro}}_",
       "",
-      "*Empresa/Pessoa:* {{empresas}}",
-      "*CNPJ/CPF:* {{documentos}}",
+      "*Empresas e pessoas*",
+      "{{empresas_lista}}",
       "",
-      "{{origem}}",
+      "*Due diligence*",
+      "- *Prazo de entrega:* {{prazo_due}}",
+      "- *Áreas de análise:* {{areas}}",
       "",
-      "*Detalhes da Due Diligence:*",
-      "- *Prazo de Entrega:* {{prazo_due}}",
-      "- *Áreas de Análise:* {{areas}}",
+      ...LEAD_CORPO_FINAL,
       "",
-      "*Detalhes da Reunião:*",
-      "- *Local:* {{reuniao_local}}",
-      "- *Data:* {{reuniao_data}}",
-      "- *Horário:* {{reuniao_horario}}",
+      "> {{avisos}}",
       "",
-      "*Due Diligence:* {{due_diligence}}",
-      "",
-      "{{avisos}}",
+      "*Abrir no CRM:* {{link}}",
       "",
       LEAD_RODAPE,
     ].join("\n"),

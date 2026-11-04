@@ -70,9 +70,9 @@ describe("novo lead sem e com DUE", () => {
     const def = WHATSAPP_TEMPLATE_DEFS.novo_lead;
     expect(def.label).toBe("Novo lead");
     expect(def.destination).toBe(WHATSAPP_TEMPLATE_DEFS.novo_lead_due.destination);
-    expect(def.defaultBody.split("\n")[0]).toBe("*Novo Lead*");
-    expect(def.defaultBody).not.toContain("Due Diligence*");
-    expect(def.defaultBody).not.toContain("Detalhes da Due Diligence");
+    expect(def.defaultBody.split("\n")[0]).toBe("*NOVO LEAD*");
+    expect(def.defaultBody).not.toContain("DUE DILIGENCE");
+    expect(def.defaultBody).not.toContain("*Due diligence*\n");
     expect(def.defaultBody).not.toMatch(/\{\{\s*(prazo_due|avisos)\s*\}\}/);
     expect(def.placeholders.map((p) => p.name)).not.toContain("prazo_due");
   });
@@ -85,7 +85,18 @@ describe("novo lead sem e com DUE", () => {
 
   it("novo_lead_due continua com o título e o bloco da DUE", () => {
     const body = WHATSAPP_TEMPLATE_DEFS.novo_lead_due.defaultBody;
-    expect(body.split("\n")[0]).toBe("*Novo Lead com Due Diligence*");
-    expect(body).toContain("*Detalhes da Due Diligence:*\n- *Prazo de Entrega:* {{prazo_due}}\n- *Áreas de Análise:* {{areas}}");
+    expect(body.split("\n")[0]).toBe("*NOVO LEAD · DUE DILIGENCE*");
+    expect(body).toContain("*Due diligence*\n- *Prazo de entrega:* {{prazo_due}}\n- *Áreas de análise:* {{areas}}");
+    expect(body).toContain("> {{avisos}}");
+  });
+
+  it("os dois modelos usam a formatação do WhatsApp: lista de empresas, link e rodapé em itálico", () => {
+    for (const key of ["novo_lead", "novo_lead_due"] as const) {
+      const body = WHATSAPP_TEMPLATE_DEFS[key].defaultBody;
+      expect(body).toContain("_Cadastrado em {{data_cadastro}}_");
+      expect(body).toContain("*Empresas e pessoas*\n{{empresas_lista}}");
+      expect(body).toContain("*Abrir no CRM:* {{link}}");
+      expect(body.split("\n").at(-1)).toMatch(/^_.*_$/);
+    }
   });
 });

@@ -11,7 +11,7 @@ afterEach(() => {
 
 describe("lookupCnpj (04/11/2026)", () => {
   it("Fichário responde: razão social, situação e cidade", async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () =>
       json(200, {
         cnpj: "07396951000170",
         razao_social: "LCS TRANSPORTES E LOGISTICA LTDA",

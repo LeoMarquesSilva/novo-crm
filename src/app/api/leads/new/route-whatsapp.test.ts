@@ -25,6 +25,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
 vi.mock("@/lib/crm/record-lead-activity", () => ({ recordLeadActivityEvent: vi.fn() }));
 vi.mock("@/modules/crm/application/services/send-lead-notification-email", () => ({
   sendLeadNotificationEmail: vi.fn().mockResolvedValue({ ok: true }),
+  buildLeadDetailUrl: vi.fn((id: string) => `https://crm.exemplo.com.br/crm/leads/${id}`),
 }));
 
 const DESTINO = "120363000000000000@g.us";
@@ -82,10 +83,12 @@ describe("POST /api/leads/new — aviso no grupo da DUE", () => {
     expect(sendText).toHaveBeenCalledTimes(1);
     const { destination, text } = sendText.mock.calls[0]![0] as { destination: string; text: string };
     expect(destination).toBe(DESTINO);
-    expect(text.startsWith("*Novo Lead*\n")).toBe(true);
-    expect(text).not.toContain("Due Diligence*");
-    expect(text).not.toContain("Prazo de Entrega");
-    expect(text).toContain("*Due Diligence:* Não");
+    expect(text.startsWith("*NOVO LEAD*\n")).toBe(true);
+    expect(text).not.toContain("DUE DILIGENCE");
+    expect(text).not.toContain("Prazo de entrega");
+    expect(text).toContain("*Due diligence:* Não");
+    expect(text).toContain("- *ACME Ltda* · CNPJ 11.222.333/0001-81");
+    expect(text).toContain("*Abrir no CRM:* https://crm.exemplo.com.br/crm/leads/op-1");
     // Modelo lido do banco pela chave do lead sem DUE.
     expect(
       fake.calls.some((c) => c.table === "whatsapp_message_templates" && c.method === "eq" && c.args[1] === "novo_lead"),
@@ -112,9 +115,9 @@ describe("POST /api/leads/new — aviso no grupo da DUE", () => {
     expect(syncDueAreaTasksForOpportunity).toHaveBeenCalledWith(expect.anything(), "op-1");
     expect(sendText).toHaveBeenCalledTimes(1);
     const { text } = sendText.mock.calls[0]![0] as { text: string };
-    expect(text.startsWith("*Novo Lead com Due Diligence*\n")).toBe(true);
-    expect(text).toContain("- *Prazo de Entrega:* 09/11/2026 às 18:00");
-    expect(text).toContain("nenhum usuário cadastrado na área Recuperação de Créditos");
+    expect(text.startsWith("*NOVO LEAD · DUE DILIGENCE*\n")).toBe(true);
+    expect(text).toContain("- *Prazo de entrega:* 09/11/2026 às 18:00");
+    expect(text).toContain("> *Atenção:* nenhum usuário cadastrado na área Recuperação de Créditos");
     expect(createListItem).toHaveBeenCalledTimes(1);
   });
 
