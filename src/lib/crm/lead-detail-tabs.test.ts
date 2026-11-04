@@ -6,7 +6,6 @@ const base = {
   hasDueDiligence: true,
   isProposalStage: false,
   isContractStage: false,
-  showBilling: false,
   isRdLead: false,
 };
 
@@ -44,18 +43,16 @@ describe("resolveLeadDetailTab — pós-venda", () => {
     hasDueDiligence: false,
     isProposalStage: false,
     isContractStage: false,
-    showBilling: false,
-    isRdLead: false,
+      isRdLead: false,
   };
 
   it("etapas de cadastro abrem a aba Cadastro", () => {
     expect(resolveLeadDetailTab({ ...base, showOnboarding: true, isOnboardingStage: true })).toBe("onboarding");
   });
 
-  it("inclusão no faturamento abre a aba Faturamento", () => {
-    expect(
-      resolveLeadDetailTab({ ...base, showOnboarding: true, showBilling: true, isBillingStage: true }),
-    ).toBe("billing");
+  it("sem aba Faturamento (03/11/2026): inclusão no faturamento e link antigo abrem a Visão geral", () => {
+    expect(resolveLeadDetailTab({ ...base, showOnboarding: true })).toBe("overview");
+    expect(resolveLeadDetailTab({ ...base, showOnboarding: true, requested: "billing" })).toBe("overview");
   });
 
   it("Cadastro escondido (lead do RD) cai no padrão", () => {

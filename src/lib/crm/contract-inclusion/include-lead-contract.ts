@@ -13,6 +13,7 @@ import { applyAnnualRenewalDefaults } from "@/lib/crm/contract-renewal-date";
 import { readStoredEngine } from "@/lib/crm/contract-engine/persist";
 import { loadDefaultContratoTemplate, loadPipelineFieldByCode } from "@/lib/crm/proposta-document-data";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { contractSetupHref } from "@/lib/crm/contract-inclusion/lead-inclusion-view";
 import { loadSignedContractPdf } from "@/lib/d4sign/signed-pdf-cache";
 import { logServerError, publicErrorMessage, PublicError } from "@/lib/http/api-errors";
 import { extractDocumentText } from "@/lib/scope-import/text-extraction";
@@ -134,7 +135,8 @@ function leadProvenance(
  */
 export async function includeLeadContract(
   supabase: Supabase,
-  input: { opportunityId: string; actor: CrmActor; mode: "initial" | "reread_pdf" },
+  /** `actor: null` = inclusão automática ao entrar em Inclusão no Faturamento (03/11/2026). */
+  input: { opportunityId: string; actor: CrmActor | null; mode: "initial" | "reread_pdf" },
 ): Promise<ContractInclusionResult> {
   const { opportunityId, actor } = input;
   const { data: opp, error: oppError } = await supabase
@@ -282,7 +284,8 @@ export async function includeLeadContract(
     reviewedFieldKeys: Array.isArray(previous.reviewedFieldKeys) ? previous.reviewedFieldKeys : [],
     leadInclusion: {
       prefilledAt: prefilled ? now : ((previous.leadInclusion as Record<string, unknown> | undefined)?.prefilledAt ?? null),
-      by: actor.appUserId,
+      by: actor?.appUserId ?? null,
+      auto: !actor && input.mode === "initial" ? true : Boolean((previous.leadInclusion as Record<string, unknown> | undefined)?.auto),
       pdf: { status: pdfRead.status, message: pdfRead.message, readAt: now },
       divergences,
       rateio: rateio ? "cadastro" : null,
@@ -297,45 +300,54 @@ export async function includeLeadContract(
   await recordLeadActivityEvent(supabase, {
     oportunidadeId: opportunityId,
     kind: "contrato_incluido_gestao",
-    title: input.mode === "initial" ? "Contrato incluído no gerenciamento de contratos" : "PDF do contrato relido",
+    title:
+      input.mode !== "initial"
+        ? "PDF do contrato relido"
+        : actor
+          ? "Contrato incluído no gerenciamento de contratos"
+          : "Contrato incluído automaticamente no gerenciamento de contratos",
     detail:
       pdfRead.status === "read"
         ? `Dados do cadastro e leitura do PDF assinado${divergences.length ? ` (${divergences.length} divergência(s) para conferir)` : ""}.`
         : `Dados do cadastro e da proposta. PDF: ${pdfRead.message ?? pdfRead.status}.`,
     etapa: "inclusao_faturamento",
-    actorAppUserId: actor.appUserId,
+    actorAppUserId: actor?.appUserId ?? null,
     sourceId: input.mode === "initial" ? `contract-inclusion:${id}` : null,
     metadata: { contract_id: id, pdf_status: pdfRead.status, divergences },
   });
 
   return {
     contractId: id,
-    setupHref: `/crm/contratos/${id}?setup=1&returnTo=${encodeURIComponent(`/crm/leads/${opportunityId}?tab=billing`)}`,
+    setupHref: contractSetupHref(id, opportunityId),
     prefilled,
     pdf: { status: pdfRead.status, message: pdfRead.message, resetAt: pdfRead.resetAt ?? null },
     divergences,
   };
 }
 
-/** Responsáveis do contrato, se ainda não há: quem trouxe o lead (comercial) e quem inclui (faturamento). */
+/**
+ * Responsáveis do contrato, se ainda não há: quem trouxe o lead (comercial) e quem inclui
+ * (faturamento). Na inclusão automática não há quem incluiu: o Financeiro se coloca na configuração.
+ */
 async function ensureResponsibles(
   supabase: Supabase,
-  input: { contractId: string; actor: CrmActor; leadCreatorId: string | null },
+  input: { contractId: string; actor: CrmActor | null; leadCreatorId: string | null },
 ): Promise<void> {
   const { count } = await supabase
     .from("contrato_responsaveis")
     .select("id", { count: "exact", head: true })
     .eq("contrato_id", input.contractId);
   if ((count ?? 0) > 0) return;
-  const ids = [...new Set([input.leadCreatorId, input.actor.appUserId].filter((v): v is string => Boolean(v)))];
+  const actorId = input.actor?.appUserId ?? null;
+  const ids = [...new Set([input.leadCreatorId, actorId].filter((v): v is string => Boolean(v)))];
   const { data: users } = await supabase.from("app_users").select("id, full_name").in("id", ids);
   const nameById = new Map(((users ?? []) as { id: string; full_name: string }[]).map((u) => [u.id, u.full_name]));
   const rows = [
     input.leadCreatorId && nameById.has(input.leadCreatorId)
       ? { contrato_id: input.contractId, app_user_id: input.leadCreatorId, nome: nameById.get(input.leadCreatorId)!, papel: "comercial" }
       : null,
-    nameById.has(input.actor.appUserId)
-      ? { contrato_id: input.contractId, app_user_id: input.actor.appUserId, nome: nameById.get(input.actor.appUserId)!, papel: "faturamento" }
+    actorId && nameById.has(actorId)
+      ? { contrato_id: input.contractId, app_user_id: actorId, nome: nameById.get(actorId)!, papel: "faturamento" }
       : null,
   ].filter((r): r is NonNullable<typeof r> => r !== null);
   if (rows.length === 0) return;

@@ -11,6 +11,9 @@ import { concludeOnboarding } from "@/lib/crm/client-onboarding/service";
 import { internalErrorResponse } from "@/lib/http/api-errors";
 import { opsChecklistSchema } from "@/modules/crm/domain/client-onboarding";
 
+/** Entrar em Inclusão no Faturamento inclui o contrato depois da resposta (leitura do PDF até 90 s). */
+export const maxDuration = 300;
+
 const bodySchema = z.object({
   checklist: opsChecklistSchema,
   /** Grupo existente escolhido; sem ele, cria/acha pelo nome do checklist. */

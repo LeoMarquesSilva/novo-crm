@@ -168,11 +168,9 @@ export function LeadDetailView({
           hasDueDiligence: lead.haveraDueDiligence,
           isProposalStage,
           isContractStage,
-          showBilling: showBillingTab,
           isRdLead: hasRdHistory,
           showOnboarding: showOnboardingTab,
           isOnboardingStage,
-          isBillingStage: lead.etapa === "inclusao_faturamento",
         });
 
   const handleTabChange = (tab: LeadDetailTab) => {
@@ -243,11 +241,6 @@ export function LeadDetailView({
                     Cadastro
                   </TabsTrigger>
                 ) : null}
-                {showBillingTab ? (
-                  <TabsTrigger value="billing" className="h-10 px-3 text-sm font-medium">
-                    Faturamento
-                  </TabsTrigger>
-                ) : null}
                 {hasRdHistory ? (
                   <TabsTrigger value="crm" className="h-10 px-3 text-sm font-medium">
                     CRM / RD
@@ -265,7 +258,11 @@ export function LeadDetailView({
               </TabsList>
             </div>
 
-            <TabsContent value="overview" className="mt-4">
+            <TabsContent value="overview" className="mt-4 space-y-5">
+              {/* Sem aba Faturamento (03/11/2026): o contrato no gerenciamento fica no topo da Visão geral. */}
+              {showBillingTab ? (
+                <ContractBillingOnboardingPanel leadId={lead.id} stage={lead.etapa} contractBilling={lead.contractBilling} />
+              ) : null}
               <LeadDetailOverview
                 lead={lead}
                 etapaLabel={etapaLabel}
@@ -352,16 +349,6 @@ export function LeadDetailView({
               </TabsContent>
             ) : null}
 
-            {showBillingTab ? (
-              <TabsContent value="billing" className="mt-4 space-y-5">
-                <ContractBillingOnboardingPanel
-                  leadId={lead.id}
-                  stage={lead.etapa}
-                  contractBilling={lead.contractBilling}
-                  showSetupAction={lead.etapa === "inclusao_faturamento"}
-                />
-              </TabsContent>
-            ) : null}
 
             {hasRdHistory ? (
             <TabsContent value="crm" className="mt-4 space-y-5">

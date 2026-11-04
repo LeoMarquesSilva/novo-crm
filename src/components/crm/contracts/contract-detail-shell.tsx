@@ -44,7 +44,7 @@ export function ContractDetailShell({
   const tab = selectedTab ?? requestedTab;
   const explicitReturn = sanitizeReturnTo(searchParams.get("returnTo"));
   const returnTarget =
-    explicitReturn ?? (contract.opportunityId ? `/crm/leads/${contract.opportunityId}?tab=billing` : "/crm/contratos");
+    explicitReturn ?? (contract.opportunityId ? `/crm/leads/${contract.opportunityId}` : "/crm/contratos");
   const configuration = contract.configuration;
   // Versão ativa é imutável (o RPC recusa salvar); antes a aba abria o assistente editável dizendo "Rascunho sincronizado".
   const versionReadOnly = contract.editableVersionStatus !== null && contract.editableVersionStatus !== "rascunho";

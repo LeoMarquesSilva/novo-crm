@@ -27,6 +27,8 @@ import type { LeadIntakeEmpresaRow } from "./lead-intake-types";
 import { parseEmpresasIntakeFromRecord } from "@/lib/crm/parse-lead-intake-empresas";
 import { fetchLeadLifecycleTimeline, type LeadLifecycleTimeline } from "@/lib/crm/lead-lifecycle-timeline";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
+import { parseClientOnboardingPayload } from "@/modules/crm/domain/client-onboarding";
+import { contractSetupHref, parseLeadInclusion, type LeadInclusionView } from "@/lib/crm/contract-inclusion/lead-inclusion-view";
 
 export type { LeadIntakeEmpresaRow } from "./lead-intake-types";
 
@@ -147,12 +149,7 @@ export interface LeadDetailData extends Oportunidade {
   lifecycleTimeline: LeadLifecycleTimeline;
   contractBilling: {
     /** Inclusão no gerenciamento de contratos (prefill + leitura do PDF), se já feita. */
-    inclusion: {
-      prefilledAt: string | null;
-      pdfStatus: string | null;
-      pdfMessage: string | null;
-      divergences: { field: string; leadValue: string; pdfValue: string }[];
-    } | null;
+    inclusion: LeadInclusionView | null;
     id: string;
     lifecycleStatus: "rascunho" | "em_revisao" | "ativo" | "suspenso" | "encerrado";
     version: {
@@ -162,7 +159,16 @@ export interface LeadDetailData extends Oportunidade {
     } | null;
     validationProgress: { completed: number; total: number; percentage: number };
     suggestionsOrigin: string;
+    /** O que falta configurar no gerenciamento de contratos (sem a ativação, que vem em `activationPending`). */
     blockers: string[];
+    activationPending: boolean;
+    /** Antes de incluir: o que já está pronto para o botão "Incluir" pré-preencher (03/11/2026). */
+    readiness: {
+      cadastroConcluido: boolean;
+      clienteVinculado: boolean;
+      datasNoCadastro: boolean;
+      pdfAssinado: boolean;
+    };
     setupHref: string;
   } | null;
 }
@@ -739,7 +745,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       versions?.[0] ??
       null;
 
-    const [{ count: responsibleCount }, { count: componentCount }] =
+    const [{ count: responsibleCount }, { count: componentCount }, { data: onboardingRow }, { data: signedDoc }] =
       await Promise.all([
         supabase
           .from("contrato_responsaveis")
@@ -751,7 +757,12 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
               .select("id", { count: "exact", head: true })
               .eq("versao_id", version.id)
           : Promise.resolve({ count: 0 }),
+        supabase.from("lead_client_onboarding").select("status, payload").eq("oportunidade_id", id).maybeSingle(),
+        d4signDocumentUuid
+          ? supabase.from("d4sign_documents").select("d4sign_status").eq("uuid_doc", d4signDocumentUuid).maybeSingle()
+          : Promise.resolve({ data: null }),
       ]);
+    const onboardingFinanceiro = onboardingRow ? parseClientOnboardingPayload(onboardingRow.payload).financeiro : null;
 
     const firstInvoiceComplete = Boolean(
       contract.primeiro_vencimento || contract.primeiro_faturamento_condicionado,
@@ -769,10 +780,8 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       ...(!firstInvoiceComplete ? ["Definir o primeiro faturamento."] : []),
       ...((responsibleCount ?? 0) < 1 ? ["Informar ao menos um responsável."] : []),
       ...((componentCount ?? 0) < 1 ? ["Configurar ao menos uma regra de cobrança."] : []),
-      ...(contract.status !== "ativo" || version?.status !== "ativa"
-        ? ["Validar e ativar a versão contratual."]
-        : []),
     ];
+    const activationPending = contract.status !== "ativo" || version?.status !== "ativa";
     const originSnapshot =
       version?.origem_snapshot &&
       typeof version.origem_snapshot === "object" &&
@@ -797,8 +806,18 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
           ? "Dados sugeridos a partir do cadastro do cliente, da proposta e do PDF assinado."
           : "Rascunho criado a partir da assinatura; inclua no gerenciamento de contratos para pré-preencher.",
       blockers,
-      setupHref: `/crm/contratos/${contract.id}?setup=1&returnTo=${encodeURIComponent(`/crm/leads/${id}?tab=billing`)}`,
-      inclusion: readLeadInclusion(originSnapshot as Record<string, unknown>),
+      activationPending,
+      readiness: {
+        cadastroConcluido: onboardingRow?.status === "concluido",
+        clienteVinculado: Boolean(contract.cliente_id),
+        datasNoCadastro: Boolean(
+          onboardingFinanceiro?.inicioVigencia &&
+            (onboardingFinanceiro.primeiroFaturamento || onboardingFinanceiro.primeiroFaturamentoCondicionado),
+        ),
+        pdfAssinado: (signedDoc as { d4sign_status?: string | null } | null)?.d4sign_status === "1",
+      },
+      setupHref: contractSetupHref(contract.id, id),
+      inclusion: parseLeadInclusion(originSnapshot),
     };
   }
 
@@ -922,21 +941,3 @@ export default async function LeadDetailPage({
   );
 }
 
-function readLeadInclusion(snapshot: Record<string, unknown>): NonNullable<LeadDetailData["contractBilling"]>["inclusion"] {
-  const raw = snapshot.leadInclusion;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const r = raw as Record<string, unknown>;
-  const pdf = (r.pdf && typeof r.pdf === "object" ? r.pdf : {}) as Record<string, unknown>;
-  const divergences = Array.isArray(r.divergences)
-    ? r.divergences.filter(
-        (d): d is { field: string; leadValue: string; pdfValue: string } =>
-          Boolean(d) && typeof d === "object" && typeof (d as { field?: unknown }).field === "string",
-      )
-    : [];
-  return {
-    prefilledAt: typeof r.prefilledAt === "string" ? r.prefilledAt : null,
-    pdfStatus: typeof pdf.status === "string" ? pdf.status : null,
-    pdfMessage: typeof pdf.message === "string" ? pdf.message : null,
-    divergences,
-  };
-}

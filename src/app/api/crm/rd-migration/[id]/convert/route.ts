@@ -9,6 +9,9 @@ import { internalErrorResponse } from "@/lib/http/api-errors";
 import { requireRdMigrationActor } from "@/lib/crm/rd-migration/route-helpers";
 import { convertRdMigration } from "@/lib/crm/rd-migration/service";
 
+/** Entrar em Inclusão no Faturamento inclui o contrato depois da resposta (leitura do PDF até 90 s). */
+export const maxDuration = 300;
+
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireRdMigrationActor();

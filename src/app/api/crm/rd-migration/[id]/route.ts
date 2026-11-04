@@ -12,6 +12,9 @@ import { internalErrorResponse } from "@/lib/http/api-errors";
 import { requireRdMigrationActor } from "@/lib/crm/rd-migration/route-helpers";
 import { loadRdMigrationDetail, saveRdMigration, updateRdMigrationAdmin } from "@/lib/crm/rd-migration/service";
 
+/** Entrar em Inclusão no Faturamento inclui o contrato depois da resposta (leitura do PDF até 90 s). */
+export const maxDuration = 300;
+
 type Params = { params: Promise<{ id: string }> };
 
 const idSchema = z.string().uuid();

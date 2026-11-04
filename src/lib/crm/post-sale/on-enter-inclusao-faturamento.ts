@@ -1,12 +1,28 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { after } from "next/server";
 
+import { autoIncludeLeadContract } from "@/lib/crm/contract-inclusion/auto-include";
+import { contractSetupHref } from "@/lib/crm/contract-inclusion/lead-inclusion-view";
 import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
+import { logServerError } from "@/lib/http/api-errors";
+
+/** Depois da resposta (a leitura do PDF leva até 90 s); fora de uma requisição, roda direto. */
+function afterResponse(task: () => Promise<void>, opportunityId: string): void {
+  const run = () => task().catch((error: unknown) => logServerError("post-sale/inclusao-faturamento", error, { opportunityId }));
+  try {
+    after(run);
+  } catch {
+    void run();
+  }
+}
 
 /**
  * Lead entrou em Inclusão no Faturamento (cadastro concluído por Operações Legais ou
  * movido pelo admin): alerta de implantação no contrato e aviso ao Financeiro (+
  * controladoria e responsável operacional do contrato), no sino e por e-mail.
  * Idempotente pela chave `contract-setup:{contratoId}`.
+ * Desde 03/11/2026 o contrato é incluído no gerenciamento automaticamente (depois da
+ * resposta) e só então sai o aviso, que abre direto a configuração do contrato.
  */
 export async function onEnteredInclusaoFaturamento(
   supabase: SupabaseClient,
@@ -15,6 +31,8 @@ export async function onEnteredInclusaoFaturamento(
     leadName?: string | null;
     /** `false` só abre o alerta (ex.: conversão em lote da virada do RD, sem um aviso por lead). */
     notify?: boolean;
+    /** Inclusão automática no gerenciamento; padrão: junto com o aviso (lote da virada não lê PDF por lead). */
+    autoInclude?: boolean;
   },
 ): Promise<void> {
   const { data: contract } = await supabase
@@ -49,21 +67,27 @@ export async function onEnteredInclusaoFaturamento(
     { onConflict: "idempotency_key", ignoreDuplicates: true },
   );
 
-  if (input.notify === false) return;
+  const autoInclude = input.autoInclude ?? input.notify !== false;
+  if (!autoInclude && input.notify === false) return;
   const leadName = input.leadName?.trim() || row.titulo || "Contrato";
-  await notifyAudience(
-    supabase,
-    { roles: ["financeiro", "controladoria"], appUserIds: [operationalId] },
-    {
-      tipo: "faturamento_inclusao_pendente",
-      title: `Incluir no faturamento — ${leadName}`,
-      preview:
-        "Cadastro do cliente concluído. Inclua o contrato no gerenciamento de contratos (regras de cobrança) e ative.",
-      path: `/crm/leads/${encodeURIComponent(input.opportunityId)}?tab=billing`,
-      idempotencyKey,
-      extra: { oportunidade_id: input.opportunityId, contrato_id: row.id },
-    },
-  );
+  afterResponse(async () => {
+    const included = autoInclude ? await autoIncludeLeadContract(supabase, input.opportunityId) : null;
+    if (input.notify === false) return;
+    await notifyAudience(
+      supabase,
+      { roles: ["financeiro", "controladoria"], appUserIds: [operationalId] },
+      {
+        tipo: "faturamento_inclusao_pendente",
+        title: `Incluir no faturamento — ${leadName}`,
+        preview: included
+          ? "Contrato já incluído no gerenciamento com os dados do cadastro e do PDF assinado. Confira a configuração e ative."
+          : "Confira o contrato no gerenciamento de contratos (regras de cobrança) e ative.",
+        path: contractSetupHref(row.id, input.opportunityId),
+        idempotencyKey,
+        extra: { oportunidade_id: input.opportunityId, contrato_id: row.id },
+      },
+    );
+  }, input.opportunityId);
 }
 
 /**

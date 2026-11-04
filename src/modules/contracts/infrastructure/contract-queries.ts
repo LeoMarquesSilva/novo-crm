@@ -1,3 +1,4 @@
+import { parseLeadInclusion, type LeadInclusionView } from "@/lib/crm/contract-inclusion/lead-inclusion-view";
 import { parseAiProvenance, type AiProvenanceItem } from "@/lib/contract-import/ai-provenance";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
@@ -151,6 +152,8 @@ export type ContractDetailViewModel = {
   sourceFields: Record<string, ContractSourceField>;
   aiProvenance: AiProvenanceItem[];
   reviewedFieldKeys: string[];
+  /** Inclusão a partir do lead (cadastro + PDF assinado), se houve. */
+  leadInclusion: LeadInclusionView | null;
   originLabel: string;
   users: Array<{ id: string; name: string; role: string; avatarUrl: string | null }>;
   clients: Array<{ id: string; name: string }>;
@@ -709,6 +712,7 @@ export async function getContractDetail(contractId: string): Promise<ContractDet
     sourceFields,
     aiProvenance: provenance.items,
     reviewedFieldKeys: provenance.reviewedFieldKeys,
+    leadInclusion: parseLeadInclusion(editableVersion?.origem_snapshot ?? null),
     originLabel: editableVersion ? snapshotLabel(editableVersion.origem_snapshot) : "Manual",
     users: (usersResult.data ?? []).map((user) => ({
       id: user.id,

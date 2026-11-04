@@ -10,6 +10,9 @@ import { submitBilling } from "@/lib/crm/client-onboarding/service";
 import { internalErrorResponse } from "@/lib/http/api-errors";
 import { clientOnboardingPayloadSchema } from "@/modules/crm/domain/client-onboarding";
 
+/** Entrar em Inclusão no Faturamento inclui o contrato depois da resposta (leitura do PDF até 90 s). */
+export const maxDuration = 300;
+
 const bodySchema = z.object({ payload: clientOnboardingPayloadSchema });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

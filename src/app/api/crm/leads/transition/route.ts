@@ -60,6 +60,9 @@ import {
   loadWorkflowEvidenceBlocker,
 } from "@/lib/crm/workflow-transition-evidence";
 
+/** Entrar em Inclusão no Faturamento inclui o contrato depois da resposta (leitura do PDF até 90 s). */
+export const maxDuration = 300;
+
 type OportunidadeUpdate = Database["public"]["Tables"]["oportunidades"]["Update"];
 
 const stageSchema = z.enum([

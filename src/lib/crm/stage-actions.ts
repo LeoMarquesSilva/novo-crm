@@ -11,7 +11,8 @@ export function stageActionHref(kind: StageActionKind, opportunityId: string): s
     case "open_billing":
       return `${base}?tab=onboarding`;
     case "open_contract_setup":
-      return `${base}?tab=billing`;
+      // Sem aba Faturamento (03/11/2026): o quadro do contrato no gerenciamento fica na Visão geral.
+      return `${base}?tab=overview`;
   }
 }
 
@@ -20,5 +21,5 @@ export const STAGE_ACTION_LABELS: Record<StageActionKind, string> = {
   open_onboarding: "Abrir cadastro do cliente",
   open_ops_panel: "Abrir painel de Operações Legais",
   open_billing: "Abrir dados do faturamento",
-  open_contract_setup: "Abrir inclusão no faturamento",
+  open_contract_setup: "Ver contrato no faturamento",
 };

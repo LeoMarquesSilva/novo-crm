@@ -41,6 +41,7 @@ import { ContractComponentsEditor } from "./contract-components-editor";
 import { ContractResponsiblesEditor } from "./contract-responsibles-editor";
 import { ContractSharesCommissionsEditor } from "./contract-shares-commissions-editor";
 import { AiFieldHint, ConferirEtapaPanel, UnreviewedSummary, uniqueProvenanceForStep } from "./contract-ai-review";
+import { ContractLeadInclusionNotice } from "./contract-lead-inclusion-notice";
 import { evidenceForField, provenanceLooksAltered } from "@/lib/contract-import/ai-provenance";
 import {
   ADJUSTMENT_INDEX_LABELS,
@@ -496,6 +497,14 @@ export function ContractSetupWizard({
 
   return (
     <section className="space-y-4" aria-label="Assistente de configuração do contrato">
+      {contract.editableVersionStatus === "rascunho" ? (
+        <ContractLeadInclusionNotice
+          opportunityId={contract.opportunityId}
+          opportunityStage={contract.opportunityStage}
+          inclusion={contract.leadInclusion}
+          canConfigure={canConfigure}
+        />
+      ) : null}
       <ol className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
         {steps.map((label, index) => (
           <li key={label}>

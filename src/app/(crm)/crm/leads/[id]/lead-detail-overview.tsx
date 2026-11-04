@@ -49,7 +49,6 @@ import { LeadIntakeEmpresaBlock } from "./lead-intake-empresa-block";
 export type LeadOverviewTabTarget =
   | "proposal"
   | "contract"
-  | "billing"
   | "due"
   | "crm"
   | "notes"
@@ -136,7 +135,7 @@ export function LeadDetailOverview({
     lead.empresasIntake.length > 0;
 
   const contextAction = showBillingTab
-    ? ({ tab: "billing", label: "Abrir faturamento", icon: Layers3 } as const)
+    ? ({ tab: "contract", label: "Abrir contrato", icon: FileSignature } as const)
     : isContractStage
       ? ({ tab: "contract", label: "Abrir contrato", icon: FileSignature } as const)
       : ({ tab: "proposal", label: "Abrir proposta", icon: FileText } as const);
@@ -766,7 +765,7 @@ function QuickActionsCard({
   rdDealUrl,
   onNavigate,
 }: {
-  contextAction: { tab: "proposal" | "contract" | "billing"; label: string; icon: LucideIcon };
+  contextAction: { tab: "proposal" | "contract"; label: string; icon: LucideIcon };
   hasDue: boolean;
   hasRd: boolean;
   rdDealUrl: string | null;
