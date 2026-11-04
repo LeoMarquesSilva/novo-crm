@@ -2,6 +2,11 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-11-04 — ICP: faixa E
+
+- Cinco faixas de receita em 12 meses: A ≥ R$ 200 mil, B R$ 60–200 mil, C R$ 20–60 mil, D R$ 10–20 mil e E < R$ 10 mil (a antiga D, até R$ 20 mil, foi dividida em R$ 10 mil). ICP continua A + B. Em 04/11: D com 28 grupos (3,1% da receita) e E com 61 (2,0%).
+- Cores das faixas em escala de `interactive` 800/700/500/300/100; recorte "Faixa E" nos painéis; o item "fora do perfil" do Resumo passa a citar a faixa mais baixa (E). Cache do cálculo renomeado (`crm-icp-data-v7`).
+
 ## 2026-10-22 — Ajustes da varredura depois do 4º teste
 
 - Reunião Kick-off passa a pedir data, horário, local ou link, participantes e observações (opcional) na transição: o pós-venda continua sem campos configuráveis no modal, com exceção dessa etapa (`stageUsesTransitionFields` em `compute-transition-requirements.ts`, usado em `transition-requirements` e `transition`). Os valores ficam em `field_values` da negociação e aparecem na ficha; o admin edita os campos em Admin → Campos → Pós-venda. Migration de dados `20261022160000_reuniao_kickoff_campos.sql` (5 campos, `on conflict do nothing`; aplicada no remoto em 22/10/2026).

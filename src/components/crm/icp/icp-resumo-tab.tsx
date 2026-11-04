@@ -217,7 +217,8 @@ function IdealClientSummary({ data }: { data: IcpData }) {
 }
 
 function QualificationPanel({ data }: { data: IcpData }) {
-  const tierD = data.tiers.find((t) => t.key === "D");
+  // A faixa mais baixa (hoje a E, até R$ 10 mil) é a que fica fora do perfil.
+  const lowest = data.tiers[data.tiers.length - 1];
   // Segmentos que somam pelo menos 75% da receita A e B.
   const mainSectors: string[] = [];
   let covered = 0;
@@ -244,8 +245,8 @@ function QualificationPanel({ data }: { data: IcpData }) {
     "Pessoa física em causa pontual, sobretudo reclamante trabalhista com honorário de êxito",
     "Demanda de uma área só, sem recorrência",
     "Ticket abaixo de R$ 1,7 mil por mês",
-    tierD
-      ? `A faixa D tem ${tierD.groups} grupos, ${pct(tierD.revenueShare)} da receita e atraso equivalente a ${pct(tierD.overdueRatio)} do que pagou em 12 meses`
+    lowest
+      ? `A faixa ${lowest.key} (${lowest.range}) tem ${lowest.groups} grupos, ${pct(lowest.revenueShare)} da receita e atraso equivalente a ${pct(lowest.overdueRatio)} do que pagou em 12 meses`
       : null,
   ].filter(Boolean) as string[];
 

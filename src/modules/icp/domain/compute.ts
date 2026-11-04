@@ -123,7 +123,7 @@ export interface IcpInput {
   profiles: IcpGroupProfile[];
 }
 
-export type IcpTierKey = "A" | "B" | "C" | "D";
+export type IcpTierKey = "A" | "B" | "C" | "D" | "E";
 
 export interface IcpTier {
   key: IcpTierKey;
@@ -324,7 +324,8 @@ const TIER_DEFS: { key: IcpTierKey; label: string; range: string; min: number; m
   { key: "A", label: "Faixa A", range: "R$ 200 mil+", min: 200_000, max: Infinity },
   { key: "B", label: "Faixa B", range: "R$ 60 a 200 mil", min: CORE_MIN_REVENUE, max: 200_000 },
   { key: "C", label: "Faixa C", range: "R$ 20 a 60 mil", min: 20_000, max: CORE_MIN_REVENUE },
-  { key: "D", label: "Faixa D", range: "até R$ 20 mil", min: 0, max: 20_000 },
+  { key: "D", label: "Faixa D", range: "R$ 10 a 20 mil", min: 10_000, max: 20_000 },
+  { key: "E", label: "Faixa E", range: "até R$ 10 mil", min: 0, max: 10_000 },
 ];
 
 const ROLE_TOKENS: { label: string; test: RegExp }[] = [
@@ -604,7 +605,7 @@ function isoDate(d: Date): string {
 }
 
 function tierFor(revenue: number): IcpTierKey {
-  return (TIER_DEFS.find((t) => revenue >= t.min && revenue < t.max)?.key ?? "D") as IcpTierKey;
+  return (TIER_DEFS.find((t) => revenue >= t.min && revenue < t.max)?.key ?? "E") as IcpTierKey;
 }
 
 export function computeIcp(input: IcpInput): IcpData {
@@ -855,7 +856,7 @@ export function computeIcp(input: IcpInput): IcpData {
   });
 
   const core = groups.filter((g) => g.tier === "A" || g.tier === "B");
-  const rest = groups.filter((g) => g.tier === "C" || g.tier === "D");
+  const rest = groups.filter((g) => g.tier !== "A" && g.tier !== "B");
   const coreRevenue = core.reduce((acc, g) => acc + g.revenue12m, 0);
 
   const areaRevenue: IcpShare[] = [...areaTotals.entries()]

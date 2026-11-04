@@ -519,7 +519,7 @@ async function loadIcpData(): Promise<IcpData> {
 }
 
 /** Resultado em cache por 6 horas; o botão "Recalcular" invalida a tag. */
-export const getIcpData = unstable_cache(loadIcpData, ["crm-icp-data-v6"], {
+export const getIcpData = unstable_cache(loadIcpData, ["crm-icp-data-v7"], {
   revalidate: 60 * 60 * 6,
   tags: [ICP_CACHE_TAG],
 });

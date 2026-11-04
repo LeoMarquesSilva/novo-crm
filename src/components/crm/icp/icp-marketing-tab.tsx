@@ -191,7 +191,7 @@ export function MarketingTab({ data }: { data: IcpData }) {
             Reembolsos e outras receitas ficam de fora.
           </li>
           <li>Clientes agrupados pelo grupo cliente do VIOS, a partir do nome do cliente no título.</li>
-          <li>Faixas: A a partir de R$ 200 mil, B de R$ 60 a 200 mil, C de R$ 20 a 60 mil e D abaixo de R$ 20 mil em 12 meses.</li>
+          <li>Faixas: A a partir de R$ 200 mil, B de R$ 60 a 200 mil, C de R$ 20 a 60 mil, D de R$ 10 a 20 mil e E abaixo de R$ 10 mil em 12 meses.</li>
           <li>
             Segmento (CNAE) e sede vêm do cadastro da Receita Federal, pelo CNPJ das empresas do grupo no VIOS. Porte é a
             faixa de colaboradores que a empresa declara na página dela no LinkedIn; o logo vem da mesma página ou do site

@@ -124,6 +124,37 @@ describe("computeIcp", () => {
     expect(todos.revenueByPlan).toEqual({ "HONORÁRIOS MENSAIS": 90_000, "HONORÁRIOS SPOT": 10_000 });
   });
 
+  it("separa os grupos em cinco faixas, com a E abaixo de R$ 10 mil", () => {
+    const data = computeIcp(
+      baseInput({
+        revenue: [
+          pay("Grupo A", "Cível", 200_000),
+          pay("Grupo B", "Cível", 60_000),
+          pay("Grupo C", "Cível", 20_000),
+          pay("Grupo D", "Cível", 10_000),
+          pay("Grupo E", "Cível", 9_999),
+        ],
+      })
+    );
+
+    expect(data.tiers.map((t) => [t.key, t.range, t.groups])).toEqual([
+      ["A", "R$ 200 mil+", 1],
+      ["B", "R$ 60 a 200 mil", 1],
+      ["C", "R$ 20 a 60 mil", 1],
+      ["D", "R$ 10 a 20 mil", 1],
+      ["E", "até R$ 10 mil", 1],
+    ]);
+    expect(Object.fromEntries(data.groups.map((g) => [g.grupo, g.tier]))).toEqual({
+      "Grupo A": "A",
+      "Grupo B": "B",
+      "Grupo C": "C",
+      "Grupo D": "D",
+      "Grupo E": "E",
+    });
+    // O ICP continua sendo A + B.
+    expect(data.totals.coreGroups).toBe(2);
+  });
+
   it("conta as pastas ativas do grupo, no total e por área", () => {
     const data = computeIcp(
       baseInput({

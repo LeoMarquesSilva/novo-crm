@@ -72,7 +72,7 @@ export const INFO = {
     "Conta: (receita − custo de entrega) ÷ receita, somando os clientes que tiveram horas lançadas. Receita: honorários pagos em 12 meses (financeiro do VIOS). Custo de entrega: horas lançadas para o cliente (timesheet do VIOS) × custo da hora da área. Custo da hora: custo de pessoal da área no financeiro do VIOS (remuneração, encargos e benefícios) ÷ horas que a área lançou. Não entram sócios, estrutura e despesas gerais. O custo da hora ainda está em definição.",
   atraso:
     "Parcelas de honorários vencidas e não pagas até hoje, de qualquer data de vencimento, dos grupos que pagaram algo em 12 meses.",
-  faixa: "Grupos classificados pelo honorário pago em 12 meses: A a partir de R$ 200 mil, B de R$ 60 a 200 mil, C de R$ 20 a 60 mil e D abaixo de R$ 20 mil.",
+  faixa: "Grupos classificados pelo honorário pago em 12 meses: A a partir de R$ 200 mil, B de R$ 60 a 200 mil, C de R$ 20 a 60 mil, D de R$ 10 a 20 mil e E abaixo de R$ 10 mil.",
   participacao: "Barra cinza: quanto a faixa representa do número de grupos pagantes. Barra azul: quanto representa da receita.",
   ticket: "Receita de 12 meses dividida por 12 e pelo número de clientes.",
   areasPorCliente: "Média de departamentos que faturaram honorários para o grupo nos últimos 12 meses.",
@@ -118,9 +118,10 @@ export const INFO = {
  */
 export const TIER_TONE: Record<IcpTierKey, { fill: string; onFill: string; badge: string }> = {
   A: { fill: "bg-interactive-800", onFill: "text-white", badge: "bg-interactive-800 text-white" },
-  B: { fill: "bg-interactive-600", onFill: "text-white", badge: "bg-interactive-600 text-white" },
-  C: { fill: "bg-interactive-300", onFill: "text-brand-navy", badge: "bg-interactive-300 text-brand-navy" },
-  D: { fill: "bg-interactive-100", onFill: "text-brand-navy", badge: "bg-interactive-100 text-interactive-800" },
+  B: { fill: "bg-interactive-700", onFill: "text-white", badge: "bg-interactive-700 text-white" },
+  C: { fill: "bg-interactive-500", onFill: "text-white", badge: "bg-interactive-500 text-white" },
+  D: { fill: "bg-interactive-300", onFill: "text-brand-navy", badge: "bg-interactive-300 text-brand-navy" },
+  E: { fill: "bg-interactive-100", onFill: "text-brand-navy", badge: "bg-interactive-100 text-interactive-800" },
 };
 
 /** Faixas de colaboradores: claro = empresa pequena, escuro = grande. */
@@ -150,6 +151,7 @@ export const TIER_SCOPES: { key: TierScope; label: string }[] = [
   { key: "B", label: "Faixa B" },
   { key: "C", label: "Faixa C" },
   { key: "D", label: "Faixa D" },
+  { key: "E", label: "Faixa E" },
 ];
 
 export function groupsInScope(data: IcpData, scope: TierScope): IcpGroupRow[] {
