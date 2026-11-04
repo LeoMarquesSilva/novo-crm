@@ -35,8 +35,10 @@ function initialsFromName(name: string): string {
 function notificationHref(payload: unknown): string {
   if (payload == null || typeof payload !== "object") return "/crm/leads";
   const p = payload as Record<string, unknown>;
+  // Caminho relativo primeiro (04/11/2026): o `link` absoluto aponta para a produção e tirava do
+  // localhost/preview quem clicava no sino. O `link` fica para o e-mail e avisos antigos sem `path`.
+  if (typeof p.path === "string" && p.path.trim().startsWith("/")) return p.path.trim();
   if (typeof p.link === "string" && p.link.startsWith("http")) return p.link;
-  if (typeof p.path === "string" && p.path.trim()) return p.path.trim();
   return "/crm/leads";
 }
 

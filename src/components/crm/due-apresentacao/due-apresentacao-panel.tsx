@@ -42,7 +42,7 @@ import { cn } from "@/lib/utils";
 import { DueAreaCard } from "./due-area-card";
 import { ReestruturacaoForm } from "./reestruturacao-form";
 
-type Sugestao = {
+export type Sugestao = {
   razaoSocial: string;
   cnpj: string;
   empresas: Array<{ razaoSocial: string; cnpj: string }>;
@@ -53,7 +53,8 @@ type Pendente = { key: string; file: File; bytes: ArrayBuffer; erro?: string };
 
 const PLANILHA_AREAS = DUE_AREA_IDS.filter((a) => DUE_AREAS[a].usaPlanilha);
 
-function draftInicial(s: Sugestao, docs: DueDocumentoLista[]): DueApresentacaoDraft {
+/** Rascunho inicial (capa do cadastro, áreas do cadastro ou com planilha); também usado pela prévia do cartão da área. */
+export function draftInicial(s: Sugestao, docs: DueDocumentoLista[]): DueApresentacaoDraft {
   const d = emptyDraft();
   d.capa = { razaoSocial: s.razaoSocial, cnpj: s.cnpj, empresas: s.empresas };
   const comPlanilha = new Set(docs.filter((x) => x.document_kind === "planilha_area").map((x) => x.area_key));

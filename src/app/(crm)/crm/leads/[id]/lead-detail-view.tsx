@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { type ReactNode } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { notFound, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -25,6 +25,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PracticeAreaIconBadge } from "@/lib/crm/area-lucide-icon";
+import { DueAreaPreviaRelatorio, type PreviaDocumento } from "@/components/crm/due-apresentacao/due-area-previa";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CrmEntityHeader } from "@/components/crm/crm-entity-header";
@@ -179,6 +181,33 @@ export function LeadDetailView({
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
+  // Avisos da due abrem `?tab=due#due-levantamento` (ou compilação/revisão): rola até a seção depois que
+  // a aba monta, o que a rolagem pela âncora nem sempre alcança.
+  useEffect(() => {
+    if (visibleTab !== "due") return;
+    const secao = window.location.hash.slice(1);
+    if (!secao.startsWith("due-")) return;
+    const frame = window.requestAnimationFrame(() =>
+      document.getElementById(secao)?.scrollIntoView({ block: "start" }),
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [visibleTab, lead.id]);
+
+  // Apresentação automática recolhida durante o levantamento (04/11/2026): quem abre a aba nessa etapa é
+  // quase sempre a área, que anexa o relatório no próprio cartão. Abre pelo botão ou pelo atalho da
+  // Reestruturação, e fica aberta nas etapas seguintes.
+  const [apresentacaoAberta, setApresentacaoAberta] = useState(false);
+  const podeVerApresentacao = viewer?.role === "admin" || viewer?.role === "comercial";
+  const apresentacaoRecolhida = lead.etapa === "levantamento_dados" && !apresentacaoAberta;
+  const abrirApresentacao = () => {
+    setApresentacaoAberta(true);
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() =>
+        document.getElementById("due-apresentacao")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      ),
+    );
+  };
+
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-5">
       <LeadDetailHero
@@ -278,9 +307,20 @@ export function LeadDetailView({
 
             {lead.haveraDueDiligence ? (
               <TabsContent value="due" className="mt-4 space-y-5">
-                <DueAreaTasksCard lead={lead} viewer={viewer} onUpdated={() => router.refresh()} />
-                {viewer?.role === "admin" || viewer?.role === "comercial" ? (
-                  <DueApresentacaoPanel leadId={lead.id} etapa={lead.etapa} onGenerated={() => router.refresh()} />
+                <DueAreaTasksCard
+                  lead={lead}
+                  viewer={viewer}
+                  onUpdated={() => router.refresh()}
+                  onAbrirApresentacao={podeVerApresentacao ? abrirApresentacao : undefined}
+                />
+                {podeVerApresentacao ? (
+                  apresentacaoRecolhida ? (
+                    <DueApresentacaoRecolhida onAbrir={abrirApresentacao} />
+                  ) : (
+                    <section id="due-apresentacao" className="scroll-mt-6">
+                      <DueApresentacaoPanel leadId={lead.id} etapa={lead.etapa} onGenerated={() => router.refresh()} />
+                    </section>
+                  )
                 ) : null}
                 <DueCompilacaoSection lead={lead} viewer={viewer} onUpdated={() => router.refresh()} />
                 <DueRevisaoSection lead={lead} viewer={viewer} onUpdated={() => router.refresh()} />
@@ -1381,19 +1421,69 @@ function DueRevisaoSection({
   );
 }
 
+/** Botão de anexar o relatório da área (.xlsx): um `label` com o input escondido, no visual de botão. */
+function RelatorioInput({
+  label,
+  variant,
+  disabled,
+  onFile,
+}: {
+  label: string;
+  variant: "default" | "outline";
+  disabled: boolean;
+  onFile: (file: File) => void;
+}) {
+  return (
+    <label
+      className={cn(
+        buttonVariants({ variant, size: "sm" }),
+        "cursor-pointer gap-1.5",
+        disabled && "pointer-events-none opacity-60",
+      )}
+    >
+      <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden />
+      {label}
+      <input
+        type="file"
+        accept=".xlsx"
+        className="sr-only"
+        disabled={disabled}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) onFile(f);
+        }}
+      />
+    </label>
+  );
+}
+
 function DueAreaTasksCard({
   lead,
   viewer,
   onUpdated,
+  onAbrirApresentacao,
 }: {
   lead: LeadDetailData;
   viewer: LeadDetailViewer | null;
   onUpdated: () => void;
+  /** Abre a Apresentação automática (Reestruturação preenche lá os dados da recuperação judicial). */
+  onAbrirApresentacao?: () => void;
 }) {
+  const isMinhaTarefa = (task: LeadDetailData["dueAreaTasks"][number]) =>
+    Boolean(viewer?.appUserId) && viewer?.appUserId === task.responsavelAppUserId;
+  // A tarefa de quem abriu a ficha vem primeiro (chega pelo aviso "Levantamento DUE - <área>").
+  const tarefasOrdenadas = [...lead.dueAreaTasks].sort(
+    (a, b) => Number(isMinhaTarefa(b)) - Number(isMinhaTarefa(a)),
+  );
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [semDialogTaskId, setSemDialogTaskId] = useState<string | null>(null);
   const [semObs, setSemObs] = useState("");
-  const [planilhasAnexadas, setPlanilhasAnexadas] = useState<Record<string, string[]>>({});
+  // Relatórios anexados agora (com o id, para a prévia ler antes de a página recarregar os documentos).
+  const [planilhasAnexadas, setPlanilhasAnexadas] = useState<Record<string, PreviaDocumento[]>>({});
+  const primeiraEmpresa = lead.empresasIntake[0];
+  const capaRazao = primeiraEmpresa?.razao_social?.trim() || String(lead.solicitante ?? "");
+  const capaCnpj = primeiraEmpresa?.documento?.trim() ?? "";
   // Aviso dentro do cartão (03/11/2026): antes era popup do navegador (window.alert).
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const total = lead.dueAreaTasks.length;
@@ -1436,14 +1526,19 @@ function DueAreaTasksCard({
 
   /** A área anexa a planilha do levantamento; ela alimenta a apresentação automática. */
   /** Planilhas da área já gravadas (sobrevive a recarregar a página) mais as anexadas agora. */
-  function planilhasDaTarefa(task: LeadDetailData["dueAreaTasks"][number]): string[] {
+  function documentosDaTarefa(task: LeadDetailData["dueAreaTasks"][number]): PreviaDocumento[] {
     const area = dueAreaFromCrmKey(task.areaKey);
     const doServidor = area
       ? lead.dueDocuments
           .filter((doc) => doc.documentKind === "planilha_area" && doc.areaKey === area)
-          .map((doc) => doc.originalFilename)
+          .map((doc) => ({ id: doc.id, originalFilename: doc.originalFilename }))
       : [];
-    return [...new Set([...doServidor, ...(planilhasAnexadas[task.id] ?? [])])];
+    const vistos = new Set(doServidor.map((d) => d.id));
+    return [...doServidor, ...(planilhasAnexadas[task.id] ?? []).filter((d) => !vistos.has(d.id))];
+  }
+
+  function planilhasDaTarefa(task: LeadDetailData["dueAreaTasks"][number]): string[] {
+    return [...new Set(documentosDaTarefa(task).map((d) => d.originalFilename))];
   }
 
   async function anexarPlanilha(task: LeadDetailData["dueAreaTasks"][number], file: File) {
@@ -1452,8 +1547,11 @@ function DueAreaTasksCard({
     setSavingTaskId(task.id);
     setNotice(null);
     try {
-      await uploadDueFile(lead.id, file, "planilha_area", area);
-      setPlanilhasAnexadas((cur) => ({ ...cur, [task.id]: [...(cur[task.id] ?? []), file.name] }));
+      const doc = await uploadDueFile(lead.id, file, "planilha_area", area);
+      setPlanilhasAnexadas((cur) => ({
+        ...cur,
+        [task.id]: [...(cur[task.id] ?? []), { id: doc.id, originalFilename: doc.original_filename || file.name }],
+      }));
     } catch (error) {
       setNotice({ tone: "error", text: error instanceof Error ? error.message : "Falha ao anexar a planilha." });
       return;
@@ -1486,8 +1584,10 @@ function DueAreaTasksCard({
                   Levantamento de dados por área
                 </CardTitle>
                 <p className="mt-1 text-sm text-slate-500">
-                  As áreas anexam a planilha do levantamento (ou confirmam a pasta Due Diligence) ou registram que não
-                  há processos ativos. Ao concluir todas, o CRM move automaticamente para Compilação.
+                  Cada área anexa o relatório do levantamento (planilha .xlsx), que já entra na apresentação, e marca
+                  como entregue. Sem processos na área, registre &quot;Sem processos ativos&quot;. A Reestruturação preenche
+                  os dados da recuperação judicial na apresentação. Com todas entregues, o lead vai sozinho para
+                  Compilação.
                 </p>
               </div>
               <Badge
@@ -1542,7 +1642,7 @@ function DueAreaTasksCard({
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-2">
-                  {lead.dueAreaTasks.map((task) => {
+                  {tarefasOrdenadas.map((task) => {
                     const effectiveStatus = getDueAreaTaskStatus({
                       status: task.status,
                       prazoAte: task.prazoAte,
@@ -1557,13 +1657,36 @@ function DueAreaTasksCard({
                       pasta_due_confirmada: task.pastaDueConfirmada,
                       sem_processos_ativos: task.semProcessosAtivos,
                     });
+                    const areaDue = dueAreaFromCrmKey(task.areaKey);
+                    const usaPlanilha = areaDue ? DUE_AREAS[areaDue].usaPlanilha : false;
+                    const relatorios = planilhasDaTarefa(task);
+                    const isMine = isMinhaTarefa(task);
+                    const podeEntregar = canUpdate && !delivered && task.status !== "disponibilizado";
+                    const entregar = () =>
+                      void patchTask(task.id, {
+                        taskId: task.id,
+                        status: "disponibilizado",
+                        pastaDueConfirmada: true,
+                      });
 
                     return (
-                      <div key={task.id} className="rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm">
+                      <div
+                        key={task.id}
+                        className={cn(
+                          "rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm",
+                          isMine && !delivered && "border-primary/40 ring-2 ring-primary/15",
+                        )}
+                      >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Área</p>
-                            <p className="mt-0.5 text-sm font-extrabold text-[#102033]">{task.areaKey}</p>
+                          <div className="flex min-w-0 items-center gap-3">
+                            {/* Ícone da apresentação comercial (docs/ICONES-DAS-AREAS.md). */}
+                            <PracticeAreaIconBadge area={task.areaKey} size="md" />
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                                {isMine ? "Sua área" : "Área"}
+                              </p>
+                              <p className="mt-0.5 truncate text-sm font-extrabold text-[#102033]">{task.areaKey}</p>
+                            </div>
                           </div>
                           <Badge
                             variant={effectiveStatus === "atrasado" ? "destructive" : "secondary"}
@@ -1608,89 +1731,106 @@ function DueAreaTasksCard({
                           ) : null}
                         </div>
 
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={!canUpdate || isSaving || task.status === "em_andamento" || task.status === "disponibilizado"}
-                            onClick={() =>
-                              void patchTask(task.id, { taskId: task.id, status: "em_andamento" })
-                            }
-                          >
-                            Iniciar
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={!canUpdate || isSaving || task.status === "disponibilizado"}
-                            onClick={() =>
-                              void patchTask(task.id, {
-                                taskId: task.id,
-                                status: "disponibilizado",
-                                pastaDueConfirmada: true,
-                              })
-                            }
-                          >
-                            Confirmar pasta Due Diligence
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            disabled={!canUpdate || isSaving || task.status === "disponibilizado"}
-                            onClick={() => {
-                              setSemDialogTaskId(task.id);
-                              setSemObs(task.observacaoSemProcessos ?? "");
-                            }}
-                          >
-                            Sem processos ativos
-                          </Button>
-                          {canUpdate && dueAreaFromCrmKey(task.areaKey) && DUE_AREAS[dueAreaFromCrmKey(task.areaKey)!].usaPlanilha ? (
-                            <label
-                              className={cn(
-                                "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-(--radius-v2-lg) border border-border px-3 text-xs font-semibold text-foreground hover:bg-muted",
-                                isSaving && "pointer-events-none opacity-60",
+                        {relatorios.length ? (
+                          <p className="mt-3 flex items-start gap-1.5 text-xs font-semibold text-emerald-700">
+                            <FileSpreadsheet className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="min-w-0 break-words">Relatório anexado: {relatorios.join(", ")}</span>
+                          </p>
+                        ) : null}
+                        {usaPlanilha && areaDue && relatorios.length ? (
+                          <DueAreaPreviaRelatorio
+                            leadId={lead.id}
+                            areaId={areaDue}
+                            documentos={documentosDaTarefa(task)}
+                            razaoSocial={capaRazao}
+                            cnpj={capaCnpj}
+                            abertaInicial={isMine && !delivered}
+                          />
+                        ) : null}
+
+                        {/*
+                          Sem "Confirmar pasta Due Diligence" (04/11/2026): a área anexa o relatório, que a
+                          automação usa para montar a parte dela na apresentação. Entregar continua gravando
+                          `pasta_due_confirmada` (é o que o CRM conta como entrega).
+                        */}
+                        {podeEntregar ? (
+                          <div className="mt-4 space-y-2">
+                            <div className="flex flex-wrap gap-2">
+                              {usaPlanilha ? (
+                                relatorios.length ? (
+                                  <>
+                                    <Button type="button" size="sm" disabled={isSaving} onClick={entregar}>
+                                      <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                                      Marcar levantamento como entregue
+                                    </Button>
+                                    <RelatorioInput
+                                      label="Anexar outro arquivo"
+                                      variant="outline"
+                                      disabled={isSaving}
+                                      onFile={(f) => void anexarPlanilha(task, f)}
+                                    />
+                                  </>
+                                ) : (
+                                  <RelatorioInput
+                                    label="Anexar relatório (.xlsx)"
+                                    variant="default"
+                                    disabled={isSaving}
+                                    onFile={(f) => void anexarPlanilha(task, f)}
+                                  />
+                                )
+                              ) : (
+                                <>
+                                  {onAbrirApresentacao ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={isSaving}
+                                      onClick={onAbrirApresentacao}
+                                    >
+                                      <Presentation className="h-3.5 w-3.5" aria-hidden />
+                                      Preencher dados da recuperação judicial
+                                    </Button>
+                                  ) : null}
+                                  <Button type="button" size="sm" disabled={isSaving} onClick={entregar}>
+                                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                                    Marcar levantamento como entregue
+                                  </Button>
+                                </>
                               )}
-                            >
-                              <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden />
-                              Anexar planilha (.xlsx)
-                              <input
-                                type="file"
-                                accept=".xlsx"
-                                className="sr-only"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  e.target.value = "";
-                                  if (f) void anexarPlanilha(task, f);
-                                }}
-                              />
-                            </label>
-                          ) : null}
-                        </div>
-                        {planilhasDaTarefa(task).length ? (
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                            <span className="font-semibold text-emerald-700">
-                              Planilha anexada: {planilhasDaTarefa(task).join(", ")}
-                            </span>
-                            {task.status !== "disponibilizado" && canUpdate ? (
                               <Button
                                 type="button"
+                                variant="ghost"
                                 size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs"
                                 disabled={isSaving}
-                                onClick={() =>
-                                  void patchTask(task.id, {
-                                    taskId: task.id,
-                                    status: "disponibilizado",
-                                    pastaDueConfirmada: true,
-                                  })
-                                }
+                                onClick={() => {
+                                  setSemDialogTaskId(task.id);
+                                  setSemObs(task.observacaoSemProcessos ?? "");
+                                }}
                               >
-                                Marcar levantamento como entregue
+                                Sem processos ativos
                               </Button>
-                            ) : null}
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                              {usaPlanilha
+                                ? relatorios.length
+                                  ? "Confira o arquivo e marque como entregue. Dá para anexar mais de um."
+                                  : "O relatório já entra na apresentação automática da due."
+                                : "Os dados da recuperação judicial vão direto para a apresentação."}
+                              {task.status === "pendente" ? (
+                                <>
+                                  {" "}
+                                  <button
+                                    type="button"
+                                    className="font-semibold text-primary underline-offset-2 hover:underline disabled:opacity-60"
+                                    disabled={isSaving}
+                                    onClick={() => void patchTask(task.id, { taskId: task.id, status: "em_andamento" })}
+                                  >
+                                    Avisar que comecei
+                                  </button>
+                                </>
+                              ) : null}
+                            </p>
                           </div>
                         ) : null}
                       </div>
@@ -1740,6 +1880,30 @@ function DueAreaTasksCard({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/** Apresentação automática fechada durante o Levantamento de Dados (abre com um clique). */
+function DueApresentacaoRecolhida({ onAbrir }: { onAbrir: () => void }) {
+  return (
+    <section id="due-apresentacao" className="scroll-mt-6">
+      <Card className="border-border bg-white p-5 sm:p-6">
+        <SectionEyebrow icon={Presentation}>Due Diligence</SectionEyebrow>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-lg font-semibold tracking-tight text-foreground">Apresentação automática</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Usada por quem monta a apresentação, na Compilação. Os relatórios que as áreas anexam acima já
+              entram aqui.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onAbrir}>
+            <Presentation className="h-3.5 w-3.5" aria-hidden />
+            Abrir apresentação
+          </Button>
+        </div>
+      </Card>
+    </section>
   );
 }
 

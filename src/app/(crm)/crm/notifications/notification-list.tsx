@@ -78,11 +78,12 @@ function NotificationCards({
             : typeof payload.leadName === "string" && payload.leadName.trim()
               ? payload.leadName
               : null;
+        // Caminho relativo primeiro: o `link` absoluto leva para a produção (como no sino).
         const href =
-          typeof payload.link === "string" && payload.link.startsWith("http")
-            ? payload.link
-            : typeof payload.path === "string"
-              ? payload.path
+          typeof payload.path === "string" && payload.path.trim().startsWith("/")
+            ? payload.path.trim()
+            : typeof payload.link === "string" && payload.link.startsWith("http")
+              ? payload.link
               : "/crm/leads";
 
         const dueLevantamento = parseDueLevantamentoEnrichment(n.payload);

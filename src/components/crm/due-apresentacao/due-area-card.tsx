@@ -25,7 +25,8 @@ const VARIANTE_ROTULO: Record<Exclude<VarianteEscolha, "auto">, string> = {
   lista: "Lista de processos",
 };
 
-function numeros(resumo: ResumoArea | null): string[] {
+/** Números da área como saem na apresentação (também na prévia do cartão da área, no levantamento). */
+export function numeros(resumo: ResumoArea | null): string[] {
   if (!resumo) return [];
   const a = resumo.analise;
   switch (resumo.id) {

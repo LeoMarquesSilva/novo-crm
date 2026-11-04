@@ -191,6 +191,17 @@ export async function resolveLeonardoAuthUserId(supabase: SupabaseClient): Promi
 /** Entrega válida: disponibilizado na pasta OU marcado sem processos ativos (com observação opcional). */
 export { isDueAreaTaskDelivered };
 
+/**
+ * Ficha do lead aberta na aba Due diligence, já na seção (04/11/2026). Antes os avisos abriam a Visão
+ * geral e a área precisava achar a aba sozinha.
+ */
+export function dueLeadPath(
+  oportunidadeId: string,
+  secao: "due-levantamento" | "due-compilacao" | "due-revisao",
+): string {
+  return `/crm/leads/${oportunidadeId}?tab=due#${secao}`;
+}
+
 function getPublicAppUrl(): string {
   const base =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
@@ -465,7 +476,7 @@ async function notifyDueLevantamentoConcluidoWhatsapp(
   ]);
   if (!op || !tasks?.length) return;
 
-  const leadPath = `/crm/leads/${oportunidadeId}`;
+  const leadPath = dueLeadPath(oportunidadeId, "due-compilacao");
   const appUrl = getPublicAppUrl();
   const text = await buildWhatsappMessage(
     supabase,
@@ -555,7 +566,7 @@ async function dispatchDueAreaTaskNotifications(
   ]);
   if (!op || !pending?.length) return;
 
-  const leadPath = `/crm/leads/${oportunidadeId}`;
+  const leadPath = dueLeadPath(oportunidadeId, "due-levantamento");
   const appUrl = getPublicAppUrl();
   const link = appUrl ? `${appUrl}${leadPath}` : leadPath;
 
@@ -641,7 +652,7 @@ export async function notifyDueCompilationOwner(
   const authId = await resolveLeonardoAuthUserId(supabase);
   if (!op || !authId) return;
 
-  const leadPath = `/crm/leads/${oportunidadeId}`;
+  const leadPath = dueLeadPath(oportunidadeId, "due-compilacao");
   const appUrl = getPublicAppUrl();
   const link = appUrl ? `${appUrl}${leadPath}` : leadPath;
   const title = "DUE pronta para compilação";
@@ -774,7 +785,7 @@ export async function notifyDueReviewAreas(
 
   if (!op || !pending?.length) return;
 
-  const leadPath = `/crm/leads/${oportunidadeId}`;
+  const leadPath = dueLeadPath(oportunidadeId, "due-revisao");
   const appUrl = getPublicAppUrl();
   const link = appUrl ? `${appUrl}${leadPath}` : leadPath;
   // WhatsApp: uma mensagem do ciclo com todas as áreas, montada depois do laço (sino e e-mail seguem por pessoa).
@@ -902,7 +913,7 @@ export async function notifyDueReviewResponseToCompilationOwner(
   const authId = await resolveLeonardoAuthUserId(supabase);
   if (!op || !authId) return { whatsappSent: false, error: "Compilador não encontrado." };
 
-  const leadPath = `/crm/leads/${input.oportunidadeId}`;
+  const leadPath = dueLeadPath(input.oportunidadeId, "due-revisao");
   const appUrl = getPublicAppUrl();
   const link = appUrl ? `${appUrl}${leadPath}` : leadPath;
   const title =
@@ -973,7 +984,7 @@ export async function notifyDueReviewCycleResultWhatsapp(
     observacao_ajustes: row.observacao_ajustes,
     respondido_por: row.responded_by_app_user_id ? nameById.get(String(row.responded_by_app_user_id)) ?? null : null,
   }));
-  const leadPath = `/crm/leads/${input.oportunidadeId}`;
+  const leadPath = dueLeadPath(input.oportunidadeId, input.returnedToCompilacao ? "due-compilacao" : "due-revisao");
   const appUrl = getPublicAppUrl();
   const link = appUrl ? `${appUrl}${leadPath}` : leadPath;
   const resultSourceId = `due-revisao-resultado:${input.revisionCycle}`;
