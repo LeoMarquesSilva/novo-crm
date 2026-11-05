@@ -11,7 +11,7 @@ import {
   type SituationFilter,
 } from "@/components/crm/leads-pipeline-toolbar";
 import { NewDemandForm } from "@/components/crm/new-demand-form";
-import { useCrmActor } from "@/components/crm/crm-session-context";
+import { useCrmActor, useCrmSessionUser } from "@/components/crm/crm-session-context";
 import { canPerformLeadAction } from "@/lib/auth/crm-access-policy";
 import { PipelineBoardSkeleton } from "@/components/crm/pipeline-board-skeleton";
 import {
@@ -82,6 +82,50 @@ function readKanbanPrefs(): KanbanPrefs {
   }
 }
 
+/**
+ * Última lista do kanban por usuário: em memória (navegação dentro do CRM) e no
+ * sessionStorage da aba (recarregar a página). Ao abrir, o kanban mostra essa lista
+ * na hora e atualiza em segundo plano.
+ */
+const LEADS_SNAPSHOT_STORAGE_KEY = "crm.kanban.snapshot.v1";
+
+type LeadsSnapshot = {
+  userKey: string;
+  at: number;
+  opportunities: LeadsPageOpportunity[];
+  owners: OwnerOption[];
+};
+
+let memoryLeadsSnapshot: LeadsSnapshot | null = null;
+
+function readLeadsSnapshot(userKey: string): LeadsSnapshot | null {
+  if (memoryLeadsSnapshot?.userKey === userKey) return memoryLeadsSnapshot;
+  try {
+    const raw = window.sessionStorage.getItem(LEADS_SNAPSHOT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<LeadsSnapshot> | null;
+    if (!parsed || parsed.userKey !== userKey || !Array.isArray(parsed.opportunities)) return null;
+    memoryLeadsSnapshot = {
+      userKey,
+      at: typeof parsed.at === "number" ? parsed.at : Date.now(),
+      opportunities: parsed.opportunities,
+      owners: Array.isArray(parsed.owners) ? parsed.owners : [],
+    };
+    return memoryLeadsSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+function writeLeadsSnapshot(snapshot: LeadsSnapshot): void {
+  memoryLeadsSnapshot = snapshot;
+  try {
+    window.sessionStorage.setItem(LEADS_SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Sem espaço ou storage bloqueado: fica só a cópia em memória.
+  }
+}
+
 function leadSearchBlob(o: Oportunidade): string {
   return [
     o.id,
@@ -147,6 +191,7 @@ function leadMatchesPipelineFilters(
 
 export default function LeadsPage() {
   const crmActor = useCrmActor();
+  const snapshotUserKey = useCrmSessionUser()?.appUserId ?? null;
   const canCreateLead = crmActor ? canPerformLeadAction(crmActor, { action: "lead.create" }) : false;
   const router = useRouter();
   const [isCadastroOpen, setIsCadastroOpen] = useState(false);
@@ -242,6 +287,14 @@ export default function LeadsPage() {
       setOwnerOptions(payload.owners ?? []);
       setLoadError(null);
       markRefreshSuccess(silent);
+      if (snapshotUserKey) {
+        writeLeadsSnapshot({
+          userKey: snapshotUserKey,
+          at: Date.now(),
+          opportunities: payload.opportunities ?? [],
+          owners: payload.owners ?? [],
+        });
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Falha ao carregar os leads.";
@@ -256,7 +309,7 @@ export default function LeadsPage() {
         setRetrying(false);
       }
     }
-  }, [markRefreshSuccess]);
+  }, [markRefreshSuccess, snapshotUserKey]);
 
   const refreshLeadsSilently = useCallback(async () => {
     await loadLeads({ silent: true });
@@ -268,8 +321,17 @@ export default function LeadsPage() {
   }, [loadLeads]);
 
   useEffect(() => {
-    void loadLeads();
-  }, [loadLeads]);
+    const snapshot = snapshotUserKey ? readLeadsSnapshot(snapshotUserKey) : null;
+    if (!snapshot) {
+      void loadLeads();
+      return;
+    }
+    setOpportunities(snapshot.opportunities);
+    setOwnerOptions(snapshot.owners);
+    setLastRefreshedAt(new Date(snapshot.at));
+    setLoading(false);
+    void loadLeads({ silent: true });
+  }, [loadLeads, snapshotUserKey]);
 
   useEffect(() => {
     const supabase = createSupabaseClient();
