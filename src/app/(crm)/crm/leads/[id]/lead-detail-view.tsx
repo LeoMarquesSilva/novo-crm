@@ -1204,11 +1204,42 @@ function DueRevisaoSection({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [adjustTaskId, setAdjustTaskId] = useState<string | null>(null);
   const [adjustObs, setAdjustObs] = useState("");
+  const [abrindoPptId, setAbrindoPptId] = useState<string | null>(null);
+  const [erroPpt, setErroPpt] = useState<string | null>(null);
 
   if (!lead.haveraDueDiligence || lead.etapa !== "revisao") return null;
 
-  const tasks = lead.dueAreaReviewTasks;
+  const isMinhaRevisao = (task: LeadDetailData["dueAreaReviewTasks"][number]) =>
+    Boolean(viewer?.appUserId) && viewer?.appUserId === task.responsavelAppUserId;
+  // A revisão de quem abriu a ficha vem primeiro (chega pelo aviso "Revisar DUE - <área>").
+  const tasks = [...lead.dueAreaReviewTasks].sort((a, b) => Number(isMinhaRevisao(b)) - Number(isMinhaRevisao(a)));
   const pendingAdjustments = tasks.filter((t) => t.status === "ajustes_solicitados");
+  // PPT da compilação em revisão (o mais recente) e as versões anteriores, para a área abrir antes de responder.
+  const ppts = lead.dueDocuments
+    .filter((d) => d.documentKind === "ppt_compilacao")
+    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+  const pptAtual = ppts[0] ?? null;
+
+  async function abrirPpt(docId: string) {
+    setErroPpt(null);
+    setAbrindoPptId(docId);
+    // Abre a aba no clique (o navegador bloqueia abrir depois do fetch) e só depois aponta para o arquivo.
+    const aba = window.open("", "_blank");
+    try {
+      const res = await fetch(
+        `/api/crm/leads/${encodeURIComponent(lead.id)}/due-documents?documentId=${encodeURIComponent(docId)}`,
+      );
+      const payload = (await res.json().catch(() => ({}))) as { signedUrl?: string; error?: string };
+      if (!res.ok || !payload.signedUrl) throw new Error(payload.error ?? "Não foi possível abrir o PPT.");
+      if (aba) aba.location.href = payload.signedUrl;
+      else window.location.assign(payload.signedUrl);
+    } catch (error) {
+      aba?.close();
+      setErroPpt(error instanceof Error ? error.message : "Não foi possível abrir o PPT.");
+    } finally {
+      setAbrindoPptId(null);
+    }
+  }
 
   function formatElapsed(ms: number | null): string {
     if (ms == null || ms < 0) return "—";
@@ -1261,6 +1292,67 @@ function DueRevisaoSection({
             </p>
           ) : null}
 
+          {/* Material da revisão (05/11/2026): antes o PPT só aparecia na Compilação, que some nesta etapa. */}
+          <div className="rounded-2xl border border-[#dfe5ee] bg-[#f8fafc] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Material para revisar</p>
+            {pptAtual ? (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-white ring-1 ring-[#dfe5ee]">
+                    <Presentation className="h-4 w-4 text-primary" aria-hidden />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold text-[#102033]">{pptAtual.originalFilename}</p>
+                    <p className="text-xs text-slate-500">
+                      {formatDateTimeBr(pptAtual.uploadedAt)}
+                      {pptAtual.uploadedBy?.fullName ? ` · ${pptAtual.uploadedBy.fullName}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={abrindoPptId != null}
+                  onClick={() => void abrirPpt(pptAtual.id)}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                  {abrindoPptId === pptAtual.id ? "Abrindo…" : "Baixar PPT para revisar"}
+                </Button>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500">
+                Nenhum PPT da compilação anexado. Peça ao MKT para gerar e anexar antes de revisar.
+              </p>
+            )}
+            {ppts.length > 1 ? (
+              <div className="mt-3 border-t border-[#e4e9f0] pt-2">
+                <p className="text-[11px] font-semibold text-slate-500">Versões anteriores</p>
+                <ul className="mt-1 space-y-1">
+                  {ppts.slice(1).map((doc) => (
+                    <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                      <span className="min-w-0 break-words">
+                        {doc.originalFilename} · {formatDateTimeBr(doc.uploadedAt)}
+                      </span>
+                      <button
+                        type="button"
+                        className="font-semibold text-primary hover:underline disabled:opacity-60"
+                        disabled={abrindoPptId != null}
+                        onClick={() => void abrirPpt(doc.id)}
+                      >
+                        Baixar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {erroPpt ? (
+              <p className="mt-2 text-xs text-danger-text" role="alert">
+                {erroPpt}
+              </p>
+            ) : null}
+          </div>
+
           {pendingAdjustments.length > 0 ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
               <p className="font-bold">Ajustes solicitados</p>
@@ -1295,12 +1387,26 @@ function DueRevisaoSection({
                       ? "Ajustes solicitados"
                       : "Pendente";
 
+                const isMine = isMinhaRevisao(task);
+
                 return (
-                  <div key={task.id} className="rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm">
+                  <div
+                    key={task.id}
+                    className={cn(
+                      "rounded-2xl border border-[#dfe5ee] bg-white p-4 shadow-sm",
+                      isMine && task.status === "pendente" && "border-primary/40 ring-2 ring-primary/15",
+                    )}
+                  >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Área</p>
-                        <p className="mt-0.5 text-sm font-extrabold text-[#102033]">{task.areaKey}</p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        {/* Ícone da apresentação comercial (docs/ICONES-DAS-AREAS.md). */}
+                        <PracticeAreaIconBadge area={task.areaKey} size="md" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                            {isMine ? "Sua área" : "Área"}
+                          </p>
+                          <p className="mt-0.5 truncate text-sm font-extrabold text-[#102033]">{task.areaKey}</p>
+                        </div>
                       </div>
                       <Badge
                         variant={task.status === "ajustes_solicitados" ? "destructive" : "secondary"}
