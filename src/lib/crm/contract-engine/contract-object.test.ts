@@ -222,6 +222,22 @@ describe("renderer complexo", () => {
     expect(new Set(numbers.filter((n) => n.startsWith("1."))).size).toBe(3);
     expect(toRomanListMarker(0)).toBe("(i)");
   });
+
+  it("não escreve os títulos 'Objeto.' e 'Natureza.' antes do texto; mantém os demais", () => {
+    const base = { order: 0, sourceLabel: "fixture", version: 1, status: "pending_legal_review" as const };
+    const lines = numberContractObjectBlocks([
+      { ...base, kind: "paragraph", stableKey: "a", title: "Objeto", content: "O objeto deste Contrato é…", order: 10 },
+      { ...base, kind: "paragraph", stableKey: "b", title: "Natureza", content: "A natureza é…", order: 20 },
+      { ...base, kind: "limitation", stableKey: "c", content: "Não inclui…", order: 30 },
+      { ...base, kind: "paragraph", stableKey: "d", title: "Confidencialidade", content: "As partes…", order: 40 },
+    ]);
+    expect(lines.map((l) => [l.number, l.title])).toEqual([
+      ["1.1", undefined],
+      ["1.2", undefined],
+      ["1.3", "Limite"],
+      ["1.4", "Confidencialidade"],
+    ]);
+  });
 });
 
 describe("várias áreas", () => {

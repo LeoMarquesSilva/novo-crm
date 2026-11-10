@@ -11,6 +11,8 @@ import {
   syncPropostaEscopoSolicitacoesForOportunidade,
 } from "@/lib/crm/proposta-escopo-solicitacoes";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
+import { isEmailValido, isTelefoneBrValido } from "@/lib/crm/nome-pessoa";
+import { maskPhoneBr } from "@/lib/crm/br-document-mask";
 import { labelForRdFieldKey } from "@/lib/crm/lead-rd-field-labels";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { fetchAppUsersByEmailLookup } from "@/lib/crm/resolve-app-user-display";
@@ -772,6 +774,28 @@ async function patchIntakeField(
     return { ok: true };
   }
 
+  // Contato do decisor (09/11/2026): mesmo formato do Novo lead.
+  if (key === "decisor_telefone" || key === "decisor_email") {
+    const valor = key === "decisor_telefone" ? maskPhoneBr(trimmed) : trimmed.toLowerCase();
+    if (valor && key === "decisor_telefone" && !isTelefoneBrValido(valor)) {
+      return { ok: false, error: "Telefone do decisor incompleto: use DDD e número.", status: 400 };
+    }
+    if (valor && key === "decisor_email" && !isEmailValido(valor)) {
+      return { ok: false, error: "E-mail do decisor inválido.", status: 400 };
+    }
+    const { error } = await supabase
+      .from("lead_intakes")
+      .update({ [key]: valor || null } as never)
+      .eq("oportunidade_id", oportunidadeId);
+    if (error) {
+      return /decisor_(telefone|email)/.test(error.message)
+        ? { ok: false, error: "O banco ainda não tem o contato do decisor (migration 20261109120000 pendente).", status: 409 }
+        : { ok: false, error: error.message };
+    }
+    await logIntakeFieldChange(supabase, oportunidadeId, key, valor || "—", viewer);
+    return { ok: true };
+  }
+
   if (key === "nome_indicacao") {
     const { error } = await supabase
       .from("lead_intakes")
@@ -866,6 +890,8 @@ async function logIntakeFieldChange(
     plataforma: "Plataforma",
     area_cross_selling: "Área",
     decisor: "Decisor",
+    decisor_telefone: "Telefone do decisor",
+    decisor_email: "E-mail do decisor",
   };
   const empresaMatch = /^empresa_(\d+)_(razao|doc|tipo)$/.exec(key);
   const title =

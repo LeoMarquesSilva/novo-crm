@@ -264,7 +264,11 @@ export function ConfeccaoReuniaoModalSection({
       <SectionCard
         icon={Building2}
         title="Contrato e empresas na proposta"
-        subtitle="Gestor, empresa principal do cadastro e participantes adicionais, alinhados ao fluxo de abertura comercial."
+        subtitle={
+          gestorField
+            ? "Gestor, empresa principal do cadastro e participantes adicionais, alinhados ao fluxo de abertura comercial."
+            : "Empresa principal do cadastro e participantes adicionais, alinhados ao fluxo de abertura comercial."
+        }
       >
         {gestorVisible && gestorField ? (
           <div className="space-y-1.5">

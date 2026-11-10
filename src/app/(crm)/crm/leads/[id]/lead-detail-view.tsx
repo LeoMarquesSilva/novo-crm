@@ -1214,6 +1214,8 @@ function DueRevisaoSection({
   // A revisão de quem abriu a ficha vem primeiro (chega pelo aviso "Revisar DUE - <área>").
   const tasks = [...lead.dueAreaReviewTasks].sort((a, b) => Number(isMinhaRevisao(b)) - Number(isMinhaRevisao(a)));
   const pendingAdjustments = tasks.filter((t) => t.status === "ajustes_solicitados");
+  // Áreas que declararam "Sem processos ativos" no levantamento não revisam (09/11/2026).
+  const areasSemRevisao = lead.dueAreaTasks.filter((t) => t.semProcessosAtivos).map((t) => t.areaKey);
   // PPT da compilação em revisão (o mais recente) e as versões anteriores, para a área abrir antes de responder.
   const ppts = lead.dueDocuments
     .filter((d) => d.documentKind === "ppt_compilacao")
@@ -1370,8 +1372,19 @@ function DueRevisaoSection({
             </div>
           ) : null}
 
+          {areasSemRevisao.length ? (
+            <p className="text-xs text-slate-500">
+              <span className="font-semibold text-slate-600">Sem revisão (sem processos ativos): </span>
+              {areasSemRevisao.join(", ")}
+            </p>
+          ) : null}
+
           {tasks.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhuma tarefa de revisão encontrada para este ciclo.</p>
+            <p className="text-sm text-slate-500">
+              {areasSemRevisao.length && areasSemRevisao.length === lead.dueAreaTasks.length
+                ? "Todas as áreas declararam que não têm processos ativos: não há revisão. Pode avançar para Due Diligence Finalizada."
+                : "Nenhuma tarefa de revisão encontrada para este ciclo."}
+            </p>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {tasks.map((task) => {

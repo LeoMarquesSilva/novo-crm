@@ -350,7 +350,8 @@ export function SearchablePicker<T>({
           open && "border-primary ring-3 ring-ring/20",
         )}
       >
-        <span className="min-w-0 flex-1">
+        {/* flex: o conteúdo escolhido (avatar + nome) fica centrado na altura do campo (09/11/2026). */}
+        <span className="flex min-w-0 flex-1 items-center">
           {selected ? (
             renderTrigger(selected)
           ) : triggerContent ? (
@@ -411,14 +412,14 @@ export function UserPickerField({
       filterOption={(o, q) => normalizeSearch(`${o.name} ${o.email}`).includes(normalizeSearch(q))}
       renderTrigger={(user) =>
         user ? (
-        <span className="inline-flex min-w-0 items-center gap-2.5">
-          <Avatar className="h-8 w-8 border border-border">
+        <span className="flex min-w-0 items-center gap-2">
+          <Avatar className="size-6 shrink-0 border border-border">
             <AvatarImage src={user.avatarUrl ?? undefined} alt="" className="object-cover" />
-            <AvatarFallback className="text-[10px] font-bold">
+            <AvatarFallback className="text-[9px] font-bold">
               {initialsFromName(user.name)}
             </AvatarFallback>
           </Avatar>
-          <span className="min-w-0 truncate font-medium text-foreground">{user.name}</span>
+          <span className="min-w-0 truncate leading-none font-medium text-foreground">{user.name}</span>
         </span>
         ) : null
       }

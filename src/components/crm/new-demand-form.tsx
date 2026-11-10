@@ -40,6 +40,8 @@ import {
 } from "@/modules/crm/application/services/new-lead-payload";
 import { leadTypeLabel } from "@/lib/crm/lead-type-label";
 import { isValidCnpj, isValidCpf } from "@/lib/crm/rd-migration/documents";
+import { isEmailValido, isTelefoneBrValido, maskNomePessoa } from "@/lib/crm/nome-pessoa";
+import { maskPhoneBr } from "@/lib/crm/br-document-mask";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -464,6 +466,9 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   // CNPJ que já é cliente no CRM (empresa 1): vale o nome cadastrado no CRM.
   const nomeCrmPorCnpj = useRef(new Map<string, string>());
   const [decisor, setDecisor] = useState("");
+  // Contato do decisor (09/11/2026): obrigatório ao menos telefone ou e-mail.
+  const [decisorTelefone, setDecisorTelefone] = useState("");
+  const [decisorEmail, setDecisorEmail] = useState("");
   const [nomeIndicacaoMode, setNomeIndicacaoMode] = useState<"existing" | "new" | "colaborador">(
     "existing",
   );
@@ -891,6 +896,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setPlataforma("");
     setAreasCrossSelling([]);
     setDecisor("");
+    setDecisorTelefone("");
+    setDecisorEmail("");
     setNomeIndicacaoMode("existing");
     setNomeIndicacaoExisting("");
     setNomeIndicacaoNew("");
@@ -1004,6 +1011,17 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     }
 
     if (stepId === "empresas") {
+      // Decisor primeiro: é o primeiro bloco do passo.
+      if (!decisor.trim()) return issue("decisor", "Informe o nome do decisor.");
+      if (!decisorTelefone.trim() && !decisorEmail.trim()) {
+        return issue("decisorTelefone", "Informe o telefone ou o e-mail do decisor (pelo menos um).");
+      }
+      if (decisorTelefone.trim() && !isTelefoneBrValido(decisorTelefone)) {
+        return issue("decisorTelefone", "Telefone do decisor incompleto: use DDD e número.");
+      }
+      if (decisorEmail.trim() && !isEmailValido(decisorEmail)) {
+        return issue("decisorEmail", "E-mail do decisor inválido.");
+      }
       const incompleteIndex = empresas.findIndex(
         (item) => !item.razao_social.trim() || !item.documento.trim(),
       );
@@ -1274,6 +1292,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
         ? (areasCrossSelling as NonNullable<NewLeadPayload["areas_cross_selling"]>)
         : null,
       decisor: decisor.trim() || null,
+      decisor_telefone: decisorTelefone.trim() || null,
+      decisor_email: decisorEmail.trim().toLowerCase() || null,
       contexto_comercial: null,
       cliente_id: vinculo.cliente_id,
       contrato_base_id: vinculo.contrato_base_id,
@@ -1618,7 +1638,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         <Input
                           {...controlProps("nomeIndicacaoNew", { hasHint: true })}
                           value={nomeIndicacaoNew}
-                          onChange={(e) => setNomeIndicacaoNew(e.target.value)}
+                          onChange={(e) => setNomeIndicacaoNew(maskNomePessoa(e.target.value))}
                           placeholder="Ex.: Maria Souza Lima"
                           autoComplete="off"
                           autoCapitalize="words"
@@ -1773,20 +1793,47 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                 </p>
               ) : null}
 
-              <FormField
-                label="Decisor"
-                optional
-                className="md:max-w-md"
-                {...formFieldProps("decisor")}
-              >
-                <Input
-                  {...controlProps("decisor")}
-                  value={decisor}
-                  onChange={(event) => setDecisor(event.target.value)}
-                  placeholder="Nome do decisor na empresa"
-                  className={newLeadModalFieldClass}
-                />
-              </FormField>
+              {/* Decisor obrigatório com telefone ou e-mail (09/11/2026): o pós-venda chegava sem contato do cliente. */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <FormField label="Decisor" {...formFieldProps("decisor")}>
+                  <Input
+                    {...controlProps("decisor")}
+                    value={decisor}
+                    onChange={(event) => setDecisor(maskNomePessoa(event.target.value))}
+                    placeholder="Nome de quem decide na empresa"
+                    autoComplete="off"
+                    autoCapitalize="words"
+                    className={newLeadModalFieldClass}
+                  />
+                </FormField>
+                <FormField
+                  label="Telefone do decisor"
+                  hint="Telefone ou e-mail: pelo menos um."
+                  {...formFieldProps("decisorTelefone")}
+                >
+                  <Input
+                    {...controlProps("decisorTelefone", { hasHint: true })}
+                    value={decisorTelefone}
+                    onChange={(event) => setDecisorTelefone(maskPhoneBr(event.target.value))}
+                    placeholder="(19) 99999-9999"
+                    inputMode="tel"
+                    autoComplete="off"
+                    className={newLeadModalFieldClass}
+                  />
+                </FormField>
+                <FormField label="E-mail do decisor" {...formFieldProps("decisorEmail")}>
+                  <Input
+                    {...controlProps("decisorEmail")}
+                    value={decisorEmail}
+                    onChange={(event) => setDecisorEmail(event.target.value)}
+                    placeholder="nome@empresa.com.br"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="off"
+                    className={newLeadModalFieldClass}
+                  />
+                </FormField>
+              </div>
 
               <div className="space-y-3">
                 {empresas.map((company, index) => {
@@ -2261,7 +2308,14 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       );
                     })}
                   </ul>
-                  <ReviewField label="Decisor">{decisor.trim() || "Não informado"}</ReviewField>
+                  <ReviewField label="Decisor">
+                    {decisor.trim() || "Não informado"}
+                    {[decisorTelefone.trim(), decisorEmail.trim()].filter(Boolean).length ? (
+                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                        {[decisorTelefone.trim(), decisorEmail.trim()].filter(Boolean).join(" · ")}
+                      </span>
+                    ) : null}
+                  </ReviewField>
                 </ReviewSection>
 
                 <ReviewSection icon={SearchCheck} title="Áreas de análise" onEdit={() => selectWizardStep("areas")}>

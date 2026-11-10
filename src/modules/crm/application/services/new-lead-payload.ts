@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
 import { isValidCnpj, isValidCpf } from "@/lib/crm/rd-migration/documents";
+import { isEmailValido, isTelefoneBrValido } from "@/lib/crm/nome-pessoa";
 
 /** Mesmas opções que `cp_areas_objeto` e `PROPOSAL_SCOPE_OPTIONS` (`crm-areas.ts`). */
 export const leadAreas = CRM_PRACTICE_AREAS;
@@ -54,6 +55,19 @@ export const newLeadPayloadSchema = z
     /** Cross selling pode envolver mais de uma área (03/11/2026); `area_cross_selling` fica com a primeira. */
     areas_cross_selling: z.array(z.enum(leadAreas)).optional().nullable(),
     decisor: z.string().trim().optional().nullable(),
+    /** Contato do decisor (09/11/2026): o formulário exige telefone ou e-mail; aqui só o formato. */
+    decisor_telefone: z
+      .string()
+      .trim()
+      .optional()
+      .nullable()
+      .refine((v) => !v || isTelefoneBrValido(v), "Telefone do decisor inválido: use DDD e número."),
+    decisor_email: z
+      .string()
+      .trim()
+      .optional()
+      .nullable()
+      .refine((v) => !v || isEmailValido(v), "E-mail do decisor inválido."),
     contexto_comercial: z.string().optional().nullable(),
     /** Cliente da carteira quando o CNPJ/CPF já existe na base. */
     cliente_id: z.string().uuid().optional().nullable(),

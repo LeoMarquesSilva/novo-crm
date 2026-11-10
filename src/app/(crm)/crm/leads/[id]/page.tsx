@@ -173,6 +173,9 @@ export interface LeadDetailData extends Oportunidade {
   } | null;
 }
 
+/** Campos do funil que a ficha traz mesmo sem valor gravado (os editores precisam do id). */
+const ALWAYS_LOADED_PIPELINE_CODES = ["cp_tributacao", "cp_gestor_contrato"] as const;
+
 function normalizeLabel(label: string): string {
   return label
     .replace(/[\u2013\u2014\u2015]/g, "-")
@@ -447,11 +450,12 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       .from("field_definitions")
       .select("id, field_code, label, field_type, sort_order, field_options, condition_json")
       .eq("entity_name", "oportunidade")
-      .eq("field_code", "cp_tributacao")
+      // Sempre presentes, mesmo vazios: tributação (editor da proposta) e gestor do
+      // contrato (editor do contrato, 10/11/2026).
+      .in("field_code", [...ALWAYS_LOADED_PIPELINE_CODES])
       .eq("pipeline_code", "vendas")
       .eq("stage_code", "confeccao_proposta")
-      .order("id", { ascending: true })
-      .limit(1),
+      .order("id", { ascending: true }),
     wantsEscopoSolicitacoes
       ? supabase
           .from("proposta_escopo_solicitacao")
@@ -517,20 +521,20 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
       value: valueJsonToDisplayString(valueByDefId.get(d.id)),
     }));
 
-  if (!pipelineFields.some((field) => field.fieldCode === "cp_tributacao")) {
-    const trib = tribRows?.[0];
-    if (trib) {
-      const rawFv = (fvRows ?? []).find((r) => r.field_definition_id === trib.id);
-      pipelineFields.push({
-        definitionId: trib.id,
-        fieldCode: trib.field_code,
-        label: trib.label,
-        fieldType: trib.field_type,
-        fieldOptions: fieldOptionsFromDb(trib.field_options),
-        conditionJson: trib.condition_json ?? null,
-        value: rawFv ? valueJsonToDisplayString(rawFv.value_json) : "",
-      });
-    }
+  for (const code of ALWAYS_LOADED_PIPELINE_CODES) {
+    if (pipelineFields.some((field) => field.fieldCode === code)) continue;
+    const def = (tribRows ?? []).find((row) => row.field_code === code);
+    if (!def) continue;
+    const rawFv = (fvRows ?? []).find((r) => r.field_definition_id === def.id);
+    pipelineFields.push({
+      definitionId: def.id,
+      fieldCode: def.field_code,
+      label: def.label,
+      fieldType: def.field_type,
+      fieldOptions: fieldOptionsFromDb(def.field_options),
+      conditionJson: def.condition_json ?? null,
+      value: rawFv ? valueJsonToDisplayString(rawFv.value_json) : "",
+    });
   }
 
   const filledFieldsMerged = mergeFilledFieldsWithCrmOverrides(

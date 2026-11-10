@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useCrmActor } from "@/components/crm/crm-session-context";
@@ -91,6 +91,7 @@ import {
   SIGNATURE_PAGE_LAST,
 } from "@/lib/crm/contrato-signature-pins";
 import type { LeadDetailData } from "./page";
+import { LeadDetailFieldEditor } from "./lead-detail-field-editor";
 import { HonorariosDaPropostaPanel, type IgnoredCommercialField } from "./contrato-honorarios-panel";
 import {
   ClienteCadastroApplyDialog,
@@ -136,7 +137,7 @@ import type {
 } from "@/lib/crm/contract-engine/types";
 import type { ProposalContractSnapshot, ScopeSubtypeLabels } from "@/lib/crm/contract-engine/proposal-snapshot";
 import { parsePropostaEmpresasJson } from "@/components/crm/confeccao-reuniao-modal-section";
-import { PropostaOutrosContratantes } from "@/components/crm/proposta-outros-contratantes";
+import { ContratoPartesEditor } from "@/components/crm/contrato-partes-editor";
 import { comContratantesEfetivos } from "@/lib/crm/proposta-contratantes";
 import {
   AlterarEscoposDialog,
@@ -530,6 +531,18 @@ export function ContratoDocumentBuilder({
   const canEditContract = crmActor ? canPerformLeadAction(crmActor, { action: "contract.edit" }) : false;
   const showProposalChanged = Boolean(contratoState?.proposalChanged) && !contractSent && canEditContract;
 
+  // Como na proposta: ao chegar em Elaboração do Contrato o editor já abre (uma vez por
+  // visita), enquanto o contrato ainda não foi para revisão nem para assinatura.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current || loading || !contratoState || !crmActor) return;
+    autoOpenedRef.current = true;
+    if (lead.etapa !== "confeccao_contrato" || !canEditContract || contractSent) return;
+    if (contratoState.reviewTask) return;
+    setBuilderFocusSection(null);
+    setBuilderOpen(true);
+  }, [loading, contratoState, crmActor, lead.etapa, canEditContract, contractSent]);
+
   // O contrato guarda uma cópia da proposta ao ser montado; refaz a cópia mantendo o que
   // foi preenchido no objeto e as escolhas de escopo.
   async function refazerPelaProposta() {
@@ -872,6 +885,8 @@ function ContratoBuilderDialog({
     parsePropostaEmpresasJson(contratoState.snapshot.fieldByCode.cp_proposta_empresas_json ?? ""),
     empresasIntake,
   );
+  const partesComplete = empresasIntake.length > 0 || Boolean(propostaEmpresaPrincipalNome);
+  const gestorContratoField = lead.pipelineFields.find((f) => f.fieldCode === "cp_gestor_contrato") ?? null;
 
   async function trocarContratantes(next: { primaryIndex: number }) {
     if (!onContratantesChange) return;
@@ -1441,7 +1456,7 @@ function ContratoBuilderDialog({
                   if (leftPane) scrollPaneToSection(leftPane, id);
                 }}
                 sections={[
-                  { id: "section-partes", num: 1, label: "Partes", state: propostaEmpresaPrincipalNome ? "complete" : "pending" },
+                  { id: "section-partes", num: 1, label: "Partes", state: partesComplete ? "complete" : "pending" },
                   { id: "section-escopos", num: 2, label: "Escopos", state: scopesComplete ? "complete" : "pending" },
                   {
                     id: "section-objeto",
@@ -1478,33 +1493,21 @@ function ContratoBuilderDialog({
                 ]}
               />
               <div className="space-y-8 px-5 pt-6 sm:px-6">
-                {/* Seção: Partes (read-only) */}
-                <FormSection id="section-partes" num={1} title="Partes" isComplete={Boolean(propostaEmpresaPrincipalNome)}>
-                  {propostaEmpresaPrincipalNome ? (
-                    <div className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3">
-                      <div className="mb-1 flex items-center gap-2">
-                        <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
-                          Empresa principal
-                        </p>
-                        <DocumentInheritedBadge />
-                      </div>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {propostaEmpresaPrincipalNome}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Empresa não identificada. Verifique os dados da proposta.
-                    </p>
-                  )}
-                  <div className="mt-3">
-                    <PropostaOutrosContratantes
+                {/* Seção: Partes (quem assina + gestor do contrato no escritório) */}
+                <FormSection id="section-partes" num={1} title="Partes" isComplete={partesComplete}>
+                  <div className="mb-3 flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">Vêm da proposta; ajuste aqui quem assina.</p>
+                    <DocumentInheritedBadge />
+                  </div>
+                  <div>
+                    <ContratoPartesEditor
                       empresas={empresasIntake}
                       escolha={escolhaEmpresas}
                       onChange={(next) => void trocarContratantes(next)}
                       disabled={!onContratantesChange || isDirty || savingContratantes}
+                      principalNomeFallback={propostaEmpresaPrincipalNome}
                     />
-                    {onContratantesChange && isDirty && empresasIntake.length > 1 ? (
+                    {onContratantesChange && isDirty ? (
                       <p className="mt-1 text-xs text-muted-foreground">
                         Salve o contrato antes de mudar quem assina.
                       </p>
@@ -1518,6 +1521,26 @@ function ContratoBuilderDialog({
                       <p className="mt-1 text-xs font-medium text-destructive">{contratantesError}</p>
                     ) : null}
                   </div>
+                  {gestorContratoField ? (
+                    // Saiu da passagem Reunião → Elaboração da proposta (10/11/2026): é escolhido aqui.
+                    <div className="mt-5 border-t border-border pt-4">
+                      <LeadDetailFieldEditor
+                        leadId={lead.id}
+                        scope="pipeline"
+                        fieldDefinitionId={gestorContratoField.definitionId}
+                        fieldKey={gestorContratoField.fieldCode}
+                        label="Gestor do contrato"
+                        value={gestorContratoField.value}
+                        kind="user"
+                        resolvedUser={gestorContratoField.resolvedUser}
+                        allowExternalUser={false}
+                        onAfterSave={() => router.refresh()}
+                      />
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        Quem acompanha o contrato no escritório depois da assinatura.
+                      </p>
+                    </div>
+                  ) : null}
                 </FormSection>
 
                 <div id="section-escopos" className="scroll-mt-16">

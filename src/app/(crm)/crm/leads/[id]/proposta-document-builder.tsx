@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   BadgeDollarSign,
   Building2,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -16,7 +17,6 @@ import {
   Loader2,
   PenLine,
   Save,
-  SlidersHorizontal,
   Target,
   TriangleAlert,
   UserRound,
@@ -49,6 +49,7 @@ import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { parsePropostaEmpresasJson } from "@/components/crm/confeccao-reuniao-modal-section";
+import { digitsOnly, formatCepDisplay } from "@/lib/crm/proposta-empresas";
 import { PropostaOutrosContratantes } from "@/components/crm/proposta-outros-contratantes";
 import {
   comContratantesEfetivos,
@@ -68,6 +69,7 @@ import {
 import { isInteractionFromBaseUiSelectLayer } from "@/lib/ui/base-ui-select-dialog";
 import { useBodyScrollLock } from "@/lib/ui/body-scroll-lock";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
+import { PracticeAreaIconBadge } from "@/lib/crm/area-lucide-icon";
 import { cn } from "@/lib/utils";
 import { LeadDetailFieldEditor, pipelineFieldToEditorProps } from "./lead-detail-field-editor";
 import {
@@ -184,34 +186,19 @@ const SECTION_META = {
     description: "Síntese comercial e objeto da proposta antes dos blocos jurídicos.",
     codes: new Set(["cp_objeto_proposta", "cp_areas_objeto"]),
   },
-  condicoes: {
-    title: "Condições",
-    description: "Prazos, tributação, due diligence e dados comerciais complementares.",
-    codes: new Set([
-      "cp_realizou_due",
-      "cp_link_arquivo_due",
-      "cp_gestor_contrato",
-      "cp_nome_focal",
-      "cp_email_focal",
-      "cp_tel_focal",
-      "cp_captador",
-      "cp_tributacao",
-      "cp_prazo_entrega",
-      "cp_primeiro_vencimento",
-      "cp_info_adicionais",
-    ]),
+  // Só a tributação fica no editor (passo Investimento). Os demais campos do pipeline
+  // (data/horário/local da reunião, gestor do contrato, prazos) não entram na proposta:
+  // o gestor do contrato é escolhido na elaboração do contrato.
+  investimento: {
+    title: "Tributação",
+    description: "Se os valores da proposta incluem ou não os tributos.",
+    codes: new Set(["cp_tributacao"]),
   },
 } as const;
 
 type SectionKey = keyof typeof SECTION_META;
 
-type ProposalStepKey =
-  | "responsavel"
-  | "cliente"
-  | "objeto"
-  | "escopo"
-  | "condicoes"
-  | "investimento";
+type ProposalStepKey = "responsavel" | "cliente" | "objeto" | "escopo" | "investimento";
 
 const PROPOSAL_STEPS: Array<{
   key: ProposalStepKey;
@@ -244,15 +231,9 @@ const PROPOSAL_STEPS: Array<{
     icon: ListChecks,
   },
   {
-    key: "condicoes",
-    label: "Condições",
-    description: "Prazos e informações comerciais complementares.",
-    icon: SlidersHorizontal,
-  },
-  {
     key: "investimento",
     label: "Investimento",
-    description: "Valor total e forma de pagamento da proposta.",
+    description: "Valor total, forma de pagamento e tributação da proposta.",
     icon: BadgeDollarSign,
   },
 ];
@@ -279,6 +260,7 @@ export function PropostaDocumentBuilder({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [generatedNotice, setGeneratedNotice] = useState<string | null>(null);
   const autoOpenedRef = useRef(false);
 
   // Só a primeira carga mostra "Preparando o editor": numa releitura (depois de Salvar ou
@@ -394,6 +376,16 @@ export function PropostaDocumentBuilder({
         </div>
       ) : null}
 
+      {generatedNotice ? (
+        <div
+          role="status"
+          className="flex items-center gap-2 border-t border-border bg-success-bg px-5 py-3 text-sm font-medium text-success-text sm:px-6"
+        >
+          <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+          {generatedNotice}
+        </div>
+      ) : null}
+
       {docState.versions.length > 0 ? (
         <div className="border-t border-border px-5 py-4 sm:px-6">
           <div className="mb-3 flex items-center gap-2">
@@ -421,6 +413,10 @@ export function PropostaDocumentBuilder({
           open={builderOpen}
           onOpenChange={setBuilderOpen}
           onRefresh={refreshState}
+          onGenerated={(message) => {
+            setGeneratedNotice(message);
+            setBuilderOpen(false);
+          }}
         />
       ) : null}
     </section>
@@ -440,6 +436,7 @@ function PropostaBuilderDialog({
   open,
   onOpenChange,
   onRefresh,
+  onGenerated,
 }: {
   lead: LeadDetailData;
   viewer: LeadDetailViewer | null;
@@ -451,6 +448,8 @@ function PropostaBuilderDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onRefresh: () => Promise<void>;
+  /** Proposta oficial gerada: o editor fecha e o cartão mostra o aviso. */
+  onGenerated: (message: string) => void;
 }) {
   const router = useRouter();
   useBodyScrollLock(open);
@@ -506,10 +505,8 @@ function PropostaBuilderDialog({
   useEffect(() => {
     const urls = downloadUrls.current;
     return () => {
-      for (const [url, timer] of urls) {
-        clearTimeout(timer);
-        URL.revokeObjectURL(url);
-      }
+      // O editor fecha logo depois de gerar: revogar agora pode cortar o download em
+      // andamento. Os temporizadores (60 s) continuam e liberam cada URL.
       urls.clear();
     };
   }, []);
@@ -633,7 +630,7 @@ function PropostaBuilderDialog({
     const out: Record<SectionKey | "revisao", LeadDetailData["pipelineFields"]> = {
       cliente: [],
       objeto: [],
-      condicoes: [],
+      investimento: [],
       revisao: [],
     };
     for (const field of proposalPipelineFields) {
@@ -720,7 +717,6 @@ function PropostaBuilderDialog({
       cliente: 0,
       objeto: 0,
       escopo: 0,
-      condicoes: 0,
       investimento: 0,
     };
 
@@ -896,11 +892,15 @@ function PropostaBuilderDialog({
       );
       const { blob, filename } = await readResponse(response);
       triggerBrowserDownload(blob, filename);
-      setFeedback(
-        format === "pdf" ? "Proposta PDF gerada e baixada." : "Proposta Word gerada e baixada.",
-      );
       await onRefresh();
       router.refresh();
+      // Fecha o editor só depois da releitura: o download já começou e a versão nova
+      // aparece em "Versões geradas" no cartão.
+      onGenerated(
+        format === "pdf"
+          ? "Proposta PDF gerada e baixada. Ela já está em Versões geradas."
+          : "Proposta Word gerada e baixada. Ela já está em Versões geradas.",
+      );
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Não foi possível gerar a proposta.");
     } finally {
@@ -1302,56 +1302,32 @@ function PropostaBuilderDialog({
                       )
                     ) : null}
 
-                    {activeStep === "condicoes" ? (
-                      fieldsBySection.condicoes.length > 0 || fieldsBySection.revisao.length > 0 ? (
-                        <div className="space-y-6">
-                          <BuilderSection
-                            meta={SECTION_META.condicoes}
-                            fields={fieldsBySection.condicoes}
-                            draftValues={draftValues}
-                            onChange={fieldChange}
-                            disabled={busy}
-                            embedded
-                          />
-                          {fieldsBySection.revisao.length > 0 ? (
-                            <div className={cn(fieldsBySection.condicoes.length > 0 && "border-t border-border pt-5")}>
-                              <div className="mb-4">
-                                <p className="text-v2-heading-md text-foreground">Informações adicionais</p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  Campos complementares definidos para este modelo.
-                                </p>
-                              </div>
-                              <BuilderSection
-                                meta={{
-                                  title: "Informações adicionais",
-                                  description: "Campos complementares definidos para este modelo.",
-                                }}
-                                fields={fieldsBySection.revisao}
-                                draftValues={draftValues}
-                                onChange={fieldChange}
-                                disabled={busy}
-                                embedded
-                              />
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <ProposalStepEmptyState text="Este modelo não possui condições complementares para preencher." />
-                      )
-                    ) : null}
-
                     {activeStep === "investimento" ? (
-                      escopoDetalhe && areasField ? (
-                        <PropostaInvestimentoConsolidadoForm
-                          escopoJson={escopoJson}
-                          areasDisplay={draftValues.cp_areas_objeto ?? areasField.value ?? ""}
-                          investmentCatalog={investmentCatalog}
-                          disabled={busy}
-                          onEscopoJsonChange={syncEscopoJsonFromDraft}
-                        />
-                      ) : (
-                        <ProposalStepEmptyState text="Configure as áreas e o escopo antes de preencher o investimento." />
-                      )
+                      <div className="space-y-6">
+                        {escopoDetalhe && areasField ? (
+                          <PropostaInvestimentoConsolidadoForm
+                            escopoJson={escopoJson}
+                            areasDisplay={draftValues.cp_areas_objeto ?? areasField.value ?? ""}
+                            investmentCatalog={investmentCatalog}
+                            disabled={busy}
+                            onEscopoJsonChange={syncEscopoJsonFromDraft}
+                          />
+                        ) : (
+                          <ProposalStepEmptyState text="Configure as áreas e o escopo antes de preencher o investimento." />
+                        )}
+                        {fieldsBySection.investimento.length > 0 ? (
+                          <div className="border-t border-border pt-5">
+                            <BuilderSection
+                              meta={SECTION_META.investimento}
+                              fields={fieldsBySection.investimento}
+                              draftValues={draftValues}
+                              onChange={fieldChange}
+                              disabled={busy}
+                              embedded
+                            />
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 </section>
@@ -1622,8 +1598,8 @@ function proposalStepForFieldCode(fieldCode: string): ProposalStepKey {
   if (fieldCode === "cp_escopo_detalhe_json") return "escopo";
   if ((SECTION_META.cliente.codes as ReadonlySet<string>).has(fieldCode)) return "cliente";
   if ((SECTION_META.objeto.codes as ReadonlySet<string>).has(fieldCode)) return "objeto";
-  if ((SECTION_META.condicoes.codes as ReadonlySet<string>).has(fieldCode)) return "condicoes";
-  return "condicoes";
+  if ((SECTION_META.investimento.codes as ReadonlySet<string>).has(fieldCode)) return "investimento";
+  return "cliente";
 }
 
 function proposalStepForPendingItem(
@@ -1647,7 +1623,7 @@ function proposalStepForPendingItem(
       userFacingFieldLabel(field.label, field.fieldCode).toLocaleLowerCase("pt-BR") ===
       normalized,
   );
-  return matchedField ? proposalStepForFieldCode(matchedField.fieldCode) : "condicoes";
+  return matchedField ? proposalStepForFieldCode(matchedField.fieldCode) : "cliente";
 }
 
 function ProposalStepEmptyState({ text }: { text: string }) {
@@ -1836,6 +1812,69 @@ function PropFieldInput({
     );
   }
 
+  // Áreas do objeto: cartões com o ícone de cada área (docs/ICONES-DAS-AREAS.md).
+  if (field.fieldCode === "cp_areas_objeto" && pe.selectOptions && pe.selectOptions.length > 0) {
+    const options = pe.selectOptions;
+    const selected = new Set(value.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean));
+    function toggleArea(opt: string) {
+      const next = new Set(selected);
+      if (next.has(opt)) next.delete(opt);
+      else next.add(opt);
+      // Ordem do catálogo (não a dos cliques); valor antigo fora do catálogo é mantido no fim.
+      const ordered = [
+        ...options.filter((o) => next.has(o)),
+        ...[...next].filter((o) => !options.includes(o)),
+      ];
+      onChange(ordered.join(", "));
+    }
+    return (
+      <fieldset className="space-y-2 sm:col-span-2">
+        <legend className="flex w-full items-baseline justify-between gap-2">
+          <span className="text-xs font-medium text-foreground">{label}</span>
+          <span className="text-v2-caption text-muted-foreground">
+            {selected.size === 0
+              ? "Escolha ao menos uma"
+              : `${selected.size} ${selected.size === 1 ? "área" : "áreas"}`}
+          </span>
+        </legend>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {options.map((opt) => {
+            const active = selected.has(opt);
+            return (
+              <button
+                key={opt}
+                type="button"
+                role="checkbox"
+                aria-checked={active}
+                onClick={() => toggleArea(opt)}
+                disabled={disabled}
+                className={cn(
+                  "flex min-h-14 items-center gap-3 rounded-(--radius-v2-lg) border bg-white px-3 py-2.5 text-left transition-colors",
+                  active
+                    ? "border-interactive-600 ring-1 ring-interactive-600"
+                    : "border-border hover:border-border-strong",
+                  disabled && "cursor-not-allowed opacity-60",
+                )}
+              >
+                <PracticeAreaIconBadge area={opt} size="sm" />
+                <span className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground">{opt}</span>
+                <span
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded-full border",
+                    active ? "border-interactive-600 bg-interactive-600 text-white" : "border-border bg-white",
+                  )}
+                  aria-hidden
+                >
+                  {active ? <Check className="size-3" /> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+    );
+  }
+
   // MULTISELECT — render simples com checkboxes inline (valor stored = "Opt A, Opt B")
   if (pe.kind === "multiselect" && pe.selectOptions && pe.selectOptions.length > 0) {
     const selected = new Set(
@@ -1902,6 +1941,24 @@ function PropFieldInput({
       <div className={cn("space-y-1.5", wrapperClass)}>
         <Label className="text-xs font-medium text-foreground">{label}</Label>
         <TimeInputBr value={value} onChange={onChange} disabled={disabled} step={300} className="border-border bg-white text-sm" />
+      </div>
+    );
+  }
+
+  // CEP: mostra 00000-000 e grava só os 8 números (igual ao modal da reunião).
+  if (field.fieldCode === "cp_cliente_cep") {
+    return (
+      <div className={cn("space-y-1.5", wrapperClass)}>
+        <Label className="text-xs font-medium text-foreground">{label}</Label>
+        <Input
+          inputMode="numeric"
+          value={formatCepDisplay(value)}
+          onChange={(e) => onChange(digitsOnly(e.target.value).slice(0, 8))}
+          disabled={disabled}
+          placeholder="00000-000"
+          maxLength={9}
+          className="rounded-(--radius-v2-md) border-border bg-white text-sm"
+        />
       </div>
     );
   }

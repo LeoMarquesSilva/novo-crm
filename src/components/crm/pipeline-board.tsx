@@ -712,6 +712,10 @@ export function PipelineBoard({
           setTransitionModal(null);
           await commitTransition(item, targetStage, {});
           markPendingConfirmed();
+          // Elaboração do contrato: vai ao lead, onde o editor do contrato já abre.
+          if (targetStage === "confeccao_contrato") {
+            router.push(`/crm/leads/${encodeURIComponent(item.id)}?tab=contract`);
+          }
           return;
         }
 
@@ -873,7 +877,7 @@ export function PipelineBoard({
         // Após avançar para elaboração de contrato, redireciona direto para o detalhe do lead.
         // A aba "Contrato" abre automaticamente pois isContractStage === true.
         if (nextStage === "confeccao_contrato") {
-          router.push(`/crm/leads/${encodeURIComponent(item.id)}`);
+          router.push(`/crm/leads/${encodeURIComponent(item.id)}?tab=contract`);
         }
       } catch (e) {
         setModalError(e instanceof Error ? e.message : "Falha ao salvar a etapa.");
@@ -902,9 +906,7 @@ export function PipelineBoard({
         ) : null}
         {isReuniaoConfeccaoModal ? (
           <ConfeccaoReuniaoModalSection
-            gestorField={transitionModal.customFields.find(
-              (f) => f.field_code === "cp_gestor_contrato" && f.is_active !== false,
-            )}
+            // Gestor do contrato não é pedido aqui: é escolhido na elaboração do contrato.
             empresasIntake={transitionModal.empresasIntake}
             customValues={transitionModal.customValues}
             disabled={transitionSubmitting}

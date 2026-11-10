@@ -261,6 +261,25 @@ export async function POST(request: Request) {
         );
       }
     }
+    // Contato do decisor (09/11/2026). Update à parte: sem as colunas (migration 20261109120000
+    // pendente) o lead é criado e o aviso pede para anotar o contato na ficha.
+    const decisorContato = {
+      decisor_telefone: payload.decisor_telefone?.trim() || null,
+      decisor_email: payload.decisor_email?.trim().toLowerCase() || null,
+    };
+    if (decisorContato.decisor_telefone || decisorContato.decisor_email) {
+      const { error: contatoError } = await supabase
+        .from("lead_intakes")
+        .update(decisorContato as never)
+        .eq("oportunidade_id", oportunidade.id);
+      if (contatoError) {
+        warnings.push(
+          /decisor_(telefone|email)/.test(contatoError.message)
+            ? "O lead foi criado, mas o telefone e o e-mail do decisor não foram gravados: o banco ainda não tem esses campos (migration 20261109120000 pendente). Anote o contato na ficha do lead."
+            : `Contato do decisor: ${safeWarning("decisor-contato", contatoError, "não foi gravado.")}`,
+        );
+      }
+    }
     // Várias áreas de cross selling (03/11/2026). Update à parte: sem a coluna (migration
     // 20261103133000 pendente) a primeira área já ficou em `area_cross_selling`.
     if (areasCrossSelling.length > 0) {

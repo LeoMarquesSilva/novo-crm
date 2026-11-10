@@ -64,6 +64,8 @@ const HIDDEN_INTAKE_KEYS = new Set([
   "plataforma",
   "area_cross_selling",
   "decisor",
+  "decisor_telefone",
+  "decisor_email",
 ]);
 const INTEGRATION_FIELD_PREFIX = "sharepoint_";
 const LONG_FIELD_KEYS = new Set(["areas_analise", "contexto_comercial", "sharepoint_agendamento_error"]);
@@ -214,6 +216,26 @@ export function LeadDetailOverview({
               fieldKey="decisor"
               label="Decisor"
               value={lead.intakeFields.find((field) => field.key === "decisor")?.value ?? ""}
+              kind="text"
+              displayVariant="row"
+              className="border-t border-neutral-200"
+            />
+            <LeadDetailFieldEditor
+              leadId={lead.id}
+              scope="intake"
+              fieldKey="decisor_telefone"
+              label="Telefone do decisor"
+              value={lead.intakeFields.find((field) => field.key === "decisor_telefone")?.value ?? ""}
+              kind="text"
+              displayVariant="row"
+              className="border-t border-neutral-200"
+            />
+            <LeadDetailFieldEditor
+              leadId={lead.id}
+              scope="intake"
+              fieldKey="decisor_email"
+              label="E-mail do decisor"
+              value={lead.intakeFields.find((field) => field.key === "decisor_email")?.value ?? ""}
               kind="text"
               displayVariant="row"
               className="border-t border-neutral-200"

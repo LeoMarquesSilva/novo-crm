@@ -97,6 +97,10 @@ export function filledFieldsFromLeadIntake(
   if (areaCross) push("area_cross_selling", areasCross.length > 1 ? "Áreas" : "Área", areaCross);
   const decisor = asString(intake.decisor);
   if (decisor) push("decisor", "Decisor", decisor);
+  const decisorTelefone = asString(intake.decisor_telefone);
+  if (decisorTelefone) push("decisor_telefone", "Telefone do decisor", decisorTelefone);
+  const decisorEmail = asString(intake.decisor_email);
+  if (decisorEmail) push("decisor_email", "E-mail do decisor", decisorEmail);
   const ti = asString(intake.tipo_indicacao);
   if (ti) push("tipo_indicacao", "Tipo de indicação", ti);
   const ni = asString(intake.nome_indicacao);

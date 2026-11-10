@@ -19,6 +19,17 @@ export function toRomanListMarker(index: number): string {
   return `(${ROMAN[index] ?? index + 1})`;
 }
 
+/**
+ * Títulos que só repetem o assunto do parágrafo e deixam a leitura ambígua
+ * ("1.3. Objeto. O objeto deste Contrato é…"): não saem no texto numerado (10/11/2026).
+ */
+const REDUNDANT_OBJECT_LINE_TITLES = new Set(["objeto", "natureza"]);
+
+function visibleObjectLineTitle(title: string | undefined): string | undefined {
+  if (!title?.trim()) return undefined;
+  return REDUNDANT_OBJECT_LINE_TITLES.has(title.trim().toLocaleLowerCase("pt-BR")) ? undefined : title;
+}
+
 export function numberContractObjectBlocks(blocks: ContractObjectBlock[]): NumberedObjectLine[] {
   const sorted = [...blocks].sort((a, b) => a.order - b.order);
   const lines: NumberedObjectLine[] = [];
@@ -34,7 +45,7 @@ export function numberContractObjectBlocks(blocks: ContractObjectBlock[]): Numbe
   ) => {
     lines.push({
       number,
-      title,
+      title: visibleObjectLineTitle(title),
       content,
       kind: block.kind,
       stableKey: block.stableKey,

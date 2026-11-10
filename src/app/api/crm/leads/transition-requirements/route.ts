@@ -23,7 +23,7 @@ import {
 } from "@/lib/crm/compute-transition-requirements";
 import { RD_KANBAN_VIEW_ONLY_MESSAGE } from "@/lib/crm/rd-kanban-view";
 import { isDueReviewApprovedForCycle } from "@/lib/crm/due-area-task-status";
-import { countDuePptDocuments } from "@/lib/crm/due-area-tasks";
+import { countDuePptDocuments, semRevisaoPorFaltaDeProcessos } from "@/lib/crm/due-area-tasks";
 import { saoPauloDateYmd } from "@/lib/format-datetime";
 import {
   loadRdMigrationLeadState,
@@ -331,7 +331,10 @@ export async function GET(request: NextRequest) {
         if (cycle < 1) {
           leadIntakeBlockingReason =
             "A negociação precisa ter passado por Revisão antes de finalizar a DUE.";
-        } else if (!isDueReviewApprovedForCycle(reviewTasksResult.data ?? [], cycle)) {
+        } else if (
+          !isDueReviewApprovedForCycle(reviewTasksResult.data ?? [], cycle) &&
+          !(await semRevisaoPorFaltaDeProcessos(supabase, opportunityId, reviewTasksResult.data ?? []))
+        ) {
           leadIntakeBlockingReason =
             "Todas as áreas devem aprovar a revisão da DUE antes de mover para Due Diligence Finalizada.";
         }
@@ -463,11 +466,16 @@ export async function GET(request: NextRequest) {
       fieldValues,
     });
 
+    // Due Diligence Finalizada confirma data, horário e local da reunião mesmo quando o cadastro já os
+    // preencheu (09/11/2026): pelo kanban o lead passava direto, sem o modal que a ficha mostra.
+    const confirmaReuniao =
+      pipeline === "vendas" && nextStage === "due_diligence_finalizada" && defs.length > 0 && leadIntakeBlockingReason === null;
     const needsModal =
       links.linkProposta ||
       links.linkContrato ||
       (leadIntake?.needed === true && leadIntakeBlockingReason === null) ||
-      blockingCustom.length > 0;
+      blockingCustom.length > 0 ||
+      confirmaReuniao;
 
     return NextResponse.json({
       ok: true,

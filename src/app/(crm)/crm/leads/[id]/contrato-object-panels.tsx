@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { maskNumeroProcessoCNJ } from "@/lib/crm/proposta-escopo-preview";
 import { cn } from "@/lib/utils";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
+import { PracticeAreaIconBadge } from "@/lib/crm/area-lucide-icon";
 import type {
   CanonicalContractBuildResult,
   ContractObjectFieldValue,
@@ -65,34 +66,57 @@ export function EscoposContratadosSection({
     <div className="space-y-3">
       <SectionHeading num={num} title="Escopos Contratados" complete={complete} />
       <div className="ml-10 space-y-3">
-        <p className="text-xs text-muted-foreground">Herdado da proposta ✓</p>
+        <p className="text-xs text-muted-foreground">
+          Herdados da proposta, separados por área.
+        </p>
         {groups.length === 0 ? (
           <p className="text-xs text-amber-700">Nenhum escopo herdado da proposta.</p>
         ) : (
-          groups.map((group) => (
-            <div key={group.area} className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3">
-              <p className="text-v2-caption-medium uppercase tracking-wide text-info-text">
-                {group.area}
-              </p>
-              <ul className="mt-2 space-y-1.5">
-                {group.items.map((scope) => (
-                  <li key={scope.entryId} className="flex items-start gap-2 text-sm">
-                    {scope.missingProfile ? (
-                      <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" aria-hidden />
-                    ) : (
-                      <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
-                    )}
-                    <span className={scope.missingProfile ? "text-amber-800" : "text-foreground"}>
-                      {scope.label}
-                      {scope.missingProfile ? (
-                        <span className="ml-2 text-[11px] font-semibold">Sem perfil contratual</span>
-                      ) : null}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
+          <div className="space-y-2.5">
+            {groups.map((group) => {
+              const semPerfil = group.items.filter((s) => s.missingProfile).length;
+              return (
+                <section
+                  key={group.area}
+                  aria-label={group.area}
+                  className={cn(
+                    "rounded-(--radius-v2-lg) border bg-white",
+                    semPerfil > 0 ? "border-amber-200" : "border-border",
+                  )}
+                >
+                  <header className="flex items-center gap-3 border-b border-border px-3 py-2.5">
+                    <PracticeAreaIconBadge area={group.area} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">{group.area}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {group.items.length} {group.items.length === 1 ? "escopo" : "escopos"}
+                        {semPerfil > 0 ? ` · ${semPerfil} sem perfil contratual` : ""}
+                      </p>
+                    </div>
+                  </header>
+                  <ul className="divide-y divide-border">
+                    {group.items.map((scope) => (
+                      <li key={scope.entryId} className="flex items-start gap-2.5 px-3 py-2 text-sm">
+                        {scope.missingProfile ? (
+                          <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" aria-hidden />
+                        ) : (
+                          <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
+                        )}
+                        <span className={cn("min-w-0 flex-1", scope.missingProfile ? "text-amber-800" : "text-foreground")}>
+                          {scope.label}
+                        </span>
+                        {scope.missingProfile ? (
+                          <span className="shrink-0 rounded-(--radius-v2-full) bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            Sem perfil contratual
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
         )}
         {!proposalAligned ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">

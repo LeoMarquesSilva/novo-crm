@@ -44,9 +44,10 @@ describe("perfil: recuperação de crédito em processo de recuperação judicia
     expect(scope.label).toBe("Recuperação de Crédito em Processos de Recuperação Judicial");
 
     const lines = result.data.contractObject.numberedLines.map((l) => [l.number, l.title ?? "", l.content]);
+    // Sem o título "Objeto." antes de "O presente Contrato tem por objeto…" (10/11/2026).
     expect(lines[0]).toEqual([
       "1.1",
-      "Objeto",
+      "",
       "O presente Contrato tem por objeto a atuação estratégica e diligente com o objetivo de recuperar créditos, de qualquer natureza, em favor das CONTRATANTES, relacionados ao processo de Recuperação Judicial de Grupo Empresarial Casas Bahia S.A., autuado sob o nº 4152930-18.2026.8.26.0100, em trâmite perante a 2ª Vara de Falências e Recuperações Judiciais do Foro Central Cível de São Paulo/SP. A atuação abrangerá as etapas descritas a seguir.",
     ]);
     expect(lines.map((l) => l[0])).toEqual(["1.1", "1.2", "1.3", "1.4", "1.5", "1.6"]);

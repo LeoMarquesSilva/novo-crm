@@ -566,9 +566,7 @@ export function LeadDetailStageAdvance({
 
               {requirements.reuniaoConfeccao ? (
                 <ConfeccaoReuniaoModalSection
-                  gestorField={requirements.customFields.find(
-                    (field) => field.field_code === "cp_gestor_contrato" && field.is_active !== false,
-                  )}
+                  // Gestor do contrato não é pedido aqui: é escolhido na elaboração do contrato.
                   empresasIntake={requirements.empresasIntake}
                   customValues={requirements.fieldValues}
                   disabled={submitting}

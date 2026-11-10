@@ -714,6 +714,14 @@ export async function syncDueAreaReviewTasksForOpportunity(
     const rawAreas = Array.isArray(intake?.areas_analise) ? intake!.areas_analise : [];
     areas = [...new Set(rawAreas.map((a) => normalizePracticeAreaKey(String(a))).filter(Boolean))];
   }
+  // Área que declarou "Sem processos ativos" no levantamento não revisa (09/11/2026).
+  const { data: semProcessos } = await supabase
+    .from("due_area_tasks")
+    .select("area_key")
+    .eq("oportunidade_id", oportunidadeId)
+    .eq("sem_processos_ativos", true);
+  const semProcessosSet = new Set((semProcessos ?? []).map((row) => normalizePracticeAreaKey(String(row.area_key))));
+  areas = areas.filter((area) => !semProcessosSet.has(area));
   const prazo = new Date(Date.now() + REVIEW_PRAZO_HORAS_DEFAULT * 60 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
 
@@ -757,7 +765,24 @@ export async function allDueReviewTasksApprovedForCycle(
     .from("due_area_review_tasks")
     .select("area_key, status, revision_cycle")
     .eq("oportunidade_id", oportunidadeId);
-  return isDueReviewApprovedForCycle(data ?? [], revisionCycle);
+  return isDueReviewApprovedForCycle(data ?? [], revisionCycle) || (await semRevisaoPorFaltaDeProcessos(supabase, oportunidadeId, data ?? []));
+}
+
+/**
+ * Todas as áreas declararam "Sem processos ativos": não há quem revisar e o ciclo conta como aprovado
+ * (09/11/2026). Só vale quando o lead não tem nenhuma tarefa de revisão.
+ */
+export async function semRevisaoPorFaltaDeProcessos(
+  supabase: SupabaseClient,
+  oportunidadeId: string,
+  reviewRows: Array<{ area_key: string | null }>,
+): Promise<boolean> {
+  if (reviewRows.length > 0) return false;
+  const { data: tasks } = await supabase
+    .from("due_area_tasks")
+    .select("sem_processos_ativos")
+    .eq("oportunidade_id", oportunidadeId);
+  return Boolean(tasks?.length) && (tasks ?? []).every((t) => t.sem_processos_ativos === true);
 }
 
 export async function notifyDueReviewAreas(
