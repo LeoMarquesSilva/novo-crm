@@ -1558,6 +1558,10 @@ function ContratoBuilderDialog({
                     num={3}
                     build={liveBuild}
                     disabled={saving || generating}
+                    // Mesma condição do PATCH da tarefa de revisão no onOverride abaixo.
+                    reviewReopens={Boolean(
+                      contratoState.reviewTask && contratoState.reviewTask.status !== "pendente",
+                    )}
                     onFieldChange={(key, value) => {
                       setObjectFields((prev) => ({ ...prev, [key]: value }));
                       setSaveFeedback(null);

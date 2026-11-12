@@ -261,6 +261,12 @@ Registradas no fechamento da Fase 4 (achado bloqueante já corrigido — ver Cha
 
 ## Changelog
 
+- **12/11/2026** — Fins de fluxo com confirmação e consequência visível (P1 da crítica de design):
+  - **Novo lead:** ao criar, o kanban mostra "Lead criado: {razão social}. Ele já aparece no kanban." (`role="status"`, `success-*`) com o link "Abrir ficha". Antes o modal fechava sem nada. Com aviso da API, o mesmo bloco fica em `warning-*` e mostra o aviso. O `onSuccess` do `NewDemandForm` passou a devolver também `nome` (razão social da primeira empresa, o nome do lead no CRM).
+  - **Contrato, "Ajustar redação":** quando a revisão de Societário e Contratos já começou ou terminou, o diálogo avisa que ela volta para pendente e o botão vira "Ajustar e reabrir revisão". A prop `reviewReopens` de `ObjetoContratoSection` usa a mesma condição do PATCH da tarefa de revisão. "Override específico deste contrato" virou "Redação ajustada só neste contrato", em tokens `warning-*`.
+  - **Proposta:** sai o diálogo "Formato da proposta", que tinha dois botões principais e um aviso de recurso futuro. "Gerar Word" gera direto, no topo do editor, no topo do preenchimento e no rodapé da última etapa. "Gerar PDF" é botão secundário no rodapé da última etapa. Os botões não usam mais caixa alta, e o spinner aparece só no botão clicado.
+  - **Testes:** `contrato-object-panels.test.tsx` cobre o aviso de reabrir a revisão.
+  - **Verificação no navegador:** confirmei os botões da proposta e o diálogo do contrato (sem revisão: sem aviso). Não gerei arquivo nem criei lead de teste, porque o banco é compartilhado com a produção e a criação dispara avisos. O bloco "Lead criado" ficou coberto só pelo typecheck.
 - **12/11/2026** — Ficha do lead (P1 da crítica de design): a ação principal ficou visível e cada informação aparece uma vez só.
   - **Ação principal:** "Avançar para {próxima etapa}" é o botão principal do cabeçalho; antes era um texto de 10px dentro da faixa de etapas. De Contrato Elaborado, o botão diz "Enviar para assinatura". Os diálogos de mudança de etapa são os mesmos (`LeadDetailStageAdvance`, que agora renderiza o botão; prop `timeline` removida). No celular, o botão vem antes das outras ações.
   - **Ações secundárias:** "Marcar perda" ficou neutro, e o vermelho fica só na confirmação (§16.4). As ações saíram da caixa cinza.

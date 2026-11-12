@@ -11,6 +11,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -144,12 +145,15 @@ export function ObjetoContratoSection({
   num,
   build,
   disabled,
+  reviewReopens = false,
   onFieldChange,
   onOverride,
 }: {
   num: number;
   build: CanonicalContractBuildResult | null;
   disabled?: boolean;
+  /** Ajustar a redação devolve a revisão do Societário para pendente (revisão em andamento ou concluída). */
+  reviewReopens?: boolean;
   onFieldChange: (key: string, value: string) => void;
   onOverride: (blockStableKey: string, content: string, reason: string) => void;
 }) {
@@ -239,6 +243,7 @@ export function ObjetoContratoSection({
                     line={line}
                     override={object.overrides.find((o) => o.blockStableKey === line.stableKey)}
                     disabled={disabled}
+                    reviewReopens={reviewReopens}
                     onOverride={onOverride}
                   />
                 ))}
@@ -429,6 +434,7 @@ function ObjectBlockPreview({
   line,
   override,
   disabled,
+  reviewReopens = false,
   onOverride,
 }: {
   line: {
@@ -441,6 +447,7 @@ function ObjectBlockPreview({
   };
   override?: ContractObjectOverride;
   disabled?: boolean;
+  reviewReopens?: boolean;
   onOverride: (blockStableKey: string, content: string, reason: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -479,8 +486,8 @@ function ObjectBlockPreview({
         </>
       ) : null}
       {override ? (
-        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
-          <p className="font-semibold">Override específico deste contrato</p>
+        <div className="mt-2 rounded-(--radius-v2-md) border border-warning-border bg-warning-bg px-2 py-1.5 text-xs text-warning-text">
+          <p className="font-semibold">Redação ajustada só neste contrato</p>
           <CrmUserLabel name={override.changedByName || override.changedBy} size="xs" prefix="Alterado por" />
         </div>
       ) : null}
@@ -507,6 +514,15 @@ function ObjectBlockPreview({
               A alteração vale só para este contrato. O catálogo jurídico permanece intacto.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {reviewReopens ? (
+            // Consequência antes escondida (12/11/2026): o ajuste invalida a revisão já feita.
+            <Alert className="border-warning-border bg-warning-bg text-warning-text">
+              <AlertDescription>
+                A revisão de Societário e Contratos volta para pendente. A área precisa aprovar o contrato de
+                novo antes do envio para assinatura.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           <div className="space-y-3">
             <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} />
             <div className="space-y-1">
@@ -520,7 +536,7 @@ function ObjectBlockPreview({
               disabled={!reason.trim() || text.trim() === line.content}
               onClick={() => onOverride(line.stableKey, text.trim(), reason.trim())}
             >
-              Confirmar ajuste
+              {reviewReopens ? "Ajustar e reabrir revisão" : "Confirmar ajuste"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

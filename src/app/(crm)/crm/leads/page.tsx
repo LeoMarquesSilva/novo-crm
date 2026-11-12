@@ -1,7 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -151,7 +153,12 @@ export default function LeadsPage() {
   const router = useRouter();
   const [isCadastroOpen, setIsCadastroOpen] = useState(false);
   /** Aviso do cadastro (lead criado, mas algo não gravou): o diálogo fecha, o aviso fica. */
-  const [createWarning, setCreateWarning] = useState<string | null>(null);
+  /** Lead recém-criado: confirmação com link para a ficha (antes o modal fechava sem aviso). */
+  const [createdLead, setCreatedLead] = useState<{
+    id: string | null;
+    nome: string | null;
+    warning: string | null;
+  } | null>(null);
   const [search, setSearch] = useState("");
   const [pinnedLeadId, setPinnedLeadId] = useState<string | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<string>("todos");
@@ -508,22 +515,44 @@ export default function LeadsPage() {
           {loadError && opportunities.length > 0 ? (
             <p className="mt-2 text-sm font-medium text-red-600">{loadError}</p>
           ) : null}
-          {createWarning ? (
+          {createdLead ? (
             <div
               role="status"
-              className="mt-2 flex items-start gap-2 rounded-(--radius-v2-md) border border-warning-border bg-warning-bg px-3 py-2 text-sm text-warning-text"
+              className={cn(
+                "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-(--radius-v2-md) border px-3 py-2 text-sm",
+                createdLead.warning
+                  ? "border-warning-border bg-warning-bg text-warning-text"
+                  : "border-success-border bg-success-bg text-success-text",
+              )}
             >
+              {createdLead.warning ? (
+                <CircleAlert className="size-4 shrink-0" aria-hidden />
+              ) : (
+                <CircleCheck className="size-4 shrink-0" aria-hidden />
+              )}
               <p className="min-w-0 flex-1">
-                <span className="font-semibold">Lead cadastrado com aviso: </span>
-                {createWarning}
+                <span className="font-semibold">
+                  {createdLead.nome ? `Lead criado: ${createdLead.nome}.` : "Lead criado."}
+                </span>
+                {createdLead.warning ? <> {createdLead.warning}</> : " Ele já aparece no kanban."}
               </p>
-              <button
-                type="button"
-                onClick={() => setCreateWarning(null)}
-                className="shrink-0 rounded-(--radius-v2-sm) px-1.5 text-xs font-semibold underline-offset-2 hover:underline"
-              >
-                Fechar
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                {createdLead.id ? (
+                  <Link
+                    href={`/crm/leads/${encodeURIComponent(createdLead.id)}`}
+                    className="rounded-(--radius-v2-sm) px-1.5 py-0.5 text-sm font-semibold underline underline-offset-2"
+                  >
+                    Abrir ficha
+                  </Link>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setCreatedLead(null)}
+                  className="rounded-(--radius-v2-sm) px-1.5 py-0.5 text-sm font-medium underline-offset-2 hover:underline"
+                >
+                  Fechar
+                </button>
+              </div>
             </div>
           ) : null}
         </CardHeader>
@@ -579,9 +608,9 @@ export default function LeadsPage() {
           <DialogTitle className="sr-only">Cadastro de novo lead</DialogTitle>
           <NewDemandForm
             onRequestClose={() => setIsCadastroOpen(false)}
-            onSuccess={({ warning }) => {
+            onSuccess={({ oportunidadeId, nome, warning }) => {
               setIsCadastroOpen(false);
-              setCreateWarning(warning);
+              setCreatedLead({ id: oportunidadeId, nome, warning });
               void refreshLeadsSilently();
             }}
           />

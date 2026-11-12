@@ -525,7 +525,8 @@ function PropostaBuilderDialog({
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [confirmClose, setConfirmClose] = useState(false);
-  const [generateFormatOpen, setGenerateFormatOpen] = useState(false);
+  /** Formato em geração: o spinner aparece só no botão clicado. */
+  const [generatingFormat, setGeneratingFormat] = useState<"docx" | "pdf" | null>(null);
   const [cadastroPromptOpen, setCadastroPromptOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"edit" | "preview">("edit");
   const [activeStep, setActiveStep] = useState<ProposalStepKey>("responsavel");
@@ -876,15 +877,18 @@ function PropostaBuilderDialog({
     }
   }
 
-  function openGenerateFormatDialog() {
+  // Word é o padrão e gera direto (12/11/2026): antes um diálogo perguntava o formato a cada geração,
+  // com dois botões principais iguais. O PDF fica como ação secundária no fim do preenchimento.
+  function generate(format: "docx" | "pdf") {
     if (busy || !selectedTemplateId || pending.length > 0) return;
-    setGenerateFormatOpen(true);
+    void generateProposalDocument(format);
   }
 
   async function generateProposalDocument(format: "docx" | "pdf") {
     if (operationRef.current || scopeSaving || !selectedTemplateId || pending.length > 0) return;
     operationRef.current = true;
     setGenerating(true);
+    setGeneratingFormat(format);
     setSaveError(null);
     setFeedback(null);
     const payload = {
@@ -919,6 +923,7 @@ function PropostaBuilderDialog({
       setSaveError(error instanceof Error ? error.message : "Não foi possível gerar a proposta.");
     } finally {
       setGenerating(false);
+      setGeneratingFormat(null);
       operationRef.current = false;
     }
   }
@@ -1014,16 +1019,16 @@ function PropostaBuilderDialog({
                   type="button"
                   variant="primary"
                   size="sm"
-                  className="gap-1.5 uppercase tracking-wide"
+                  className="gap-1.5"
                   disabled={busy || !selectedTemplateId || pending.length > 0}
-                  onClick={openGenerateFormatDialog}
+                  onClick={() => generate("docx")}
                 >
-                  {generating ? (
+                  {generatingFormat === "docx" ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
                   ) : (
                     <FileDown className="size-3.5" aria-hidden />
                   )}
-                  GERAR
+                  Gerar Word
                 </Button>
               </>
             }
@@ -1077,16 +1082,16 @@ function PropostaBuilderDialog({
                       type="button"
                       size="sm"
                       variant="primary"
-                      className="h-8 shrink-0 gap-1.5 uppercase tracking-wide"
+                      className="h-8 shrink-0 gap-1.5"
                       disabled={busy || !selectedTemplateId}
-                      onClick={openGenerateFormatDialog}
+                      onClick={() => generate("docx")}
                     >
-                      {generating ? (
+                      {generatingFormat === "docx" ? (
                         <Loader2 className="size-3.5 animate-spin" aria-hidden />
                       ) : (
                         <FileDown className="size-3.5" aria-hidden />
                       )}
-                      GERAR
+                      Gerar Word
                     </Button>
                   )}
                 </div>
@@ -1403,21 +1408,36 @@ function PropostaBuilderDialog({
                     <ChevronRight className="size-3.5" aria-hidden />
                   </Button>
                 ) : (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    className="gap-1.5 uppercase tracking-wide"
-                    disabled={busy || !selectedTemplateId || pending.length > 0}
-                    onClick={openGenerateFormatDialog}
-                  >
-                    {generating ? (
-                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                    ) : (
-                      <FileDown className="size-3.5" aria-hidden />
-                    )}
-                    GERAR PROPOSTA
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={busy || !selectedTemplateId || pending.length > 0}
+                      onClick={() => generate("pdf")}
+                    >
+                      {generatingFormat === "pdf" ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                      ) : null}
+                      Gerar PDF
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={busy || !selectedTemplateId || pending.length > 0}
+                      onClick={() => generate("docx")}
+                    >
+                      {generatingFormat === "docx" ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                      ) : (
+                        <FileDown className="size-3.5" aria-hidden />
+                      )}
+                      Gerar Word
+                    </Button>
+                  </div>
                 )}
               </div>
             </aside>
@@ -1512,44 +1532,6 @@ function PropostaBuilderDialog({
           </div>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={generateFormatOpen} onOpenChange={setGenerateFormatOpen}>
-        <AlertDialogContent
-          className="z-(--z-drag-overlay)"
-          overlayClassName="z-(--z-tooltip)"
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>Formato da proposta</AlertDialogTitle>
-            <AlertDialogDescription>
-              Escolha o formato do arquivo para download. Envio por e-mail ou WhatsApp será disponibilizado em
-              uma etapa futura.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-            <AlertDialogCancel disabled={generating}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={generating}
-              onClick={(event) => {
-                event.preventDefault();
-                setGenerateFormatOpen(false);
-                void generateProposalDocument("docx");
-              }}
-            >
-              Word (.docx)
-            </AlertDialogAction>
-            <AlertDialogAction
-              disabled={generating}
-              onClick={(event) => {
-                event.preventDefault();
-                setGenerateFormatOpen(false);
-                void generateProposalDocument("pdf");
-              }}
-            >
-              PDF (.pdf)
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {lead.clienteId ? (
         <ClienteCadastroApplyDialog

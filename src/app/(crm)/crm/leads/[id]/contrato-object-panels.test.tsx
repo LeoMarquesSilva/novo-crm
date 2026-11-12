@@ -209,3 +209,30 @@ describe("ObjetoContratoSection — campos agrupados por escopo (recolhível)", 
     expect(screen.getByLabelText(/Número do processo trabalhista/)).toBeInTheDocument();
   });
 });
+
+describe("ObjetoContratoSection — Ajustar redação e a revisão do Societário", () => {
+  function renderSection(reviewReopens: boolean) {
+    render(
+      <ObjetoContratoSection
+        num={1}
+        build={fixtureBuild([])}
+        reviewReopens={reviewReopens}
+        onFieldChange={() => undefined}
+        onOverride={() => undefined}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Ajustar redação/ }));
+  }
+
+  it("avisa que a revisão volta para pendente quando ela já começou ou terminou", () => {
+    renderSection(true);
+    expect(screen.getByText(/revisão de Societário e Contratos volta para pendente/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ajustar e reabrir revisão" })).toBeInTheDocument();
+  });
+
+  it("não avisa nada quando a revisão ainda não começou", () => {
+    renderSection(false);
+    expect(screen.queryByText(/volta para pendente/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirmar ajuste" })).toBeInTheDocument();
+  });
+});

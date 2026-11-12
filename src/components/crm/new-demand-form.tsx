@@ -86,8 +86,11 @@ import type { CnpjLookupResult } from "@/lib/crm/cnpj-lookup";
 import type { ClienteContratoResumo } from "@/lib/crm/lookup-cliente-by-document";
 
 interface NewDemandFormProps {
-  /** `warning`: lead criado, mas algo não foi gravado/enviado (a tela precisa mostrar). */
-  onSuccess?: (result: { oportunidadeId: string | null; warning: string | null }) => void;
+  /**
+   * `warning`: lead criado, mas algo não foi gravado/enviado (a tela precisa mostrar).
+   * `nome`: razão social da primeira empresa, o nome com que o lead aparece no CRM.
+   */
+  onSuccess?: (result: { oportunidadeId: string | null; nome: string | null; warning: string | null }) => void;
   onRequestClose?: () => void;
 }
 
@@ -1414,6 +1417,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
       finishSaving();
       onSuccess?.({
         oportunidadeId: result.data?.oportunidade_id ?? null,
+        nome: payload.empresas[0]?.razao_social || null,
         warning: result.warning ?? null,
       });
     } catch {
