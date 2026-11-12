@@ -1,8 +1,8 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { X } from "lucide-react";
+import { CrmStepper } from "@/components/crm/crm-stepper";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 export interface WizardStepItem {
   id: string;
@@ -61,73 +61,18 @@ export function WizardHeader({
         ) : null}
       </div>
 
-      <nav aria-label="Etapas do cadastro" className="mt-3">
-        <ol className="flex items-center gap-0.5 sm:gap-2">
-          {steps.map((step, index) => {
-            const isLast = index === steps.length - 1;
-            return (
-              <li
-                key={step.id}
-                // flex-auto: o item ativo (com rótulo no mobile) ganha a largura do conteúdo.
-                className={cn("flex items-center gap-0.5 sm:gap-2", !isLast && "flex-auto")}
-              >
-                <button
-                  type="button"
-                  disabled={!step.available}
-                  aria-current={step.active ? "step" : undefined}
-                  onClick={() => onSelectStep?.(step.id)}
-                  className={cn(
-                    "group flex shrink-0 items-center gap-2 rounded-(--radius-v2-md) p-0.5 text-left outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring sm:py-1 sm:pr-1.5 sm:pl-1",
-                    step.available && !step.active && "hover:bg-surface-hover",
-                    !step.available && "cursor-not-allowed",
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      // Tamanhos explícitos (caption-medium / body-sm): o `cn` descartaria `text-v2-*` ao lado das cores.
-                      "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums transition-colors duration-150",
-                      step.active
-                        ? "border-primary bg-primary text-white"
-                        : step.done
-                          ? "border-interactive-300 bg-interactive-50 text-interactive-700"
-                          : step.available
-                            ? "border-border-strong bg-white text-muted-foreground"
-                            : "border-border bg-surface-subtle text-text-disabled-v2",
-                    )}
-                  >
-                    {step.done && !step.active ? <Check className="size-3.5" strokeWidth={2.5} /> : index + 1}
-                  </span>
-                  <span
-                    className={cn(
-                      "whitespace-nowrap text-[13px] leading-5",
-                      step.active
-                        ? "font-semibold text-foreground"
-                        : step.available
-                          ? "hidden font-medium text-muted-foreground group-hover:text-foreground md:inline"
-                          : "hidden font-medium text-text-disabled-v2 md:inline",
-                    )}
-                  >
-                    {step.label}
-                  </span>
-                  <span className="sr-only">
-                    {step.active ? ", etapa atual" : step.done ? ", concluída" : ", pendente"}
-                  </span>
-                </button>
-                {!isLast ? (
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "h-px min-w-2 flex-1",
-                      step.done ? "bg-interactive-300" : "bg-border",
-                    )}
-                  />
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+      <CrmStepper
+        className="mt-3"
+        label="Etapas do cadastro"
+        compactLabels
+        onSelect={onSelectStep ? (id) => onSelectStep(id) : () => undefined}
+        steps={steps.map((step) => ({
+          id: step.id,
+          label: step.label,
+          state: step.active ? "active" : step.done ? "done" : "pending",
+          available: step.available,
+        }))}
+      />
     </header>
   );
 }

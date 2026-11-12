@@ -10,7 +10,6 @@ import { canPerformLeadAction } from "@/lib/auth/crm-access-policy";
 import {
   AlertCircle,
   Bell,
-  BookText,
   Building2,
   Check,
   CheckCircle2,
@@ -138,12 +137,18 @@ import type {
 import type { ProposalContractSnapshot, ScopeSubtypeLabels } from "@/lib/crm/contract-engine/proposal-snapshot";
 import { parsePropostaEmpresasJson } from "@/components/crm/confeccao-reuniao-modal-section";
 import { ContratoPartesEditor } from "@/components/crm/contrato-partes-editor";
+import { CrmStepper } from "@/components/crm/crm-stepper";
 import { comContratantesEfetivos } from "@/lib/crm/proposta-contratantes";
+import {
+  DocumentSectionHeader,
+  DocumentSectionNav,
+  scrollPaneToDocumentSection,
+  useActiveDocumentSection,
+} from "@/components/crm/document-section-nav";
 import {
   AlterarEscoposDialog,
   EscoposContratadosSection,
   ObjetoContratoSection,
-  SectionHeading,
 } from "./contrato-object-panels";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -333,50 +338,13 @@ function ContractWorkflowRail({
     },
   ];
 
+  // Mesmo indicador de etapas do Novo lead (`CrmStepper`), só leitura (12/11/2026).
   return (
-    <ol
-      className="grid overflow-hidden rounded-(--radius-v2-xl) border border-border bg-surface-subtle sm:grid-cols-2 lg:grid-cols-4"
-      aria-label="Andamento do contrato"
-    >
-      {steps.map((step, index) => (
-        <li
-          key={step.label}
-          className={cn(
-            "flex min-w-0 items-center gap-3 px-4 py-3",
-            index > 0 && "border-t border-border sm:border-l",
-            index === 1 && "sm:border-t-0",
-            index >= 2 && "lg:border-t-0",
-            step.state === "active" && "bg-white",
-          )}
-        >
-          <span
-            className={cn(
-              "flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-full) border text-xs font-semibold tabular-nums",
-              step.state === "done" &&
-                "border-success-border bg-success-bg text-success-text",
-              step.state === "active" &&
-                "border-interactive-300 bg-interactive-50 text-interactive-700",
-              step.state === "pending" &&
-                "border-border bg-white text-text-muted-v2",
-            )}
-          >
-            {step.state === "done" ? (
-              <Check className="size-3.5" aria-hidden />
-            ) : (
-              index + 1
-            )}
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-xs font-semibold text-foreground">
-              {step.label}
-            </span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {step.detail}
-            </span>
-          </span>
-        </li>
-      ))}
-    </ol>
+    <CrmStepper
+      label="Andamento do contrato"
+      className="crm-scrollbar overflow-x-auto"
+      steps={steps.map((step) => ({ id: step.label, label: step.label, detail: step.detail, state: step.state }))}
+    />
   );
 }
 
@@ -585,7 +553,7 @@ export function ContratoDocumentBuilder({
     }
   }
 
-  // O builder rola só o painel esquerdo até a seção (ver `scrollPaneToSection`).
+  // O builder rola só o painel esquerdo até a seção (ver `scrollPaneToDocumentSection`).
   function goToPendingItem(item: ContratoPendingField) {
     setBuilderFocusSection(item.sectionId);
     setBuilderOpen(true);
@@ -869,11 +837,12 @@ function ContratoBuilderDialog({
   // Painel esquerdo como state (não ref): o conteúdo do dialog monta via portal, e o
   // efeito de foco abaixo precisa rodar quando o painel de fato existir.
   const [leftPane, setLeftPane] = useState<HTMLElement | null>(null);
+  const activeSection = useActiveDocumentSection(leftPane, CONTRACT_SECTION_IDS);
 
   useEffect(() => {
     if (!leftPane || !focusSectionId) return;
     const frame = window.requestAnimationFrame(() => {
-      scrollPaneToSection(leftPane, focusSectionId);
+      scrollPaneToDocumentSection(leftPane, focusSectionId);
       onFocusSectionDone?.();
     });
     return () => window.cancelAnimationFrame(frame);
@@ -1451,16 +1420,17 @@ function ContratoBuilderDialog({
                 mobilePane === "edit" ? "flex-1" : "hidden md:block",
               )}
             >
-              <SectionNav
+              <DocumentSectionNav
+                label="Seções do contrato"
+                activeId={activeSection}
                 onNavigate={(id) => {
-                  if (leftPane) scrollPaneToSection(leftPane, id);
+                  if (leftPane) scrollPaneToDocumentSection(leftPane, id);
                 }}
-                sections={[
-                  { id: "section-partes", num: 1, label: "Partes", state: partesComplete ? "complete" : "pending" },
-                  { id: "section-escopos", num: 2, label: "Escopos", state: scopesComplete ? "complete" : "pending" },
+                items={[
+                  { id: "section-partes", label: "Partes", state: partesComplete ? "complete" : "pending" },
+                  { id: "section-escopos", label: "Escopos", state: scopesComplete ? "complete" : "pending" },
                   {
                     id: "section-objeto",
-                    num: 3,
                     label: "Objeto",
                     state: !objectComplete
                       ? "pending"
@@ -1470,7 +1440,6 @@ function ContratoBuilderDialog({
                   },
                   {
                     id: "section-condicoes",
-                    num: 4,
                     label: "Condições",
                     state:
                       draftTokenIssues["section-condicoes"].length > 0
@@ -1479,17 +1448,21 @@ function ContratoBuilderDialog({
                           ? "complete"
                           : "pending",
                   },
-                  { id: "section-vigencia", num: 5, label: "Vigência", state: prazComplete || Boolean(liveBuild) ? "complete" : "pending" },
+                  // Mesma regra do título da seção (antes a barra dava "completa" só por haver build).
+                  {
+                    id: "section-vigencia",
+                    label: "Vigência",
+                    state: (liveBuild ? Boolean(adjustment) : prazComplete) ? "complete" : "pending",
+                  },
                   {
                     id: "section-clausulas",
-                    num: 6,
                     label: "Cláusulas",
                     state:
                       draftTokenIssues["section-clausulas"].length > 0 || selectedClausesHaveDraftTokens
                         ? "danger"
                         : "neutral",
                   },
-                  { id: "section-assinaturas", num: 7, label: "Assinaturas", state: "neutral" },
+                  { id: "section-assinaturas", label: "Assinaturas", state: draftPins.length > 0 ? "complete" : "neutral" },
                 ]}
               />
               <div className="space-y-8 px-5 pt-6 sm:px-6">
@@ -1598,7 +1571,7 @@ function ContratoBuilderDialog({
                   {/* Campo obrigatório vazio já aparece no próprio Objeto; aqui só o que sobra. */}
                   {objectComplete ? (
                     <DraftTokenNotice
-                      className="ml-10 mt-3"
+                      className="mt-3"
                       title="Objeto com campo a preencher"
                       hint="O “Gerar Word” fica bloqueado até estas marcações saírem do texto do Objeto."
                       issues={draftTokenIssues["section-objeto"]}
@@ -2709,31 +2682,18 @@ function ClausulasSection({
 
   return (
     <div className="space-y-3">
-      {/* Cabeçalho da seção */}
-      <div className="flex items-center gap-3">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">
-          <BookText className="size-3.5" aria-hidden />
-        </span>
-        <h3 className="text-sm font-bold tracking-[-0.01em] text-foreground">
-          Cláusulas Adicionais
-        </h3>
-        {summaryIssues.length > 0 ? (
-          <span className="rounded-(--radius-v2-full) border border-danger-border bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger-text">
-            {summaryIssues.length} a preencher
-          </span>
-        ) : null}
-        {selected.length > 0 ? (
-          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-xs font-semibold text-success-text">
-            {selected.length} adicionada{selected.length > 1 ? "s" : ""}
-          </span>
-        ) : summaryIssues.length === 0 ? (
-          <span className="rounded-(--radius-v2-full) bg-surface-subtle px-2 py-0.5 text-xs font-semibold text-text-secondary-v2">
-            Opcional
-          </span>
-        ) : null}
-      </div>
+      <DocumentSectionHeader
+        title="Cláusulas adicionais"
+        state={summaryIssues.length > 0 ? "danger" : selected.length > 0 ? "complete" : "neutral"}
+        stateLabel={[
+          summaryIssues.length > 0 ? `${summaryIssues.length} a preencher` : null,
+          selected.length > 0 ? `${selected.length} adicionada${selected.length > 1 ? "s" : ""}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "Opcional"}
+      />
 
-      <div className="ml-10 space-y-2.5">
+      <div className="space-y-2.5">
         <DraftTokenNotice
           title={
             summaryIssues.length === 1
@@ -3063,26 +3023,13 @@ function PinsSection({
 
   return (
     <div className="space-y-3">
-      {/* Cabeçalho */}
-      <div className="flex items-center gap-3">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">
-          <MapPin className="size-3.5" aria-hidden />
-        </span>
-        <h3 className="text-sm font-bold tracking-[-0.01em] text-foreground">
-          Posicionar Assinaturas
-        </h3>
-        {pins.length > 0 ? (
-          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-xs font-semibold text-success-text">
-            {pins.length} pin{pins.length > 1 ? "s" : ""}
-          </span>
-        ) : (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
-            Folha dedicada
-          </span>
-        )}
-      </div>
+      <DocumentSectionHeader
+        title="Posicionar assinaturas"
+        state={pins.length > 0 ? "complete" : "neutral"}
+        stateLabel={pins.length > 0 ? `${pins.length} pin${pins.length > 1 ? "s" : ""}` : "Folha dedicada"}
+      />
 
-      <div className="ml-10 space-y-3">
+      <div className="space-y-3">
         <p className="text-xs leading-relaxed text-muted-foreground">
           As assinaturas ficam sempre na <strong>última página</strong> do PDF (folha dedicada).
           Use o botão abaixo para aplicar a posição padrão ou clique na folha de assinaturas no preview.
@@ -3336,92 +3283,18 @@ function ClickablePreview({
 
 // ─── Seção do formulário ──────────────────────────────────────────────────────
 
-// ─── Índice fixo de seções (navegação rápida no painel esquerdo) ─────────────
+// ─── Seções do painel esquerdo (barra fixa: `DocumentSectionNav`) ───────────
 
-/** "danger" = a seção tem marcação que trava o "Gerar Word". */
-type NavSectionState = "complete" | "pending" | "danger" | "neutral";
-
-/** Folga entre o índice fixo e o topo da seção. */
-const SECTION_SCROLL_GAP = 12;
-
-/**
- * Rola só o painel esquerdo até a seção. `scrollIntoView` também rolava os ancestrais
- * `overflow-hidden` (dialog, split) e a tela ficava pela metade quando a seção estava
- * perto do fim do painel.
- */
-function scrollPaneToSection(pane: HTMLElement, sectionId: string) {
-  const target = document.getElementById(sectionId);
-  if (!target || !pane.contains(target)) return;
-  const paneRect = pane.getBoundingClientRect();
-  // Na animação de abertura (zoom) o rect vem escalado; offsetHeight não.
-  const scale = pane.offsetHeight > 0 ? paneRect.height / pane.offsetHeight : 1;
-  const offset = (target.getBoundingClientRect().top - paneRect.top) / (scale || 1) - pane.clientTop;
-  const navHeight = pane.querySelector<HTMLElement>("[data-section-nav]")?.offsetHeight ?? 0;
-  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-  pane.scrollTo({
-    top: Math.max(0, pane.scrollTop + offset - navHeight - SECTION_SCROLL_GAP),
-    behavior: reduceMotion ? "auto" : "smooth",
-  });
-}
-
-const NAV_SECTION_STATE_LABEL: Record<NavSectionState, string> = {
-  complete: "completa",
-  pending: "pendente",
-  danger: "há campo a preencher",
-  neutral: "opcional",
-};
-
-function SectionNav({
-  sections,
-  onNavigate,
-}: {
-  sections: Array<{ id: string; num: number; label: string; state: NavSectionState }>;
-  onNavigate: (id: string) => void;
-}) {
-  return (
-    <div
-      data-section-nav
-      className="sticky top-0 z-(--z-sticky) flex gap-1 overflow-x-auto border-b border-border bg-white px-5 py-2 sm:px-6"
-    >
-      {sections.map((s) => (
-        <button
-          key={s.id}
-          type="button"
-          title={s.state === "danger" ? `${s.label}: há campo a preencher` : s.label}
-          aria-label={`${s.num}. ${s.label}: ${NAV_SECTION_STATE_LABEL[s.state]}`}
-          onClick={() => onNavigate(s.id)}
-          className={cn(
-            "flex h-8 shrink-0 items-center gap-1.5 rounded-(--radius-v2-full) border px-3 text-xs font-medium transition-colors",
-            s.state === "complete"
-              ? "border-success-border bg-success-bg text-success-text hover:bg-success-bg"
-              : s.state === "pending"
-                ? "border-warning-border bg-warning-bg text-warning-text hover:bg-warning-bg"
-                : s.state === "danger"
-                  ? "border-danger-border bg-danger-bg text-danger-text hover:bg-danger-bg"
-                  : "border-border bg-surface-subtle text-text-muted-v2 hover:bg-surface-hover",
-          )}
-        >
-          <span
-            className={cn(
-              // Fundo nos tons de texto semânticos: branco por cima fica acima de 4,5:1 (antes âmbar 2,1:1).
-              "flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
-              s.state === "complete"
-                ? "bg-success-text text-white"
-                : s.state === "pending"
-                  ? "bg-warning-text text-white"
-                  : s.state === "danger"
-                    ? "bg-danger-text text-white"
-                    : "bg-text-muted-v2 text-white",
-            )}
-          >
-            {s.state === "complete" ? <Check className="size-3" aria-hidden /> : s.num}
-          </span>
-          <span className="hidden md:inline">{s.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
+/** Ordem das seções do formulário, a mesma da barra. */
+const CONTRACT_SECTION_IDS = [
+  "section-partes",
+  "section-escopos",
+  "section-objeto",
+  "section-condicoes",
+  "section-vigencia",
+  "section-clausulas",
+  "section-assinaturas",
+] as const;
 
 /** Lista de marcações de rascunho (`[CHAVE]`, `R$ X`…) que travam o "Gerar Word". */
 function DraftTokenNotice({
@@ -3461,21 +3334,21 @@ function DraftTokenNotice({
 
 function FormSection({
   id,
-  num,
   title,
   isComplete,
   children,
 }: {
   id?: string;
-  num: number;
+  /** Ordem da seção; o título não mostra mais número (12/11/2026). */
+  num?: number;
   title: string;
   isComplete: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div id={id} className="scroll-mt-16 space-y-3">
-      <SectionHeading num={num} title={title} complete={isComplete} />
-      <div className="ml-10 space-y-4">{children}</div>
+      <DocumentSectionHeader title={title} state={isComplete ? "complete" : "pending"} />
+      <div className="space-y-4">{children}</div>
     </div>
   );
 }

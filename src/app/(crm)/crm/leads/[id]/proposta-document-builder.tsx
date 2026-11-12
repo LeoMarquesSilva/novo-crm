@@ -8,8 +8,6 @@ import {
   Building2,
   Check,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   FileDown,
   FileText,
   History,
@@ -48,6 +46,12 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { Select, SelectTrigger } from "@/components/ui/select";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import {
+  DocumentSectionHeader,
+  DocumentSectionNav,
+  scrollPaneToDocumentSection,
+  useActiveDocumentSection,
+} from "@/components/crm/document-section-nav";
 import { parsePropostaEmpresasJson } from "@/components/crm/confeccao-reuniao-modal-section";
 import { digitsOnly, formatCepDisplay } from "@/lib/crm/proposta-empresas";
 import { PropostaOutrosContratantes } from "@/components/crm/proposta-outros-contratantes";
@@ -529,7 +533,8 @@ function PropostaBuilderDialog({
   const [generatingFormat, setGeneratingFormat] = useState<"docx" | "pdf" | null>(null);
   const [cadastroPromptOpen, setCadastroPromptOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"edit" | "preview">("edit");
-  const [activeStep, setActiveStep] = useState<ProposalStepKey>("responsavel");
+  /** Painel de edição (rola as 5 seções; a barra acompanha). */
+  const [stepsPane, setStepsPane] = useState<HTMLElement | null>(null);
 
   const [scopeCatalog, setScopeCatalog] = useState<PropostaTiposCatalog>(
     () => docState.snapshot.catalog?.scope ?? PROPOSTA_TIPOS_CATALOG,
@@ -746,9 +751,26 @@ function PropostaBuilderDialog({
   const completedStepCount = PROPOSAL_STEPS.filter(
     (step) => pendingByStep[step.key] === 0,
   ).length;
-  const activeStepIndex = PROPOSAL_STEPS.findIndex((step) => step.key === activeStep);
-  const activeStepMeta = PROPOSAL_STEPS[activeStepIndex] ?? PROPOSAL_STEPS[0]!;
-  const ActiveStepIcon = activeStepMeta.icon;
+  const activeSection = useActiveDocumentSection(stepsPane, PROPOSAL_SECTION_IDS);
+  const goToStep = (key: ProposalStepKey) => {
+    if (stepsPane) scrollPaneToDocumentSection(stepsPane, proposalSectionId(key));
+  };
+  /** Seção do formulário: título padrão (estado = ponto + texto) e o conteúdo da etapa. */
+  const renderSection = (key: ProposalStepKey, content: React.ReactNode) => {
+    const meta = PROPOSAL_STEPS.find((step) => step.key === key)!;
+    const count = pendingByStep[key];
+    return (
+      <section key={key} id={proposalSectionId(key)} className="px-5 py-6 sm:px-6">
+        <DocumentSectionHeader
+          title={meta.label}
+          description={meta.description}
+          state={count > 0 ? "pending" : "complete"}
+          stateLabel={count > 0 ? `${count} pendência${count > 1 ? "s" : ""}` : "Completa"}
+        />
+        <div className="mt-4">{content}</div>
+      </section>
+    );
+  };
 
   const scheduleDocxPreview = useCallback(() => {
     if (!selectedTemplateId) return;
@@ -1052,150 +1074,29 @@ function PropostaBuilderDialog({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
             {/* Painel esquerdo — preenchimento guiado */}
             <aside
+              ref={setStepsPane}
               inert={busy}
               className={cn(
-                "crm-scrollbar min-h-0 w-full overscroll-contain overflow-y-auto border-border bg-surface-subtle md:block md:min-w-[440px] md:w-[54%] md:flex-none md:border-r lg:w-[55%] xl:w-[54%]",
+                "crm-scrollbar min-h-0 w-full overscroll-contain overflow-y-auto border-border bg-white md:block md:min-w-[440px] md:w-[54%] md:flex-none md:border-r lg:w-[55%] xl:w-[54%]",
                 mobilePane === "edit" ? "flex-1" : "hidden md:block",
               )}
             >
-              <div className="sticky top-0 z-(--z-sticky) border-b border-border bg-white px-5 pb-4 pt-5 sm:px-6">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
-                      Preenchimento
-                    </p>
-                    <h3 className="mt-1 text-v2-heading-md text-foreground">
-                      {completedStepCount} de {PROPOSAL_STEPS.length} seções concluídas
-                    </h3>
-                  </div>
-                  {pending.length > 0 ? (
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-(--radius-v2-full) px-2.5 py-1 text-v2-caption-medium",
-                        "border border-warning-border bg-warning-bg text-warning-text",
-                      )}
-                    >
-                      {pending.length} pendência(s)
-                    </span>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="primary"
-                      className="h-8 shrink-0 gap-1.5"
-                      disabled={busy || !selectedTemplateId}
-                      onClick={() => generate("docx")}
-                    >
-                      {generatingFormat === "docx" ? (
-                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                      ) : (
-                        <FileDown className="size-3.5" aria-hidden />
-                      )}
-                      Gerar Word
-                    </Button>
-                  )}
-                </div>
+              <DocumentSectionNav
+                label="Seções da proposta"
+                activeId={activeSection}
+                onNavigate={(id) => {
+                  if (stepsPane) scrollPaneToDocumentSection(stepsPane, id);
+                }}
+                items={PROPOSAL_STEPS.map((step) => ({
+                  id: proposalSectionId(step.key),
+                  label: step.label,
+                  state: pendingByStep[step.key] > 0 ? "pending" : "complete",
+                }))}
+              />
 
-                <div
-                  className="mt-3 h-1.5 overflow-hidden rounded-(--radius-v2-full) bg-surface-subtle"
-                  role="progressbar"
-                  aria-label="Progresso do preenchimento"
-                  aria-valuemin={0}
-                  aria-valuemax={PROPOSAL_STEPS.length}
-                  aria-valuenow={completedStepCount}
-                >
-                  <div
-                    className="h-full rounded-(--radius-v2-full) bg-interactive-600 transition-[width] duration-300"
-                    style={{ width: `${(completedStepCount / PROPOSAL_STEPS.length) * 100}%` }}
-                  />
-                </div>
-
-                <div
-                  className="crm-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1"
-                  role="tablist"
-                  aria-label="Seções da proposta"
-                >
-                  {PROPOSAL_STEPS.map((step, index) => {
-                    const Icon = step.icon;
-                    const isActive = step.key === activeStep;
-                    const stepPending = pendingByStep[step.key];
-                    return (
-                      <button
-                        key={step.key}
-                        type="button"
-                        role="tab"
-                        aria-selected={isActive}
-                        aria-controls="proposal-step-panel"
-                        onClick={() => setActiveStep(step.key)}
-                        className={cn(
-                          "flex min-w-[7.25rem] items-center gap-2 rounded-(--radius-v2-md) border px-3 py-2 text-left transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                          isActive
-                            ? "border-interactive-300 bg-interactive-50 text-interactive-800"
-                            : "border-border bg-white text-text-secondary-v2 hover:border-border-strong hover:bg-surface-hover",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-md)",
-                            isActive ? "bg-white text-interactive-700" : "bg-surface-subtle text-text-muted-v2",
-                          )}
-                        >
-                          <Icon className="size-3.5" aria-hidden />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-xs font-semibold tabular-nums text-muted-foreground">
-                            {String(index + 1).padStart(2, "0")}
-                          </span>
-                          <span className="block truncate text-xs font-bold">{step.label}</span>
-                        </span>
-                        {stepPending === 0 ? (
-                          <CheckCircle2 className="ml-auto size-3.5 shrink-0 text-emerald-600" aria-label="Concluída" />
-                        ) : (
-                          <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-(--radius-v2-full) bg-warning-bg text-xs font-semibold text-warning-text">
-                            {stepPending}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="px-5 py-5 sm:px-6">
-                <section
-                  id="proposal-step-panel"
-                  role="tabpanel"
-                  className="overflow-hidden rounded-(--radius-v2-xl) border border-border bg-white"
-                >
-                  <div className="flex items-start gap-3 border-b border-border bg-surface-subtle px-5 py-4">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 text-interactive-700">
-                      <ActiveStepIcon className="size-4" aria-hidden />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-v2-heading-md text-foreground">
-                          {activeStepMeta.label}
-                        </h3>
-                        {pendingByStep[activeStep] > 0 ? (
-                          <span className="rounded-(--radius-v2-full) border border-warning-border bg-warning-bg px-2 py-0.5 text-v2-caption-medium text-warning-text">
-                            {pendingByStep[activeStep]} pendência(s)
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-v2-caption-medium text-success-text">
-                            <CheckCircle2 className="size-3" aria-hidden />
-                            Concluída
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {activeStepMeta.description}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-5">
-                    {activeStep === "responsavel" ? (
+              <div>
+                <div className="divide-y divide-border">
+                    {renderSection("responsavel", (
                       <div className="space-y-2">
                         <Label htmlFor="proposal-responsavel" className="text-xs font-medium text-foreground">
                           Enviado por
@@ -1248,9 +1149,9 @@ function PropostaBuilderDialog({
                           Usamos quem cadastrou o lead como padrão. Esse nome aparecerá no documento oficial.
                         </p>
                       </div>
-                    ) : null}
+                    ))}
 
-                    {activeStep === "cliente" ? (
+                    {renderSection("cliente", (
                       fieldsBySection.cliente.length > 0 ? (
                         <BuilderSection
                           meta={SECTION_META.cliente}
@@ -1265,9 +1166,9 @@ function PropostaBuilderDialog({
                       ) : (
                         <ProposalStepEmptyState text="Este modelo não possui campos específicos de cliente." />
                       )
-                    ) : null}
+                    ))}
 
-                    {activeStep === "objeto" ? (
+                    {renderSection("objeto", (
                       fieldsBySection.objeto.length > 0 ? (
                         <BuilderSection
                           meta={SECTION_META.objeto}
@@ -1280,12 +1181,12 @@ function PropostaBuilderDialog({
                       ) : (
                         <ProposalStepEmptyState text="Este modelo não possui campos específicos de objeto." />
                       )
-                    ) : null}
+                    ))}
 
-                    {activeStep === "escopo" ? (
+                    {renderSection("escopo", (
                       escopoDetalhe && areasField ? (
                         <div className="space-y-5">
-                          <p className="rounded-xl bg-blue-50 px-3.5 py-3 text-xs leading-relaxed text-blue-800">
+                          <p className="rounded-(--radius-v2-lg) bg-info-bg px-3.5 py-3 text-xs leading-relaxed text-info-text">
                             Cada área selecionada cria um bloco próprio no Word. Valores e pagamento são definidos na etapa Investimento.
                           </p>
                           <PropostaEscopoPorArea
@@ -1319,9 +1220,9 @@ function PropostaBuilderDialog({
                       ) : (
                         <ProposalStepEmptyState text="Selecione ao menos uma área na etapa Objeto para configurar o escopo." />
                       )
-                    ) : null}
+                    ))}
 
-                    {activeStep === "investimento" ? (
+                    {renderSection("investimento", (
                       <div className="space-y-6">
                         {escopoDetalhe && areasField ? (
                           <PropostaInvestimentoConsolidadoForm
@@ -1347,31 +1248,28 @@ function PropostaBuilderDialog({
                           </div>
                         ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                </section>
+                    ))}
+                </div>
 
                 {pending.length > 0 ? (
-                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                  <div className="mx-5 mb-6 rounded-(--radius-v2-xl) border border-warning-border bg-warning-bg p-4 sm:mx-6">
                     <div className="mb-2 flex items-center gap-2">
-                      <TriangleAlert className="size-4 text-amber-600" aria-hidden />
-                      <p className="text-xs font-extrabold text-amber-900">Itens que ainda impedem a geração</p>
+                      <TriangleAlert className="size-4 text-warning-text" aria-hidden />
+                      <p className="text-xs font-semibold text-warning-text">Itens que ainda impedem a geração</p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {pending.slice(0, 6).map((item) => (
                         <button
                           key={item}
                           type="button"
-                          onClick={() =>
-                            setActiveStep(proposalStepForPendingItem(item, selectedTemplate.fields))
-                          }
-                          className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-left text-xs font-semibold text-amber-800 transition-colors hover:border-amber-300 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                          onClick={() => goToStep(proposalStepForPendingItem(item, selectedTemplate.fields))}
+                          className="rounded-(--radius-v2-md) border border-warning-border bg-white px-2.5 py-1.5 text-left text-xs font-semibold text-warning-text transition-colors hover:bg-warning-bg"
                         >
                           {item}
                         </button>
                       ))}
                       {pending.length > 6 ? (
-                        <span className="px-1 py-1.5 text-xs font-semibold text-amber-700">
+                        <span className="px-1 py-1.5 text-xs font-semibold text-warning-text">
                           + {pending.length - 6} itens
                         </span>
                       ) : null}
@@ -1381,64 +1279,40 @@ function PropostaBuilderDialog({
               </div>
 
               <div className="sticky bottom-0 z-(--z-sticky) flex items-center justify-between gap-3 border-t border-border bg-white px-5 py-3 sm:px-6">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={busy || activeStepIndex === 0}
-                  onClick={() => setActiveStep(PROPOSAL_STEPS[activeStepIndex - 1]!.key)}
-                >
-                  <ChevronLeft className="size-3.5" aria-hidden />
-                  Anterior
-                </Button>
-                <span className="text-v2-caption-medium tabular-nums text-text-muted-v2">
-                  {activeStepIndex + 1}/{PROPOSAL_STEPS.length}
-                </span>
-                {activeStepIndex < PROPOSAL_STEPS.length - 1 ? (
+                <p className="min-w-0 text-xs text-text-secondary-v2 tabular-nums">
+                  {completedStepCount} de {PROPOSAL_STEPS.length} seções completas
+                  {pending.length > 0 ? ` · ${pending.length} pendência${pending.length > 1 ? "s" : ""}` : ""}
+                </p>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={busy || !selectedTemplateId || pending.length > 0}
+                    onClick={() => generate("pdf")}
+                  >
+                    {generatingFormat === "pdf" ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : null}
+                    Gerar PDF
+                  </Button>
                   <Button
                     type="button"
                     variant="primary"
                     size="sm"
                     className="gap-1.5"
-                    disabled={busy}
-                    onClick={() => setActiveStep(PROPOSAL_STEPS[activeStepIndex + 1]!.key)}
+                    disabled={busy || !selectedTemplateId || pending.length > 0}
+                    onClick={() => generate("docx")}
                   >
-                    Próxima
-                    <ChevronRight className="size-3.5" aria-hidden />
+                    {generatingFormat === "docx" ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      <FileDown className="size-3.5" aria-hidden />
+                    )}
+                    Gerar Word
                   </Button>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="gap-1.5"
-                      disabled={busy || !selectedTemplateId || pending.length > 0}
-                      onClick={() => generate("pdf")}
-                    >
-                      {generatingFormat === "pdf" ? (
-                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                      ) : null}
-                      Gerar PDF
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="sm"
-                      className="gap-1.5"
-                      disabled={busy || !selectedTemplateId || pending.length > 0}
-                      onClick={() => generate("docx")}
-                    >
-                      {generatingFormat === "docx" ? (
-                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                      ) : (
-                        <FileDown className="size-3.5" aria-hidden />
-                      )}
-                      Gerar Word
-                    </Button>
-                  </div>
-                )}
+                </div>
               </div>
             </aside>
 
@@ -1589,6 +1463,12 @@ function formatDocumentBuilderError(message: string): string {
   }
   return message;
 }
+
+function proposalSectionId(key: ProposalStepKey): string {
+  return `proposal-section-${key}`;
+}
+
+const PROPOSAL_SECTION_IDS = PROPOSAL_STEPS.map((step) => proposalSectionId(step.key));
 
 function proposalStepForFieldCode(fieldCode: string): ProposalStepKey {
   if (fieldCode === "cp_escopo_detalhe_json") return "escopo";
