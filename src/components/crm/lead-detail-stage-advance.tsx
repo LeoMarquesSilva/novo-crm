@@ -28,7 +28,6 @@ import {
   type OnboardingDialogStep,
 } from "@/components/crm/client-onboarding-submit-dialog";
 import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
-import { LeadStageDurationStrip } from "@/components/crm/lead-stage-duration-strip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DateInputBr } from "@/components/ui/date-input-br";
@@ -45,7 +44,6 @@ import { Label } from "@/components/ui/label";
 import { TimeInputBr } from "@/components/ui/time-input-br";
 import { listBlockingCustomFields } from "@/lib/crm/compute-transition-requirements";
 import { getNextLeadStage } from "@/lib/crm/lead-stage-duration-strip";
-import type { LeadLifecycleTimeline } from "@/lib/crm/lead-lifecycle-timeline";
 import { pipelineCodeForStage } from "@/lib/crm/pipeline-board-config";
 import { STAGE_ACTION_LABELS } from "@/lib/crm/stage-actions";
 import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
@@ -92,21 +90,27 @@ function actionLabel(href: string, kind?: StageActionKind): string {
   return "Resolver pendência";
 }
 
+/**
+ * Botão principal do cabeçalho da ficha (12/11/2026): "Avançar para {próxima etapa}" e os diálogos
+ * da mudança de etapa. Antes era um texto de 10px dentro da faixa de etapas; a faixa agora só informa.
+ * Sem permissão, lead do RD, lead perdido ou última etapa: não renderiza nada.
+ */
 export function LeadDetailStageAdvance({
   leadId,
   currentStage,
   hasDueDiligence,
-  timeline,
   canAdvance,
   linkProposta,
   linkContrato,
   leadName,
+  className,
 }: {
   leadId: string;
   leadName?: string | null;
+  /** Classes do botão (ex.: ordem dentro das ações do cabeçalho). */
+  className?: string;
   currentStage: OpportunityStage;
   hasDueDiligence: boolean;
-  timeline: LeadLifecycleTimeline;
   canAdvance: boolean;
   linkProposta: string | null;
   linkContrato: string | null;
@@ -388,15 +392,32 @@ export function LeadDetailStageAdvance({
     }
   };
 
+  // Contrato Elaborado → Enviado acontece pelo envio para assinatura: o botão diz isso.
+  const advanceLabel = nextStage
+    ? currentStage === "contrato_elaborado"
+      ? STAGE_ACTION_LABELS.open_send_dialog
+      : `Avançar para ${OPPORTUNITY_STAGE_LABELS[nextStage]}`
+    : null;
+
   return (
     <>
-      <LeadStageDurationStrip
-        currentStage={currentStage}
-        timeline={timeline}
-        advanceStage={nextStage}
-        advancing={loading}
-        onAdvance={nextStage ? requestAdvance : undefined}
-      />
+      {nextStage && advanceLabel ? (
+        <Button
+          type="button"
+          size="control"
+          className={className}
+          disabled={loading}
+          aria-busy={loading || undefined}
+          onClick={() => void requestAdvance(nextStage)}
+        >
+          {loading ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+          ) : (
+            <ArrowRight className="size-4" aria-hidden />
+          )}
+          {advanceLabel}
+        </Button>
+      ) : null}
 
       <SendContractSignatureDialog
         open={sendDialogOpen}

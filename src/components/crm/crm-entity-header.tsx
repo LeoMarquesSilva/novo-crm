@@ -64,18 +64,16 @@ export function CrmEntityHeader({
       </div>
 
       {context.length > 0 ? (
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
+        // Linha única de contexto (12/11/2026): rótulo em texto comum, sem caixa alta, e valor em
+        // seguida. É o único lugar da ficha com origem e datas do registro.
+        <dl className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
           {context.map((item, index) => (
-            <span key={`${item.label ?? "ctx"}-${index}`} className="inline-flex min-w-0 items-center gap-1.5">
-              {item.label ? (
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {item.label}
-                </span>
-              ) : null}
-              <span className="min-w-0 truncate font-medium text-foreground tabular-nums">{item.value}</span>
-            </span>
+            <div key={`${item.label ?? "ctx"}-${index}`} className="inline-flex min-w-0 items-center gap-1.5">
+              {item.label ? <dt className="text-muted-foreground">{item.label}</dt> : null}
+              <dd className="min-w-0 truncate font-medium text-foreground tabular-nums">{item.value}</dd>
+            </div>
           ))}
-        </div>
+        </dl>
       ) : null}
     </header>
   );

@@ -3,28 +3,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import type { OpportunityStage } from "@/modules/crm/domain/entities";
-
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/components/crm/contracts/send-contract-signature-dialog", () => ({
   SendContractSignatureDialog: () => null,
 }));
 vi.mock("@/components/crm/client-onboarding-submit-dialog", () => ({
   ClientOnboardingSubmitDialog: ({ open }: { open: boolean }) => (open ? <div>modal do cadastro do cliente</div> : null),
-}));
-vi.mock("@/components/crm/lead-stage-duration-strip", () => ({
-  LeadStageDurationStrip: ({
-    advanceStage,
-    onAdvance,
-  }: {
-    advanceStage: OpportunityStage | null;
-    onAdvance?: (stage: OpportunityStage) => void;
-  }) =>
-    advanceStage && onAdvance ? (
-      <button type="button" onClick={() => onAdvance(advanceStage)}>
-        Avançar etapa
-      </button>
-    ) : null,
 }));
 
 import { LeadDetailStageAdvance } from "./lead-detail-stage-advance";
@@ -72,7 +56,6 @@ function renderAdvance() {
       leadId="lead-1"
       currentStage="reuniao"
       hasDueDiligence={false}
-      timeline={{ periods: [], activities: [], summary: {} } as never}
       canAdvance
       linkProposta={null}
       linkContrato={null}
@@ -86,7 +69,7 @@ const requirementCalls = () =>
 test("Reunião → Confecção: bloco dedicado no lugar do JSON e sem link da DUE quando não houve DUE", async () => {
   const user = userEvent.setup();
   renderAdvance();
-  await user.click(screen.getByRole("button", { name: "Avançar etapa" }));
+  await user.click(screen.getByRole("button", { name: /^Avançar para / }));
 
   expect(await screen.findByText("Endereço do cliente")).toBeInTheDocument();
   expect(screen.queryByText(/\(JSON\)/)).not.toBeInTheDocument();
@@ -97,14 +80,14 @@ test("Reunião → Confecção: bloco dedicado no lugar do JSON e sem link da DU
 test("fechar e reabrir mantém o que foi preenchido", async () => {
   const user = userEvent.setup();
   renderAdvance();
-  await user.click(screen.getByRole("button", { name: "Avançar etapa" }));
+  await user.click(screen.getByRole("button", { name: /^Avançar para / }));
   const logradouro = await screen.findByDisplayValue("Rua das Flores");
   await user.type(logradouro, ", 100");
 
   await user.click(screen.getByRole("button", { name: "Fechar" }));
   await waitFor(() => expect(screen.queryByText("Endereço do cliente")).not.toBeInTheDocument());
 
-  await user.click(screen.getByRole("button", { name: "Avançar etapa" }));
+  await user.click(screen.getByRole("button", { name: /^Avançar para / }));
   expect(await screen.findByDisplayValue("Rua das Flores, 100")).toBeInTheDocument();
   expect(requirementCalls()).toBe(1);
 
@@ -136,13 +119,12 @@ test("Aguardando Cadastro → Cadastro de Novo Cliente abre o cadastro do client
       leadId="lead-1"
       currentStage="aguardando_cadastro"
       hasDueDiligence={false}
-      timeline={{ periods: [], activities: [], summary: {} } as never}
       canAdvance
       linkProposta={null}
       linkContrato={null}
     />,
   );
-  await user.click(screen.getByRole("button", { name: "Avançar etapa" }));
+  await user.click(screen.getByRole("button", { name: /^Avançar para / }));
 
   expect(await screen.findByText("modal do cadastro do cliente")).toBeInTheDocument();
   expect(screen.queryByText("Existe uma pendência")).not.toBeInTheDocument();

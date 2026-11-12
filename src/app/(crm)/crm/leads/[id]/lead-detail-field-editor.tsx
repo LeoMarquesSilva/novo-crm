@@ -420,6 +420,9 @@ export function LeadDetailFieldEditor({
   return (
     <div
       className={cn(
+        // `lead-field`: o lápis (`lead-field-edit`) aparece ao passar o mouse na linha ou com foco
+        // dentro dela; regra em globals.css.
+        "lead-field",
         omitLabel
           ? ""
           : displayVariant === "row"
@@ -467,7 +470,9 @@ export function LeadDetailFieldEditor({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-8 text-muted-foreground hover:text-foreground"
+              // Com mouse, o lápis só aparece no hover da linha ou no foco (12/11/2026: eram ~19 lápis
+              // sempre visíveis na Visão geral). Em tela de toque (sem hover) continua sempre visível.
+              className="lead-field-edit size-8 text-muted-foreground hover:text-foreground"
               title={`Editar ${label}`}
               aria-label={`Editar ${label}`}
               onClick={startEdit}

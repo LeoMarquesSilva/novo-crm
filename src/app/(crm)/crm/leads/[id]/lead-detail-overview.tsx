@@ -4,9 +4,7 @@ import { createElement, useEffect, useId, useState, type ReactNode } from "react
 import Link from "next/link";
 import {
   AlertTriangle,
-  ArrowRight,
   Building2,
-  CalendarClock,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -14,22 +12,18 @@ import {
   Cloud,
   ExternalLink,
   FileSignature,
-  FileText,
   GitBranch,
   History,
   Handshake,
-  Info,
   Layers3,
   MapPin,
   MessageSquareText,
   RotateCcw,
-  ShieldCheck,
   Sparkles,
   UserRound,
   XCircle,
   type LucideIcon,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
@@ -106,25 +100,20 @@ export function groupLeadIntakeFields(fields: IntakeField[]): Record<IntakeGroup
   return grouped;
 }
 
+/** Célula da grade de 2 colunas: fio em cima e, na coluna da esquerda, fio à direita. */
+const CELL = "border-t border-neutral-200 sm:odd:border-r";
+
 export function LeadDetailOverview({
   lead,
-  etapaLabel,
   leadTypeDisplay,
   dueLabel,
   isCrossSellingLead,
-  isContractStage,
-  showBillingTab,
-  isRdLead,
   onNavigate,
 }: {
   lead: LeadDetailData;
-  etapaLabel: string;
   leadTypeDisplay: string;
   dueLabel: string;
   isCrossSellingLead: boolean;
-  isContractStage: boolean;
-  showBillingTab: boolean;
-  isRdLead: boolean;
   onNavigate: (tab: LeadOverviewTabTarget) => void;
 }) {
   const groups = groupLeadIntakeFields(lead.intakeFields);
@@ -136,25 +125,16 @@ export function LeadDetailOverview({
     groups.integration.length > 0 ||
     lead.empresasIntake.length > 0;
 
-  const contextAction = showBillingTab
-    ? ({ tab: "contract", label: "Abrir contrato", icon: FileSignature } as const)
-    : isContractStage
-      ? ({ tab: "contract", label: "Abrir contrato", icon: FileSignature } as const)
-      : ({ tab: "proposal", label: "Abrir proposta", icon: FileText } as const);
-
+  // Origem, etapa e datas ficam no cabeçalho e na faixa de etapas (12/11/2026). Aqui só o que se
+  // edita do lead; "Sobre o lead" e "Ações rápidas" saíram (repetiam o cabeçalho e as abas).
   return (
     <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-5">
         <Card className="gap-0 py-0">
-          <CardHeader className="border-b border-neutral-200 px-5 py-4 sm:px-6">
-            <SectionTitle
-              icon={Info}
-              title="Resumo editável"
-              description="Informações essenciais para identificar e acompanhar o lead."
-            />
+          <CardHeader className="px-5 py-4 sm:px-6">
+            <SectionTitle title="Dados do lead" />
           </CardHeader>
           <CardContent className="grid px-0 sm:grid-cols-2">
-            <OverviewValue label="Origem do Lead" value={leadTypeDisplay} />
             {leadTypeDisplay === "Lead Digital" ? (
               <LeadDetailFieldEditor
                 leadId={lead.id}
@@ -165,10 +145,9 @@ export function LeadDetailOverview({
                 kind="select"
                 selectOptions={[...leadDigitalPlatforms]}
                 displayVariant="row"
-                className="border-t border-neutral-200"
+                className={CELL}
               />
             ) : null}
-            <OverviewValue label="Etapa atual" value={etapaLabel} icon={GitBranch} />
             <LeadDetailFieldEditor
               leadId={lead.id}
               scope="intake"
@@ -178,7 +157,7 @@ export function LeadDetailOverview({
               kind="text"
               labelIcon={Building2}
               displayVariant="row"
-              className="border-t border-neutral-200 sm:border-r"
+              className={CELL}
             />
             <LeadDetailFieldEditor
               leadId={lead.id}
@@ -188,7 +167,7 @@ export function LeadDetailOverview({
               value={dueLabel}
               kind="yesno"
               displayVariant="row"
-              className="border-t border-neutral-200"
+              className={CELL}
             />
             {isCrossSellingLead ? (
               <OverviewValue
@@ -207,7 +186,7 @@ export function LeadDetailOverview({
                 kind="multiselect"
                 selectOptions={[...leadAreas]}
                 displayVariant="row"
-                className="border-t border-neutral-200"
+                className={CELL}
               />
             ) : null}
             <LeadDetailFieldEditor
@@ -218,7 +197,7 @@ export function LeadDetailOverview({
               value={lead.intakeFields.find((field) => field.key === "decisor")?.value ?? ""}
               kind="text"
               displayVariant="row"
-              className="border-t border-neutral-200"
+              className={CELL}
             />
             <LeadDetailFieldEditor
               leadId={lead.id}
@@ -228,7 +207,7 @@ export function LeadDetailOverview({
               value={lead.intakeFields.find((field) => field.key === "decisor_telefone")?.value ?? ""}
               kind="text"
               displayVariant="row"
-              className="border-t border-neutral-200"
+              className={CELL}
             />
             <LeadDetailFieldEditor
               leadId={lead.id}
@@ -238,78 +217,31 @@ export function LeadDetailOverview({
               value={lead.intakeFields.find((field) => field.key === "decisor_email")?.value ?? ""}
               kind="text"
               displayVariant="row"
-              className="border-t border-neutral-200"
+              className={CELL}
             />
-            <OverviewValue
-              label="Criado em"
-              value={formatDateTimeBr(lead.criadoEm)}
-              icon={CalendarDays}
-              tabular
-            />
-            <OverviewValue
-              label="Atualizado em"
-              value={lead.atualizadoEm ? formatDateTimeBr(lead.atualizadoEm) : "Sem atualização"}
-              icon={CalendarDays}
-              muted={!lead.atualizadoEm}
-              tabular
-            />
-            {lead.rdDealUrl ? (
-              <OverviewLink label="Negociação no RD" href={lead.rdDealUrl} />
-            ) : isRdLead ? (
-              <OverviewValue label="Negociação no RD" value="Lead RD sem link disponível" muted />
-            ) : null}
           </CardContent>
         </Card>
 
         {hasIntakeData ? (
           <Card className="gap-0 py-0">
-            <CardHeader className="border-b border-neutral-200 px-5 py-4 sm:px-6">
-              <SectionTitle
-                icon={Building2}
-                title="Cadastro inicial"
-                description="Dados informados na abertura da demanda, organizados por contexto."
-              />
+            <CardHeader className="px-5 py-4 sm:px-6">
+              <SectionTitle title="Cadastro inicial" />
             </CardHeader>
             <CardContent className="px-0">
               <IntakeFieldGroup
                 title="Solicitante e cadastro"
-                description="Quem solicitou e quem registrou a demanda."
-                icon={UserRound}
                 fields={groups.requester}
                 leadId={lead.id}
                 mergeSolicitanteIdentity
               />
-              <IntakeFieldGroup
-                title="Prazos e reunião"
-                description="Agenda prevista para entrega, encontro e próximos marcos."
-                icon={CalendarClock}
-                fields={groups.schedule}
-                leadId={lead.id}
-              />
-              <IntakeFieldGroup
-                title="Escopo e indicação"
-                description="Áreas envolvidas e contexto comercial da oportunidade."
-                icon={Handshake}
-                fields={groups.commercial}
-                leadId={lead.id}
-              />
-              <IntakeFieldGroup
-                title="Outras informações"
-                description="Dados adicionais enviados no cadastro."
-                icon={Layers3}
-                fields={groups.other}
-                leadId={lead.id}
-              />
+              <IntakeFieldGroup title="Prazos e reunião" fields={groups.schedule} leadId={lead.id} />
+              <IntakeFieldGroup title="Escopo e indicação" fields={groups.commercial} leadId={lead.id} />
+              <IntakeFieldGroup title="Outras informações" fields={groups.other} leadId={lead.id} />
 
               {lead.empresasIntake.length > 0 || lead.isSystemCreated ? (
-                <CollapsibleGroup
-                    title="Empresas"
-                    description="Partes e documentos associados ao lead."
-                    icon={Building2}
-                    className="border-t-[6px] border-neutral-100"
-                  >
+                <CollapsibleGroup title="Empresas">
                   {lead.empresasIntake.length > 0 ? (
-                    <div className="divide-y divide-neutral-200">
+                    <div className="divide-y divide-neutral-200 border-t border-neutral-200">
                       {lead.empresasIntake.map((empresa) => (
                         <LeadIntakeEmpresaBlock
                           key={`emp-${empresa.index}`}
@@ -320,15 +252,10 @@ export function LeadDetailOverview({
                       ))}
                     </div>
                   ) : (
-                    <p className="px-4 pb-4 text-sm text-muted-foreground">
-                      Nenhuma empresa vinculada.
-                    </p>
+                    <p className="px-4 pb-4 text-sm text-muted-foreground">Nenhuma empresa vinculada.</p>
                   )}
                   {lead.isSystemCreated ? (
-                    <LeadAddEmpresaButton
-                      leadId={lead.id}
-                      className="border-t border-neutral-200 px-4 py-4"
-                    />
+                    <LeadAddEmpresaButton leadId={lead.id} className="border-t border-neutral-200 px-4 py-4" />
                   ) : null}
                 </CollapsibleGroup>
               ) : null}
@@ -341,7 +268,6 @@ export function LeadDetailOverview({
         ) : (
           <Card className="p-6">
             <SectionTitle
-              icon={Building2}
               title="Sem cadastro inicial"
               description="Não há campos de abertura salvos para este lead."
             />
@@ -350,14 +276,6 @@ export function LeadDetailOverview({
       </div>
 
       <aside className="min-w-0 space-y-4 xl:sticky xl:top-4 xl:self-start">
-        <AboutLeadCard lead={lead} dueLabel={dueLabel} />
-        <QuickActionsCard
-          contextAction={contextAction}
-          hasDue={lead.haveraDueDiligence}
-          hasRd={Boolean(lead.rdDealUrl)}
-          rdDealUrl={lead.rdDealUrl}
-          onNavigate={onNavigate}
-        />
         <RecentActivityCard
           activities={lead.lifecycleTimeline.activities.slice(0, 3)}
           onViewAll={() => onNavigate("history")}
@@ -367,24 +285,11 @@ export function LeadDetailOverview({
   );
 }
 
-function SectionTitle({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-}) {
+function SectionTitle({ title, description }: { title: string; description?: string }) {
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 text-interactive-700">
-        <Icon className="size-4" aria-hidden />
-      </span>
-      <div className="min-w-0">
-        <CardTitle className="text-v2-heading-md text-foreground">{title}</CardTitle>
-        <p className="mt-0.5 text-sm leading-5 text-muted-foreground">{description}</p>
-      </div>
+    <div className="min-w-0">
+      <CardTitle className="text-v2-heading-md text-foreground">{title}</CardTitle>
+      {description ? <p className="mt-0.5 text-sm leading-5 text-muted-foreground">{description}</p> : null}
     </div>
   );
 }
@@ -403,7 +308,7 @@ function OverviewValue({
   icon?: LucideIcon;
 }) {
   return (
-    <div className="min-w-0 border-t border-neutral-200 bg-white px-4 py-3.5 sm:odd:border-r">
+    <div className={cn("min-w-0 bg-white px-4 py-3.5", CELL)}>
       <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
         {label}
@@ -421,34 +326,13 @@ function OverviewValue({
   );
 }
 
-function OverviewLink({ label, href }: { label: string; href: string }) {
-  return (
-    <div className="min-w-0 border-t border-neutral-200 bg-white px-4 py-3.5 sm:odd:border-r">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <Link
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-interactive-700 hover:text-interactive-800 hover:underline"
-      >
-        Abrir no RD Station
-        <ExternalLink className="size-3.5" aria-hidden />
-      </Link>
-    </div>
-  );
-}
-
 function IntakeFieldGroup({
   title,
-  description,
-  icon,
   fields,
   leadId,
   mergeSolicitanteIdentity = false,
 }: {
   title: string;
-  description: string;
-  icon: LucideIcon;
   fields: IntakeField[];
   leadId: string;
   mergeSolicitanteIdentity?: boolean;
@@ -476,12 +360,7 @@ function IntakeFieldGroup({
   if (fields.length === 0) return null;
 
   return (
-    <CollapsibleGroup
-      title={title}
-      description={description}
-      icon={icon}
-      className="border-t-[6px] border-neutral-100 first:border-t-0"
-    >
+    <CollapsibleGroup title={title}>
       <div className="grid sm:grid-cols-2">
         {mergeSolicitanteIdentity && (solicitanteNameField || solicitanteEmailField) ? (
           <LeadDetailFieldEditor
@@ -496,7 +375,7 @@ function IntakeFieldGroup({
             allowExternalUser={false}
             labelIcon={UserRound}
             displayVariant="row"
-            className="border-t border-neutral-200 sm:border-r"
+            className={CELL}
           />
         ) : null}
         {visibleFields.map((field) => (
@@ -518,58 +397,21 @@ function IntakeFieldGroup({
 function CollapsibleGroup({
   title,
   description,
-  icon,
-  className,
   children,
 }: {
   title: string;
-  description: string;
-  icon: LucideIcon;
-  className?: string;
+  description?: string;
   children: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(true);
   const contentId = useId();
 
   return (
-    <section className={className}>
-      <GroupHeader
-        title={title}
-        description={description}
-        icon={icon}
-        expanded={expanded}
-        contentId={contentId}
-        onToggle={() => setExpanded((current) => !current)}
-      />
-      {expanded ? <div id={contentId}>{children}</div> : null}
-    </section>
-  );
-}
-
-function GroupHeader({
-  title,
-  description,
-  icon: Icon,
-  expanded,
-  contentId,
-  onToggle,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  expanded: boolean;
-  contentId: string;
-  onToggle: () => void;
-}) {
-  return (
-    <header className="border-b border-neutral-200 bg-gradient-to-r from-neutral-50 to-white px-4 py-3 sm:px-5">
-      <div className="flex items-center gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-lg) border border-interactive-100 bg-interactive-50 text-interactive-700 shadow-sm">
-          <Icon className="size-4" aria-hidden />
-        </span>
+    <section className="border-t border-neutral-200">
+      <header className="flex items-center gap-3 px-4 py-2.5 sm:px-5">
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold leading-5 text-foreground">{title}</h3>
-          <p className="mt-0.5 text-xs leading-4 text-muted-foreground">{description}</p>
+          {description ? <p className="text-xs leading-4 text-muted-foreground">{description}</p> : null}
         </div>
         <Button
           type="button"
@@ -578,16 +420,18 @@ function GroupHeader({
           className="shrink-0 gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
           aria-expanded={expanded}
           aria-controls={contentId}
-          onClick={onToggle}
+          onClick={() => setExpanded((current) => !current)}
         >
           <span className="hidden sm:inline">{expanded ? "Recolher" : "Expandir"}</span>
+          <span className="sr-only sm:hidden">{expanded ? `Recolher ${title}` : `Expandir ${title}`}</span>
           <ChevronDown
             className={cn("size-4 transition-transform duration-200", expanded && "rotate-180")}
             aria-hidden
           />
         </Button>
-      </div>
-    </header>
+      </header>
+      {expanded ? <div id={contentId}>{children}</div> : null}
+    </section>
   );
 }
 
@@ -621,10 +465,7 @@ function EditableIntakeField({
       }
       allowExternalUser={field.key !== "cadastrado_por"}
       displayVariant="row"
-      className={cn(
-        "border-t border-neutral-200 sm:odd:border-r",
-        long && "sm:col-span-2 sm:border-r-0",
-      )}
+      className={cn(CELL, long && "sm:col-span-2 sm:border-r-0")}
     />
   );
 }
@@ -658,11 +499,9 @@ function IntegrationSummary({ leadId, fields }: { leadId: string; fields: Intake
 
   return (
     <CollapsibleGroup
-      className="border-t-[6px] border-neutral-100"
-        title="Integração SharePoint"
-        description="Estado técnico do agendamento criado a partir deste cadastro."
-        icon={Cloud}
-      >
+      title="Integração SharePoint"
+      description="Estado técnico do agendamento criado a partir deste cadastro."
+    >
       <div className="p-4">
         <div
           className={cn(
@@ -719,142 +558,6 @@ function IntegrationSummary({ leadId, fields }: { leadId: string; fields: Intake
         </div>
       </div>
     </CollapsibleGroup>
-  );
-}
-
-function AboutLeadCard({ lead, dueLabel }: { lead: LeadDetailData; dueLabel: string }) {
-  const summary = lead.lifecycleTimeline.summary;
-  return (
-    <Card className="gap-0 py-0">
-      <CardHeader className="border-b border-neutral-200 px-4 py-4">
-        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-          <Info className="size-4 text-muted-foreground" aria-hidden />
-          Sobre o lead
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="divide-y divide-neutral-200 px-4">
-        <RailValue
-          icon={Clock3}
-          label="Tempo na etapa"
-          value={summary.currentEtapaDurationLabel}
-        />
-        <RailValue
-          icon={ShieldCheck}
-          label="Due diligence"
-          value={
-            <Badge variant={lead.haveraDueDiligence ? "default" : "outline"}>{dueLabel}</Badge>
-          }
-        />
-        <RailValue
-          icon={CalendarDays}
-          label="Criado em"
-          value={<span className="tabular-nums">{formatDateTimeBr(lead.criadoEm)}</span>}
-        />
-        <RailValue
-          icon={History}
-          label="Ações registradas"
-          value={<span className="tabular-nums">{summary.activityCount}</span>}
-        />
-      </CardContent>
-    </Card>
-  );
-}
-
-function RailValue({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: ReactNode;
-}) {
-  return (
-    <div className="flex gap-3 py-3">
-      <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <div className="min-w-0">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <div className="mt-1 break-words text-sm font-medium text-foreground">{value}</div>
-      </div>
-    </div>
-  );
-}
-
-function QuickActionsCard({
-  contextAction,
-  hasDue,
-  hasRd,
-  rdDealUrl,
-  onNavigate,
-}: {
-  contextAction: { tab: "proposal" | "contract"; label: string; icon: LucideIcon };
-  hasDue: boolean;
-  hasRd: boolean;
-  rdDealUrl: string | null;
-  onNavigate: (tab: LeadOverviewTabTarget) => void;
-}) {
-  const ContextIcon = contextAction.icon;
-  return (
-    <Card className="gap-0 py-0">
-      <CardHeader className="border-b border-neutral-200 px-4 py-4">
-        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-          <Sparkles className="size-4 text-muted-foreground" aria-hidden />
-          Ações rápidas
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-1 p-2">
-        <QuickAction icon={MessageSquareText} label="Adicionar anotação" onClick={() => onNavigate("notes")} />
-        <QuickAction icon={History} label="Ver histórico completo" onClick={() => onNavigate("history")} />
-        {hasDue ? (
-          <QuickAction icon={ShieldCheck} label="Abrir due diligence" onClick={() => onNavigate("due")} />
-        ) : null}
-        <QuickAction
-          icon={ContextIcon}
-          label={contextAction.label}
-          onClick={() => onNavigate(contextAction.tab)}
-        />
-        {hasRd && rdDealUrl ? (
-          <Link
-            href={rdDealUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex min-h-9 items-center justify-between gap-3 rounded-(--radius-v2-md) px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-          >
-            <span className="flex items-center gap-2">
-              <ExternalLink className="size-4 text-muted-foreground" aria-hidden />
-              Abrir no RD Station
-            </span>
-            <ArrowRight className="size-3.5 text-neutral-400" aria-hidden />
-          </Link>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function QuickAction({
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="control"
-      className="w-full justify-between px-3 font-medium"
-      onClick={onClick}
-    >
-      <span className="flex items-center gap-2">
-        <Icon className="size-4 text-muted-foreground" aria-hidden />
-        {label}
-      </span>
-      <ArrowRight className="size-3.5 text-neutral-400" aria-hidden />
-    </Button>
   );
 }
 

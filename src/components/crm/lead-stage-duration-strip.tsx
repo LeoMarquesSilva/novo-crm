@@ -1,114 +1,90 @@
-import { ArrowRight, Loader2 } from "lucide-react";
+"use client";
+
+import { useEffect, useRef } from "react";
 
 import type { LeadLifecycleTimeline } from "@/lib/crm/lead-lifecycle-timeline";
 import { buildLeadStageDurationItems } from "@/lib/crm/lead-stage-duration-strip";
-import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { cn } from "@/lib/utils";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
 type LeadStageDurationStripProps = {
   currentStage: OpportunityStage;
   timeline: LeadLifecycleTimeline;
-  advanceStage?: OpportunityStage | null;
-  advancing?: boolean;
-  onAdvance?: (stage: OpportunityStage) => void;
 };
 
-export function LeadStageDurationStrip({
-  currentStage,
-  timeline,
-  advanceStage = null,
-  advancing = false,
-  onAdvance,
-}: LeadStageDurationStripProps) {
+/**
+ * Faixa só de leitura com o tempo em cada etapa do funil (12/11/2026). Mudar de etapa saiu daqui:
+ * virou o botão principal do cabeçalho da ficha ("Avançar para …"). A faixa informa onde o lead
+ * está e quanto tempo passou em cada etapa, com um fio no topo de cada etapa (atual em azul,
+ * visitadas em azul claro, futuras em cinza) em vez de blocos coloridos.
+ */
+export function LeadStageDurationStrip({ currentStage, timeline }: LeadStageDurationStripProps) {
   const items = buildLeadStageDurationItems(currentStage, timeline);
-  const displayItems =
-    advanceStage && !items.some((item) => item.stage === advanceStage)
-      ? [
-          ...items,
-          {
-            stage: advanceStage,
-            title: OPPORTUNITY_STAGE_LABELS[advanceStage],
-            durationLabel: "—",
-            isCurrent: false,
-            isVisited: false,
-          },
-        ]
-      : items;
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  // Em telas estreitas a faixa rola na horizontal: começa mostrando a etapa atual, não a primeira.
+  // Espera o layout existir (ResizeObserver) e centraliza uma vez; depois a rolagem é do usuário.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const center = () => {
+      const current = scroller.querySelector<HTMLElement>('[aria-current="step"]');
+      if (!current || scroller.scrollWidth <= scroller.clientWidth) return false;
+      scroller.scrollLeft = Math.max(0, current.offsetLeft - (scroller.clientWidth - current.offsetWidth) / 2);
+      return true;
+    };
+    if (center() || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (center()) observer.disconnect();
+    });
+    // A largura que importa é a da lista (cresce quando o CSS aplica `flex`/`min-w-max`).
+    observer.observe(scroller);
+    if (scroller.firstElementChild) observer.observe(scroller.firstElementChild);
+    return () => observer.disconnect();
+  }, [currentStage]);
 
   return (
     <section aria-labelledby="lead-stage-duration-title">
       <h2 id="lead-stage-duration-title" className="sr-only">
-        Tempo de permanência em cada etapa do funil
+        Tempo em cada etapa do funil
       </h2>
-      <div className="crm-scrollbar overflow-x-auto pb-1">
-        <ol className="flex min-w-max divide-x divide-neutral-200 overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white xl:min-w-full">
-          {displayItems.map((item) => {
-            const isAdvanceTarget =
-              item.stage === advanceStage && typeof onAdvance === "function";
-            const content = (
-              <>
-                <span className="truncate text-xs font-semibold leading-tight">
-                  {item.title}
-                </span>
-                <span
-                  className={cn(
-                    "mt-0.5 inline-flex items-center gap-1 truncate text-xs font-medium tabular-nums",
-                    item.isCurrent ? "text-white" : "text-muted-foreground",
-                    isAdvanceTarget && "text-interactive-700",
-                  )}
-                >
-                  {isAdvanceTarget ? (
-                    advancing ? (
-                      <Loader2 className="size-3 animate-spin" aria-hidden />
-                    ) : (
-                      <ArrowRight className="size-3" aria-hidden />
-                    )
-                  ) : null}
-                  {isAdvanceTarget
-                    ? advancing
-                      ? "Validando…"
-                      : "Avançar para esta etapa"
-                    : item.durationLabel}
-                  {item.isCurrent ? " · atual" : ""}
-                </span>
-              </>
-            );
-
-            return (
-              <li
-                key={item.stage}
-                aria-current={item.isCurrent ? "step" : undefined}
-                title={`${item.title}: ${isAdvanceTarget ? "avançar" : item.durationLabel}`}
+      <div ref={scrollerRef} className="crm-scrollbar relative overflow-x-auto pb-2">
+        <ol className="flex min-w-max gap-1 xl:min-w-full">
+          {items.map((item) => (
+            <li
+              key={item.stage}
+              aria-current={item.isCurrent ? "step" : undefined}
+              className={cn(
+                "w-[132px] shrink-0 border-t-2 pt-2 pr-2 xl:w-auto xl:min-w-0 xl:flex-1",
+                item.isCurrent
+                  ? "border-interactive-600"
+                  : item.isVisited
+                    ? "border-interactive-300"
+                    : "border-neutral-200",
+              )}
+            >
+              <span
                 className={cn(
-                  "min-h-12 w-[148px] shrink-0 transition-colors xl:min-w-0 xl:flex-1",
+                  "block text-xs leading-4 break-words",
                   item.isCurrent
-                    ? "bg-interactive-600 text-white"
+                    ? "font-semibold text-foreground"
                     : item.isVisited
-                      ? "bg-interactive-50 text-interactive-800"
-                      : "bg-white text-neutral-500",
-                  isAdvanceTarget &&
-                    "bg-interactive-50 text-interactive-800 hover:bg-interactive-100",
+                      ? "font-medium text-text-secondary-v2"
+                      : "text-muted-foreground",
                 )}
               >
-                {isAdvanceTarget ? (
-                  <button
-                    type="button"
-                    className="flex min-h-12 w-full flex-col justify-center px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                    disabled={advancing}
-                    onClick={() => onAdvance(item.stage)}
-                    aria-label={`Avançar para ${item.title}`}
-                  >
-                    {content}
-                  </button>
-                ) : (
-                  <div className="flex min-h-12 flex-col justify-center px-3 py-2">
-                    {content}
-                  </div>
+                {item.title}
+              </span>
+              <span
+                className={cn(
+                  "mt-0.5 block truncate text-xs leading-4 tabular-nums",
+                  item.isCurrent ? "font-medium text-interactive-700" : "text-muted-foreground",
                 )}
-              </li>
-            );
-          })}
+              >
+                {item.isCurrent ? `${item.durationLabel} · atual` : item.durationLabel}
+              </span>
+            </li>
+          ))}
         </ol>
       </div>
     </section>

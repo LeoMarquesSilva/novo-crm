@@ -6,9 +6,7 @@ import Link from "next/link";
 import { notFound, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
-  BriefcaseBusiness,
   Building2,
-  CalendarDays,
   CheckCircle2,
   CircleAlert,
   ChevronDown,
@@ -20,7 +18,6 @@ import {
   LinkIcon,
   Presentation,
   ShieldCheck,
-  UserRound,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -31,8 +28,9 @@ import { DueReestruturacaoNoCartao } from "@/components/crm/due-apresentacao/due
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ClientLogo } from "@/components/crm/client-logo";
-import { CrmEntityHeader } from "@/components/crm/crm-entity-header";
+import { CrmEntityHeader, type CrmEntityHeaderContextItem } from "@/components/crm/crm-entity-header";
 import { LeadDetailStageAdvance } from "@/components/crm/lead-detail-stage-advance";
+import { LeadStageDurationStrip } from "@/components/crm/lead-stage-duration-strip";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -48,7 +46,6 @@ import {
 import { isProposalDocumentAvailable } from "@/lib/crm/proposal-document-availability";
 import { uploadDueFile, uploadDuePpt } from "@/lib/crm/upload-due-ppt";
 import { DUE_AREAS, dueAreaFromCrmKey } from "@/lib/due-ppt/areas";
-import { OPPORTUNITY_STAGE_LABELS } from "@/lib/crm/stage-labels";
 import { leadTypeLabel } from "@/lib/crm/lead-type-label";
 import {
   isCadastroLeadOnlyStage,
@@ -103,7 +100,6 @@ export function LeadDetailView({
     cpPropostaEmpresasJson: lead.pipelineFields.find((f) => f.fieldCode === "cp_proposta_empresas_json")?.value,
   });
 
-  const etapaLabel = OPPORTUNITY_STAGE_LABELS[lead.etapa] ?? lead.etapa;
   const ddSimNao = lead.haveraDueDiligence ? "Sim" : "Não";
   const isProposalStage = lead.etapa === "confeccao_proposta";
   const proposalDocumentAvailable = isProposalDocumentAvailable(lead.etapa);
@@ -214,9 +210,7 @@ export function LeadDetailView({
     <div className="mx-auto w-full max-w-[1500px] space-y-5">
       <LeadDetailHero
         lead={lead}
-        etapaLabel={etapaLabel}
         leadTypeDisplay={leadTypeDisplay}
-        ddSimNao={ddSimNao}
         heroContextBadge={heroContextBadge}
         propostaEmpresaPrincipalNome={propostaEmpresaPrincipalNome}
         viewer={viewer}
@@ -296,13 +290,9 @@ export function LeadDetailView({
               ) : null}
               <LeadDetailOverview
                 lead={lead}
-                etapaLabel={etapaLabel}
                 leadTypeDisplay={leadTypeDisplay}
                 dueLabel={ddSimNao}
                 isCrossSellingLead={isCrossSellingLead}
-                isContractStage={isContractStage}
-                showBillingTab={showBillingTab}
-                isRdLead={hasRdHistory}
                 onNavigate={(tab) => handleTabChange(tab)}
               />
             </TabsContent>
@@ -506,27 +496,22 @@ function normalizeEntityLabel(value: string): string {
 
 function LeadDetailHero({
   lead,
-  etapaLabel,
   leadTypeDisplay,
-  ddSimNao,
   heroContextBadge,
   propostaEmpresaPrincipalNome,
   viewer,
   isRdLead,
 }: {
   lead: LeadDetailData;
-  etapaLabel: string;
   leadTypeDisplay: string;
-  ddSimNao: string;
   heroContextBadge: { label: string; className: string } | null;
   propostaEmpresaPrincipalNome: string | null;
   viewer: LeadDetailViewer | null;
   isRdLead: boolean;
 }) {
   const isPosVenda = isPosVendaPipelineStage(lead.etapa);
-  const pipelineLabel = isPosVenda ? "Pós-venda" : isCadastroLeadOnlyStage(lead.etapa) ? "Pré-funil" : "Funil comercial";
+  const pipelineLabel = isPosVenda ? "Pós-venda" : isCadastroLeadOnlyStage(lead.etapa) ? "Pré-funil" : "Comercial";
 
-  const cadastradoPor = lead.intakeFields.find((field) => field.key === "cadastrado_por");
   const empresaLabel =
     propostaEmpresaPrincipalNome?.trim() ||
     lead.empresasIntake[0]?.razao_social?.trim() ||
@@ -551,17 +536,25 @@ function LeadDetailHero({
   const solicitanteInternoEmail =
     solicitanteEmailField?.value?.trim() || lead.solicitanteEmail?.trim() || null;
 
-  // Nome e avatar vêm sempre da mesma fonte (cadastradoPor.resolvedUser) — nunca
-  // misturar fallbacks independentes aqui. `lead.ownerUserName`/`ownerUserAvatarUrl`
-  // existem no tipo (Oportunidade) mas só são resolvidos no loader da LISTAGEM
-  // (via e-mail do dono no RD, ver src/app/api/crm/leads/route.ts); o loader desta
-  // página de detalhe (getLeadById) não os popula, então usá-los aqui criaria um
-  // par nome/avatar de origens diferentes (achado da Codex na revisão da Fase 4).
-  const ownerName = cadastradoPor?.resolvedUser?.fullName?.trim() || null;
-  const ownerAvatar = cadastradoPor?.resolvedUser?.avatarUrl ?? null;
+  // Mudar de etapa: lead do RD é só leitura no CRM (a rota de transição responde 403), lead perdido
+  // não avança e só admin/comercial movem o funil.
+  const canAdvance =
+    !isRdLead &&
+    lead.encerramento !== "perdido" &&
+    Boolean(viewer && ["admin", "comercial"].includes(viewer.role));
+
+  // Origem, funil e datas aparecem só aqui (antes também no quadro de destaques, no resumo e no
+  // cartão "Sobre o lead"). Etapa atual e tempo na etapa ficam na faixa logo abaixo; due diligence,
+  // no campo editável da Visão geral; quem cadastrou, no Cadastro inicial.
+  const context: CrmEntityHeaderContextItem[] = [
+    { label: "Origem", value: leadTypeDisplay },
+    { label: "Funil", value: pipelineLabel },
+    { label: "Criado em", value: formatDateTimeMinutesBr(lead.criadoEm) },
+    ...(lead.atualizadoEm ? [{ label: "Atualizado em", value: formatDateTimeMinutesBr(lead.atualizadoEm) }] : []),
+  ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <CrmEntityHeader
         breadcrumb={
           <nav aria-label="Breadcrumb">
@@ -617,12 +610,8 @@ function LeadDetailHero({
           ) : undefined
         }
         actions={
-          lead.rdDealUrl || canManageLead ? (
-          <div
-            className="flex flex-wrap items-center gap-1.5 rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-1"
-            role="group"
-            aria-label="Ações do lead"
-          >
+          // Uma ação principal (avançar) à direita; perda, RD e exclusão como secundárias, sem caixa.
+          <>
             {canManageLead && lead.encerramento !== "ganho" ? (
               <LeadClosingStatusButton
                 leadId={lead.id}
@@ -637,98 +626,29 @@ function LeadDetailHero({
                 className={buttonVariants({ variant: "outline", size: "control" })}
               >
                 RD Station
-                <ExternalLink className="h-3.5 w-3.5" />
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
               </Link>
             ) : null}
             {viewer?.role === "admin" && lead.isSystemCreated ? (
-              <>
-                <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-                <LeadDeleteButton leadId={lead.id} variant="icon" />
-              </>
+              <LeadDeleteButton leadId={lead.id} variant="icon" />
             ) : null}
-          </div>
-          ) : undefined
-        }
-      />
-
-      <LeadDetailStageAdvance
-        leadId={lead.id}
-        currentStage={lead.etapa}
-        hasDueDiligence={lead.haveraDueDiligence}
-        timeline={lead.lifecycleTimeline}
-        canAdvance={
-          // Lead do RD é só leitura no CRM: a rota de transição responde 403.
-          !isRdLead &&
-          lead.encerramento !== "perdido" &&
-          Boolean(viewer && ["admin", "comercial"].includes(viewer.role))
-        }
-        linkProposta={lead.linkProposta ?? null}
-        linkContrato={lead.linkContrato ?? null}
-        leadName={lead.solicitante}
-      />
-
-      <div className="grid gap-px overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-neutral-200 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.15fr_1fr_1.25fr]">
-        <HeaderHighlight icon={BriefcaseBusiness} label="Etapa atual">
-          <span className="font-semibold">{etapaLabel}</span>
-        </HeaderHighlight>
-        <HeaderHighlight icon={UserRound} label="Cadastro realizado por">
-          {ownerName ? (
-            <CrmUserLabel
-              name={ownerName}
-              avatarUrl={ownerAvatar}
-              size="sm"
-              variant="inline"
+            <LeadDetailStageAdvance
+              leadId={lead.id}
+              currentStage={lead.etapa}
+              hasDueDiligence={lead.haveraDueDiligence}
+              canAdvance={canAdvance}
+              linkProposta={lead.linkProposta ?? null}
+              linkContrato={lead.linkContrato ?? null}
+              leadName={lead.solicitante}
+              // No celular as ações quebram linha: a principal vem primeiro.
+              className="max-sm:order-first"
             />
-          ) : (
-            <span className="text-muted-foreground">Não identificado</span>
-          )}
-        </HeaderHighlight>
-        <HeaderHighlight icon={CalendarDays} label={lead.atualizadoEm ? "Última atualização" : "Criado em"}>
-          <span className="font-semibold tabular-nums">
-            {formatDateTimeBr(lead.atualizadoEm ?? lead.criadoEm)}
-          </span>
-        </HeaderHighlight>
-        <HeaderHighlight icon={Layers3} label="Origem e tipo">
-          <span className="flex flex-wrap gap-1.5">
-            <Badge variant="outline">{pipelineLabel}</Badge>
-            <Badge variant="outline">{leadTypeDisplay}</Badge>
-            <Badge
-              variant="outline"
-              className={
-                lead.haveraDueDiligence
-                  ? "border-info-border bg-info-bg text-info-text"
-                  : undefined
-              }
-            >
-              DUE: {ddSimNao}
-            </Badge>
-          </span>
-        </HeaderHighlight>
-      </div>
-    </div>
-  );
-}
+          </>
+        }
+        context={context}
+      />
 
-function HeaderHighlight({
-  icon: Icon,
-  label,
-  children,
-}: {
-  icon: LucideIcon;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="min-w-0 bg-white px-4 py-3.5">
-      <div className="flex items-start gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 text-interactive-700">
-          <Icon className="size-4" aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <div className="mt-1 min-w-0 text-sm text-foreground">{children}</div>
-        </div>
-      </div>
+      <LeadStageDurationStrip currentStage={lead.etapa} timeline={lead.lifecycleTimeline} />
     </div>
   );
 }

@@ -313,6 +313,21 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+
+  /*
+   * Ficha do lead (12/11/2026): o lápis de editar campo só aparece no hover da linha ou com foco
+   * dentro dela. Só vale onde há mouse; em tela de toque continua sempre visível.
+   */
+  @media (hover: hover) {
+    .lead-field .lead-field-edit {
+      opacity: 0;
+      transition: opacity var(--motion-fast, 120ms) ease-out;
+    }
+    .lead-field:hover .lead-field-edit,
+    .lead-field:focus-within .lead-field-edit {
+      opacity: 1;
+    }
+  }
 }
 
 @layer utilities {

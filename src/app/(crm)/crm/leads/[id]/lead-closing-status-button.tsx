@@ -13,7 +13,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 type LeadClosingStatusButtonProps = {
   leadId: string;
@@ -78,11 +77,9 @@ export function LeadClosingStatusButton({
         size="control"
         disabled={saving}
         onClick={() => setOpen(true)}
-        className={cn(
-          !isLost &&
-            "border-danger-border text-danger-text hover:border-danger-border hover:bg-danger-bg",
-          className,
-        )}
+        // Neutro no cabeçalho, ao lado do botão principal (12/11/2026): ação destrutiva só ganha
+        // vermelho na confirmação (DS §16.4).
+        className={className}
       >
         <Icon className="size-4" aria-hidden />
         {isLost ? "Reabrir lead" : "Marcar perda"}

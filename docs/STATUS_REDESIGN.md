@@ -261,6 +261,19 @@ Registradas no fechamento da Fase 4 (achado bloqueante já corrigido — ver Cha
 
 ## Changelog
 
+- **12/11/2026** — Ficha do lead (P1 da crítica de design): a ação principal ficou visível e cada informação aparece uma vez só.
+  - **Ação principal:** "Avançar para {próxima etapa}" é o botão principal do cabeçalho; antes era um texto de 10px dentro da faixa de etapas. De Contrato Elaborado, o botão diz "Enviar para assinatura". Os diálogos de mudança de etapa são os mesmos (`LeadDetailStageAdvance`, que agora renderiza o botão; prop `timeline` removida). No celular, o botão vem antes das outras ações.
+  - **Ações secundárias:** "Marcar perda" ficou neutro, e o vermelho fica só na confirmação (§16.4). As ações saíram da caixa cinza.
+  - **Faixa de etapas (`LeadStageDurationStrip`):** só leitura, com um fio de 2px no topo de cada etapa (atual em `interactive-600`, visitadas em `interactive-300`, futuras em `neutral-200`) no lugar dos blocos coloridos. A etapa atual fica em negrito e o tempo dela em azul. No celular, a faixa abre centralizada na etapa atual.
+  - **Linha de contexto:** a prop `context` do `CrmEntityHeader` tem rótulo em texto comum, sem caixa alta, num `<dl>`. Mostra origem, funil, criado em e atualizado em.
+  - **O que saiu por repetição:**
+    - o quadro de destaques do topo (`HeaderHighlight`: etapa, cadastrado por, data, origem/DUE);
+    - no "Resumo editável", agora "Dados do lead": origem, etapa, criado/atualizado e o link do RD;
+    - os cartões "Sobre o lead" e "Ações rápidas", que repetiam o cabeçalho e as abas.
+  - **Onde cada informação ficou:** etapa e tempo na faixa; due diligence no campo editável; quem cadastrou no Cadastro inicial; RD no botão do cabeçalho.
+  - **Lápis de editar:** só aparece no hover da linha ou com foco dentro dela (`.lead-field` / `.lead-field-edit` em `globals.css`, dentro de `@media (hover: hover)`). Em tela de toque continua visível.
+  - **Títulos:** sem ícone em caixa azul. Os grupos do Cadastro inicial ficaram sem gradiente, sem ícone e sem descrição genérica, separados por um fio de 1px em vez do de 6px.
+  - **Verificação no navegador (1440, 1024 e 375px):** nenhum texto abaixo de 12px, nenhum contraste abaixo de 4,5:1 e nada de rolagem horizontal no celular. O hover e o foco do lápis funcionam, e o botão abre o mesmo diálogo com a pendência.
 - **12/11/2026** — Acessibilidade de base (P1 da crítica de design). O que mudou:
   - **Foco:** o foco de teclado virou contorno sólido de 2px em `--ring`, com 2px de afastamento, em Button, Switch, Tabs e nos passos do wizard. `globals.css` dá o mesmo contorno, com especificidade zero, a botões, links e papéis clicáveis sem estilo próprio. Antes era um ring azul a 20%, com contraste de cerca de 1,3:1; agora são 5,2:1. A regra está no DS §16.3 e no §27.2.
   - **`cn`:** `src/lib/utils.ts` passou a usar `extendTailwindMerge` com as classes `text-v2-*` no grupo `font-size`. Com isso, `text-v2-*` ao lado de uma cor `text-*` não é mais descartada; isso resolve o achado sistêmico de 21/10.
