@@ -608,7 +608,7 @@ function LeadDetailHero({
           heroContextBadge ? (
             <span
               className={cn(
-                "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                "rounded-full border px-2 py-0.5 text-xs font-medium",
                 heroContextBadge.className,
               )}
             >
@@ -1302,7 +1302,7 @@ function DueRevisaoSection({
 
           {/* Material da revisão (05/11/2026): antes o PPT só aparecia na Compilação, que some nesta etapa. */}
           <div className="rounded-2xl border border-[#dfe5ee] bg-[#f8fafc] p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Material para revisar</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Material para revisar</p>
             {pptAtual ? (
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
@@ -1334,7 +1334,7 @@ function DueRevisaoSection({
             )}
             {ppts.length > 1 ? (
               <div className="mt-3 border-t border-[#e4e9f0] pt-2">
-                <p className="text-[11px] font-semibold text-slate-500">Versões anteriores</p>
+                <p className="text-xs font-semibold text-slate-500">Versões anteriores</p>
                 <ul className="mt-1 space-y-1">
                   {ppts.slice(1).map((doc) => (
                     <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
@@ -1421,7 +1421,7 @@ function DueRevisaoSection({
                         {/* Ícone da apresentação comercial (docs/ICONES-DAS-AREAS.md). */}
                         <PracticeAreaIconBadge area={task.areaKey} size="md" />
                         <div className="min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
                             {isMine ? "Sua área" : "Área"}
                           </p>
                           <p className="mt-0.5 truncate text-sm font-extrabold text-[#102033]">{task.areaKey}</p>
@@ -1799,7 +1799,7 @@ function DueAreaTasksCard({
                             {/* Ícone da apresentação comercial (docs/ICONES-DAS-AREAS.md). */}
                             <PracticeAreaIconBadge area={task.areaKey} size="md" />
                             <div className="min-w-0">
-                              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                              <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
                                 {isMine ? "Sua área" : "Área"}
                               </p>
                               <p className="mt-0.5 truncate text-sm font-extrabold text-[#102033]">{task.areaKey}</p>
@@ -1922,7 +1922,7 @@ function DueAreaTasksCard({
                                 Sem processos ativos
                               </Button>
                             </div>
-                            <p className="text-[11px] text-slate-500">
+                            <p className="text-xs text-slate-500">
                               {usaPlanilha
                                 ? relatorios.length
                                   ? "Confira o arquivo e marque como entregue. Dá para anexar mais de um."
@@ -2085,7 +2085,7 @@ function CrmLinksCard({ lead }: { lead: LeadDetailData }) {
 function LinkBlock({ label, href }: { label: string; href: string }) {
   return (
     <div className="rounded-2xl border border-[#e6e9ef] bg-white p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
       <Link
         href={href}
         target="_blank"
@@ -2138,7 +2138,7 @@ function D4SignDisclosure({
             >
               {hasDocument ? "Conectado" : "Pendente"}
             </span>
-            <ChevronDown className={cn("h-5 w-5 text-slate-400 transition-transform", open && "rotate-180")} />
+            <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", open && "rotate-180")} />
           </span>
         </button>
         {open ? (
