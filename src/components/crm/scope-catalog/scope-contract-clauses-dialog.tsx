@@ -48,7 +48,7 @@ export function ScopeContractClausesDialog({
           </div>
           <DialogDescription className="mt-1 text-xs leading-relaxed text-muted-foreground">
             {target.label}
-            <span className="ml-1.5 font-mono text-[10px] text-muted-foreground/80">
+            <span className="ml-1.5 font-mono text-xs text-muted-foreground">
               {target.subtypeKey}
             </span>
           </DialogDescription>

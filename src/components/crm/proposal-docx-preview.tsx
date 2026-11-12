@@ -93,7 +93,7 @@ function mountPreviewThumbnailShell(
 
   const caption = document.createElement("p");
   caption.className =
-    "mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground";
+    "mt-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
   caption.textContent = label;
 
   shell.append(frame, caption);
@@ -300,7 +300,7 @@ function insertReferenceThumbnailBefore(
 
   const caption = document.createElement("p");
   caption.className =
-    "mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground";
+    "mt-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
   caption.textContent = label;
 
   shell.append(frame, caption);
@@ -672,11 +672,11 @@ export function ProposalDocxPreview({
               onClick={() => changeScale(-0.1)}
               disabled={scale <= 0.35}
               aria-label="Diminuir zoom da prévia"
-              className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground disabled:opacity-40"
+              className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground disabled:opacity-40"
             >
               <Minus className="size-3.5" aria-hidden />
             </button>
-            <span className="min-w-11 text-center text-[11px] font-semibold tabular-nums text-foreground">
+            <span className="min-w-11 text-center text-xs font-semibold tabular-nums text-foreground">
               {Math.round(scale * 100)}%
             </span>
             <button
@@ -684,7 +684,7 @@ export function ProposalDocxPreview({
               onClick={() => changeScale(0.1)}
               disabled={scale >= 1.5}
               aria-label="Aumentar zoom da prévia"
-              className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground disabled:opacity-40"
+              className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground disabled:opacity-40"
             >
               <Plus className="size-3.5" aria-hidden />
             </button>
@@ -695,7 +695,7 @@ export function ProposalDocxPreview({
               aria-label="Mostrar a página inteira"
               aria-pressed={manualScale == null && fitMode === "page"}
               className={cn(
-                "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold transition-colors",
+                "flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
                 manualScale == null && fitMode === "page"
                   ? "bg-interactive-50 text-interactive-700"
                   : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
@@ -710,7 +710,7 @@ export function ProposalDocxPreview({
               aria-label="Ajustar página à largura disponível"
               aria-pressed={manualScale == null && fitMode === "width"}
               className={cn(
-                "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold transition-colors",
+                "flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
                 manualScale == null && fitMode === "width"
                   ? "bg-interactive-50 text-interactive-700"
                   : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
@@ -722,7 +722,7 @@ export function ProposalDocxPreview({
             {pageCount > 0 ? (
               <>
                 <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-                <span className="pr-2 text-[11px] font-medium text-muted-foreground">
+                <span className="pr-2 text-xs font-medium text-muted-foreground">
                     {pageCount} {pageCount === 1 ? "página exibida" : "páginas exibidas"}
                 </span>
               </>

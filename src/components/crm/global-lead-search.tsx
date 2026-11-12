@@ -207,7 +207,7 @@ export function GlobalLeadSearch({
               placeholder="Digite empresa, solicitante, e-mail ou ID…"
               className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-text-placeholder-v2"
             />
-            <kbd className="hidden rounded-(--radius-v2-sm) border border-border bg-surface-subtle px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground sm:inline">
+            <kbd className="hidden rounded-(--radius-v2-sm) border border-border bg-surface-subtle px-1.5 py-0.5 text-xs font-semibold text-muted-foreground sm:inline">
               ESC
             </kbd>
           </label>
@@ -246,7 +246,7 @@ export function GlobalLeadSearch({
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-subtle px-5 py-3 text-[11px] text-muted-foreground sm:px-6">
+        <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-subtle px-5 py-3 text-xs text-muted-foreground sm:px-6">
           <span>Digite pelo menos 2 caracteres.</span>
           <span className="hidden sm:inline">Use Tab para navegar e Enter para abrir.</span>
         </div>

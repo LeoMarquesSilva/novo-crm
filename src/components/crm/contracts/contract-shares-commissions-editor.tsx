@@ -151,7 +151,7 @@ export function ContractSharesCommissionsEditor({
                               variant="inline"
                             />
                           ) : (
-                            <span className="text-slate-400">Selecione</span>
+                            <span className="text-muted-foreground">Selecione</span>
                           )}
                         </SelectTrigger>
                         <CrmSelectContent side="bottom" align="start">
@@ -269,7 +269,7 @@ export function ContractSharesCommissionsEditor({
                               variant="inline"
                             />
                           ) : (
-                            <span className="text-slate-400">Selecione</span>
+                            <span className="text-muted-foreground">Selecione</span>
                           )}
                         </SelectTrigger>
                         <CrmSelectContent side="bottom" align="start">
@@ -443,7 +443,7 @@ export function ContractSharesCommissionsEditor({
                     variant="inline"
                   />
                 ) : (
-                  <span className="text-slate-400">Selecione a pessoa</span>
+                  <span className="text-muted-foreground">Selecione a pessoa</span>
                 )}
               </SelectTrigger>
               <CrmSelectContent side="bottom" align="start">

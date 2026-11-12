@@ -36,11 +36,11 @@ export function CrmAppUserRow({
         {avatarUrl ? (
           <AvatarImage src={avatarUrl} alt="" className="object-cover" />
         ) : null}
-        <AvatarFallback className="text-[10px] font-medium">{initials(fullName)}</AvatarFallback>
+        <AvatarFallback className="text-xs font-medium">{initials(fullName)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <p className={`font-medium text-foreground truncate ${textSize}`}>{fullName || email}</p>
-        <p className="text-[11px] text-muted-foreground font-mono truncate">{email}</p>
+        <p className="text-xs text-muted-foreground font-mono truncate">{email}</p>
       </div>
     </div>
   );

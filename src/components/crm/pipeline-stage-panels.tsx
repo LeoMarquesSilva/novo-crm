@@ -67,7 +67,7 @@ export function MeetingKanbanPanel({ item }: MeetingKanbanPanelProps) {
 
   const dateBadge =
     dataRaw && isTodayYmd(dataRaw) ? (
-      <span className="rounded-full bg-violet-600/15 px-1.5 py-px text-[8px] font-bold uppercase tracking-wide text-violet-900">
+      <span className="rounded-full bg-violet-600/15 px-1.5 py-px text-xs font-bold uppercase tracking-wide text-violet-900">
         Hoje
       </span>
     ) : null;
@@ -101,7 +101,7 @@ export function MeetingKanbanPanel({ item }: MeetingKanbanPanelProps) {
         />
       </div>
       {!hasSchedule ? (
-        <div className="border-t border-border px-2.5 py-1.5 text-[9px] font-medium text-muted-foreground">
+        <div className="border-t border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
           Preencha local, data e horário na ficha do lead.
         </div>
       ) : null}
@@ -128,14 +128,14 @@ export function PropostaEscopoKanbanPanel({
   const footer = allDone ? (
     <Link
       href={`/crm/leads/${encodeURIComponent(leadId)}?tab=proposal`}
-      className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
+      className="inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-interactive-700 underline-offset-2 hover:underline"
       onPointerDown={(e) => e.stopPropagation()}
     >
       <FileText className="h-3 w-3 shrink-0" aria-hidden />
       <span className="min-w-0 truncate">Abrir editor da proposta</span>
     </Link>
   ) : pendente > 0 ? (
-    <p className="text-[9px] font-medium text-muted-foreground">
+    <p className="text-xs font-medium text-muted-foreground">
       {pendente === 1 ? "1 área pendente de envio" : `${pendente} áreas pendentes de envio`}
     </p>
   ) : null;
@@ -159,7 +159,7 @@ export function PropostaEscopoKanbanPanel({
           className="kanban-panel-details group/details"
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground outline-none transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
             <span>Ver áreas</span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/details:rotate-180" />
           </summary>
@@ -195,7 +195,7 @@ export function PropostaEnviadaKanbanPanel({ leadId }: PropostaEnviadaKanbanPane
       footer={
         <Link
           href={`/crm/leads/${encodeURIComponent(leadId)}?tab=proposal`}
-          className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
+          className="inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-interactive-700 underline-offset-2 hover:underline"
           onPointerDown={(e) => e.stopPropagation()}
         >
           <FileText className="h-3 w-3 shrink-0" aria-hidden />
@@ -249,7 +249,7 @@ export function ContractReviewKanbanPanel({
             className={cn(
               "flex w-full items-center justify-center gap-1.5 rounded-lg",
               "border border-interactive-300 bg-interactive-50 px-2.5 py-1.5",
-              "text-[10px] font-semibold text-interactive-700 transition-colors hover:bg-interactive-100",
+              "text-xs font-semibold text-interactive-700 transition-colors hover:bg-interactive-100",
             )}
           >
             <PenLine className="h-3 w-3 shrink-0" aria-hidden />
@@ -304,7 +304,7 @@ export function ContractReviewKanbanPanel({
           href={linkContrato!.trim()}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
+          className="inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-interactive-700 underline-offset-2 hover:underline"
           title={linkContrato!.trim()}
           onPointerDown={(e) => e.stopPropagation()}
         >
@@ -315,7 +315,7 @@ export function ContractReviewKanbanPanel({
     }
     if (status === "concluido" && isElaborado) {
       return (
-        <p className="inline-flex items-center gap-1.5 text-[9px] font-semibold text-success-text">
+        <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-success-text">
           <Send className="h-3 w-3 shrink-0" aria-hidden />
           Pronto para enviar via D4Sign
         </p>
@@ -329,7 +329,7 @@ export function ContractReviewKanbanPanel({
           className={cn(
             "flex w-full items-center justify-center gap-1.5 rounded-lg",
             "border border-interactive-300 bg-interactive-50 px-2.5 py-1.5",
-            "text-[10px] font-semibold text-interactive-700 transition-colors hover:bg-interactive-100",
+            "text-xs font-semibold text-interactive-700 transition-colors hover:bg-interactive-100",
           )}
         >
           <PenLine className="h-3 w-3 shrink-0" aria-hidden />
@@ -391,7 +391,7 @@ function AreaListDetails({ label, children }: { label: string; children: ReactNo
       className="kanban-panel-details group/details"
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground outline-none transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
         <span>{label}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/details:rotate-180" />
       </summary>
@@ -413,13 +413,13 @@ export function DueLevantamentoKanbanPanel({ summary, breakdown }: DueLevantamen
 
   const footer =
     atrasados > 0 ? (
-      <p className="text-[9px] font-semibold text-danger-text">
+      <p className="text-xs font-semibold text-danger-text">
         {atrasados === 1 ? "1 área em atraso" : `${atrasados} áreas em atraso`}
       </p>
     ) : allDone ? (
-      <p className="text-[9px] font-semibold text-success-text">Todas as áreas concluíram o levantamento</p>
+      <p className="text-xs font-semibold text-success-text">Todas as áreas concluíram o levantamento</p>
     ) : (
-      <p className="text-[9px] font-medium text-muted-foreground">
+      <p className="text-xs font-medium text-muted-foreground">
         {total - disponibilizados} área(s) pendente(s)
       </p>
     );
@@ -471,9 +471,9 @@ export function DueRevisaoKanbanPanel({ summary, breakdown }: DueRevisaoKanbanPa
   const tone: KanbanPanelTone = allDone ? "emerald" : "slate";
 
   const footer = allDone ? (
-    <p className="text-[9px] font-semibold text-success-text">Todas as áreas revisaram</p>
+    <p className="text-xs font-semibold text-success-text">Todas as áreas revisaram</p>
   ) : (
-    <p className="text-[9px] font-medium text-muted-foreground">
+    <p className="text-xs font-medium text-muted-foreground">
       {pending === 1 ? "1 área sem revisão" : `${pending} áreas sem revisão`}
     </p>
   );
@@ -529,11 +529,11 @@ export function DueCompilacaoAdjustmentsKanbanPanel({
   const tone: KanbanPanelTone = allDone ? "emerald" : "amber";
 
   const footer = allDone ? (
-    <p className="text-[9px] font-semibold text-success-text">
+    <p className="text-xs font-semibold text-success-text">
       Todos os ajustes concluídos — pode retornar para Revisão
     </p>
   ) : (
-    <p className="text-[9px] font-medium text-warning-text">
+    <p className="text-xs font-medium text-warning-text">
       Conclua os ajustes pendentes para voltar à Revisão
     </p>
   );

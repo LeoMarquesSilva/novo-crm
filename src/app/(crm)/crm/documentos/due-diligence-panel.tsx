@@ -245,7 +245,7 @@ function DuePhaseProgressTrack({
             · {PHASE_META[currentPhase].label}
           </span>
         </p>
-        <span className="shrink-0 text-[10px] font-semibold tabular-nums text-muted-foreground">
+        <span className="shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">
           {Math.round(((currentIndex + (currentPhase === "finalizada" ? 1 : 0.5)) / PHASE_STEPS.length) * 100)}
           %
         </span>
@@ -264,7 +264,7 @@ function DuePhaseProgressTrack({
               <div className="mb-1 flex items-center gap-1">
                 <span
                   className={cn(
-                    "min-w-0 flex-1 truncate text-[10px] font-bold leading-tight sm:text-[11px]",
+                    "min-w-0 flex-1 truncate text-xs font-bold leading-tight sm:text-xs",
                     state === "done" && "text-success-text",
                     state === "current" && "text-foreground",
                     state === "pending" && "text-muted-foreground",
@@ -293,13 +293,13 @@ function DuePhaseProgressTrack({
                 role="presentation"
               />
               {hintIso ? (
-                <p className="mt-1 hidden truncate text-[9px] text-muted-foreground sm:block">
+                <p className="mt-1 hidden truncate text-xs text-muted-foreground sm:block">
                   {state === "done" && fase?.fimIso
                     ? `até ${formatDateTimeMinutesBr(fase.fimIso)}`
                     : `desde ${formatDateTimeMinutesBr(hintIso)}`}
                 </p>
               ) : state === "pending" ? (
-                <p className="mt-1 hidden text-[9px] text-muted-foreground/70 sm:block">Aguardando</p>
+                <p className="mt-1 hidden text-xs text-muted-foreground sm:block">Aguardando</p>
               ) : null}
             </div>
           );
@@ -330,7 +330,7 @@ function PunctualityBadge({ p }: { p: DuePunctuality }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
         styleMap[p.kind],
       )}
     >
@@ -415,7 +415,7 @@ function DueDocumentRow({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{doc.originalFilename}</p>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {kindLabel(doc.documentKind)} · {formatBytes(doc.byteSize)} ·{" "}
           {formatDateTimeMinutesBr(doc.uploadedAt)}
         </p>
@@ -445,7 +445,7 @@ function DueDocumentRow({
 function InfoCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="rounded-(--radius-v2-md) bg-muted/40 px-3 py-2.5">
-      <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+      <dt className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-1.5">{children}</dd>
@@ -543,7 +543,7 @@ function PhasePill({
       {label}
       <span
         className={cn(
-          "rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+          "rounded-full px-1.5 py-0.5 text-xs font-bold",
           active ? "bg-white/20 text-white" : "bg-muted text-muted-foreground",
         )}
       >
@@ -581,7 +581,7 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
       <div className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
-            <span className="inline-flex rounded-full border border-border/80 bg-muted/50 px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+            <span className="inline-flex rounded-full border border-border/80 bg-muted/50 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
               Funil: {lead.faseAtualLabel}
             </span>
             <div>
@@ -642,13 +642,13 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
           </div>
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-1 sm:gap-2.5">
             <div className="rounded-(--radius-v2-md) border border-border/60 bg-background px-3 py-2.5">
-              <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              <dt className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 Prazo combinado
               </dt>
               <dd className="mt-1 text-sm font-bold text-foreground">{lead.prazoEntregaLabel}</dd>
             </div>
             <div className="rounded-(--radius-v2-md) border border-border/60 bg-background px-3 py-2.5">
-              <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              <dt className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 Documentos
               </dt>
               <dd className="mt-1 flex items-center gap-1.5 text-sm font-bold text-foreground">
@@ -657,7 +657,7 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
               </dd>
             </div>
             <div className="col-span-2 rounded-(--radius-v2-md) border border-border/60 bg-background px-3 py-2.5 sm:col-span-1">
-              <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              <dt className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 Início da DD
               </dt>
               <dd className="mt-1 flex items-center gap-1.5 text-sm font-bold text-foreground">
@@ -717,7 +717,7 @@ function LeadCard({ lead }: { lead: DueDiligenceLeadRow }) {
                 >
                   Documentos
                   {lead.documents.length > 0 && (
-                    <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+                    <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-bold text-muted-foreground">
                       {lead.documents.length}
                     </span>
                   )}
@@ -909,7 +909,7 @@ function DuePunctualityFilterMenu({
         className="w-[min(100vw-2rem,320px)] p-0"
       >
         <div className="border-b border-border/70 px-3 py-2.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Situação do prazo
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -948,7 +948,7 @@ function DuePunctualityFilterMenu({
                         <Check className="h-3.5 w-3.5 shrink-0 text-interactive-700" aria-hidden />
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                    <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
                       {opt.hint}
                     </span>
                   </span>
@@ -1019,12 +1019,12 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
       <div className="space-y-4 rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="relative min-w-[200px] flex-1">
-            <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+            <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
               Negociação ou arquivo
             </span>
             <div className="relative">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden
             />
             <input
@@ -1040,7 +1040,7 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
           <div className="flex w-full min-w-[220px] flex-col gap-1.5 sm:w-auto">
             <span
               id="due-dd-prazo-filter-label"
-              className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground"
+              className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground"
             >
               Situação do prazo
             </span>
@@ -1131,7 +1131,7 @@ export function DueDiligencePanel({ leads }: { leads: DueDiligenceLeadRow[] }) {
           <p className="text-sm font-semibold text-muted-foreground">
             Nenhuma negociação encontrada
           </p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
+          <p className="mt-1 text-xs text-muted-foreground">
             Ajuste os filtros para ver mais resultados.
           </p>
           {hasActiveFilters && (

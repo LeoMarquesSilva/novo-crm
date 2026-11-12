@@ -136,7 +136,7 @@ export function ProposalCatalogAdminPanel({ initialData }: { initialData: Propos
       <div className="border-b border-neutral-200 bg-neutral-50 px-5 py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="inline-flex rounded-(--radius-v2-full) bg-interactive-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-interactive-700">
+            <p className="inline-flex rounded-(--radius-v2-full) bg-interactive-100 px-2.5 py-1 text-xs font-bold uppercase tracking-[0.16em] text-interactive-700">
               Catálogo editável
             </p>
             <h2 className="mt-3 text-v2-heading-xl text-foreground">Escopo e investimento</h2>
@@ -331,7 +331,7 @@ export function ProposalCatalogAdminPanel({ initialData }: { initialData: Propos
 function CatalogMetric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold tracking-[-0.04em] text-foreground">{value}</p>
     </div>
   );
@@ -351,7 +351,7 @@ function FormShell({
   return (
     <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
       <div className="mb-4 flex flex-col gap-1">
-        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-interactive-700">{eyebrow}</p>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-interactive-700">{eyebrow}</p>
         <h3 className="text-lg font-bold text-foreground">{title}</h3>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
@@ -518,7 +518,7 @@ function ScopeTypeCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-xs text-muted-foreground">
-        <code className="rounded-(--radius-v2-full) bg-white px-2 py-1 text-[11px] text-foreground">{type.typeKey}</code>
+        <code className="rounded-(--radius-v2-full) bg-white px-2 py-1 text-xs text-foreground">{type.typeKey}</code>
         <span>{subtypes.length} subtipos cadastrados</span>
       </div>
 
@@ -650,7 +650,7 @@ function ScopeSubtypeEditor({
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <StatusBadge active={subtype.isActive} />
-            <code className="rounded-(--radius-v2-full) bg-neutral-100 px-2 py-1 text-[11px] text-muted-foreground">
+            <code className="rounded-(--radius-v2-full) bg-neutral-100 px-2 py-1 text-xs text-muted-foreground">
               {subtype.subtypeKey}
             </code>
           </div>
@@ -787,7 +787,7 @@ function InvestmentTypeCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-xs text-muted-foreground">
-        <code className="rounded-(--radius-v2-full) bg-white px-2 py-1 text-[11px] text-foreground">{type.typeKey}</code>
+        <code className="rounded-(--radius-v2-full) bg-white px-2 py-1 text-xs text-foreground">{type.typeKey}</code>
         <span>{subtypes.length} modelos de honorários</span>
       </div>
 
@@ -922,7 +922,7 @@ function InvestmentSubtypeEditor({
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <StatusBadge active={subtype.isActive} />
-            <code className="rounded-(--radius-v2-full) bg-neutral-100 px-2 py-1 text-[11px] text-muted-foreground">
+            <code className="rounded-(--radius-v2-full) bg-neutral-100 px-2 py-1 text-xs text-muted-foreground">
               {subtype.subtypeKey}
             </code>
           </div>

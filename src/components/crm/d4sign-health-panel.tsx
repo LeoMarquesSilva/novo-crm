@@ -65,7 +65,7 @@ export function D4SignHealthPanel({ className }: { className?: string }) {
         <Stat label="Pendentes desatualizados" value={data.documents.stale_pending} warn={data.documents.stale_pending > 0} />
         <Stat label="Reqs (24h)" value={data.usage_24h.total} detail={usageDetail(data.usage_24h.by_source)} />
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <Webhook className="size-3" />
           Webhook: {fmtRel(data.webhook.last_at, renderedAt)}
@@ -98,9 +98,9 @@ function Stat({
 }) {
   return (
     <div className={cn("rounded-(--radius-v2-md) border px-3 py-2", warn ? "border-warning-border bg-warning-bg/50" : "border-neutral-100 bg-neutral-50")}>
-      <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className={cn("text-xl font-black tabular-nums", warn ? "text-warning-text" : "text-foreground")}>{value}</p>
-      {detail ? <p className="line-clamp-2 break-all text-[10px] text-muted-foreground">{detail}</p> : null}
+      {detail ? <p className="line-clamp-2 break-all text-xs text-muted-foreground">{detail}</p> : null}
     </div>
   );
 }

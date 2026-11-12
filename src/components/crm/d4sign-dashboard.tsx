@@ -264,7 +264,7 @@ function SignedSummaryBadge({
 
   return (
     <p className={cn(
-      "flex items-center gap-1 text-[10px] font-semibold leading-tight",
+      "flex items-center gap-1 text-xs font-semibold leading-tight",
       summary.kind === "finalized" ? "text-success-text"
       : summary.kind === "partial" ? "text-warning-text"
       : "text-muted-foreground",
@@ -295,13 +295,13 @@ function QuotaBanner({
       <div className="flex min-w-[140px] flex-1 flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
           <span className={cn(
-            "text-[11px] font-bold uppercase tracking-wide",
+            "text-xs font-bold uppercase tracking-wide",
             exhausted ? "text-danger-text" : low ? "text-warning-text" : "text-muted-foreground",
           )}>
             Busca de signatários
           </span>
           <span className={cn(
-            "font-mono text-[11px] font-bold",
+            "font-mono text-xs font-bold",
             exhausted ? "text-danger-text" : "text-foreground",
           )}>
             {quota.used}/{quota.limit} req/h
@@ -317,7 +317,7 @@ function QuotaBanner({
           />
         </div>
       </div>
-      <div className="text-[11px] text-muted-foreground">
+      <div className="text-xs text-muted-foreground">
         {exhausted && quota.resetAt ? (
           <span className="font-semibold text-danger-text">
             Limite atingido · libera {fmtDate(quota.resetAt)}
@@ -354,7 +354,7 @@ function EmailSentBadge({ status }: { status: string | null | undefined }) {
   const lower = status.toLowerCase();
   if (lower === "delivery") {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-muted-foreground">
+      <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-muted-foreground">
         <Mail className="size-2.5" aria-hidden />
         Email entregue
       </span>
@@ -362,14 +362,14 @@ function EmailSentBadge({ status }: { status: string | null | undefined }) {
   }
   if (lower.includes("bounce") || lower.includes("fail")) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-danger-text">
+      <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-danger-text">
         <AlertTriangle className="size-2.5" aria-hidden />
         Bounce
       </span>
     );
   }
   return (
-    <span className="text-[9px] text-muted-foreground">{status}</span>
+    <span className="text-xs text-muted-foreground">{status}</span>
   );
 }
 
@@ -389,7 +389,7 @@ function SentByBadge({
         ? `Enviado direto na D4Sign por ${sentBy.full_name} (log do documento)`
         : undefined;
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground" title={origin}>
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground" title={origin}>
       {sentBy?.avatar_url ? (
         <img src={sentBy.avatar_url} alt={sentBy.full_name} className="size-4 rounded-(--radius-v2-full) object-cover shrink-0" />
       ) : sentBy ? (
@@ -427,7 +427,7 @@ function SignersDisplay({
       {/* Linha de resumo */}
       <div className="flex items-center justify-between gap-2">
         <p className={cn(
-          "text-[10px] font-bold",
+          "text-xs font-bold",
           allSigned ? "text-success-text" : signedCount > 0 ? "text-warning-text" : "text-muted-foreground",
         )}>
           {allSigned
@@ -480,7 +480,7 @@ function SignersDisplay({
                 />
               ) : (
                 <span className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-(--radius-v2-full) text-[9px] font-black",
+                  "flex size-6 shrink-0 items-center justify-center rounded-(--radius-v2-full) text-xs font-black",
                   !pending ? "bg-success-bg text-success-text"
                   : isFirm  ? "bg-interactive-100 text-interactive-700"
                   : "bg-neutral-100 text-muted-foreground",
@@ -492,36 +492,36 @@ function SignersDisplay({
               {/* Info principal */}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1 flex-wrap">
-                  <p className="truncate text-[11px] font-semibold text-foreground leading-tight">
+                  <p className="truncate text-xs font-semibold text-foreground leading-tight">
                     {displayName ?? s.email ?? `Signatário ${i + 1}`}
                   </p>
                   {isFirm ? (
-                    <span className="shrink-0 rounded-(--radius-v2-sm) bg-interactive-100 px-1 py-px text-[8px] font-bold uppercase tracking-wide text-interactive-700">
+                    <span className="shrink-0 rounded-(--radius-v2-sm) bg-interactive-100 px-1 py-px text-xs font-bold uppercase tracking-wide text-interactive-700">
                       sócio
                     </span>
                   ) : null}
                   {s.role === "CONTRATADA" && !isFirm ? (
-                    <span className="shrink-0 rounded-(--radius-v2-sm) bg-interactive-100 px-1 py-px text-[8px] font-bold uppercase tracking-wide text-interactive-700">
+                    <span className="shrink-0 rounded-(--radius-v2-sm) bg-interactive-100 px-1 py-px text-xs font-bold uppercase tracking-wide text-interactive-700">
                       adv
                     </span>
                   ) : null}
                   {s.role === "CONTRATANTE" && !isFirm ? (
-                    <span className="shrink-0 rounded-(--radius-v2-sm) bg-warning-bg px-1 py-px text-[8px] font-bold uppercase tracking-wide text-warning-text">
+                    <span className="shrink-0 rounded-(--radius-v2-sm) bg-warning-bg px-1 py-px text-xs font-bold uppercase tracking-wide text-warning-text">
                       cliente
                     </span>
                   ) : null}
                 </div>
                 {/* E-mail (quando o displayName já existe) */}
                 {displayName && s.email ? (
-                  <p className="truncate text-[9px] text-muted-foreground leading-tight">{s.email}</p>
+                  <p className="truncate text-xs text-muted-foreground leading-tight">{s.email}</p>
                 ) : null}
                 {s.user_document ? (
-                  <p className="truncate text-[9px] text-muted-foreground leading-tight">
+                  <p className="truncate text-xs text-muted-foreground leading-tight">
                     CPF: {s.user_document.replace(/(\d{3})\d{5}(\d{2})/, "$1*****$2")}
                   </p>
                 ) : null}
                 {!signerIsPending(s) && s.sign_info?.geolocation ? (
-                  <p className="truncate text-[9px] text-muted-foreground leading-tight">{s.sign_info.geolocation}</p>
+                  <p className="truncate text-xs text-muted-foreground leading-tight">{s.sign_info.geolocation}</p>
                 ) : null}
               </div>
 
@@ -529,19 +529,19 @@ function SignersDisplay({
               <div className="shrink-0 text-right space-y-px">
                 {!pending ? (
                   <>
-                    <p className="flex items-center justify-end gap-0.5 text-[10px] font-bold text-success-text leading-tight">
+                    <p className="flex items-center justify-end gap-0.5 text-xs font-bold text-success-text leading-tight">
                       <CheckCircle2 className="size-3" aria-hidden />
                       Assinou
                     </p>
                     {s.signed_at ? (
-                      <p className="text-[9px] text-success-text leading-tight">
+                      <p className="text-xs text-success-text leading-tight">
                         {fmtDate(s.signed_at)}
                       </p>
                     ) : null}
                   </>
                 ) : (
                   <>
-                    <p className="flex items-center justify-end gap-0.5 text-[10px] font-semibold text-muted-foreground leading-tight">
+                    <p className="flex items-center justify-end gap-0.5 text-xs font-semibold text-muted-foreground leading-tight">
                       <Clock className="size-3" aria-hidden />
                       Pendente
                     </p>
@@ -934,7 +934,7 @@ export function D4SignDashboard({
           <p className="truncate text-sm font-semibold text-foreground">
             {documentDisplayName(doc.name_document) ?? <span className="italic text-warning-text">Sem nome</span>}
           </p>
-          <p className="font-mono text-[10px] text-muted-foreground" title={doc.uuid_doc}>
+          <p className="font-mono text-xs text-muted-foreground" title={doc.uuid_doc}>
             {doc.uuid_doc.slice(0, 18)}…
           </p>
           <div className="mt-1">
@@ -946,7 +946,7 @@ export function D4SignDashboard({
             />
           </div>
           <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-            <span className={cn("inline-flex items-center gap-1 rounded-(--radius-v2-full) border px-2 py-0.5 text-[10px] font-bold", status.pill)}>
+            <span className={cn("inline-flex items-center gap-1 rounded-(--radius-v2-full) border px-2 py-0.5 text-xs font-bold", status.pill)}>
               <StatusIcon className="size-2.5 shrink-0" />
               {doc.status_name ?? status.label}
             </span>
@@ -958,12 +958,12 @@ export function D4SignDashboard({
               signers={doc.signers}
             />
             {!doc.finalized_at && !parseSigners(doc.signers).some((s) => s.signed_at) ? (
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Criado {fmtDate(doc.created_at_d4sign)}
               </p>
             ) : null}
             {doc.last_synced_at ? (
-              <p className="text-[9px] text-muted-foreground">Sync {fmtRelative(doc.last_synced_at)}</p>
+              <p className="text-xs text-muted-foreground">Sync {fmtRelative(doc.last_synced_at)}</p>
             ) : null}
           </div>
           {doc.sent_by || doc.created_at_d4sign ? (
@@ -976,12 +976,12 @@ export function D4SignDashboard({
         <div className="pt-0.5">
           {needsEnrich ? (
             <div className="space-y-1.5">
-              <p className="text-[10px] text-violet-text font-semibold">Sem dados de signatários</p>
+              <p className="text-xs text-violet-text font-semibold">Sem dados de signatários</p>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-7 gap-1 border-violet-border text-[10px] text-violet-text"
+                className="h-7 gap-1 border-violet-border text-xs text-violet-text"
                 disabled={isWorking || quotaExhausted || enrichingUuid === doc.uuid_doc}
                 onClick={() => handleEnrichSingle(doc.uuid_doc)}
               >
@@ -1001,7 +1001,7 @@ export function D4SignDashboard({
           <button
             type="button"
             onClick={() => openView(doc.uuid_doc, doc.name_document)}
-            className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-interactive-300 bg-interactive-50 px-2.5 text-[11px] font-semibold text-interactive-700 transition-colors hover:bg-interactive-100"
+            className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-interactive-300 bg-interactive-50 px-2.5 text-xs font-semibold text-interactive-700 transition-colors hover:bg-interactive-100"
             title="Visualizar PDF"
           >
             <Eye className="size-3" />Ver PDF
@@ -1010,16 +1010,16 @@ export function D4SignDashboard({
             <D4SignCancelButton
               documentUuid={doc.uuid_doc}
               documentName={doc.name_document}
-              className="h-8 gap-1 px-2.5 text-[11px] font-semibold"
+              className="h-8 gap-1 px-2.5 text-xs font-semibold"
             />
           ) : null}
-          <span className="inline-flex items-center rounded-(--radius-v2-full) border border-warning-border bg-warning-bg px-2.5 py-1 text-[10px] font-semibold text-warning-text">
+          <span className="inline-flex items-center rounded-(--radius-v2-full) border border-warning-border bg-warning-bg px-2.5 py-1 text-xs font-semibold text-warning-text">
             Cofre histórico
           </span>
           <button
             type="button"
             onClick={() => setLinkState({ open: true, uuid: doc.uuid_doc, name: doc.name_document, leadId: null })}
-            className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-muted-foreground hover:bg-neutral-50"
+            className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-2.5 text-xs font-semibold text-muted-foreground hover:bg-neutral-50"
             title="Vincular a um lead do CRM (quando existir)"
           >
             <Link2 className="size-3" /> Vincular lead
@@ -1076,7 +1076,7 @@ export function D4SignDashboard({
                 filter === key ? "border-interactive-600 bg-interactive-50 text-interactive-700" : "border-neutral-200 bg-white text-muted-foreground hover:border-neutral-300",
               )}>
               {label}
-              <span className={cn("rounded-(--radius-v2-full) px-1.5 py-0.5 text-[10px] font-bold", filter === key ? "bg-interactive-100" : "bg-neutral-100")}>{count}</span>
+              <span className={cn("rounded-(--radius-v2-full) px-1.5 py-0.5 text-xs font-bold", filter === key ? "bg-interactive-100" : "bg-neutral-100")}>{count}</span>
             </button>
           ))}
         </div>
@@ -1111,7 +1111,7 @@ export function D4SignDashboard({
 
       {/* Ordenação + filtro sem signatários */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
           <Filter className="size-3" /> Ordenar
         </span>
         {(
@@ -1124,7 +1124,7 @@ export function D4SignDashboard({
         ).map(({ key, label }) => (
           <button key={key} type="button" onClick={() => setSortBy(key)}
             className={cn(
-              "rounded-(--radius-v2-full) border px-2.5 py-0.5 text-[11px] font-semibold transition-colors",
+              "rounded-(--radius-v2-full) border px-2.5 py-0.5 text-xs font-semibold transition-colors",
               sortBy === key ? "border-brand-navy bg-brand-navy text-white" : "border-neutral-200 bg-white text-muted-foreground",
             )}>
             {label}
@@ -1132,12 +1132,12 @@ export function D4SignDashboard({
         ))}
         <button type="button" onClick={() => setNoSignersOnly((v) => !v)}
           className={cn(
-            "ml-2 inline-flex items-center gap-1 rounded-(--radius-v2-full) border px-2.5 py-0.5 text-[11px] font-semibold transition-colors",
+            "ml-2 inline-flex items-center gap-1 rounded-(--radius-v2-full) border px-2.5 py-0.5 text-xs font-semibold transition-colors",
             noSignersOnly ? "border-violet-text bg-violet-text text-white" : "border-neutral-200 bg-white text-muted-foreground",
           )}>
           Sem signatários
           {noSignersTotal > 0 ? (
-            <span className={cn("rounded-(--radius-v2-full) px-1.5 py-0.5 text-[9px] font-bold", noSignersOnly ? "bg-white/25" : "bg-neutral-100")}>
+            <span className={cn("rounded-(--radius-v2-full) px-1.5 py-0.5 text-xs font-bold", noSignersOnly ? "bg-white/25" : "bg-neutral-100")}>
               {noSignersTotal}
             </span>
           ) : null}
@@ -1146,39 +1146,39 @@ export function D4SignDashboard({
 
       {/* ── Filtros de signatário ── */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
           <Users className="size-3" aria-hidden />
           Signatário pendente
         </span>
         <button type="button" onClick={() => setSignerFilter("all")}
-          className={cn("inline-flex items-center gap-1.5 rounded-(--radius-v2-full) border px-2.5 py-0.5 text-[11px] font-semibold transition-colors",
+          className={cn("inline-flex items-center gap-1.5 rounded-(--radius-v2-full) border px-2.5 py-0.5 text-xs font-semibold transition-colors",
             signerFilter === "all" ? "border-brand-navy bg-brand-navy text-white" : "border-neutral-200 bg-white text-muted-foreground hover:border-neutral-300")}>
           Todos
         </button>
         {firmSigners.map((f) => (
           <button key={f.email} type="button" onClick={() => setSignerFilter(signerFilter === f.email ? "all" : f.email)}
-            className={cn("inline-flex items-center gap-1.5 rounded-(--radius-v2-full) border px-2.5 py-0.5 text-[11px] font-semibold transition-colors",
+            className={cn("inline-flex items-center gap-1.5 rounded-(--radius-v2-full) border px-2.5 py-0.5 text-xs font-semibold transition-colors",
               signerFilter === f.email ? "border-interactive-600 bg-interactive-600 text-white" : "border-neutral-200 bg-white text-muted-foreground hover:border-neutral-300")}>
             {f.firstName}
             {signerCounts[f.email] > 0 ? (
-              <span className={cn("rounded-(--radius-v2-full) px-1.5 py-0.5 text-[9px] font-bold", signerFilter === f.email ? "bg-white/25" : "bg-neutral-100 text-muted-foreground")}>
+              <span className={cn("rounded-(--radius-v2-full) px-1.5 py-0.5 text-xs font-bold", signerFilter === f.email ? "bg-white/25" : "bg-neutral-100 text-muted-foreground")}>
                 {signerCounts[f.email]}
               </span>
             ) : null}
           </button>
         ))}
         <button type="button" onClick={() => setSignerFilter(signerFilter === "client" ? "all" : "client")}
-          className={cn("inline-flex items-center gap-1.5 rounded-(--radius-v2-full) border px-2.5 py-0.5 text-[11px] font-semibold transition-colors",
+          className={cn("inline-flex items-center gap-1.5 rounded-(--radius-v2-full) border px-2.5 py-0.5 text-xs font-semibold transition-colors",
             signerFilter === "client" ? "border-warning-text bg-warning-text text-white" : "border-neutral-200 bg-white text-muted-foreground hover:border-neutral-300")}>
           Cliente
           {signerCounts.client > 0 ? (
-            <span className={cn("rounded-(--radius-v2-full) px-1.5 py-0.5 text-[9px] font-bold", signerFilter === "client" ? "bg-white/25" : "bg-neutral-100 text-muted-foreground")}>
+            <span className={cn("rounded-(--radius-v2-full) px-1.5 py-0.5 text-xs font-bold", signerFilter === "client" ? "bg-white/25" : "bg-neutral-100 text-muted-foreground")}>
               {signerCounts.client}
             </span>
           ) : null}
         </button>
         {noSignersCount > 0 ? (
-          <span className="text-[10px] text-muted-foreground">· {noSignersCount} sem dados de signatários</span>
+          <span className="text-xs text-muted-foreground">· {noSignersCount} sem dados de signatários</span>
         ) : null}
       </div>
 
@@ -1203,7 +1203,7 @@ export function D4SignDashboard({
         </div>
       ) : filteredLinked.length > 0 ? (
         <div className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
-          <div className="hidden grid-cols-[2fr_1.5fr_1fr_1fr_auto] gap-4 border-b border-neutral-200 bg-neutral-50 px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground sm:grid">
+          <div className="hidden grid-cols-[2fr_1.5fr_1fr_1fr_auto] gap-4 border-b border-neutral-200 bg-neutral-50 px-5 py-2.5 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground sm:grid">
             <span>Lead / Documento</span><span>Signatários</span><span>Status D4Sign</span><span>Etapa / Data</span><span>Ações</span>
           </div>
           <div className="divide-y divide-neutral-100">
@@ -1225,12 +1225,12 @@ export function D4SignDashboard({
                       </Link>
                     ) : <span className="text-sm font-semibold text-muted-foreground">—</span>}
                     {documentDisplayName(row.name_document) ? (
-                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{documentDisplayName(row.name_document)}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{documentDisplayName(row.name_document)}</p>
                     ) : (
-                      <p className="mt-0.5 font-mono text-[10px] text-muted-foreground" title={row.uuid_doc}>{row.uuid_doc.slice(0, 18)}…</p>
+                      <p className="mt-0.5 font-mono text-xs text-muted-foreground" title={row.uuid_doc}>{row.uuid_doc.slice(0, 18)}…</p>
                     )}
                     {row.folder_name ? (
-                      <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <Folder className="size-2.5 opacity-60" />{row.folder_name}
                       </p>
                     ) : null}
@@ -1239,12 +1239,12 @@ export function D4SignDashboard({
                   <div className="pt-0.5">
                     {signers.length === 0 ? (
                       <div className="space-y-1.5">
-                        <p className="text-[10px] text-violet-text font-semibold">Sem signatários</p>
+                        <p className="text-xs text-violet-text font-semibold">Sem signatários</p>
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="h-7 gap-1 border-violet-border text-[10px] text-violet-text"
+                          className="h-7 gap-1 border-violet-border text-xs text-violet-text"
                           disabled={isWorking || quotaExhausted || enrichingUuid === row.uuid_doc}
                           onClick={() => handleEnrichSingle(row.uuid_doc)}
                         >
@@ -1262,7 +1262,7 @@ export function D4SignDashboard({
                   </div>
                   {/* Col 3 — Status D4Sign */}
                   <div className="space-y-1 pt-0.5">
-                    <span className={cn("inline-flex items-center gap-1 rounded-(--radius-v2-full) border px-2.5 py-1 text-[11px] font-bold", status.pill)}>
+                    <span className={cn("inline-flex items-center gap-1 rounded-(--radius-v2-full) border px-2.5 py-1 text-xs font-bold", status.pill)}>
                       <StatusIcon className="size-3 shrink-0" />
                       {row.status_name ?? status.label}
                     </span>
@@ -1275,15 +1275,15 @@ export function D4SignDashboard({
                   {/* Col 4 — Etapa + Data + Enviado por */}
                   <div className="space-y-1 pt-0.5">
                     {opp ? (
-                      <span className="inline-flex items-center rounded-(--radius-v2-full) border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                      <span className="inline-flex items-center rounded-(--radius-v2-full) border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                         {ETAPA_LABEL[opp.etapa] ?? opp.etapa.replace(/_/g, " ")}
                       </span>
                     ) : null}
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Enviado {fmtDate(row.created_at_d4sign ?? opp?.d4sign_updated_at)}
                     </p>
                     {row.last_synced_at ? (
-                      <p className="text-[9px] text-muted-foreground">Sync {fmtRelative(row.last_synced_at)}</p>
+                      <p className="text-xs text-muted-foreground">Sync {fmtRelative(row.last_synced_at)}</p>
                     ) : null}
                     {row.sent_by || row.created_at_d4sign ? (
                       <SentByBadge sentBy={row.sent_by} sentAt={row.sent_at ?? row.created_at_d4sign} />
@@ -1308,7 +1308,7 @@ export function D4SignDashboard({
                             signerEmail={firmPending.email ?? ""}
                             signerName={firmPending.name}
                             keySigner={firmPending.key_signer}
-                            className={cn(buttonVariants({ size: "sm" }), "h-8 gap-1 px-2.5 text-[11px] font-bold")}
+                            className={cn(buttonVariants({ size: "sm" }), "h-8 gap-1 px-2.5 text-xs font-bold")}
                             title={`Assinar como ${firmPending.name ?? firmPending.email}`}
                             onClosed={() => router.refresh()}
                           >
@@ -1322,7 +1322,7 @@ export function D4SignDashboard({
                     <button
                       type="button"
                       onClick={() => openView(row.uuid_doc, row.name_document)}
-                      className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-interactive-300 bg-interactive-50 px-2.5 text-[11px] font-semibold text-interactive-700 transition-colors hover:bg-interactive-100"
+                      className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-interactive-300 bg-interactive-50 px-2.5 text-xs font-semibold text-interactive-700 transition-colors hover:bg-interactive-100"
                       title="Visualizar PDF"
                     >
                       <Eye className="size-3" />Ver PDF
@@ -1331,18 +1331,18 @@ export function D4SignDashboard({
                       <D4SignCancelButton
                         documentUuid={row.uuid_doc}
                         documentName={row.name_document}
-                        className="h-8 gap-1 px-2.5 text-[11px] font-semibold"
+                        className="h-8 gap-1 px-2.5 text-xs font-semibold"
                       />
                     ) : null}
                     {row.link_contrato ? (
                       <a href={row.link_contrato} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-interactive-300 bg-interactive-50 px-2.5 text-[11px] font-semibold text-interactive-700 transition-colors hover:bg-interactive-100">
+                        className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-interactive-300 bg-interactive-50 px-2.5 text-xs font-semibold text-interactive-700 transition-colors hover:bg-interactive-100">
                         <ExternalLink className="size-3" />Link e-mail
                       </a>
                     ) : null}
                     {leadId ? (
                       <Link href={`/crm/leads/${encodeURIComponent(leadId)}`}
-                        className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-neutral-50">
+                        className="inline-flex h-8 items-center gap-1 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-neutral-50">
                         Ver lead
                       </Link>
                     ) : null}
@@ -1365,7 +1365,7 @@ export function D4SignDashboard({
                 ? ` — ${linked[0]?.safe_name ?? unlinked[0]?.safe_name}`
                 : ""} — sem vínculo com lead
             </h3>
-            <span className="rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-text">
+            <span className="rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-xs font-bold text-warning-text">
               {unlinked.length}
             </span>
           </div>
@@ -1378,7 +1378,7 @@ export function D4SignDashboard({
                 <p className="text-[13px] font-bold text-violet-text">
                   {noSignersPending} contrato{noSignersPending !== 1 ? "s pendentes" : " pendente"} sem dados de signatários
                 </p>
-                <p className="text-[11.5px] leading-relaxed text-violet-text">
+                <p className="text-xs leading-relaxed text-violet-text">
                   São contratos com status <em>Aguardando</em> ou <em>Em Assinatura</em> — vale a pena buscar quem falta assinar.
                   Cada clique busca <strong>até 9 docs</strong>; ≈ {Math.ceil(noSignersPending / 9)} clique{Math.ceil(noSignersPending / 9) !== 1 ? "s" : ""} no rate limit padrão D4Sign (10/h).
                   {noSignersTotal - noSignersPending > 0 ? (
@@ -1394,7 +1394,7 @@ export function D4SignDashboard({
               </Button>
             </div>
           ) : noSignersTotal > 0 ? (
-            <p className="text-[10.5px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {noSignersTotal} contratos finalizados/lixeira sem dados de signatários — baixa prioridade (já estão concluídos).
             </p>
           ) : null}
@@ -1428,7 +1428,7 @@ export function D4SignDashboard({
                           {areaOpen ? <ChevronDown className="size-4 shrink-0 text-warning-text" /> : <ChevronRight className="size-4 shrink-0 text-warning-text/70" />}
                           <AreaIcon className={cn("size-4 shrink-0", isNoArea ? "text-muted-foreground" : "text-warning-text")} />
                           <span className={cn("flex-1 text-sm font-bold", isNoArea ? "italic text-muted-foreground" : "text-foreground")}>{area.name}</span>
-                          <span className="rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-text">{totalDocs}</span>
+                          <span className="rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-xs font-bold text-warning-text">{totalDocs}</span>
                         </button>
                         {areaOpen ? (
                           <div>
@@ -1443,7 +1443,7 @@ export function D4SignDashboard({
                                     {clientOpen ? <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="size-3.5 shrink-0 text-neutral-300" />}
                                     <ClientIcon className="size-3.5 shrink-0 text-muted-foreground" />
                                     <span className="flex-1 text-[13px] font-semibold text-foreground">{client.name}</span>
-                                    <span className="rounded-(--radius-v2-full) bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">{client.docs.length}</span>
+                                    <span className="rounded-(--radius-v2-full) bg-neutral-100 px-2 py-0.5 text-xs font-bold text-muted-foreground">{client.docs.length}</span>
                                   </button>
                                   {clientOpen ? (
                                     <div className="divide-y divide-neutral-100">
@@ -1481,7 +1481,7 @@ export function D4SignDashboard({
                         {isOpen ? <ChevronDown className="size-4 shrink-0 text-warning-text" /> : <ChevronRight className="size-4 shrink-0 text-warning-text/70" />}
                         <FolderIcon className={cn("size-4 shrink-0", isRoot ? "text-muted-foreground" : "text-warning-text")} />
                         <span className={cn("flex-1 text-sm font-bold", isRoot ? "italic text-muted-foreground" : "text-foreground")}>{name}</span>
-                        <span className="rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-text">{docs.length}</span>
+                        <span className="rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-xs font-bold text-warning-text">{docs.length}</span>
                       </button>
                       {isOpen ? (
                         <div className="divide-y divide-neutral-100">
@@ -1499,13 +1499,13 @@ export function D4SignDashboard({
 
       {/* Legenda */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-(--radius-v2-lg) border border-neutral-200 bg-neutral-50 px-4 py-3">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Legenda D4Sign</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Legenda D4Sign</p>
         {Object.entries(STATUS_MAP)
           .filter(([key]) => key !== "processing")
           .map(([key, info]) => {
             const Icon = info.icon;
             return (
-              <span key={key} className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span key={key} className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <span className={cn("inline-flex size-4 items-center justify-center rounded-(--radius-v2-full) border", info.pill)}>
                   <Icon className="size-2.5" />
                 </span>

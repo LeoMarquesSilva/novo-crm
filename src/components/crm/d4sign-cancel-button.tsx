@@ -97,7 +97,7 @@ export function D4SignCancelButton({
               maxLength={500}
               disabled={busy}
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Vai para a D4Sign como comentário do cancelamento.
             </p>
             {error ? <p className="text-xs font-medium text-danger-text">{error}</p> : null}

@@ -126,7 +126,7 @@ export function D4SignLinkLeadDialog({
                     className="flex w-full items-center justify-between rounded-(--radius-v2-sm) px-3 py-2 text-left text-sm hover:bg-neutral-50"
                   >
                     <span className="font-semibold">{r.solicitante_nome}</span>
-                    <span className="text-[10px] text-muted-foreground">{r.etapa.replace(/_/g, " ")}</span>
+                    <span className="text-xs text-muted-foreground">{r.etapa.replace(/_/g, " ")}</span>
                   </button>
                 </li>
               ))}
@@ -177,17 +177,17 @@ export function D4SignOriginBadge({
   return (
     <div className="flex flex-wrap gap-1">
       <span
-        className={`rounded-(--radius-v2-sm) px-1.5 py-px text-[8px] font-bold uppercase tracking-wide ${isCrm ? "bg-interactive-100 text-interactive-700" : "bg-warning-bg text-warning-text"}`}
+        className={`rounded-(--radius-v2-sm) px-1.5 py-px text-xs font-bold uppercase tracking-wide ${isCrm ? "bg-interactive-100 text-interactive-700" : "bg-warning-bg text-warning-text"}`}
       >
         {isCrm ? "CRM" : "Cofre"}
       </span>
       {!detailsFetchedAt && !isCrm ? (
-        <span className="rounded-(--radius-v2-sm) bg-violet-bg px-1.5 py-px text-[8px] font-bold uppercase tracking-wide text-violet-text">
+        <span className="rounded-(--radius-v2-sm) bg-violet-bg px-1.5 py-px text-xs font-bold uppercase tracking-wide text-violet-text">
           Sem signatários
         </span>
       ) : null}
       {stale ? (
-        <span className="rounded-(--radius-v2-sm) bg-neutral-200 px-1.5 py-px text-[8px] font-bold uppercase tracking-wide text-muted-foreground">
+        <span className="rounded-(--radius-v2-sm) bg-neutral-200 px-1.5 py-px text-xs font-bold uppercase tracking-wide text-muted-foreground">
           Desatualizado
         </span>
       ) : null}

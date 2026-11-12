@@ -145,16 +145,16 @@ function FieldRow({
             </span>
           )}
           {field.condition_json && (
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-xs">
               condicional
             </Badge>
           )}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5">
-          <code className="text-[10px] text-muted-foreground">
+          <code className="text-xs text-muted-foreground">
             {field.field_code}
           </code>
-          <span className="inline-flex rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700">
+          <span className="inline-flex rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-700">
             {FIELD_TYPE_LABELS[field.field_type] ?? field.field_type}
           </span>
         </div>
@@ -414,9 +414,9 @@ function NewFieldDialog({ pipelineCode, allFields, onCreated }: NewFieldDialogPr
                 required
                 autoComplete="off"
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Código técnico (automático, único por entidade):{" "}
-                <code className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                <code className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-foreground">
                   {form.label.trim() ? previewFieldCode : "—"}
                 </code>
               </p>

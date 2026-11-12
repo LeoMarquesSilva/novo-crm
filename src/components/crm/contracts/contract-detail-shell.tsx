@@ -244,7 +244,7 @@ export function ContractDetailShell({
                 <article key={event.id} className="rounded-xl border border-[#dfe5ee] bg-white p-4 shadow-sm">
                   <div className="flex justify-between gap-3">
                     <strong className="text-[#102033]">{event.title}</strong>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-muted-foreground">
                       {formatDateTimeBr(event.createdAt)}
                     </span>
                   </div>

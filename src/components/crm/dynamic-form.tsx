@@ -209,7 +209,7 @@ function UserAvatarName({
   size?: "sm" | "md";
 }) {
   const sz = size === "sm" ? "size-5" : "size-6";
-  const text = size === "sm" ? "text-[9px]" : "text-[10px]";
+  const text = size === "sm" ? "text-xs" : "text-xs";
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
       <Avatar className={cn(sz, "shrink-0")}>
@@ -326,7 +326,7 @@ export function DynamicField({
             size="sm"
             variant="outline"
             onClick={() => onChange(field.field_code, MEETING_LOCATION_PENDING)}
-            className="h-7 px-2.5 text-[11px] font-semibold"
+            className="h-7 px-2.5 text-xs font-semibold"
           >
             Ainda sem local
           </Button>
@@ -567,7 +567,7 @@ export function DynamicForm({
               </span>
             )}
             {field.condition_json && (
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge variant="secondary" className="text-xs">
                 condicional
               </Badge>
             )}

@@ -241,18 +241,18 @@ export function SharePointConfigPanel() {
                       <span
                         className={`h-1.5 w-1.5 shrink-0 rounded-full ${isSet ? "bg-success-text" : "bg-warning-text"}`}
                       />
-                      <p className="truncate font-mono text-[11px] font-semibold text-foreground">
+                      <p className="truncate font-mono text-xs font-semibold text-foreground">
                         {key}
                       </p>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{info?.label}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{info?.label}</p>
                     {isSet ? (
-                      <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{value}</p>
+                      <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{value}</p>
                     ) : (
-                      <p className="mt-1 text-[11px] font-medium text-warning-text">Não definida</p>
+                      <p className="mt-1 text-xs font-medium text-warning-text">Não definida</p>
                     )}
                     {info?.hint && (
-                      <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground/70">
+                      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                         {info.hint}
                       </p>
                     )}
@@ -266,17 +266,17 @@ export function SharePointConfigPanel() {
                   <span
                     className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.fields.webhookSecret ? "bg-success-text" : "bg-neutral-300"}`}
                   />
-                  <p className="truncate font-mono text-[11px] font-semibold text-foreground">
+                  <p className="truncate font-mono text-xs font-semibold text-foreground">
                     SHAREPOINT_INTEGRATION_SECRET
                   </p>
                 </div>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">Segredo do webhook</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Segredo do webhook</p>
                 {status.fields.webhookSecret ? (
-                  <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                  <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
                     {status.fields.webhookSecret}
                   </p>
                 ) : (
-                  <p className="mt-1 text-[11px] text-muted-foreground/60">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Opcional — protege o endpoint de integração externo
                   </p>
                 )}
@@ -291,7 +291,7 @@ export function SharePointConfigPanel() {
                 </p>
                 <ul className="mt-1.5 space-y-0.5">
                   {status.missing.map((key) => (
-                    <li key={key} className="font-mono text-[11px] text-warning-text">
+                    <li key={key} className="font-mono text-xs text-warning-text">
                       • {key}
                     </li>
                   ))}
@@ -305,15 +305,15 @@ export function SharePointConfigPanel() {
         {status?.fields.siteId && (
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3">
-              <p className="text-[11px] font-semibold text-muted-foreground">Site SharePoint</p>
-              <p className="mt-0.5 break-all font-mono text-[11px] text-foreground">
+              <p className="text-xs font-semibold text-muted-foreground">Site SharePoint</p>
+              <p className="mt-0.5 break-all font-mono text-xs text-foreground">
                 {status.fields.siteId}
               </p>
               <a
                 href={`https://portal.azure.com`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-1 inline-flex items-center gap-1 text-[10px] text-interactive-600 hover:underline"
+                className="mt-1 inline-flex items-center gap-1 text-xs text-interactive-600 hover:underline"
               >
                 Azure Portal
                 <ExternalLink className="h-2.5 w-2.5" />
@@ -321,10 +321,10 @@ export function SharePointConfigPanel() {
             </div>
             {status.fields.listId && (
               <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-3">
-                <p className="text-[11px] font-semibold text-muted-foreground">
+                <p className="text-xs font-semibold text-muted-foreground">
                   Lista — AGENDAMENTOS / REAGENDAMENTOS
                 </p>
-                <p className="mt-0.5 font-mono text-[11px] text-foreground">
+                <p className="mt-0.5 font-mono text-xs text-foreground">
                   {status.fields.listId}
                 </p>
               </div>
@@ -351,7 +351,7 @@ export function SharePointConfigPanel() {
 
           {showFields && (
             <div className="border-t border-neutral-200 px-3 pb-3 pt-2">
-              <p className="mb-2 text-[11px] text-muted-foreground">
+              <p className="mb-2 text-xs text-muted-foreground">
                 Campos populados automaticamente na criação de um lead com DUE Diligence:
               </p>
               <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
@@ -361,10 +361,10 @@ export function SharePointConfigPanel() {
                     className="flex items-start gap-2 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-2.5 py-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold text-foreground">{f.label}</p>
-                      <p className="font-mono text-[10px] text-muted-foreground/60">{f.id}</p>
+                      <p className="text-xs font-semibold text-foreground">{f.label}</p>
+                      <p className="font-mono text-xs text-muted-foreground">{f.id}</p>
                     </div>
-                    <p className="shrink-0 max-w-[45%] text-right text-[11px] text-muted-foreground truncate">
+                    <p className="shrink-0 max-w-[45%] text-right text-xs text-muted-foreground truncate">
                       {f.example}
                     </p>
                   </div>

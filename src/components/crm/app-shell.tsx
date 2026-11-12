@@ -250,7 +250,7 @@ function SidebarNavItem({
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold tracking-[-0.01em]">{item.label}</span>
             {!compact ? (
-              <span className="mt-0.5 block truncate text-[11px] leading-tight text-slate-400">
+              <span className="mt-0.5 block truncate text-xs leading-tight text-muted-foreground">
                 {item.description}
               </span>
             ) : null}
@@ -329,7 +329,7 @@ function SidebarSection({
             onClick={() => onToggleOpen(group.id)}
             aria-expanded={showItems}
             className={cn(
-              "flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 transition-colors hover:border-slate-200 hover:bg-white/70 hover:text-slate-600",
+              "flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:border-slate-200 hover:bg-white/70 hover:text-slate-600",
               hasActiveItem && !open && "text-slate-600",
             )}
           >
@@ -340,7 +340,7 @@ function SidebarSection({
             />
           </button>
         ) : (
-          <p className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+          <p className="px-2 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
             {group.title}
           </p>
         )
@@ -544,7 +544,7 @@ export function AppShell({
           </button>
           <div className="min-w-0 text-center">
             <p className="truncate text-sm font-bold tracking-[-0.02em] text-foreground">Bismarchi | Pires</p>
-            <p className="truncate text-[11px] text-slate-500">{workspaceLabel}</p>
+            <p className="truncate text-xs text-slate-500">{workspaceLabel}</p>
           </div>
           <div className="flex items-center gap-1">
             {partnerOnly ? null : (
@@ -595,7 +595,7 @@ export function AppShell({
                     <p className="truncate text-sm font-bold tracking-[-0.02em] text-foreground">
                       Bismarchi | Pires
                     </p>
-                    <p className="truncate text-[11px] font-medium text-slate-500">{workspaceLabel}</p>
+                    <p className="truncate text-xs font-medium text-slate-500">{workspaceLabel}</p>
                   </div>
                   <button
                     type="button"
@@ -609,12 +609,12 @@ export function AppShell({
 
                 <div className="mb-4">
                   <div className="flex h-9 items-center gap-2 rounded-(--radius-v2-md) border border-[#e1e5eb] bg-white px-3">
-                    <Search className="size-4 shrink-0 text-slate-400" strokeWidth={1.9} />
+                    <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.9} />
                     <input
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Buscar..."
-                      className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-slate-400"
+                      className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-text-placeholder-v2"
                     />
                   </div>
                 </div>
@@ -622,7 +622,7 @@ export function AppShell({
                 <nav className="crm-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pb-4">
                   {favoriteItems.length > 0 ? (
                     <section className="space-y-1.5">
-                      <p className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      <p className="px-2 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
                         Favoritos
                       </p>
                       <div className="space-y-1">
@@ -682,12 +682,12 @@ export function AppShell({
                     <p className="truncate text-[14px] font-bold tracking-[-0.02em] text-foreground">
                       Bismarchi | Pires
                     </p>
-                    <p className="truncate text-[11px] font-medium text-slate-500">{workspaceLabel}</p>
+                    <p className="truncate text-xs font-medium text-slate-500">{workspaceLabel}</p>
                   </div>
                   {!navCompact ? (
                     <button
                       type="button"
-                      className="flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-md) text-slate-400 transition-colors hover:bg-white hover:text-foreground"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-md) text-muted-foreground transition-colors hover:bg-white hover:text-foreground"
                       aria-label="Trocar workspace"
                     >
                       <ChevronsUpDown className="size-3.5" strokeWidth={2} />
@@ -700,7 +700,7 @@ export function AppShell({
             <nav className="crm-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-1 pb-3">
               {isVisuallyExpanded && favoriteItems.length > 0 ? (
                 <section className="space-y-1.5">
-                  <p className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                  <p className="px-2 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
                     Favoritos
                   </p>
                   <motion.div layout className="space-y-1">
@@ -770,11 +770,11 @@ export function AppShell({
                 className="group/search flex h-10 w-full max-w-[420px] items-center gap-2.5 rounded-(--radius-v2-lg) border border-[#e1e5eb] bg-white px-3.5 text-left shadow-[0_1px_2px_rgba(16,31,46,0.03)] transition-colors hover:border-slate-300 focus-visible:outline focus-visible:ring-3 focus-visible:ring-primary/20"
                 aria-label="Pesquisar leads"
               >
-                <Search className="size-4 shrink-0 text-slate-400 transition-colors group-hover/search:text-slate-600" strokeWidth={1.9} />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-400">
+                <Search className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/search:text-slate-600" strokeWidth={1.9} />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-muted-foreground">
                   Pesquisar leads…
                 </span>
-                <kbd className="rounded-(--radius-v2-sm) border border-slate-200 bg-[#f8f9fb] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
+                <kbd className="rounded-(--radius-v2-sm) border border-slate-200 bg-[#f8f9fb] px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
                   Ctrl K
                 </kbd>
               </button>

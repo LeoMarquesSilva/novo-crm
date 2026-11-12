@@ -1139,7 +1139,7 @@ function PropostaBuilderDialog({
                           <Icon className="size-3.5" aria-hidden />
                         </span>
                         <span className="min-w-0">
-                          <span className="block text-[10px] font-bold uppercase tracking-wider opacity-60">
+                          <span className="block text-xs font-semibold tabular-nums text-muted-foreground">
                             {String(index + 1).padStart(2, "0")}
                           </span>
                           <span className="block truncate text-xs font-bold">{step.label}</span>
@@ -1147,7 +1147,7 @@ function PropostaBuilderDialog({
                         {stepPending === 0 ? (
                           <CheckCircle2 className="ml-auto size-3.5 shrink-0 text-emerald-600" aria-label="Concluída" />
                         ) : (
-                          <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-(--radius-v2-full) bg-warning-bg text-[10px] font-semibold text-warning-text">
+                          <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-(--radius-v2-full) bg-warning-bg text-xs font-semibold text-warning-text">
                             {stepPending}
                           </span>
                         )}
@@ -1360,13 +1360,13 @@ function PropostaBuilderDialog({
                           onClick={() =>
                             setActiveStep(proposalStepForPendingItem(item, selectedTemplate.fields))
                           }
-                          className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-left text-[11px] font-semibold text-amber-800 transition-colors hover:border-amber-300 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                          className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-left text-xs font-semibold text-amber-800 transition-colors hover:border-amber-300 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                         >
                           {item}
                         </button>
                       ))}
                       {pending.length > 6 ? (
-                        <span className="px-1 py-1.5 text-[11px] font-semibold text-amber-700">
+                        <span className="px-1 py-1.5 text-xs font-semibold text-amber-700">
                           + {pending.length - 6} itens
                         </span>
                       ) : null}
@@ -1913,7 +1913,7 @@ function PropFieldInput({
                 onClick={() => toggle(opt)}
                 disabled={disabled}
                 className={cn(
-                  "min-h-8 rounded-(--radius-v2-full) border px-3 py-1 text-[11px] font-medium transition-colors",
+                  "min-h-8 rounded-(--radius-v2-full) border px-3 py-1 text-xs font-medium transition-colors",
                   active
                     ? "border-interactive-600 bg-interactive-600 text-white"
                     : "border-border bg-white text-text-secondary-v2 hover:border-border-strong",

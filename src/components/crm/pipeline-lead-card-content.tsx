@@ -84,7 +84,7 @@ function LossReasonTooltipBody({ motivo }: { motivo: string }) {
         <div className="min-w-0">
           <p className="font-semibold leading-snug text-foreground">Motivo da perda</p>
           <div className="mt-2">
-            <span className="inline-flex rounded-(--radius-v2-sm) bg-danger-bg px-2 py-0.5 text-[11px] font-semibold tracking-tight text-danger-text">
+            <span className="inline-flex rounded-(--radius-v2-sm) bg-danger-bg px-2 py-0.5 text-xs font-semibold tracking-tight text-danger-text">
               Perdida
             </span>
           </div>
@@ -116,18 +116,18 @@ function PipelineRdLeadCardContent({
     <>
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
         <span
-          className="inline-flex items-center rounded-full border border-info-border bg-info-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-info-text"
+          className="inline-flex items-center rounded-full border border-info-border bg-info-bg px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-info-text"
           title="Sincronizado do RD Station — somente visualização no kanban"
         >
           RD Station
         </span>
         {situacaoComercial === "vendidas" ? (
-          <span className="inline-flex items-center rounded-full border border-success-border bg-success-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-success-text">
+          <span className="inline-flex items-center rounded-full border border-success-border bg-success-bg px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-success-text">
             Vendida
           </span>
         ) : null}
         {situacaoComercial === "perdidas" ? (
-          <span className="inline-flex items-center rounded-full border border-danger-border bg-danger-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-danger-text">
+          <span className="inline-flex items-center rounded-full border border-danger-border bg-danger-bg px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-danger-text">
             Perdida
           </span>
         ) : null}
@@ -135,7 +135,7 @@ function PipelineRdLeadCardContent({
 
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Negociação (RD)
           </p>
           <p className="mt-0.5 text-[13px] font-semibold leading-snug tracking-tight text-foreground">
@@ -159,7 +159,7 @@ function PipelineRdLeadCardContent({
         ) : null}
       </div>
 
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground">
         <span className="font-medium text-foreground/80">
           {OPPORTUNITY_STAGE_LABELS[item.etapa] ?? item.etapa}
         </span>
@@ -167,7 +167,7 @@ function PipelineRdLeadCardContent({
       </p>
 
       {showRdNome ? (
-        <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
+        <p className="mt-1.5 truncate text-xs text-muted-foreground">
           Solicitante RD: <span className="font-medium text-foreground/85">{rdNome}</span>
         </p>
       ) : null}
@@ -183,14 +183,14 @@ function PipelineRdLeadCardContent({
       ) : null}
 
       {situacaoComercial === "perdidas" && item.motivoPerda?.trim() ? (
-        <p className="mt-2 text-[11px] leading-snug text-danger-text">
+        <p className="mt-2 text-xs leading-snug text-danger-text">
           Motivo: {item.motivoPerda.trim()}
         </p>
       ) : null}
 
       <DaysInStagePanel item={item} className="mt-2" compact={daysCompact} />
 
-      <p className="mt-2 text-[10px] leading-snug text-warning-text">
+      <p className="mt-2 text-xs leading-snug text-warning-text">
         Somente visualização — etapa e operação no RD Station.
       </p>
     </>
@@ -274,7 +274,7 @@ export function PipelineLeadCardContent({
         <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
           {situacaoComercial === "vendidas" ? (
             <span
-              className="inline-flex items-center rounded-full border border-success-border bg-success-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-success-text"
+              className="inline-flex items-center rounded-full border border-success-border bg-success-bg px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-success-text"
               title="Negociação fechada como ganha ou em contrato assinado"
             >
               Vendida
@@ -282,7 +282,7 @@ export function PipelineLeadCardContent({
           ) : null}
           {situacaoComercial === "perdidas" ? (
             <span
-              className="inline-flex items-center rounded-full border border-danger-border bg-danger-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-danger-text"
+              className="inline-flex items-center rounded-full border border-danger-border bg-danger-bg px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-danger-text"
               title={perdidaTooltip}
             >
               Perdida
@@ -290,7 +290,7 @@ export function PipelineLeadCardContent({
           ) : null}
           {item.origemRd ? (
             <span
-              className="inline-flex items-center rounded-full border border-info-border bg-info-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-info-text"
+              className="inline-flex items-center rounded-full border border-info-border bg-info-bg px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-info-text"
               title="Negociação sincronizada do RD Station CRM (ver API v1 em developers.rdstation.com)"
             >
               RD Station
@@ -298,7 +298,7 @@ export function PipelineLeadCardContent({
           ) : null}
           {item.rdMigracaoPendente ? (
             <span
-              className="inline-flex items-center rounded-full border border-warning-border bg-warning-bg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-warning-text"
+              className="inline-flex items-center rounded-full border border-warning-border bg-warning-bg px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-warning-text"
               title="Veio do RD na virada e ainda tem campos a preencher em Migrar do RD. Não avança até completar."
             >
               Migrar do RD
@@ -309,7 +309,7 @@ export function PipelineLeadCardContent({
 
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Nome do lead
           </p>
           <p className="mt-0.5 text-[13px] font-semibold leading-snug tracking-tight text-foreground">
@@ -408,7 +408,7 @@ export function PipelineLeadCardContent({
 
       {showContractSentOnlySummary ? (
         <div
-          className="mt-2 overflow-hidden rounded-(--radius-v2-xl) border border-info-border bg-info-bg px-2.5 py-2 text-[10px] font-medium text-foreground"
+          className="mt-2 overflow-hidden rounded-(--radius-v2-xl) border border-info-border bg-info-bg px-2.5 py-2 text-xs font-medium text-foreground"
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-start gap-2">
@@ -416,13 +416,13 @@ export function PipelineLeadCardContent({
               <Send className="h-3.5 w-3.5" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-bold tracking-tight text-foreground">Contrato enviado</p>
+              <p className="text-xs font-bold tracking-tight text-foreground">Contrato enviado</p>
               {contractSentAt ? (
-                <p className="mt-0.5 text-[9px] font-medium text-foreground/55">
+                <p className="mt-0.5 text-xs font-medium text-foreground/55">
                   {formatDateTimeBr(contractSentAt)}
                 </p>
               ) : (
-                <p className="mt-0.5 text-[9px] font-medium text-foreground/55">
+                <p className="mt-0.5 text-xs font-medium text-foreground/55">
                   Aguardando dados dos signatários
                 </p>
               )}
@@ -431,7 +431,7 @@ export function PipelineLeadCardContent({
                   href={contractHref}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-interactive-700 underline-offset-2 hover:underline"
+                  className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-interactive-700 underline-offset-2 hover:underline"
                   onPointerDown={(e) => e.stopPropagation()}
                 >
                   <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />

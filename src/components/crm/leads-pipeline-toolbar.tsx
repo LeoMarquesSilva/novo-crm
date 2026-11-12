@@ -47,7 +47,7 @@ function OwnerAvatar({
       {avatarUrl ? (
         <AvatarImage src={avatarUrl} alt="" className="object-cover" />
       ) : null}
-      <AvatarFallback className="bg-interactive-50 text-[10px] font-medium text-interactive-700">
+      <AvatarFallback className="bg-interactive-50 text-xs font-medium text-interactive-700">
         {initialsFromName(name)}
       </AvatarFallback>
     </Avatar>
@@ -74,7 +74,7 @@ function LeadSearchSituationBadge({ situ }: { situ: LeadPipelineSituation }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+        "inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-xs font-medium",
         LEAD_SEARCH_SITUATION_BADGE[situ],
       )}
       title={label}
@@ -255,7 +255,7 @@ export function LeadsPipelineToolbar({
               <Label htmlFor="lead-search" className="text-xs font-medium text-muted-foreground">
                 Buscar lead
               </Label>
-              <span className="hidden text-[11px] text-muted-foreground sm:inline">
+              <span className="hidden text-xs text-muted-foreground sm:inline">
                 mín. {searchMinChars} letras
               </span>
             </div>

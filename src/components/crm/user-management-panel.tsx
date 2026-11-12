@@ -323,7 +323,7 @@ function UserFormDialog({
                   maxLength={128}
                   required
                 />
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Use letras maiúsculas e minúsculas, além de pelo menos um
                   número. Não existe mais senha padrão.
                 </p>
@@ -505,7 +505,7 @@ function ModuleAccessSwitch({
 
   return (
     <label
-      className="flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground"
+      className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
       title={isAdmin ? "Admin vê todos os módulos" : error ?? `Liberar ${label}`}
     >
       <Switch
@@ -577,14 +577,14 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onModulesChange, onGran
           nameClassName="text-[13px]"
         />
         {(user.department || user.position) ? (
-          <p className="mt-1 truncate pl-[42px] text-[11px] text-muted-foreground">
+          <p className="mt-1 truncate pl-[42px] text-xs text-muted-foreground">
             {[user.position, user.department].filter(Boolean).join(" · ")}
           </p>
         ) : null}
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-2 xl:block">
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground xl:hidden">
+        <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground xl:hidden">
           Acesso
         </span>
         {user.hasAccess ? (
@@ -627,7 +627,7 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onModulesChange, onGran
         ) : (
           <Badge
             variant="outline"
-            className="h-6 border-dashed border-neutral-300 bg-white text-[10px] font-semibold text-muted-foreground"
+            className="h-6 border-dashed border-neutral-300 bg-white text-xs font-semibold text-muted-foreground"
           >
             <UserX className="mr-1 h-3 w-3" />
             Sem acesso
@@ -636,12 +636,12 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onModulesChange, onGran
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-2 xl:block">
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground xl:hidden">
+        <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground xl:hidden">
           Área
         </span>
         <span
           className={cn(
-            "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
             user.hasAccess ? areaMeta.color : "bg-neutral-100 text-muted-foreground",
           )}
           title={areaLabel ?? user.department ?? "Sem área vinculada"}
@@ -652,13 +652,13 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onModulesChange, onGran
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-2 xl:block">
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground xl:hidden">
+        <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground xl:hidden">
           Situação
         </span>
         {user.orqestraiActive === false ? (
           <Badge
             variant="outline"
-            className="h-6 border-danger-border bg-danger-bg text-[10px] font-semibold text-danger-text"
+            className="h-6 border-danger-border bg-danger-bg text-xs font-semibold text-danger-text"
             title="Inativo no RH, mas ainda com login no CRM"
           >
             <AlertTriangle className="mr-1 h-3 w-3" />
@@ -667,7 +667,7 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onModulesChange, onGran
         ) : user.hasAccess ? (
           <span
             className={cn(
-              "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold",
+              "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
               capability.className,
             )}
             title={capability.description}
@@ -676,7 +676,7 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onModulesChange, onGran
             <span className="truncate">{capability.label}</span>
           </span>
         ) : (
-          <span className="text-right text-[11px] text-muted-foreground xl:text-left">
+          <span className="text-right text-xs text-muted-foreground xl:text-left">
             Disponível no quadro do RH
           </span>
         )}
@@ -688,7 +688,7 @@ function UserRow({ user, onEdit, onDelete, onRoleChange, onModulesChange, onGran
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 gap-1.5 px-2.5 text-[11px]"
+            className="h-8 gap-1.5 px-2.5 text-xs"
             onClick={() => onGrantAccess(user)}
           >
             <UserPlus className="h-3.5 w-3.5" />
@@ -884,7 +884,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
               <UsersRound className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
                 Administração de acesso
               </p>
               <h1 className="mt-0.5 text-v2-heading-lg text-foreground">
@@ -918,7 +918,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
               key={metric.label}
               className="flex items-baseline justify-between gap-3 border-b border-r border-neutral-200 px-4 py-3 last:border-r-0 sm:block xl:border-b-0"
             >
-              <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-muted-foreground">
+              <p className="text-xs font-bold uppercase tracking-[0.11em] text-muted-foreground">
                 {metric.label}
               </p>
               <p
@@ -1056,7 +1056,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
           <p className="text-sm font-semibold text-foreground">
             {filtered.length} {filtered.length === 1 ? "pessoa" : "pessoas"}
           </p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {hasActiveFilters ? `de ${users.length} no total` : "Acesso e função editáveis na lista"}
           </p>
         </div>
@@ -1065,7 +1065,7 @@ export function UserManagementPanel({ initialUsers }: UserManagementPanelProps) 
             <span
               key={label}
               className={cn(
-                "text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground",
+                "text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground",
                 index === 4 && "text-right",
               )}
             >

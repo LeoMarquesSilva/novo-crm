@@ -495,7 +495,7 @@ export function ConfeccaoReuniaoModalSection({
       >
         <div className="space-y-2">
           <Label className="text-xs font-medium text-[#111827]">Escopo da proposta *</Label>
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <p className="text-xs leading-relaxed text-muted-foreground">
             Para cada área marcada, marque os tipos de escopo esperados (múltipla escolha). Quem elaborar verá
             um bloco por tipo na proposta.
           </p>

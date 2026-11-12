@@ -160,7 +160,7 @@ export function ScopeTree({
               type="button"
               onClick={() => onAreaFilterChange!([])}
               className={cn(
-                "shrink-0 rounded-(--radius-v2-md) px-2 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors",
+                "shrink-0 rounded-(--radius-v2-md) px-2 py-1 text-xs font-bold uppercase tracking-wide transition-colors",
                 allAreasSelected
                   ? "bg-brand-navy text-white"
                   : "bg-neutral-100 text-muted-foreground hover:bg-neutral-200",
@@ -186,7 +186,7 @@ export function ScopeTree({
                     onAreaFilterChange!(next.length === areaOptions!.length ? [] : next);
                   }}
                   className={cn(
-                    "shrink-0 rounded-(--radius-v2-md) px-2 py-1 text-[10px] font-bold transition-colors",
+                    "shrink-0 rounded-(--radius-v2-md) px-2 py-1 text-xs font-bold transition-colors",
                     selected
                       ? cn(colors.bg, colors.text, "ring-1", colors.ring)
                       : "bg-neutral-50 text-muted-foreground hover:bg-neutral-100",
@@ -233,13 +233,13 @@ export function ScopeTree({
                       <AreaIcon className={cn("size-3.5", areaColors.text)} aria-hidden />
                     </span>
 
-                    <span className="min-w-0 flex-1 truncate text-[11px] font-black uppercase tracking-[0.08em] text-foreground">
+                    <span className="min-w-0 flex-1 truncate text-xs font-black uppercase tracking-[0.08em] text-foreground">
                       {g.label}
                     </span>
 
                     <span
                       className={cn(
-                        "rounded-full px-1.5 py-0.5 text-[9px] font-bold tabular-nums",
+                        "rounded-full px-1.5 py-0.5 text-xs font-bold tabular-nums",
                         areaColors.bg,
                         areaColors.text,
                       )}
@@ -296,7 +296,7 @@ export function ScopeTree({
                           </button>
 
                           <div className="flex shrink-0 items-center gap-0.5 pl-0.5">
-                            <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-muted-foreground">
+                            <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs font-bold tabular-nums text-muted-foreground">
                               {it.subtypes.length}
                             </span>
 
@@ -329,7 +329,7 @@ export function ScopeTree({
                                     onClick={() => handleSelectSubtype(s)}
                                     title={s.label}
                                     className={cn(
-                                      "flex w-full min-w-0 items-center gap-1.5 rounded-(--radius-v2-md) px-2 py-1 text-left text-[11.5px] transition-colors",
+                                      "flex w-full min-w-0 items-center gap-1.5 rounded-(--radius-v2-md) px-2 py-1 text-left text-xs transition-colors",
                                       isSelected
                                         ? "border-l-2 border-interactive-600 bg-interactive-600 font-semibold text-white"
                                         : s.isActive
@@ -341,7 +341,7 @@ export function ScopeTree({
                                     {!s.isActive ? (
                                       <span
                                         className={cn(
-                                          "shrink-0 rounded px-1 py-px text-[8px] font-black uppercase tracking-wide",
+                                          "shrink-0 rounded px-1 py-px text-xs font-black uppercase tracking-wide",
                                           isSelected
                                             ? "bg-white/20 text-white/80"
                                             : "bg-neutral-200 text-muted-foreground",

@@ -230,7 +230,7 @@ export function DueModelosCard({ isAdmin }: { isAdmin: boolean }) {
             <ul className="grid gap-0.5 sm:grid-cols-2">
               {SLIDES_DO_MODELO.map((s) => (
                 <li key={s.marcador}>
-                  <code className="text-[10px]">{s.marcador}</code> — {s.descricao}
+                  <code className="text-xs">{s.marcador}</code> — {s.descricao}
                 </li>
               ))}
             </ul>

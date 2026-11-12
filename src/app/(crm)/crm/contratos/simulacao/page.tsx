@@ -145,15 +145,15 @@ export default function ContractSimulationPage() {
         <dl className="mt-4 grid gap-3 text-xs text-zinc-500 sm:grid-cols-3">
           <div>
             <dt className="font-semibold uppercase tracking-wide">Cliente</dt>
-            <dd className="mt-1 font-mono text-[11px] text-zinc-600">{SIMULATION_CLIENT_ID}</dd>
+            <dd className="mt-1 font-mono text-xs text-zinc-600">{SIMULATION_CLIENT_ID}</dd>
           </div>
           <div>
             <dt className="font-semibold uppercase tracking-wide">Oportunidade</dt>
-            <dd className="mt-1 font-mono text-[11px] text-zinc-600">{SIMULATION_OPPORTUNITY_ID}</dd>
+            <dd className="mt-1 font-mono text-xs text-zinc-600">{SIMULATION_OPPORTUNITY_ID}</dd>
           </div>
           <div>
             <dt className="font-semibold uppercase tracking-wide">Contrato (rascunho)</dt>
-            <dd className="mt-1 font-mono text-[11px] text-zinc-600">{SIMULATION_CONTRACT_ID}</dd>
+            <dd className="mt-1 font-mono text-xs text-zinc-600">{SIMULATION_CONTRACT_ID}</dd>
           </div>
         </dl>
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

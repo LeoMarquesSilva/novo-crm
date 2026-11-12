@@ -106,7 +106,7 @@ export function EscoposContratadosSection({
                           {scope.label}
                         </span>
                         {scope.missingProfile ? (
-                          <span className="shrink-0 rounded-(--radius-v2-full) bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                          <span className="shrink-0 rounded-(--radius-v2-full) bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
                             Sem perfil contratual
                           </span>
                         ) : null}
@@ -229,7 +229,7 @@ export function ObjetoContratoSection({
             ) : null}
 
             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
                 Redação
               </p>
               <div className="mt-3 space-y-3">
@@ -305,18 +305,18 @@ function ObjectFieldGroupBlock({
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
       >
         <ChevronRight
-          className={cn("size-3.5 shrink-0 text-slate-400 transition-transform duration-150", open && "rotate-90")}
+          className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform duration-150", open && "rotate-90")}
           aria-hidden
         />
-        <span className="flex-1 truncate text-[11px] font-bold uppercase tracking-[0.1em] text-slate-600">
+        <span className="flex-1 truncate text-xs font-bold uppercase tracking-[0.1em] text-slate-600">
           {group.scopeLabel}
         </span>
         {group.missingCount > 0 ? (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
             {group.missingCount} pendente{group.missingCount > 1 ? "s" : ""}
           </span>
         ) : (
-          <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+          <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
             Completo
           </span>
         )}
@@ -359,7 +359,7 @@ function ObjectFieldInput({
     >
       <Label htmlFor={inputId} className="text-xs font-semibold text-foreground">
         {userFacingFieldLabel(field.label, field.key)}
-        {field.required ? <span className="text-rose-500"> *</span> : ""}
+        {field.required ? <span className="text-danger-text"> *</span> : ""}
       </Label>
       <Input
         id={inputId}
@@ -412,7 +412,7 @@ function SourceBadge({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+        "inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold",
         cfg.className,
       )}
     >
@@ -455,7 +455,7 @@ function ObjectBlockPreview({
           {line.number}.{line.title ? ` ${line.title}.` : ""}
         </p>
         {override ? (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
             Ajustado
           </span>
         ) : null}
@@ -465,7 +465,7 @@ function ObjectBlockPreview({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="shrink-0 text-[11px] font-medium text-interactive-700 hover:underline"
+          className="shrink-0 text-xs font-medium text-interactive-700 hover:underline"
         >
           {expanded ? "Ocultar texto" : "Ver texto"}
         </button>
@@ -473,13 +473,13 @@ function ObjectBlockPreview({
       {expanded ? (
         <>
           <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{line.content}</p>
-          <p className="mt-2 text-[10px] text-muted-foreground">
+          <p className="mt-2 text-xs text-muted-foreground">
             Origem: perfil contratual · {line.sourceLabel} · v{line.version}
           </p>
         </>
       ) : null}
       {override ? (
-        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
+        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
           <p className="font-semibold">Override específico deste contrato</p>
           <CrmUserLabel name={override.changedByName || override.changedBy} size="xs" prefix="Alterado por" />
         </div>
@@ -488,7 +488,7 @@ function ObjectBlockPreview({
         type="button"
         variant="ghost"
         size="sm"
-        className="mt-2 h-7 gap-1 px-2 text-[11px]"
+        className="mt-2 h-7 gap-1 px-2 text-xs"
         disabled={disabled}
         onClick={() => {
           setText(line.content);
@@ -629,7 +629,7 @@ export function SectionHeading({
       <h3 className="text-v2-heading-md text-foreground">{title}</h3>
       <span
         className={cn(
-          "rounded-full px-2 py-0.5 text-[10px] font-bold",
+          "rounded-full px-2 py-0.5 text-xs font-bold",
           complete ? "bg-success-bg text-success-text" : "bg-warning-bg text-warning-text",
         )}
       >

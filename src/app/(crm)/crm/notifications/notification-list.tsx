@@ -100,7 +100,7 @@ function NotificationCards({
                     {face?.avatar_url ? (
                       <AvatarImage src={face.avatar_url} alt="" />
                     ) : null}
-                    <AvatarFallback className="text-[11px]">
+                    <AvatarFallback className="text-xs">
                       {face ? initialsFromName(face.full_name) : "—"}
                     </AvatarFallback>
                   </Avatar>
@@ -124,7 +124,7 @@ function NotificationCards({
                     <CardDescription className="text-xs leading-relaxed sm:text-sm">
                       <span className="font-medium text-muted-foreground/90">Alerta criado em </span>
                       {new Date(n.created_at).toLocaleString("pt-BR")}
-                      <span className="text-muted-foreground/80">
+                      <span className="text-muted-foreground">
                         {payload.area_key ? ` · Área: ${payload.area_key}` : null}
                         {n.lida_em ? (
                           <>
@@ -135,7 +135,7 @@ function NotificationCards({
                       </span>
                     </CardDescription>
                     {contextoDatas ? (
-                      <div className="mt-2 space-y-1 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+                      <div className="mt-2 space-y-1 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs leading-snug text-muted-foreground">
                         <p>
                           <span className="font-semibold text-foreground/85">Lead criado: </span>
                           {formatContextoDateTimePtBr(contextoDatas.lead_criado_em) ?? "—"}
@@ -158,7 +158,7 @@ function NotificationCards({
                 {dueLevantamento && dueLevantamento.areas.length > 0 ? (
                   <details className="due-kanban-details mt-3 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 open:bg-white">
                     <summary
-                      className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-(--radius-v2-md) px-2 py-1.5 text-[11px] font-semibold text-foreground outline-none transition-colors hover:bg-neutral-100 [&::-webkit-details-marker]:hidden"
+                      className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-(--radius-v2-md) px-2 py-1.5 text-xs font-semibold text-foreground outline-none transition-colors hover:bg-neutral-100 [&::-webkit-details-marker]:hidden"
                       title="Abrir ou fechar o detalhe por área"
                     >
                       <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -176,7 +176,7 @@ function NotificationCards({
                       {dueLevantamento.areas.map((row) => (
                         <li
                           key={row.areaKey}
-                          className="flex items-start gap-2 text-[10px] font-medium leading-snug text-foreground/85"
+                          className="flex items-start gap-2 text-xs font-medium leading-snug text-foreground/85"
                         >
                           <span className="mt-0.5 shrink-0" aria-hidden>
                             {row.entregue ? (
@@ -207,7 +207,7 @@ function NotificationCards({
                       ))}
                     </ul>
                     {dueLevantamento.atrasados > 0 ? (
-                      <p className="border-t border-neutral-200 px-2 pb-2 text-[10px] font-bold text-danger-text">
+                      <p className="border-t border-neutral-200 px-2 pb-2 text-xs font-bold text-danger-text">
                         {dueLevantamento.atrasados} área(s) em atraso
                       </p>
                     ) : null}
@@ -331,7 +331,7 @@ export function NotificationList({ initial }: { initial: Row[] }) {
           <TabsTrigger value="todas" className="shrink-0 rounded-(--radius-v2-md) px-3 py-2 text-xs sm:text-sm">
             Todas
             {totalUnread > 0 ? (
-              <span className="ml-1 rounded-(--radius-v2-full) bg-interactive-100 px-1.5 py-0.5 text-[10px] font-semibold text-interactive-700">
+              <span className="ml-1 rounded-(--radius-v2-full) bg-interactive-100 px-1.5 py-0.5 text-xs font-semibold text-interactive-700">
                 {totalUnread}
               </span>
             ) : null}
@@ -341,7 +341,7 @@ export function NotificationList({ initial }: { initial: Row[] }) {
             return (
               <TabsTrigger key={id} value={id} className="shrink-0 rounded-(--radius-v2-md) px-3 py-2 text-xs sm:text-sm">
                 {label}
-                <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
                   ({c.total}
                   {c.unread > 0 ? ` · ${c.unread} nova${c.unread > 1 ? "s" : ""}` : ""})
                 </span>
@@ -351,7 +351,7 @@ export function NotificationList({ initial }: { initial: Row[] }) {
           {hasOutras ? (
             <TabsTrigger value="outras" className="shrink-0 rounded-(--radius-v2-md) px-3 py-2 text-xs sm:text-sm">
               Outras
-              <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+              <span className="ml-1 text-xs font-normal text-muted-foreground">
                 ({outrasCount.total}
                 {outrasCount.unread > 0 ? ` · ${outrasCount.unread} nova${outrasCount.unread > 1 ? "s" : ""}` : ""})
               </span>

@@ -81,13 +81,13 @@ function AreaRow({ area }: { area: DueAreaTempo }) {
             nameClassName="font-semibold text-foreground"
           />
           {area.cicloRevisao != null && (
-            <span className="rounded-(--radius-v2-sm) border border-border bg-muted px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            <span className="rounded-(--radius-v2-sm) border border-border bg-muted px-1.5 py-px text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
               Ciclo {area.cicloRevisao}
             </span>
           )}
           <span
             className={cn(
-              "rounded-full border px-2 py-px text-[10px] font-semibold",
+              "rounded-full border px-2 py-px text-xs font-semibold",
               cfg.badge,
             )}
           >
@@ -95,7 +95,7 @@ function AreaRow({ area }: { area: DueAreaTempo }) {
           </span>
         </div>
         {(area.inicioIso || area.fimIso || area.duracaoMs != null) && (
-          <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarClock
               className="h-3 w-3 shrink-0 text-muted-foreground"
               aria-hidden
@@ -106,7 +106,7 @@ function AreaRow({ area }: { area: DueAreaTempo }) {
             {area.fimIso && (
               <>
                 <ArrowRight
-                  className="h-2.5 w-2.5 text-muted-foreground/60"
+                  className="h-2.5 w-2.5 text-muted-foreground"
                   aria-hidden
                 />
                 <span className="font-medium">
@@ -268,7 +268,7 @@ function PhaseStep({
             {(fase.fimIso || state === "active") && (
               <>
                 <ArrowRight
-                  className="h-3 w-3 text-muted-foreground/60"
+                  className="h-3 w-3 text-muted-foreground"
                   aria-hidden
                 />
                 <span
@@ -366,7 +366,7 @@ export function DueTimelineSection({
         <p className="text-sm font-medium text-muted-foreground">
           Cronologia ainda não disponível
         </p>
-        <p className="mt-1 text-xs text-muted-foreground/80">
+        <p className="mt-1 text-xs text-muted-foreground">
           As datas aparecem quando a negociação avança no funil de due diligence.
         </p>
       </div>

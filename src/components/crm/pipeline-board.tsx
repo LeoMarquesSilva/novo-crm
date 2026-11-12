@@ -330,7 +330,7 @@ function Column({
           {title}
         </CardTitle>
         <span
-          className="shrink-0 rounded-full border border-border bg-white px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground"
+          className="shrink-0 rounded-full border border-border bg-white px-2 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground"
           aria-label={`${items.length} ${items.length === 1 ? "oportunidade nesta etapa" : "oportunidades nesta etapa"}`}
         >
           {items.length}
@@ -1027,7 +1027,7 @@ export function PipelineBoard({
                       )
                     }
                     disabled={transitionSubmitting}
-                    className="h-7 border-border bg-white px-2.5 text-[11px] font-medium text-muted-foreground shadow-none hover:border-interactive-300 hover:bg-interactive-50 hover:text-interactive-700"
+                    className="h-7 border-border bg-white px-2.5 text-xs font-medium text-muted-foreground shadow-none hover:border-interactive-300 hover:bg-interactive-50 hover:text-interactive-700"
                   >
                     Ainda sem local
                   </Button>
@@ -1103,7 +1103,7 @@ export function PipelineBoard({
                       )
                     }
                     disabled={transitionSubmitting}
-                    className="h-7 border-border bg-white px-2.5 text-[11px] font-medium text-muted-foreground shadow-none hover:border-interactive-300 hover:bg-interactive-50 hover:text-interactive-700"
+                    className="h-7 border-border bg-white px-2.5 text-xs font-medium text-muted-foreground shadow-none hover:border-interactive-300 hover:bg-interactive-50 hover:text-interactive-700"
                   >
                     Ainda sem local
                   </Button>

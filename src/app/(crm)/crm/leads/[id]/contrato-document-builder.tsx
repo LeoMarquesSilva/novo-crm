@@ -351,7 +351,7 @@ function ContractWorkflowRail({
         >
           <span
             className={cn(
-              "flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-full) border text-[11px] font-semibold tabular-nums",
+              "flex size-7 shrink-0 items-center justify-center rounded-(--radius-v2-full) border text-xs font-semibold tabular-nums",
               step.state === "done" &&
                 "border-success-border bg-success-bg text-success-text",
               step.state === "active" &&
@@ -370,7 +370,7 @@ function ContractWorkflowRail({
             <span className="block truncate text-xs font-semibold text-foreground">
               {step.label}
             </span>
-            <span className="block truncate text-[10px] text-muted-foreground">
+            <span className="block truncate text-xs text-muted-foreground">
               {step.detail}
             </span>
           </span>
@@ -1691,7 +1691,7 @@ function ContratoBuilderDialog({
                             ? "No primeiro pagamento"
                             : formatMaybeDateLikeBr(liveBuild.data.startRule.date ?? "") || "Data definida"}
                       </p>
-                      <p className="mt-1 text-[10px] text-muted-foreground">Resolvida pelo perfil contratual ✓</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Resolvida pelo perfil contratual ✓</p>
                     </div>
                   ) : null}
                   {(SECTION_PRAZO as readonly string[]).map((code) => {
@@ -1960,11 +1960,11 @@ function D4SignSendSection({
         <div>
           <p className="text-sm font-bold text-foreground">Assinatura Digital — D4Sign</p>
           {statusInfo ? (
-            <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold", statusInfo.color)}>
+            <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-bold", statusInfo.color)}>
               {statusInfo.label}
             </span>
           ) : (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {reviewApproved
                 ? "Revisão aprovada — pronto para enviar à D4Sign"
                 : "Envio liberado após ok da área Societário e Contratos"}
@@ -1979,7 +1979,7 @@ function D4SignSendSection({
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
             {/* UUID */}
             <div className="space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                 UUID do documento D4Sign
               </p>
               <p className="font-mono text-xs text-slate-700 break-all">{lead.d4signDocumentUuid}</p>
@@ -2044,7 +2044,7 @@ function D4SignSendSection({
                 <p className="text-xs font-bold text-blue-900">Envio bloqueado — revisão pendente</p>
                 <p className="mt-1 text-xs text-blue-800/90">{reviewBlockReason}</p>
                 {reviewTask ? (
-                  <p className="mt-2 text-[10px] font-semibold text-blue-700/80">
+                  <p className="mt-2 text-xs font-semibold text-blue-700/80">
                     Status:{" "}
                     {reviewTask.status === "pendente"
                       ? "Aguardando revisão"
@@ -2099,7 +2099,7 @@ function D4SignSendSection({
               <Send className="size-4" aria-hidden />
               {alreadySent ? "Reenviar para assinatura" : "Enviar para assinatura"}
             </Button>
-            <p className="text-center text-[10px] text-muted-foreground">
+            <p className="text-center text-xs text-muted-foreground">
               Você confere os e-mails dos signatários antes de enviar. O lead vai para Contrato Enviado e, quando
               todos assinarem, segue sozinho para Contrato Assinado.
             </p>
@@ -2146,16 +2146,16 @@ function SignersStatusList({
 
   return (
     <div className="space-y-3">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
         Signatários&nbsp;
-        <span className="normal-case font-normal text-slate-400">
+        <span className="normal-case font-normal text-muted-foreground">
           ({totalSigned}/{signers.length} assinaram)
         </span>
       </p>
 
       {contratada.length > 0 ? (
         <div className="space-y-1">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-muted-v2">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-text-muted-v2">
             CONTRATADA
           </p>
           <ul className="space-y-1.5">
@@ -2168,7 +2168,7 @@ function SignersStatusList({
 
       {contratante.length > 0 ? (
         <div className="space-y-1">
-          <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-amber-800">
+          <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-800">
             CONTRATANTE
           </p>
           <ul className="space-y-1.5">
@@ -2223,7 +2223,7 @@ function SignerRow({
         />
       ) : (
         <span className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-full text-[10px] font-black",
+          "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-black",
           signer.signed
             ? "bg-emerald-100 text-emerald-700"
             : accent === "teal" ? "bg-info-bg text-info-text" : "bg-warning-bg text-warning-text",
@@ -2238,10 +2238,10 @@ function SignerRow({
           {displayName ?? signer.email}
         </p>
         {displayName ? (
-          <p className="truncate text-[10px] text-muted-foreground leading-tight">{signer.email}</p>
+          <p className="truncate text-xs text-muted-foreground leading-tight">{signer.email}</p>
         ) : null}
         <p className={cn(
-          "text-[10px] font-semibold leading-tight mt-0.5",
+          "text-xs font-semibold leading-tight mt-0.5",
           signer.signed ? "text-emerald-600" : "text-amber-600",
         )}>
           {signer.signed
@@ -2252,10 +2252,10 @@ function SignerRow({
 
       {/* Badge de status */}
       <span className={cn(
-        "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold",
+        "shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold",
         signer.signed
           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-slate-200 bg-slate-50 text-slate-400",
+          : "border-slate-200 bg-slate-50 text-muted-foreground",
       )}>
         {signer.signed ? "Assinou" : "Pendente"}
       </span>
@@ -2313,7 +2313,7 @@ function InclusionToggleCard({
           {item.label}
         </span>
         {isIncluded ? (
-          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
+          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-xs font-semibold text-success-text">
             Incluído
           </span>
         ) : null}
@@ -2425,10 +2425,10 @@ function ReviewTaskCard({
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-foreground">Revisão do Contrato — Societário e Contratos</p>
-          <span className={cn("text-[11px] font-semibold", cfg.color)}>{cfg.label}</span>
+          <span className={cn("text-xs font-semibold", cfg.color)}>{cfg.label}</span>
         </div>
         {reviewTask.notificado_em && (
-          <span className="flex items-center gap-1 rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
+          <span className="flex items-center gap-1 rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-xs font-semibold text-success-text">
             <Bell className="size-2.5" />
             Notificado
           </span>
@@ -2439,11 +2439,11 @@ function ReviewTaskCard({
         {prazoStr && (
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Prazo</p>
-              <p className={cn("text-sm font-bold", atrasado ? "text-rose-600" : "text-foreground")}>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Prazo</p>
+              <p className={cn("text-sm font-bold", atrasado ? "text-danger-text" : "text-foreground")}>
                 {prazoStr}
                 {diasRestantes !== null && reviewTask.status !== "concluido" && (
-                  <span className={cn("ml-1 text-xs font-normal", atrasado ? "text-rose-500" : "text-muted-foreground")}>
+                  <span className={cn("ml-1 text-xs font-normal", atrasado ? "text-danger-text" : "text-muted-foreground")}>
                     {" · "}
                     {atrasado ? `${Math.abs(diasRestantes)}d atrasado` : diasRestantes === 0 ? "hoje" : `${diasRestantes}d restantes`}
                   </span>
@@ -2714,16 +2714,16 @@ function ClausulasSection({
           Cláusulas Adicionais
         </h3>
         {summaryIssues.length > 0 ? (
-          <span className="rounded-(--radius-v2-full) border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-semibold text-danger-text">
+          <span className="rounded-(--radius-v2-full) border border-danger-border bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger-text">
             {summaryIssues.length} a preencher
           </span>
         ) : null}
         {selected.length > 0 ? (
-          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
+          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-xs font-semibold text-success-text">
             {selected.length} adicionada{selected.length > 1 ? "s" : ""}
           </span>
         ) : summaryIssues.length === 0 ? (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+          <span className="rounded-(--radius-v2-full) bg-surface-subtle px-2 py-0.5 text-xs font-semibold text-text-secondary-v2">
             Opcional
           </span>
         ) : null}
@@ -2800,28 +2800,28 @@ function ClauseGroupBlock({
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
       >
         <ChevronRight
-          className={cn("size-3.5 shrink-0 text-slate-400 transition-transform duration-150", open && "rotate-90")}
+          className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform duration-150", open && "rotate-90")}
           aria-hidden
         />
-        <span className="flex-1 truncate text-[11px] font-bold uppercase tracking-[0.1em] text-slate-600">
+        <span className="flex-1 truncate text-xs font-bold uppercase tracking-[0.1em] text-slate-600">
           {group.title}
         </span>
         {hasIssues ? (
-          <span className="shrink-0 rounded-(--radius-v2-full) border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-semibold text-danger-text">
+          <span className="shrink-0 rounded-(--radius-v2-full) border border-danger-border bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger-text">
             {group.issueCount} a preencher
           </span>
         ) : null}
         {group.addedCount > 0 ? (
-          <span className="shrink-0 rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
+          <span className="shrink-0 rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-xs font-semibold text-success-text">
             {group.addedCount} no contrato
           </span>
         ) : null}
-        <span className="shrink-0 text-[10px] font-semibold text-slate-400">{group.rows.length}</span>
+        <span className="shrink-0 text-xs font-semibold text-muted-foreground">{group.rows.length}</span>
       </button>
       {open ? (
         <div className="space-y-2 border-t border-slate-200 px-3 pb-3 pt-2.5">
           {isEngineControlled ? (
-            <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-800">
+            <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-amber-800">
               <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
               Esta seção já é gerada automaticamente pelo motor a partir do escopo contratado.
               Cláusulas adicionadas aqui viram um bloco separado no contrato — normalmente não é
@@ -2829,7 +2829,7 @@ function ClauseGroupBlock({
             </p>
           ) : null}
           {isExclusionMerge ? (
-            <p className="flex items-start gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] leading-relaxed text-sky-800">
+            <p className="flex items-start gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-2 text-xs leading-relaxed text-sky-800">
               <Check className="mt-0.5 size-3 shrink-0" aria-hidden />
               Cláusulas adicionadas aqui se juntam automaticamente à seção &ldquo;2. Objetos
               Excluídos do Contrato&rdquo; no documento final, sem repetir &ldquo;Exclusão&rdquo;
@@ -2902,7 +2902,7 @@ function ClauseRowItem({
             <TooltipTrigger asChild>
               <span
                 className={cn(
-                  "flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                  "flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold",
                   inContractNow
                     ? "border-success-border bg-success-bg text-success-text"
                     : "border-warning-border bg-warning-bg text-warning-text",
@@ -2922,14 +2922,14 @@ function ClauseRowItem({
             type="button"
             size="sm"
             variant="ghost"
-            className="h-7 shrink-0 px-2 text-[11px]"
+            className="h-7 shrink-0 px-2 text-xs"
             onClick={() => setEditing((v) => !v)}
           >
             {editing ? "Ocultar" : "Visualizar"}
           </Button>
         </div>
         {hasDraftTokens ? (
-          <p className="mt-1.5 text-[11px] font-medium leading-relaxed text-danger-text">
+          <p className="mt-1.5 text-xs font-medium leading-relaxed text-danger-text">
             Falta preencher: {row.draftTokens.join(", ")}. O texto vem do modelo da cláusula (Admin → Cláusulas).
           </p>
         ) : null}
@@ -2969,7 +2969,7 @@ function ClauseRowItem({
               type="button"
               size="sm"
               variant="ghost"
-              className="h-7 shrink-0 px-2 text-[11px]"
+              className="h-7 shrink-0 px-2 text-xs"
               disabled={disabled}
               onClick={() => setEditing((v) => !v)}
             >
@@ -2979,7 +2979,7 @@ function ClauseRowItem({
               type="button"
               onClick={onRemove}
               disabled={disabled}
-              className="flex size-6 shrink-0 items-center justify-center rounded border border-rose-200 text-rose-400 hover:border-rose-300 hover:text-rose-600 disabled:opacity-30"
+              className="flex size-6 shrink-0 items-center justify-center rounded border border-rose-200 text-danger-text hover:border-rose-300 hover:text-danger-text disabled:opacity-30"
               aria-label="Remover cláusula"
             >
               <X className="size-3" aria-hidden />
@@ -2990,7 +2990,7 @@ function ClauseRowItem({
             type="button"
             size="sm"
             variant="outline"
-            className="h-7 shrink-0 gap-1 px-2 text-[11px]"
+            className="h-7 shrink-0 gap-1 px-2 text-xs"
             disabled={disabled}
             onClick={onAdd}
           >
@@ -3000,7 +3000,7 @@ function ClauseRowItem({
         )}
       </div>
       {hasDraftTokens ? (
-        <p className="mt-1.5 text-[11px] font-medium leading-relaxed text-danger-text">
+        <p className="mt-1.5 text-xs font-medium leading-relaxed text-danger-text">
           Falta preencher: {row.draftTokens.join(", ")}. Em &ldquo;Editar&rdquo;, troque pelo texto final.
         </p>
       ) : null}
@@ -3068,18 +3068,18 @@ function PinsSection({
           Posicionar Assinaturas
         </h3>
         {pins.length > 0 ? (
-          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-text">
+          <span className="rounded-(--radius-v2-full) bg-success-bg px-2 py-0.5 text-xs font-semibold text-success-text">
             {pins.length} pin{pins.length > 1 ? "s" : ""}
           </span>
         ) : (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
             Folha dedicada
           </span>
         )}
       </div>
 
       <div className="ml-10 space-y-3">
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-xs leading-relaxed text-muted-foreground">
           As assinaturas ficam sempre na <strong>última página</strong> do PDF (folha dedicada).
           Use o botão abaixo para aplicar a posição padrão ou clique na folha de assinaturas no preview.
         </p>
@@ -3088,7 +3088,7 @@ function PinsSection({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 gap-1.5 border-border text-[11px] text-foreground"
+          className="h-8 gap-1.5 border-border text-xs text-foreground"
           disabled={disabled}
           onClick={() => onChange(buildDefaultSignaturePins())}
         >
@@ -3123,7 +3123,7 @@ function PinsSection({
                 />
                 <span className="flex-1 text-[12px] font-semibold text-slate-700">
                   {signer.label}
-                  <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                  <span className="ml-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {signer.role}
                   </span>
                 </span>
@@ -3132,7 +3132,7 @@ function PinsSection({
                   size="sm"
                   variant={isActiveAssin ? "default" : "outline"}
                   className={cn(
-                    "h-7 gap-1 px-2 text-[10px]",
+                    "h-7 gap-1 px-2 text-xs",
                     isActiveAssin && "bg-interactive-600 text-white",
                   )}
                   disabled={disabled}
@@ -3150,7 +3150,7 @@ function PinsSection({
                   size="sm"
                   variant={isActiveRubr ? "default" : "outline"}
                   className={cn(
-                    "h-7 gap-1 px-2 text-[10px]",
+                    "h-7 gap-1 px-2 text-xs",
                     isActiveRubr && "bg-interactive-600 text-white",
                   )}
                   disabled={disabled}
@@ -3172,14 +3172,14 @@ function PinsSection({
         {pins.length > 0 ? (
           <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
                 Pins posicionados
               </p>
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-6 gap-1 px-1.5 text-[10px] text-rose-600 hover:text-rose-700"
+                className="h-6 gap-1 px-1.5 text-xs text-danger-text hover:text-danger-text"
                 disabled={disabled}
                 onClick={clearAll}
               >
@@ -3205,23 +3205,23 @@ function PinsSection({
                           color === "amber" && "border-amber-200 bg-amber-50/60",
                         )}
                       >
-                        <span className="text-[10px] font-bold text-slate-600">
+                        <span className="text-xs font-bold text-slate-600">
                           {pin.type === 1 ? "🖋" : pin.type === 2 ? "🔖" : "✍️"}
                         </span>
-                        <span className="flex-1 text-[11px] font-semibold text-slate-700">
+                        <span className="flex-1 text-xs font-semibold text-slate-700">
                           {getSignerLabel(pin.email)}
                         </span>
-                        <span className="text-[10px] text-slate-500">
+                        <span className="text-xs text-text-secondary-v2">
                           última p. ({pin.position_x},{pin.position_y})
                         </span>
                         <button
                           type="button"
-                          className="text-slate-400 hover:text-rose-500"
+                          className="flex size-6 shrink-0 items-center justify-center rounded-(--radius-v2-sm) text-muted-foreground hover:bg-danger-bg hover:text-danger-text"
                           disabled={disabled}
                           onClick={() => removePin(idx)}
                           aria-label="Remover pin"
                         >
-                          <X className="size-3" />
+                          <X className="size-3.5" />
                         </button>
                       </div>
                     );
@@ -3360,6 +3360,13 @@ function scrollPaneToSection(pane: HTMLElement, sectionId: string) {
   });
 }
 
+const NAV_SECTION_STATE_LABEL: Record<NavSectionState, string> = {
+  complete: "completa",
+  pending: "pendente",
+  danger: "há campo a preencher",
+  neutral: "opcional",
+};
+
 function SectionNav({
   sections,
   onNavigate,
@@ -3377,9 +3384,10 @@ function SectionNav({
           key={s.id}
           type="button"
           title={s.state === "danger" ? `${s.label}: há campo a preencher` : s.label}
+          aria-label={`${s.num}. ${s.label}: ${NAV_SECTION_STATE_LABEL[s.state]}`}
           onClick={() => onNavigate(s.id)}
           className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-(--radius-v2-full) border px-2.5 py-1 text-[11px] font-medium transition-colors",
+            "flex h-8 shrink-0 items-center gap-1.5 rounded-(--radius-v2-full) border px-3 text-xs font-medium transition-colors",
             s.state === "complete"
               ? "border-success-border bg-success-bg text-success-text hover:bg-success-bg"
               : s.state === "pending"
@@ -3391,17 +3399,18 @@ function SectionNav({
         >
           <span
             className={cn(
-              "flex size-4 shrink-0 items-center justify-center rounded-full text-[9px]",
+              // Fundo nos tons de texto semânticos: branco por cima fica acima de 4,5:1 (antes âmbar 2,1:1).
+              "flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
               s.state === "complete"
-                ? "bg-emerald-600 text-white"
+                ? "bg-success-text text-white"
                 : s.state === "pending"
-                  ? "bg-amber-500 text-white"
+                  ? "bg-warning-text text-white"
                   : s.state === "danger"
                     ? "bg-danger-text text-white"
-                    : "bg-slate-300 text-white",
+                    : "bg-text-muted-v2 text-white",
             )}
           >
-            {s.state === "complete" ? <Check className="size-2.5" aria-hidden /> : s.num}
+            {s.state === "complete" ? <Check className="size-3" aria-hidden /> : s.num}
           </span>
           <span className="hidden md:inline">{s.label}</span>
         </button>
@@ -3507,7 +3516,7 @@ function ReajusteFields({
         <div className="space-y-1.5">
           <Label htmlFor="contrato-reajuste-indice" className="flex items-center gap-1 text-xs font-medium text-foreground">
             Índice de reajuste
-            <span className="text-rose-500" aria-hidden>*</span>
+            <span className="text-danger-text" aria-hidden>*</span>
             <span className="sr-only"> (obrigatório)</span>
           </Label>
           <Select
@@ -3584,7 +3593,7 @@ function CcFieldInput({
   const labelNode = (
     <Label className="flex items-center gap-1 text-xs font-medium text-foreground">
       {label}
-      {isRequired ? <span className="text-rose-500" aria-hidden>*</span> : null}
+      {isRequired ? <span className="text-danger-text" aria-hidden>*</span> : null}
       {isRequired ? <span className="sr-only"> (obrigatório)</span> : null}
     </Label>
   );
@@ -3739,7 +3748,7 @@ function ContratoBodyPages({ page }: { page: ContratoDocumentPagePreview }) {
         .filter((pageBlocks) => pageBlocks.length > 0)
         .map((pageBlocks, i) => (
           <div key={i}>
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
               Folha {i + 1} — Corpo do contrato
             </p>
             <div

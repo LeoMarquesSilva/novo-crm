@@ -395,7 +395,7 @@ export function ContractClosingReview({
                   {areaName ? (
                     <AreaIconLabel area={areaName} size="xs" />
                   ) : (
-                    <span className="text-slate-400">Sem área</span>
+                    <span className="text-muted-foreground">Sem área</span>
                   )}
                 </SelectTrigger>
                 <CrmSelectContent>

@@ -700,7 +700,7 @@ As variantes legadas `default`, `cta`, `hero`, `teal` e `outline` devem ser mape
 
 - hover: mudança de cor, sem translate;
 - active: cor mais escura;
-- focus-visible: ring de 3px com azul a aproximadamente 18% + contorno principal;
+- focus-visible: contorno sólido de 2px em `--ring` com 2px de afastamento (ver §27.2);
 - disabled: fundo neutro, texto disabled e cursor bloqueado;
 - loading: mantém largura, bloqueia repetição e mostra spinner;
 - ícone à esquerda para ação, à direita para continuidade ou navegação.
@@ -1182,14 +1182,19 @@ Usar os breakpoints padrão do Tailwind. `lg` permanece como breakpoint estrutur
 
 ### 27.2 Critério visual
 
-O ring de foco deve ser identificável sem parecer uma borda permanente:
+O foco de teclado precisa ter contraste de 3:1 com o fundo (WCAG 2.2, 1.4.11 e 2.4.13). O ring azul a 18% ficava perto de 1,3:1 e foi trocado (12/11/2026) por contorno sólido:
 
 ```css
-outline: 3px solid rgba(37, 99, 235, 0.18);
+outline: 2px solid var(--ring); /* #2563eb, 5,2:1 sobre branco */
 outline-offset: 2px;
 ```
 
-O componente pode combinar outline/ring com alteração da borda interna.
+- Botão, switch, aba e passo do wizard usam as classes `focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring`.
+- `globals.css` aplica o mesmo contorno a `button`, `a[href]`, `summary`, `[role=button]`, `[role=tab]` e `[role=option]` que não tenham estilo próprio (`:where()`, especificidade zero).
+- Campos de formulário mantêm borda `--primary` + ring (§17): a troca da cor da borda já é o indicador.
+- Não usar `ring-*/20` nem `focus-visible:ring-3` sozinhos como indicador de foco.
+
+Texto da interface não fica abaixo de 12px (`text-xs`) e texto cinza usa `text-muted-foreground` (#667085, 4,8:1 sobre branco) ou mais escuro, nunca cinza com opacidade (`/50`, `/60`) nem `slate-400`. Exceções: iniciais dentro de avatar de até 20px (o nome aparece ao lado) e pinos de assinatura desenhados em escala sobre a página do contrato.
 
 ---
 

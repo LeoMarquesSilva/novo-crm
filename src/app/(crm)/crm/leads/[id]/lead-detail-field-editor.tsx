@@ -445,7 +445,7 @@ export function LeadDetailFieldEditor({
         {!editing ? (
           <div className="flex shrink-0 items-center gap-1">
             {showRdBadge ? (
-              <span className="rounded-(--radius-v2-sm) bg-info-bg px-1.5 py-0.5 text-[10px] font-semibold text-info-text">
+              <span className="rounded-(--radius-v2-sm) bg-info-bg px-1.5 py-0.5 text-xs font-semibold text-info-text">
                 Ajustado no CRM
               </span>
             ) : null}
@@ -454,8 +454,9 @@ export function LeadDetailFieldEditor({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground"
+                className="size-8 text-muted-foreground"
                 title="Restaurar valor vindo do RD"
+                aria-label={`Restaurar ${label} com o valor do RD`}
                 onClick={() => void revertRdOverride()}
                 disabled={saving}
               >
@@ -466,8 +467,9 @@ export function LeadDetailFieldEditor({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              title="Editar"
+              className="size-8 text-muted-foreground hover:text-foreground"
+              title={`Editar ${label}`}
+              aria-label={`Editar ${label}`}
               onClick={startEdit}
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -689,7 +691,7 @@ export function LeadDetailFieldEditor({
                 </Select>
                 {allowExternalUser ? (
                   <>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Ou digite um e-mail que não esteja na lista (ex.: contato externo).
                     </p>
                     <Input
@@ -702,7 +704,7 @@ export function LeadDetailFieldEditor({
                     />
                   </>
                 ) : (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Somente utilizadores ativos do CRM podem ser selecionados.
                   </p>
                 )}

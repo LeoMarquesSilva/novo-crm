@@ -70,7 +70,7 @@ function CrmPageHeaderStat({
       )}
     >
       {/* Nada de reticências: em tela estreita o rótulo e o valor quebram linha ("R$ 403.97…" escondia o número). */}
-      <p className="break-words text-[10px] font-semibold uppercase leading-tight tracking-wider text-muted-foreground">
+      <p className="break-words text-xs font-semibold uppercase leading-tight tracking-wider text-muted-foreground">
         {label}
       </p>
       <p

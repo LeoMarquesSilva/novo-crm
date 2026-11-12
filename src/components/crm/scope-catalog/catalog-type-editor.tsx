@@ -135,7 +135,7 @@ export function CatalogTypeEditor({
             <AreaIcon className="size-4" aria-hidden />
           </span>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
               {mode.kind === "scope" ? "Tipo de escopo" : "Tipo de investimento"}
               {mode.breadcrumb.length > 1
                 ? ` · ${mode.breadcrumb.slice(0, -1).join(" › ")}`
@@ -155,7 +155,7 @@ export function CatalogTypeEditor({
             disabled={saving}
           />
 
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-full) border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-neutral-50">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-full) border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-neutral-50">
             <input
               type="checkbox"
               checked={draft.isActive}
@@ -170,7 +170,7 @@ export function CatalogTypeEditor({
           </label>
 
           {isDirty ? (
-            <span className="inline-flex items-center gap-1 rounded-(--radius-v2-full) bg-warning-bg px-2.5 py-1 text-[10px] font-bold text-warning-text">
+            <span className="inline-flex items-center gap-1 rounded-(--radius-v2-full) bg-warning-bg px-2.5 py-1 text-xs font-bold text-warning-text">
               <Sparkles className="size-3" aria-hidden />
               Não salvo
             </span>
@@ -292,12 +292,12 @@ export function CatalogTypeEditor({
             >
               <ArrowDown className="size-3" aria-hidden />
             </Button>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               Tipos com ordem menor aparecem primeiro na árvore.
             </span>
           </div>
 
-          <p className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] text-muted-foreground">
+          <p className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-muted-foreground">
             Chave técnica:{" "}
             <code className="font-mono text-foreground">{mode.row.typeKey}</code>
           </p>

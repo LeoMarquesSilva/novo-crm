@@ -130,7 +130,7 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
         >
           <Bell className="size-5" />
           {unreadCount > 0 ? (
-            <span className="pointer-events-none absolute -right-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-gradient-to-b from-rose-500 to-rose-600 px-1 text-[10px] font-bold tabular-nums text-white shadow-[0_2px_10px_rgba(225,29,72,0.55)] ring-1 ring-rose-700/25">
+            <span className="pointer-events-none absolute -right-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-danger-text px-1 text-xs font-bold tabular-nums text-white">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           ) : null}
@@ -174,7 +174,7 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
           >
             Caixa de entrada
             {unreadCount > 0 ? (
-              <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-white">
+              <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-bold text-white">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             ) : null}
@@ -242,13 +242,13 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
                     >
                       <Avatar className="size-10 shrink-0 border border-border">
                         {face?.avatar_url ? <AvatarImage src={face.avatar_url} alt="" /> : null}
-                        <AvatarFallback className="bg-neutral-100 text-[11px] font-semibold text-foreground">
+                        <AvatarFallback className="bg-neutral-100 text-xs font-semibold text-foreground">
                           {face ? initialsFromName(face.full_name) : "—"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-semibold leading-snug text-foreground">{title}</p>
-                        <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                        <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
                           {when}
                           {sub ? (
                             <>
@@ -261,7 +261,7 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
                           ) : null}
                         </p>
                         {contextoDatas ? (
-                          <p className="mt-1 line-clamp-3 text-[10px] leading-snug text-muted-foreground">
+                          <p className="mt-1 line-clamp-3 text-xs leading-snug text-muted-foreground">
                             <span className="font-semibold text-muted-foreground">Lead: </span>
                             {formatContextoDateTimePtBr(contextoDatas.lead_criado_em) ?? "—"}
                             <span aria-hidden className="text-neutral-300"> · </span>

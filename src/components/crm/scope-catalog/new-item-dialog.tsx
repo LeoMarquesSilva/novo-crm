@@ -140,7 +140,7 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
 
           {/* Parent breadcrumb (subtipos) */}
           {kind.type === "scope_subtype" || kind.type === "investment_subtype" ? (
-            <div className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px]">
+            <div className="rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs">
               <p className="font-bold uppercase tracking-[0.12em] text-muted-foreground">Será criado em</p>
               <p className="mt-0.5 font-semibold text-foreground">{kind.parentLabel}</p>
             </div>
@@ -157,7 +157,7 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
               className="h-10 text-sm"
               autoFocus
             />
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               A chave técnica será gerada automaticamente a partir do nome.
             </p>
           </div>
@@ -175,7 +175,7 @@ export function NewItemDialog({ open, onOpenChange, kind, onCreated }: Props) {
                 disabled={saving}
                 placeholder="Prestação de serviços advocatícios em favor de [NOME EMPRESA]..."
               />
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Pode editar depois com preview ao vivo.
               </p>
             </div>

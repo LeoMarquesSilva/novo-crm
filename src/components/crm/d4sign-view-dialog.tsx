@@ -126,7 +126,7 @@ export function D4SignViewDialog({
             <h2 className="truncate text-sm font-bold text-foreground">
               {documentName ? documentName.replace(/\.docx?$/i, "") : "Contrato"}
             </h2>
-            <p className="font-mono text-[10px] text-muted-foreground">
+            <p className="font-mono text-xs text-muted-foreground">
               {documentUuid.slice(0, 18)}…
             </p>
           </div>
@@ -136,7 +136,7 @@ export function D4SignViewDialog({
                 href={portalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-8 items-center gap-1.5 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-3 text-[11px] font-semibold text-muted-foreground hover:bg-neutral-50 transition-colors"
+                className="inline-flex h-8 items-center gap-1.5 rounded-(--radius-v2-md) border border-neutral-200 bg-white px-3 text-xs font-semibold text-muted-foreground hover:bg-neutral-50 transition-colors"
               >
                 <ExternalLink className="size-3.5" aria-hidden />
                 Abrir no D4Sign
@@ -212,7 +212,7 @@ export function D4SignViewDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 items-center justify-between border-t border-neutral-200 bg-neutral-50 px-5 py-2 text-[11px] text-muted-foreground">
+        <div className="flex shrink-0 items-center justify-between border-t border-neutral-200 bg-neutral-50 px-5 py-2 text-xs text-muted-foreground">
           <span>
             Documento via{" "}
             <a

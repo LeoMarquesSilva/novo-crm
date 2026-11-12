@@ -235,7 +235,7 @@ function EmailTemplatesEditor({
         <p className="text-xs text-muted-foreground mt-0.5">
           Use placeholders no assunto e no HTML. Pré-visualização com dados de exemplo.
         </p>
-        <p className="text-[11px] text-muted-foreground font-mono mt-1 break-all">{keysLine}</p>
+        <p className="text-xs text-muted-foreground font-mono mt-1 break-all">{keysLine}</p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as "due" | "sem_due")}>
@@ -264,7 +264,7 @@ function EmailTemplatesEditor({
             <Textarea
               value={dueHtml}
               onChange={(e) => onChangeDue({ subject: dueSubject, html: e.target.value })}
-              className="min-h-[200px] font-mono text-[11px] leading-relaxed"
+              className="min-h-[200px] font-mono text-xs leading-relaxed"
               spellCheck={false}
             />
           </div>
@@ -290,7 +290,7 @@ function EmailTemplatesEditor({
             <Textarea
               value={semHtml}
               onChange={(e) => onChangeSem({ subject: semSubject, html: e.target.value })}
-              className="min-h-[200px] font-mono text-[11px] leading-relaxed"
+              className="min-h-[200px] font-mono text-xs leading-relaxed"
               spellCheck={false}
             />
           </div>

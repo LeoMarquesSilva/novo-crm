@@ -61,7 +61,7 @@ export function DashboardEtapaDistribution({
             </span>
             <span className="flex items-baseline gap-2">
               <span className="text-sm font-bold tabular-nums text-foreground">{count}</span>
-              <span className="w-8 text-right text-[11px] tabular-nums text-muted-foreground">
+              <span className="w-8 text-right text-xs tabular-nums text-muted-foreground">
                 {percent}%
               </span>
             </span>

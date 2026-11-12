@@ -110,7 +110,7 @@ function Field({
           {required ? <span className="text-danger-text"> *</span> : null}
         </Label>
         {source ? (
-          <span className="rounded-full border border-info-border bg-info-bg px-1.5 py-px text-[11px] font-medium text-info-text" title={source}>
+          <span className="rounded-full border border-info-border bg-info-bg px-1.5 py-px text-xs font-medium text-info-text" title={source}>
             Do RD
           </span>
         ) : null}
@@ -665,7 +665,7 @@ function RdFieldsPanel({ fields, rdDealUrl, rdUpdatedAt }: { fields: Array<{ lab
         <dl className="mt-3 max-h-[28rem] space-y-2 overflow-y-auto pr-1">
           {shown.map((f) => (
             <div key={f.label}>
-              <dt className="text-[11px] font-medium text-muted-foreground">{f.label}</dt>
+              <dt className="text-xs font-medium text-muted-foreground">{f.label}</dt>
               <dd className="whitespace-pre-wrap break-words text-[13px] text-foreground">{f.value}</dd>
             </div>
           ))}

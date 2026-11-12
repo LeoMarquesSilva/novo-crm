@@ -608,13 +608,13 @@ function UserPickerRow({ user, onPick }: { user: LeadNoteUser; onPick: () => voi
     >
       <Avatar className="h-7 w-7">
         {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
-        <AvatarFallback className="bg-interactive-50 text-[10px] font-black text-interactive-700">
+        <AvatarFallback className="bg-interactive-50 text-xs font-black text-interactive-700">
           {initialsFromFullName(user.fullName)}
         </AvatarFallback>
       </Avatar>
       <span className="min-w-0">
         <span className="block truncate text-xs font-extrabold text-foreground">{user.fullName}</span>
-        <span className="block truncate text-[11px] font-semibold text-muted-foreground">
+        <span className="block truncate text-xs font-semibold text-muted-foreground">
           {[user.area, user.role].filter(Boolean).join(" · ") || "Usuário CRM"}
         </span>
       </span>

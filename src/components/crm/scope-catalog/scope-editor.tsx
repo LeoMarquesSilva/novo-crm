@@ -218,7 +218,7 @@ export function ScopeEditor({ mode, contractClauses, onSaved, onDeleted, onDirty
             <AreaIcon className="size-4" aria-hidden />
           </span>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
               {mode.breadcrumb.slice(0, -1).join(" › ")}
             </p>
             <h2 className="truncate text-base font-extrabold text-foreground">{draft.label}</h2>
@@ -252,7 +252,7 @@ export function ScopeEditor({ mode, contractClauses, onSaved, onDeleted, onDirty
               Cláusulas do contrato
               <span
                 className={cn(
-                  "min-w-[1.25rem] rounded-(--radius-v2-full) px-1.5 py-0.5 text-center text-[10px] font-black tabular-nums",
+                  "min-w-[1.25rem] rounded-(--radius-v2-full) px-1.5 py-0.5 text-center text-xs font-black tabular-nums",
                   contractClauses.linked === 0
                     ? "bg-white text-warning-text"
                     : "bg-neutral-100 text-foreground",
@@ -272,7 +272,7 @@ export function ScopeEditor({ mode, contractClauses, onSaved, onDeleted, onDirty
           />
 
           {/* Toggle ativo/inativo */}
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-full) border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-neutral-50">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-(--radius-v2-full) border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-neutral-50">
             <input
               type="checkbox"
               checked={draft.isActive}
@@ -287,7 +287,7 @@ export function ScopeEditor({ mode, contractClauses, onSaved, onDeleted, onDirty
           </label>
 
           {isDirty ? (
-            <span className="inline-flex items-center gap-1 rounded-(--radius-v2-full) bg-warning-bg px-2.5 py-1 text-[10px] font-bold text-warning-text">
+            <span className="inline-flex items-center gap-1 rounded-(--radius-v2-full) bg-warning-bg px-2.5 py-1 text-xs font-bold text-warning-text">
               <Sparkles className="size-3" aria-hidden />
               Não salvo
             </span>
@@ -335,7 +335,7 @@ export function ScopeEditor({ mode, contractClauses, onSaved, onDeleted, onDirty
           {/* Cabeçalho do painel */}
           <div className="flex items-center gap-2 border-b border-neutral-200 px-4 py-2.5">
             <Pencil className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
               Editor
             </span>
           </div>
@@ -428,7 +428,7 @@ export function ScopeEditor({ mode, contractClauses, onSaved, onDeleted, onDirty
               >
                 <ArrowDown className="size-3" aria-hidden />
               </Button>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Itens com ordem menor aparecem primeiro.
               </span>
             </div>
@@ -441,13 +441,13 @@ export function ScopeEditor({ mode, contractClauses, onSaved, onDeleted, onDirty
           <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Eye className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 Preview
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="size-1.5 rounded-(--radius-v2-full) bg-success-text" aria-hidden />
-              <span className="text-[9px] text-muted-foreground">ao vivo</span>
+              <span className="text-xs text-muted-foreground">ao vivo</span>
             </div>
           </div>
           <div className="p-4">
@@ -490,7 +490,7 @@ function FieldTextarea({
       <div className="flex items-center justify-between gap-2">
         <Label className="text-xs font-semibold text-foreground">{label}</Label>
         {legacy ? (
-          <span className="shrink-0 rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-warning-text">
+          <span className="shrink-0 rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-warning-text">
             Legado
           </span>
         ) : null}
@@ -518,7 +518,7 @@ function FieldTextarea({
           )}
         />
       )}
-      {hint ? <p className="text-[10px] leading-relaxed text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -551,7 +551,7 @@ function PlaceholdersSection({
             type="button"
             size="sm"
             variant="outline"
-            className="h-7 gap-1.5 border-interactive-300 px-2.5 text-[11px] font-semibold text-interactive-700 hover:bg-interactive-600 hover:text-white"
+            className="h-7 gap-1.5 border-interactive-300 px-2.5 text-xs font-semibold text-interactive-700 hover:bg-interactive-600 hover:text-white"
             onClick={onSync}
           >
             <Sparkles className="size-3" aria-hidden />
@@ -585,7 +585,7 @@ function PlaceholdersSection({
               key={key}
               title={title}
               className={cn(
-                "inline-flex items-center gap-1 rounded-(--radius-v2-full) border px-2 py-0.5 text-[10px] font-bold",
+                "inline-flex items-center gap-1 rounded-(--radius-v2-full) border px-2 py-0.5 text-xs font-bold",
                 cls,
               )}
             >
@@ -605,12 +605,12 @@ function PlaceholdersSection({
           );
         })}
         {detected.length === 0 && declared.length === 0 ? (
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             Nenhum placeholder ainda. Use a sintaxe <code>[CHAVE]</code> no texto.
           </span>
         ) : null}
       </div>
-      <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
         <Legend color="bg-success-text" label="Usado e declarado" />
         <Legend color="bg-warning-text" label="Detectado mas não declarado" />
         <Legend color="bg-danger-text" label="Declarado mas não usado" />
@@ -641,7 +641,7 @@ function PreviewSection({
     <section>
       <p
         className={cn(
-          "mb-2 text-[9px] font-black uppercase tracking-[0.2em]",
+          "mb-2 text-xs font-black uppercase tracking-[0.2em]",
           labelColor ?? "text-muted-foreground",
         )}
       >

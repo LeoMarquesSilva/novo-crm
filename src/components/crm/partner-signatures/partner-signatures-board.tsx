@@ -138,7 +138,7 @@ export function PartnerSignaturesBoard({
     );
   const chipCount = (active: boolean) =>
     cn(
-      "rounded-(--radius-v2-full) px-1.5 py-0.5 text-[10px] font-bold",
+      "rounded-(--radius-v2-full) px-1.5 py-0.5 text-xs font-bold",
       active ? "bg-white/25" : "bg-warning-bg text-warning-text",
     );
 
@@ -153,7 +153,7 @@ export function PartnerSignaturesBoard({
 
       {/* Filtro por sócio */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Sócio</span>
+        <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Sócio</span>
         <button type="button" className={chip(partnerFilter === "all")} onClick={() => setPartnerFilter("all")}>
           Todos
           {pendingByPartner.all > 0 ? (
@@ -196,7 +196,7 @@ export function PartnerSignaturesBoard({
               {TAB_LABEL[t]}
               <span
                 className={cn(
-                  "rounded-(--radius-v2-full) px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+                  "rounded-(--radius-v2-full) px-1.5 py-0.5 text-xs font-bold tabular-nums",
                   t === "pendente" && tabCounts[t] > 0
                     ? "bg-warning-bg text-warning-text"
                     : "bg-neutral-100 text-muted-foreground",
@@ -281,7 +281,7 @@ export function PartnerSignaturesBoard({
                   {tab === "pendente" && days !== null ? (
                     <p
                       className={cn(
-                        "inline-flex items-center gap-1 text-[11px] font-semibold",
+                        "inline-flex items-center gap-1 text-xs font-semibold",
                         stale ? "text-danger-text" : "text-warning-text",
                       )}
                     >
@@ -311,7 +311,7 @@ export function PartnerSignaturesBoard({
                         key={`${s.email ?? ""}-${i}`}
                         title={s.email ?? undefined}
                         className={cn(
-                          "inline-flex max-w-[180px] items-center gap-1 rounded-(--radius-v2-full) border px-2 py-0.5 text-[11px] font-medium",
+                          "inline-flex max-w-[180px] items-center gap-1 rounded-(--radius-v2-full) border px-2 py-0.5 text-xs font-medium",
                           confirming
                             ? "border-info-border bg-info-bg text-info-text"
                             : !pending

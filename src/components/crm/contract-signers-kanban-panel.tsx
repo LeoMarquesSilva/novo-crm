@@ -116,7 +116,7 @@ function SignerRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1">
-          <p className="truncate text-[11px] font-semibold leading-tight text-foreground">{label}</p>
+          <p className="truncate text-xs font-semibold leading-tight text-foreground">{label}</p>
           {badgeLabel ? (
             <span
               className={cn(
@@ -129,13 +129,13 @@ function SignerRow({
           ) : null}
         </div>
         {signed && signer.signed_at ? (
-          <p className="truncate text-[9px] font-medium text-emerald-800/90">
+          <p className="truncate text-xs font-medium text-emerald-800/90">
             Assinou {formatDateTimeBr(signer.signed_at)}
           </p>
         ) : (
           <p
             className={cn(
-              "truncate text-[9px] font-medium",
+              "truncate text-xs font-medium",
               isFirmSide ? "text-teal-900/75" : "text-amber-900/75",
             )}
           >
@@ -171,7 +171,7 @@ export function ContractSignersKanbanPanel({
   return (
     <div
       className={cn(
-        "mt-2 overflow-hidden rounded-xl border text-[10px] shadow-sm",
+        "mt-2 overflow-hidden rounded-xl border text-xs shadow-sm",
         isCompleted
           ? "border-emerald-300/55 bg-gradient-to-b from-emerald-50/95 to-white/85"
           : "border-sky-300/50 bg-gradient-to-b from-sky-50/90 to-white/80",
@@ -195,23 +195,23 @@ export function ContractSignersKanbanPanel({
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[11px] font-bold tracking-tight text-foreground">
+                <p className="text-xs font-bold tracking-tight text-foreground">
                   {isCompleted ? "Assinaturas concluídas" : "Aguardando assinaturas"}
                 </p>
                 {sentAt ? (
-                  <p className="mt-0.5 text-[9px] font-medium text-muted-foreground">
+                  <p className="mt-0.5 text-xs font-medium text-muted-foreground">
                     Enviado {formatDateTimeBr(sentAt)}
                   </p>
                 ) : null}
                 {isCompleted && finalizedAt ? (
-                  <p className="mt-0.5 text-[9px] font-semibold text-emerald-800/85">
+                  <p className="mt-0.5 text-xs font-semibold text-emerald-800/85">
                     Finalizado {formatDateTimeBr(finalizedAt)}
                   </p>
                 ) : null}
               </div>
               <span
                 className={cn(
-                  "shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold tabular-nums",
+                  "shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums",
                   isCompleted ? "bg-emerald-500/15 text-emerald-900" : "bg-sky-500/15 text-sky-950",
                 )}
               >
@@ -243,7 +243,7 @@ export function ContractSignersKanbanPanel({
                   ))}
                 </div>
                 {!isCompleted && pendingCount > 0 ? (
-                  <p className="ml-2 truncate text-[9px] font-medium text-muted-foreground">
+                  <p className="ml-2 truncate text-xs font-medium text-muted-foreground">
                     {pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`}
                   </p>
                 ) : null}
@@ -258,7 +258,7 @@ export function ContractSignersKanbanPanel({
           className="contract-signers-kanban-details group/details"
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-neutral-200 px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground outline-none transition-colors hover:bg-neutral-50 [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-neutral-200 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-neutral-50 [&::-webkit-details-marker]:hidden">
             <span>Ver signatários</span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/details:rotate-180" />
           </summary>
@@ -276,7 +276,7 @@ export function ContractSignersKanbanPanel({
             href={linkContrato.trim()}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold text-interactive-600 underline-offset-2 hover:underline"
+            className="inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-interactive-600 underline-offset-2 hover:underline"
             title={linkContrato.trim()}
             onPointerDown={(e) => e.stopPropagation()}
           >

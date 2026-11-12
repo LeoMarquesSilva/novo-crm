@@ -138,7 +138,7 @@ export function ContractRenewalsTab({
                   variant="inline"
                 />
               ) : (
-                <span className="text-slate-400">Sem responsável</span>
+                <span className="text-muted-foreground">Sem responsável</span>
               )}
             </SelectTrigger>
             <CrmSelectContent>

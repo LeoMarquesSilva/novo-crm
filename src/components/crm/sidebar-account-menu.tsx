@@ -36,7 +36,7 @@ export function SidebarAccountMenu({
   const showIdentity = inHeader || !collapsed;
 
   const areaTagClass =
-    "inline-flex max-w-full truncate rounded-(--radius-v2-sm) border border-border bg-muted px-1.5 py-0.5 text-[11px] font-medium leading-tight text-muted-foreground";
+    "inline-flex max-w-full truncate rounded-(--radius-v2-sm) border border-border bg-muted px-1.5 py-0.5 text-xs font-medium leading-tight text-muted-foreground";
 
   async function signOut() {
     setSigningOut(true);
@@ -85,7 +85,7 @@ export function SidebarAccountMenu({
           {sessionUser.avatarUrl ? (
             <AvatarImage src={sessionUser.avatarUrl} alt="" />
           ) : null}
-          <AvatarFallback className="text-[11px]">{initials}</AvatarFallback>
+          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
         </Avatar>
       )}
       {inHeader ? (

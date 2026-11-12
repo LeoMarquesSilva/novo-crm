@@ -506,7 +506,7 @@ export function PropostaEscopoPorArea({
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <AreaIconLabel area={normalizePracticeAreaKey(area)} size="sm" nameClassName="font-extrabold text-foreground" />
-                  <Badge variant="outline" className="border-slate-300 bg-white text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">
+                  <Badge variant="outline" className="border-slate-300 bg-white text-xs font-black uppercase tracking-[0.08em] text-slate-600">
                     Sem acesso
                   </Badge>
                 </div>
@@ -1147,17 +1147,17 @@ function AreaSummaryCard({
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-base font-extrabold tracking-[-0.02em] text-foreground">{areaLabel}</p>
               {scopeCount > 1 ? (
-                <Badge variant="outline" className="h-6 border-slate-200 bg-white text-[10px] font-bold text-slate-600">
+                <Badge variant="outline" className="h-6 border-slate-200 bg-white text-xs font-bold text-slate-600">
                   {scopeCount} escopos
                 </Badge>
               ) : null}
-              <Badge variant="outline" className={cn("h-6 border text-[11px]", statusTone)}>
+              <Badge variant="outline" className={cn("h-6 border text-xs", statusTone)}>
                 {status}
               </Badge>
               <Badge
                 variant="outline"
                 className={cn(
-                  "h-6 border text-[10px] font-black uppercase tracking-[0.08em]",
+                  "h-6 border text-xs font-black uppercase tracking-[0.08em]",
                   tone === "delegated"
                     ? "border-amber-200 bg-amber-50 text-amber-900"
                     : "border-emerald-200 bg-emerald-50 text-emerald-800",
@@ -1192,7 +1192,7 @@ function AreaSummaryCard({
                     />
                   ))}
                   {responsaveis.length > 2 ? (
-                    <span className="text-[11px] font-semibold text-slate-500">
+                    <span className="text-xs font-semibold text-slate-500">
                       +{responsaveis.length - 2}
                     </span>
                   ) : null}
@@ -1310,7 +1310,7 @@ function EscopoModalHeader({
 function HeaderMeta({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">{label}</p>
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
       <div className="mt-1 truncate text-xs font-bold text-foreground">{value}</div>
     </div>
   );
@@ -1319,7 +1319,7 @@ function HeaderMeta({ label, value }: { label: string; value: ReactNode }) {
 function ReadOnlyPair({ label, value, dark }: { label: string; value: string; dark?: boolean }) {
   return (
     <div className={cn("rounded-(--radius-v2-xl) border p-3", dark ? "border-white/10 bg-white/10" : "border-border bg-white")}>
-      <p className={cn("text-[10px] font-black uppercase tracking-[0.14em]", dark ? "text-white/45" : "text-slate-400")}>
+      <p className={cn("text-xs font-black uppercase tracking-[0.14em]", dark ? "text-white/45" : "text-muted-foreground")}>
         {label}
       </p>
       <p className={cn("mt-1 text-sm font-bold", dark ? "text-white" : "text-foreground")}>{value}</p>
@@ -1333,11 +1333,11 @@ function PreviewGrid({ escopo }: { escopo: string }) {
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-border pb-3">
         <div className="min-w-0">
           <p className="text-v2-caption-medium text-text-muted-v2">Texto gerado</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
             Referência do conteúdo; a diagramação final aparece na prévia Word.
           </p>
         </div>
-        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">
+        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">
           Word
         </span>
       </div>
@@ -1345,7 +1345,7 @@ function PreviewGrid({ escopo }: { escopo: string }) {
         {escopo.trim() ? (
           <JustifiedDocumentText text={escopo} />
         ) : (
-          <p className="italic text-slate-400">O texto será exibido após selecionar tipo e subtipo.</p>
+          <p className="italic text-muted-foreground">O texto será exibido após selecionar tipo e subtipo.</p>
         )}
       </div>
     </aside>

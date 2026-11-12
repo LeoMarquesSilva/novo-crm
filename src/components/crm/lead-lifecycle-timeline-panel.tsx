@@ -123,7 +123,7 @@ export function LeadLifecycleTimelinePanel({ timeline }: LeadLifecycleTimelinePa
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-neutral-50 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              <thead className="bg-neutral-50 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3">Etapa</th>
                   <th className="px-5 py-3">Entrada</th>
@@ -142,7 +142,7 @@ export function LeadLifecycleTimelinePanel({ timeline }: LeadLifecycleTimelinePa
                           </span>
                           {row.etapaLabel}
                           {row.isCurrent ? (
-                            <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success-text">
+                            <span className="rounded-full bg-success-bg px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-success-text">
                               Atual
                             </span>
                           ) : null}
@@ -187,11 +187,11 @@ function ActivityRow({ event }: { event: LeadActivityEvent }) {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground">{event.title}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", meta.tone)}>
+                <span className={cn("rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wide", meta.tone)}>
                   {meta.label}
                 </span>
                 {event.areaKey ? (
-                  <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                  <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                     Área: {event.areaKey}
                   </span>
                 ) : null}
@@ -257,16 +257,16 @@ function ActivityActor({ actor }: { actor: LeadActivityEvent["actor"] }) {
     <span className="inline-flex max-w-full items-center gap-2">
       <Avatar className="h-7 w-7 border border-white ring-1 ring-neutral-200">
         {actor.avatarUrl ? <AvatarImage src={actor.avatarUrl} alt="" className="object-cover" /> : null}
-        <AvatarFallback className="bg-interactive-50 text-[10px] font-bold text-interactive-700">
+        <AvatarFallback className="bg-interactive-50 text-xs font-bold text-interactive-700">
           {initialsFromFullName(actor.fullName)}
         </AvatarFallback>
       </Avatar>
       <span className="min-w-0">
         <span className="block truncate text-xs font-semibold text-foreground">{actor.fullName}</span>
         {actor.area ? (
-          <span className="block truncate text-[10px] font-medium text-muted-foreground">{actor.area}</span>
+          <span className="block truncate text-xs font-medium text-muted-foreground">{actor.area}</span>
         ) : (
-          <span className="block text-[10px] text-muted-foreground">Sem área cadastrada</span>
+          <span className="block text-xs text-muted-foreground">Sem área cadastrada</span>
         )}
       </span>
     </span>
@@ -288,7 +288,7 @@ function MetricCard({
   return (
     <div className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
         <DisplayIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
       </div>
       <p className="mt-1 text-lg font-extrabold tracking-tight text-foreground">{value}</p>

@@ -77,7 +77,7 @@ export function WizardHeader({
                   aria-current={step.active ? "step" : undefined}
                   onClick={() => onSelectStep?.(step.id)}
                   className={cn(
-                    "group flex shrink-0 items-center gap-2 rounded-(--radius-v2-md) p-0.5 text-left outline-none transition-colors duration-150 focus-visible:ring-3 focus-visible:ring-ring/20 sm:py-1 sm:pr-1.5 sm:pl-1",
+                    "group flex shrink-0 items-center gap-2 rounded-(--radius-v2-md) p-0.5 text-left outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring sm:py-1 sm:pr-1.5 sm:pl-1",
                     step.available && !step.active && "hover:bg-surface-hover",
                     !step.available && "cursor-not-allowed",
                   )}

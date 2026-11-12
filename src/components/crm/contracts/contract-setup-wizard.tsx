@@ -131,7 +131,7 @@ function ProjectionSummary({ runs, loading }: { runs: ProjectionRun[]; loading: 
   const first = runs[0];
   return (
     <div className="rounded-2xl bg-[#102033] p-5 text-white">
-      <p className="text-xs uppercase tracking-wide text-slate-400">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">
         Projeção mensal estimada{first ? ` · ${competencyLabel(first.from)}` : ""}
       </p>
       <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">
@@ -153,7 +153,7 @@ function ProjectionSummary({ runs, loading }: { runs: ProjectionRun[]; loading: 
           ))}
         </ul>
       ) : null}
-      <p className="mt-2 text-xs text-slate-400">
+      <p className="mt-2 text-xs text-muted-foreground">
         Inclui mensalidades, parcelas do mês e variáveis projetadas com a quantidade atual do SIOE (pastas ativas / horas do mês), respeitando o início de cada componente. Gatilhos de êxito ficam de fora até liberação manual.
       </p>
     </div>
@@ -518,7 +518,7 @@ export function ContractSetupWizard({
                   : "border-zinc-200 bg-white text-zinc-600"
               }`}
             >
-              <span className="mb-1 block text-[10px] uppercase tracking-wide">Etapa {index + 1}</span>
+              <span className="mb-1 block text-xs uppercase tracking-wide">Etapa {index + 1}</span>
               {label}
             </button>
           </li>

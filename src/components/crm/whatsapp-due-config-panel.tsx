@@ -485,7 +485,7 @@ export function WhatsappDueConfigPanel({
                           {configs.map((c) => (
                             <CrmSelectItem key={c.id} value={c.id}>
                               {c.label}
-                              <span className="text-[10px] text-muted-foreground">
+                              <span className="text-xs text-muted-foreground">
                                 · {DESTINATION_TYPE_LABELS[c.destination_type]}
                               </span>
                             </CrmSelectItem>
@@ -493,7 +493,7 @@ export function WhatsappDueConfigPanel({
                         </CrmSelectContent>
                       </Select>
                       {active && (
-                        <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
+                        <p className="mt-1.5 truncate text-xs text-muted-foreground">
                           {formatDestination(active.destination, active.destination_type)}
                         </p>
                       )}
@@ -542,14 +542,14 @@ export function WhatsappDueConfigPanel({
                           <Badge variant="secondary">
                             {DESTINATION_TYPE_LABELS[config.destination_type]}
                           </Badge>
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-xs">
                             {USE_CASE_LABELS[config.use_case]}
                           </Badge>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {formatDestination(config.destination, config.destination_type)}
                         </p>
-                        <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/60">
+                        <p className="mt-0.5 font-mono text-xs text-muted-foreground">
                           {config.destination}
                         </p>
                         {config.notes ? (
@@ -611,7 +611,7 @@ export function WhatsappDueConfigPanel({
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-bold text-foreground">Agenda da Evolution API</p>
                     {instanceName && (
-                      <Badge variant="outline" className="font-mono text-[10px]">
+                      <Badge variant="outline" className="font-mono text-xs">
                         {instanceName}
                       </Badge>
                     )}
@@ -675,7 +675,7 @@ export function WhatsappDueConfigPanel({
                             <p className="truncate text-xs font-medium text-foreground">
                               {contact.label}
                             </p>
-                            <p className="truncate text-[11px] text-muted-foreground">
+                            <p className="truncate text-xs text-muted-foreground">
                               {formatDestination(contact.id, "number")}
                             </p>
                           </div>
@@ -732,7 +732,7 @@ export function WhatsappDueConfigPanel({
                             <p className="truncate text-xs font-medium text-foreground">
                               {group.label}
                             </p>
-                            <p className="truncate font-mono text-[11px] text-muted-foreground">
+                            <p className="truncate font-mono text-xs text-muted-foreground">
                               {formatDestination(group.id, "group")}
                             </p>
                           </div>
@@ -873,7 +873,7 @@ export function WhatsappDueConfigPanel({
                     className="font-mono text-xs"
                   />
                   {modalForm?.destination && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Exibição:{" "}
                       <span className="font-medium text-foreground">
                         {formatDestination(

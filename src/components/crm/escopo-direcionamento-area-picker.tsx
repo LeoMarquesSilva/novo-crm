@@ -64,7 +64,7 @@ export function EscopoDirecionamentoAreaPicker({
       >
         <AreaIconLabel area={area} size="md" className="min-w-0 flex-1" />
         {selected && selectedIds.length > 0 ? (
-          <span className="shrink-0 rounded-full bg-[#24615b]/10 px-2 py-0.5 text-[10px] font-bold text-[#24615b]">
+          <span className="shrink-0 rounded-full bg-[#24615b]/10 px-2 py-0.5 text-xs font-bold text-[#24615b]">
             {selectedIds.length} tipo{selectedIds.length !== 1 ? "s" : ""}
           </span>
         ) : null}
@@ -87,10 +87,10 @@ export function EscopoDirecionamentoAreaPicker({
             <Compass className="mt-0.5 size-4 shrink-0 text-[#24615b]" aria-hidden />
             <div className="min-w-0 flex-1 space-y-3">
               <div>
-                <Label className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#24615b]">
+                <Label className="text-xs font-bold uppercase tracking-[0.12em] text-[#24615b]">
                   Tipos de escopo (múltipla escolha)
                 </Label>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
                   Toque para marcar ou desmarcar. Quem elaborar a proposta verá um escopo por tipo
                   selecionado.
                 </p>
@@ -135,12 +135,12 @@ export function EscopoDirecionamentoAreaPicker({
               </div>
 
               {selectedLabels.length > 0 ? (
-                <p className="text-[11px] text-slate-500">
+                <p className="text-xs text-slate-500">
                   <span className="font-semibold text-[#24615b]">Selecionados:</span>{" "}
                   {selectedLabels.join(" · ")}
                 </p>
               ) : (
-                <p className="text-[11px] font-medium text-amber-800/90">
+                <p className="text-xs font-medium text-amber-800/90">
                   Selecione pelo menos um tipo para esta área.
                 </p>
               )}

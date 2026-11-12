@@ -84,7 +84,7 @@ function DwellStageTooltipBody({ item }: { item: Oportunidade }) {
           <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span
               className={cn(
-                "inline-flex rounded-(--radius-v2-sm) px-2 py-0.5 text-[11px] font-semibold tracking-tight",
+                "inline-flex rounded-(--radius-v2-sm) px-2 py-0.5 text-xs font-semibold tracking-tight",
                 STATUS_BADGE[status],
               )}
             >
@@ -138,7 +138,7 @@ export function DaysInStagePanel({ item, className, compact }: DaysInStagePanelP
           <span
             className={cn(
               "font-semibold tabular-nums tracking-tight text-muted-foreground",
-              compact ? "text-[10px]" : "text-[11px]",
+              compact ? "text-xs" : "text-xs",
             )}
           >
             {token}

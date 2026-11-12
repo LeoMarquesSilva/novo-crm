@@ -268,7 +268,7 @@ function FieldRow({ field }: { field: PropostaDocumentTemplateField }) {
     <div className="grid gap-3 border-b border-neutral-100 px-4 py-3 text-sm last:border-b-0 md:grid-cols-[minmax(0,1fr)_8rem_7rem_6rem] md:items-center">
       <div className="min-w-0">
         <p className="truncate font-semibold text-foreground">{field.label}</p>
-        <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{field.fieldCode}</p>
+        <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{field.fieldCode}</p>
       </div>
       <div className="flex items-center justify-between gap-3 md:block">
         <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground md:hidden">Tipo</span>

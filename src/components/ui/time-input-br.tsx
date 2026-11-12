@@ -189,7 +189,7 @@ export function TimeInputBr({
                           setOpen(false);
                         }}
                         className={cn(
-                          "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                          "rounded-full border px-2 py-0.5 text-xs transition-colors",
                           hm === (norm || t)
                             ? "border-interactive-300 bg-accent text-accent-foreground"
                             : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",

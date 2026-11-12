@@ -71,7 +71,7 @@ export function ModalHeader({
       <div className="space-y-5 lg:pr-14">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-2">
-            <div className="inline-flex items-center rounded-full border border-border bg-surface-subtle px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <div className="inline-flex items-center rounded-full border border-border bg-surface-subtle px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               {badge}
             </div>
             <h2 className="max-w-2xl text-2xl font-bold tracking-tight text-foreground">
@@ -118,7 +118,7 @@ export function ModalHeader({
                 >
                   <span
                     className={cn(
-                      "flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold",
+                      "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
                       step.active
                         ? "border-interactive-300 bg-interactive-600 text-white"
                         : step.done
@@ -130,7 +130,7 @@ export function ModalHeader({
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-xs font-semibold">{step.label}</span>
-                    <span className={cn("block text-[10px]", step.active ? "text-muted-foreground" : "text-current/70")}>
+                    <span className={cn("block text-xs", step.active ? "text-muted-foreground" : "text-current/70")}>
                       {step.done ? "Concluído" : step.active ? "Atual" : "Pendente"}
                     </span>
                   </span>

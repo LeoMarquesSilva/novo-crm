@@ -281,7 +281,7 @@ function PlaceholderField({
         />
       )}
       {horasPreview ? (
-        <p className="text-[11px] leading-relaxed text-slate-500">
+        <p className="text-xs leading-relaxed text-slate-500">
           Na proposta: <span className="font-semibold text-interactive-700">{horasPreview}</span>
         </p>
       ) : null}

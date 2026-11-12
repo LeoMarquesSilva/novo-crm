@@ -30,7 +30,7 @@ export function PipelineKanbanRefreshIndicator({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums transition-all duration-300",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums transition-all duration-300",
         justRefreshed
           ? "bg-success-bg text-success-text"
           : "text-muted-foreground",

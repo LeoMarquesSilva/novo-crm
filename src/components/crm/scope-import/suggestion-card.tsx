@@ -229,7 +229,7 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
     <article className="rounded-(--radius-v2-xl) border border-neutral-200 bg-white p-4">
       <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             {isScope ? "Escopo" : "Investimento"}
             {draft.area_key ? ` · ${draft.area_key}` : ""}
             {showBatchLabel ? ` · lote ${draft.batch_id.slice(0, 8)}` : ""}
@@ -301,7 +301,7 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
         </div>
 
         <div className="space-y-3 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Preview</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Preview</p>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{preview}</p>
         </div>
       </div>
@@ -311,7 +311,7 @@ export function SuggestionCard({ suggestion, catalog, showBatchLabel = false, on
           <p className="text-xs font-bold text-foreground">Semelhantes no catálogo</p>
           <div className="flex flex-wrap gap-2">
             {draft.similar_existing.map((item) => (
-              <Badge key={item.id} variant="outline" className="text-[10px]">
+              <Badge key={item.id} variant="outline" className="text-xs">
                 {item.label} ({Math.round(item.score * 100)}%)
               </Badge>
             ))}

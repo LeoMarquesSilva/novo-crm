@@ -68,7 +68,7 @@ export function TemplatePlaceholderInsertBar({ kind, disabled, onInsert }: Props
               size="sm"
               variant="outline"
               disabled={disabled}
-              className="h-7 gap-1 px-2 text-[11px] font-semibold text-foreground"
+              className="h-7 gap-1 px-2 text-xs font-semibold text-foreground"
             >
               <Braces className="size-3 shrink-0" aria-hidden />
               Inserir variável
@@ -108,7 +108,7 @@ export function TemplatePlaceholderInsertBar({ kind, disabled, onInsert }: Props
                       onClick={() => pick(opt.key)}
                     >
                       <span className="text-xs font-semibold text-foreground">{opt.label}</span>
-                      <span className="font-mono text-[10px] text-muted-foreground">
+                      <span className="font-mono text-xs text-muted-foreground">
                         {formatPropostaPlaceholderToken(opt.key)}
                       </span>
                     </button>
@@ -128,7 +128,7 @@ export function TemplatePlaceholderInsertBar({ kind, disabled, onInsert }: Props
             onClick={() => onInsert(opt.key)}
             className={cn(
               "inline-flex max-w-[9rem] items-center rounded-(--radius-v2-full) border border-neutral-200 bg-white px-2 py-0.5",
-              "text-[10px] font-semibold text-foreground transition-colors hover:border-interactive-300 hover:bg-interactive-50",
+              "text-xs font-semibold text-foreground transition-colors hover:border-interactive-300 hover:bg-interactive-50",
               "disabled:pointer-events-none disabled:opacity-50",
             )}
           >
@@ -136,7 +136,7 @@ export function TemplatePlaceholderInsertBar({ kind, disabled, onInsert }: Props
           </button>
         ))}
       </div>
-      <p className="text-[10px] leading-relaxed text-muted-foreground">
+      <p className="text-xs leading-relaxed text-muted-foreground">
         Clique para inserir no cursor do texto. O comercial preenche o valor ao montar a proposta.
       </p>
     </div>

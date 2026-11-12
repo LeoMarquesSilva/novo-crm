@@ -180,7 +180,7 @@ export function WhatsappTemplatesPanel() {
             <AlertTitle>Edição indisponível até aplicar a migration</AlertTitle>
             <AlertDescription>
               Os textos abaixo são os padrões e continuam valendo. Para salvar alterações, aplique a migration
-              <code className="mx-1 font-mono text-[11px]">20261022130000_whatsapp_message_templates</code>
+              <code className="mx-1 font-mono text-xs">20261022130000_whatsapp_message_templates</code>
               no banco.
             </AlertDescription>
           </Alert>
@@ -209,11 +209,11 @@ export function WhatsappTemplatesPanel() {
                 >
                   <span className="min-w-0 truncate">{template.label}</span>
                   {!template.enabled ? (
-                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                    <Badge variant="outline" className="shrink-0 text-xs">
                       Desligada
                     </Badge>
                   ) : template.fromDatabase ? (
-                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                    <Badge variant="outline" className="shrink-0 text-xs">
                       Editada
                     </Badge>
                   ) : null}
@@ -258,7 +258,7 @@ export function WhatsappTemplatesPanel() {
                       className="min-h-[280px] font-mono text-xs leading-relaxed"
                     />
                     <div className="space-y-1.5">
-                      <p className="text-[11px] font-semibold text-muted-foreground">Campos (clique para inserir)</p>
+                      <p className="text-xs font-semibold text-muted-foreground">Campos (clique para inserir)</p>
                       <div className="flex flex-wrap gap-1.5">
                         {selected.placeholders.map((p) => (
                           <button
@@ -267,7 +267,7 @@ export function WhatsappTemplatesPanel() {
                             title={p.description}
                             onClick={() => insertPlaceholder(p.name)}
                             disabled={busy || tableMissing}
-                            className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 font-mono text-[11px] text-foreground hover:bg-muted disabled:opacity-50"
+                            className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 font-mono text-xs text-foreground hover:bg-muted disabled:opacity-50"
                           >
                             {`{{${p.name}}}`}
                           </button>

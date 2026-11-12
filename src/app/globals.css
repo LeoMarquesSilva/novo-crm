@@ -304,6 +304,15 @@
   html {
     @apply font-sans;
   }
+  /*
+   * Foco visível único (§27.2, 12/11/2026): botões, links e abas sem estilo próprio caíam no
+   * contorno padrão do navegador, diferente de cada lugar. `:where` não pesa na especificidade,
+   * então componentes com foco próprio (Button, Input, Select) continuam mandando.
+   */
+  :where(button, a[href], summary, [role="button"], [role="tab"], [role="option"]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
 
 @layer utilities {

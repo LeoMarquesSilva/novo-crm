@@ -590,7 +590,7 @@ function TabButton({
       {label}
       <span
         className={cn(
-          "min-w-[1.25rem] rounded-(--radius-v2-full) px-1.5 py-0.5 text-center text-[10px] font-black tabular-nums",
+          "min-w-[1.25rem] rounded-(--radius-v2-full) px-1.5 py-0.5 text-center text-xs font-black tabular-nums",
           active ? "bg-white/20 text-white" : "bg-neutral-100 text-foreground",
         )}
       >

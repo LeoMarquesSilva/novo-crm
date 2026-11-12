@@ -421,7 +421,7 @@ export function ClauseTemplatesAdminPanel({
               ))}
             </div>
           )}
-          <p className="bg-neutral-50 px-4 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="bg-neutral-50 px-4 py-2.5 text-xs leading-relaxed text-muted-foreground">
             Também existem {focusAreaWideCount} cláusula{focusAreaWideCount !== 1 ? "s" : ""} ativa
             {focusAreaWideCount !== 1 ? "s" : ""} da área {focusSubtype.areaKey} e{" "}
             {focusTransversalCount} transversa{focusTransversalCount !== 1 ? "is" : "l"} —
@@ -544,7 +544,7 @@ export function ClauseTemplatesAdminPanel({
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, scopeKind: kind }))}
                     className={cn(
-                      "rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors",
+                      "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
                       form.scopeKind === kind
                         ? "border-brand-navy bg-brand-navy text-white"
                         : "border-neutral-200 bg-white text-muted-foreground hover:bg-neutral-50",
@@ -632,7 +632,7 @@ export function ClauseTemplatesAdminPanel({
                   ))}
                 </CrmSelectContent>
               </Select>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Define onde a cláusula entra no contrato gerado (ex.: Objeto, Exclusão, Vigência).
               </p>
             </div>
@@ -645,7 +645,7 @@ export function ClauseTemplatesAdminPanel({
                 placeholder="Ex: PADRÃO BP, Foro, Sigilo…"
                 className="h-10 text-sm"
               />
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Sub-agrupamento livre dentro da abrangência escolhida acima.
               </p>
             </div>
@@ -672,10 +672,10 @@ export function ClauseTemplatesAdminPanel({
                   onChange={(e) => setForm((f) => ({ ...f, sort_order: parseInt(e.target.value) || 0 }))}
                   className="h-10 w-24 text-center text-sm tabular-nums"
                 />
-                <p className="text-[10px] text-muted-foreground">Menor = primeiro</p>
+                <p className="text-xs text-muted-foreground">Menor = primeiro</p>
               </div>
 
-              <label className="mb-0.5 inline-flex cursor-pointer items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-[11px] font-semibold text-foreground transition-colors hover:bg-neutral-50">
+              <label className="mb-0.5 inline-flex cursor-pointer items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-neutral-50">
                 <input
                   type="checkbox"
                   checked={form.is_active}
@@ -784,7 +784,7 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
           {!clause.is_active ? (
             <Badge
               variant="outline"
-              className="h-5 rounded-full border-neutral-200 px-1.5 text-[9px] font-bold uppercase text-muted-foreground"
+              className="h-5 rounded-full border-neutral-200 px-1.5 text-xs font-bold uppercase text-muted-foreground"
             >
               Inativa
             </Badge>
@@ -792,7 +792,7 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
           {clause.status ? (
             <Badge
               variant="outline"
-              className={cn("h-5 rounded-full px-1.5 text-[9px] font-bold uppercase", statusBadgeClass(clause.status))}
+              className={cn("h-5 rounded-full px-1.5 text-xs font-bold uppercase", statusBadgeClass(clause.status))}
             >
               {STATUS_LABELS[clause.status] ?? clause.status}
             </Badge>
@@ -800,7 +800,7 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
           {clause.role ? (
             <Badge
               variant="outline"
-              className="h-5 rounded-full border-neutral-200 px-1.5 text-[9px] font-bold uppercase text-muted-foreground"
+              className="h-5 rounded-full border-neutral-200 px-1.5 text-xs font-bold uppercase text-muted-foreground"
             >
               {ROLE_LABELS[clause.role] ?? clause.role}
             </Badge>
@@ -808,20 +808,20 @@ function ClauseListItem({ clause, onEdit, onDelete, onToggle }: { clause: Clause
           {clause.is_required ? (
             <Badge
               variant="outline"
-              className="h-5 rounded-full border-info-border bg-info-bg px-1.5 text-[9px] font-bold uppercase text-info-text"
+              className="h-5 rounded-full border-info-border bg-info-bg px-1.5 text-xs font-bold uppercase text-info-text"
             >
               Obrigatória
             </Badge>
           ) : null}
           <Badge
             variant="outline"
-            className="h-5 rounded-full border-neutral-200 px-1.5 text-[9px] font-bold uppercase text-muted-foreground"
+            className="h-5 rounded-full border-neutral-200 px-1.5 text-xs font-bold uppercase text-muted-foreground"
           >
             {categoryLabel(clause.category)}
           </Badge>
         </div>
         {clause.stable_key ? (
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground/80">{clause.stable_key}</p>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">{clause.stable_key}</p>
         ) : null}
         {clause.content ? (
           <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{clause.content}</p>
@@ -937,7 +937,7 @@ function AreaSection({
         <div className="space-y-3 border-t border-neutral-200 bg-neutral-50 px-5 py-4">
           {area.types.map((type) => (
             <div key={type.typeKey} className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
                 {type.typeLabel}
               </p>
               {type.subtypes.map((subtype) => (
@@ -953,10 +953,10 @@ function AreaSection({
           {area.areaWideClauses.length > 0 ? (
             <div className="overflow-hidden rounded-(--radius-v2-xl) border border-neutral-200 bg-white">
               <div className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50 px-4 py-2">
-                <p className="text-[11px] font-bold text-muted-foreground">
+                <p className="text-xs font-bold text-muted-foreground">
                   Cláusulas da área inteira (sem subtipo específico)
                 </p>
-                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold tabular-nums text-muted-foreground">
+                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-bold tabular-nums text-muted-foreground">
                   {area.areaWideClauses.length}
                 </span>
               </div>
@@ -987,23 +987,23 @@ function SubtypeCard({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 px-4 py-2.5">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">{subtype.subtypeLabel}</p>
-          <p className="font-mono text-[10px] text-muted-foreground/80">{subtype.subtypeKey}</p>
+          <p className="font-mono text-xs text-muted-foreground">{subtype.subtypeKey}</p>
         </div>
         <div className="flex items-center gap-1.5">
           {subtype.profile ? (
             <>
               <Badge
                 variant="outline"
-                className={cn("h-5 rounded-full px-1.5 text-[9px] font-bold uppercase", statusBadgeClass(subtype.profile.status))}
+                className={cn("h-5 rounded-full px-1.5 text-xs font-bold uppercase", statusBadgeClass(subtype.profile.status))}
               >
                 {STATUS_LABELS[subtype.profile.status] ?? subtype.profile.status}
               </Badge>
-              <span className="text-[10px] text-muted-foreground">{subtype.profile.instrumentType}</span>
+              <span className="text-xs text-muted-foreground">{subtype.profile.instrumentType}</span>
             </>
           ) : (
             <Badge
               variant="outline"
-              className="h-5 gap-1 rounded-full border-warning-border bg-warning-bg px-1.5 text-[9px] font-bold uppercase text-warning-text"
+              className="h-5 gap-1 rounded-full border-warning-border bg-warning-bg px-1.5 text-xs font-bold uppercase text-warning-text"
             >
               <AlertCircle className="size-2.5" aria-hidden />
               Sem perfil de contrato
@@ -1013,7 +1013,7 @@ function SubtypeCard({
             type="button"
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 px-2 text-[11px] font-semibold text-muted-foreground hover:bg-neutral-100 hover:text-foreground"
+            className="h-7 gap-1 px-2 text-xs font-semibold text-muted-foreground hover:bg-neutral-100 hover:text-foreground"
             onClick={onAdd}
           >
             <Plus className="size-3" aria-hidden />
@@ -1027,12 +1027,12 @@ function SubtypeCard({
           <button
             type="button"
             onClick={() => setObjectOpen((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-[11px] font-semibold text-muted-foreground hover:bg-neutral-50"
+            className="flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-xs font-semibold text-muted-foreground hover:bg-neutral-50"
           >
             <span>Modelos de Objeto ({subtype.objectTemplates.length}) — somente leitura</span>
             <ChevronDown className={cn("size-3.5 transition-transform", objectOpen && "rotate-180")} aria-hidden />
           </button>
-          <p className="border-t border-dashed border-warning-border bg-warning-bg px-4 py-2 text-[10px] leading-relaxed text-warning-text">
+          <p className="border-t border-dashed border-warning-border bg-warning-bg px-4 py-2 text-xs leading-relaxed text-warning-text">
             Estes modelos têm prioridade sobre cláusulas de Objeto/Escopo/Limites/Natureza deste
             subtipo: editar uma cláusula desses papéis abaixo não muda o contrato gerado enquanto
             este motor de Objeto cobrir o subtipo. Só Exclusão, Pagamento e Cláusulas
@@ -1043,7 +1043,7 @@ function SubtypeCard({
               {subtype.objectTemplates.map((template) => (
                 <div key={template.stableKey} className="rounded-(--radius-v2-md) border border-neutral-200 bg-white px-3 py-2">
                   <p className="text-xs font-semibold text-foreground">{template.title}</p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{template.content}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{template.content}</p>
                 </div>
               ))}
             </div>
@@ -1091,9 +1091,9 @@ function SectionHeader({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-extrabold text-foreground">{title}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
         </div>
-        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
+        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-bold tabular-nums text-muted-foreground">
           {count}
         </span>
         <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
@@ -1103,7 +1103,7 @@ function SectionHeader({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 gap-1.5 text-[11px] font-semibold"
+          className="h-8 gap-1.5 text-xs font-semibold"
           onClick={onAdd}
         >
           <Plus className="size-3" aria-hidden />

@@ -89,7 +89,7 @@ export function KanbanPanelShell({
   return (
     <div
       className={cn(
-        "mt-2 overflow-hidden rounded-(--radius-v2-xl) border text-[10px]",
+        "mt-2 overflow-hidden rounded-(--radius-v2-xl) border text-xs",
         styles.shell,
         className,
       )}
@@ -109,15 +109,15 @@ export function KanbanPanelShell({
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold tracking-tight text-foreground">{title}</p>
+                <p className="text-xs font-semibold tracking-tight text-foreground">{title}</p>
                 {subtitle ? (
-                  <p className="mt-0.5 text-[9px] font-medium text-muted-foreground">{subtitle}</p>
+                  <p className="mt-0.5 text-xs font-medium text-muted-foreground">{subtitle}</p>
                 ) : null}
               </div>
               {badge ? (
                 <span
                   className={cn(
-                    "shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold tabular-nums",
+                    "shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums",
                     styles.badge,
                   )}
                 >
@@ -167,7 +167,7 @@ export function KanbanPanelDetails({
     >
       <summary
         className={cn(
-          "flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground outline-none transition-colors [&::-webkit-details-marker]:hidden",
+          "flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors [&::-webkit-details-marker]:hidden",
           styles.summaryHover,
         )}
       >
@@ -193,10 +193,10 @@ export function KanbanPanelInfoRow({ icon, label, value, muted }: KanbanPanelInf
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
         <p
           className={cn(
-            "truncate text-[11px] font-semibold leading-tight",
+            "truncate text-xs font-semibold leading-tight",
             muted ? "text-muted-foreground" : "text-foreground",
           )}
         >
@@ -227,7 +227,7 @@ export function KanbanAreaRow({
   return (
     <li
       className={cn(
-        "flex items-start gap-2 rounded-(--radius-v2-lg) border px-2 py-1.5 text-[10px] font-medium leading-snug",
+        "flex items-start gap-2 rounded-(--radius-v2-lg) border px-2 py-1.5 text-xs font-medium leading-snug",
         done
           ? "border-success-border bg-success-bg text-foreground"
           : tone === "danger"

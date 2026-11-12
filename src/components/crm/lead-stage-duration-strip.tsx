@@ -48,13 +48,13 @@ export function LeadStageDurationStrip({
               item.stage === advanceStage && typeof onAdvance === "function";
             const content = (
               <>
-                <span className="truncate text-[11px] font-semibold leading-tight">
+                <span className="truncate text-xs font-semibold leading-tight">
                   {item.title}
                 </span>
                 <span
                   className={cn(
-                    "mt-0.5 inline-flex items-center gap-1 truncate text-[10px] font-medium tabular-nums",
-                    item.isCurrent ? "text-white/80" : "text-muted-foreground",
+                    "mt-0.5 inline-flex items-center gap-1 truncate text-xs font-medium tabular-nums",
+                    item.isCurrent ? "text-white" : "text-muted-foreground",
                     isAdvanceTarget && "text-interactive-700",
                   )}
                 >
