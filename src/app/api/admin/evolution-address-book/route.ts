@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/auth/server";
-import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
+import {
+  createEvolutionConnectorFromEnv,
+  evolutionConfigFromEnv,
+} from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 
 type EvolutionDestinationItem = {
   id: string;
@@ -56,17 +59,8 @@ export async function GET() {
     const auth = await requireAdminApi();
     if (!auth.ok) return auth.response;
 
-    const baseUrl =
-      process.env.EVOLUTION_API_URL ??
-      process.env.EVOLUTION_API_BASE_URL ??
-      "";
-    const apiKey = process.env.EVOLUTION_API_KEY ?? "";
-    const instance =
-      process.env.EVOLUTION_INSTANCE ??
-      process.env.EVOLUTION_INSTANCE_NAME ??
-      "BP";
-
-    const connector = new EvolutionWhatsappConnector(baseUrl, apiKey, instance);
+    const { instance } = evolutionConfigFromEnv();
+    const connector = createEvolutionConnectorFromEnv();
     const [contactsResult, groupsResult] = await Promise.allSettled([
       connector.listContacts(),
       connector.listGroups(),

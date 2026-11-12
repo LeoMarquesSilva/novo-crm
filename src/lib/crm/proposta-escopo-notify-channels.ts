@@ -1,9 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appUserAreaCandidatesForScopeKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import type { InAppNotificationActor } from "@/lib/crm/in-app-notification-meta";
-import { IntegrationError } from "@/lib/http/api-errors";
 import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
-import { applyWhatsappRedirect } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
+import {
+  createEvolutionConnectorFromEnv,
+  describeWhatsappError,
+} from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
+import { findActiveDueWhatsappDestination } from "@/lib/crm/due-area-tasks";
 import { buildEscopoPedidoValues, type EscopoPedidoArea } from "@/lib/crm/whatsapp/due-messages";
 import { claimWhatsappSend, markWhatsappSendFailed, withOneWhatsappRetry } from "@/lib/crm/whatsapp/send-log";
 import { buildWhatsappMessage } from "@/lib/crm/whatsapp/template-store";
@@ -38,29 +41,31 @@ async function sendResendEmail(to: string, subject: string, html: string): Promi
   return res.ok;
 }
 
-async function sendEvolutionGroupText(text: string): Promise<boolean> {
-  const base = (
-    process.env.EVOLUTION_API_BASE_URL ?? process.env.EVOLUTION_API_URL
-  )?.replace(/\/$/, "");
-  const apiKey = process.env.EVOLUTION_API_KEY;
-  const instance =
-    process.env.EVOLUTION_INSTANCE_NAME ?? process.env.EVOLUTION_INSTANCE;
-  const groupJid = process.env.EVOLUTION_GROUP_JID;
-  if (!base || !apiKey || !instance || !groupJid) return false;
-  const url = `${base}/message/sendText/${encodeURIComponent(instance)}`;
-  const message = applyWhatsappRedirect(groupJid, text);
-  // 5xx da Evolution ou queda de rede: uma nova tentativa imediata.
-  return withOneWhatsappRetry(async () => {
-    const res = await fetchWithTimeout(url, {
-      method: "POST",
-      headers: { apikey: apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ number: message.destination, text: message.text }),
-    });
-    if (res.status >= 500) {
-      throw new IntegrationError("evolution", "Evolution API indisponível.", `HTTP ${res.status}`, res.status);
-    }
-    return res.ok;
-  });
+/**
+ * Pedido de escopo no WhatsApp: vai para `EVOLUTION_GROUP_JID` quando existe; senão para o mesmo destino ativo
+ * dos avisos da DUE (Integrações → WhatsApp). Antes exigia a variável, que não existe em nenhum ambiente, e o
+ * envio falhava sempre (11/11/2026). Devolve o motivo quando não sai.
+ */
+async function sendEscopoWhatsappText(
+  supabase: SupabaseClient,
+  text: string,
+): Promise<{ ok: boolean; erro: string | null }> {
+  let destination = process.env.EVOLUTION_GROUP_JID?.trim() || null;
+  if (!destination) {
+    const found = await findActiveDueWhatsappDestination(supabase);
+    if (!found.destination) return { ok: false, erro: found.erro };
+    destination = found.destination;
+  }
+  try {
+    const connector = createEvolutionConnectorFromEnv();
+    // 5xx da Evolution ou queda de rede: uma nova tentativa imediata.
+    await withOneWhatsappRetry(() => connector.sendText({ destination, text }));
+    return { ok: true, erro: null };
+  } catch (error) {
+    const motivo = describeWhatsappError(error);
+    console.warn("[whatsapp] pedido de escopo falhou:", motivo);
+    return { ok: false, erro: motivo };
+  }
 }
 
 /**
@@ -225,14 +230,9 @@ export async function dispatchPropostaEscopoChannelNotifications(
     text,
   };
   if (!(await claimWhatsappSend(supabase, sendLog))) return;
-  let waOk = false;
-  try {
-    waOk = await sendEvolutionGroupText(text);
-  } catch {
-    waOk = false;
-  }
-  if (!waOk) {
-    await markWhatsappSendFailed(supabase, sendLog);
+  const wa = await sendEscopoWhatsappText(supabase, text);
+  if (!wa.ok) {
+    await markWhatsappSendFailed(supabase, { ...sendLog, erro: wa.erro });
     return;
   }
   await supabase

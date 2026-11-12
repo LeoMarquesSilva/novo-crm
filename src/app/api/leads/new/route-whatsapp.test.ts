@@ -14,6 +14,7 @@ vi.mock("@/modules/crm/infrastructure/integrations/evolution-whatsapp", () => ({
   EvolutionWhatsappConnector: vi.fn(function EvolutionWhatsappConnectorFake() {
     return { sendText };
   }),
+  createEvolutionConnectorFromEnv: vi.fn(() => ({ sendText })),
 }));
 vi.mock("@/modules/crm/infrastructure/integrations/sharepoint-graph", () => ({
   SharePointGraphClient: { fromEnv: vi.fn(() => ({ createListItem })) },

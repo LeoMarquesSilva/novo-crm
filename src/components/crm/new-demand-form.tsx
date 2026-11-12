@@ -498,6 +498,35 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
   const isIndicacaoColaborador = tipoLead === "Indicacao" && tipoIndicacao === "Colaborador";
   const nomeIndicacaoColaboradorNome =
     orqestraiCollaborators.find((user) => user.id === nomeIndicacaoColaboradorId)?.name ?? "";
+
+  /** Tipo e nome da indicação voltam ao zero (origem trocada para outra que não Indicação). */
+  function limparIndicacao() {
+    setTipoIndicacao("");
+    setNomeIndicacaoMode("existing");
+    setNomeIndicacaoExisting("");
+    setNomeIndicacaoNew("");
+    setNomeIndicacaoColaboradorId("");
+  }
+
+  /**
+   * Troca do tipo de indicação. "Colaborador" escolhe uma pessoa do quadro; os outros tipos, um nome da base de
+   * indicadores. Entre os dois grupos o nome não serve mais e é limpo. Antes, sair de Colaborador trazia de volta
+   * o nome escolhido lá atrás (outro tipo) e o lead podia ser criado com uma indicação que ninguém escolheu agora
+   * (bug do teste de 11/11/2026). Entre tipos da base (Fundo → Cliente) o nome fica.
+   */
+  function changeTipoIndicacao(next: string) {
+    if (next === tipoIndicacao) return;
+    const eraColaborador = tipoIndicacao === "Colaborador";
+    const viraColaborador = next === "Colaborador";
+    setTipoIndicacao(next);
+    if (eraColaborador || viraColaborador) {
+      setNomeIndicacaoMode(viraColaborador ? "colaborador" : "existing");
+      setNomeIndicacaoExisting("");
+      setNomeIndicacaoNew("");
+      setNomeIndicacaoColaboradorId("");
+    }
+  }
+
   const reuniaoMinDate = useMemo(() => {
     if (dueDiligence !== "Sim" || !prazoDue) return "";
     const minDate = new Date(`${prazoDue}T00:00:00`);
@@ -588,16 +617,41 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     if (match) setSolicitanteUserId(currentUser.id);
   }, [currentUser, solicitanteUserId, systemUsers]);
 
+  /** Já tem algo digitado: fechar pede confirmação (antes fechava e perdia tudo sem avisar). */
+  const temDadosDigitados =
+    Boolean(tipoIndicacao || plataforma || aditivoClientId || areasCrossSelling.length) ||
+    Boolean(nomeIndicacaoExisting || nomeIndicacaoNew.trim() || nomeIndicacaoColaboradorId) ||
+    Boolean(decisor.trim() || decisorTelefone.trim() || decisorEmail.trim()) ||
+    empresas.some((item) => item.razao_social.trim() || item.documento.trim()) ||
+    areasAnalise.length > 0 ||
+    Boolean(prazoDue || dataReuniao || localReuniao.trim());
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+
+  function requestClose() {
+    // Com uma confirmação aberta, o Esc é dela (fecha só a confirmação).
+    if (!onRequestClose || isSaving || confirmOpen || confirmDiscardOpen) return;
+    if (temDadosDigitados) {
+      setConfirmDiscardOpen(true);
+      return;
+    }
+    onRequestClose();
+  }
+  const requestCloseRef = useRef(requestClose);
+  requestCloseRef.current = requestClose;
+
   useEffect(() => {
     if (!onRequestClose) return;
+    // Captura: decide antes da lista aberta se fechar. Na fase de bolha a lista já tinha sumido do DOM e o Esc
+    // que só devia fechar a lista (tipo de indicação, tipo do documento…) fechava o cadastro inteiro (11/11/2026).
     function onKeyDown(event: KeyboardEvent) {
+      // Sem olhar `defaultPrevented`: o diálogo da página cancela o próprio Esc e marcaria o evento.
       if (event.key !== "Escape") return;
       if (document.querySelector("[data-new-lead-picker-panel]")) return;
       if (document.querySelector('[data-slot="select-content"][data-open]')) return;
-      onRequestClose?.();
+      requestCloseRef.current();
     }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [onRequestClose]);
 
   useEffect(() => {
@@ -901,6 +955,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     setNomeIndicacaoMode("existing");
     setNomeIndicacaoExisting("");
     setNomeIndicacaoNew("");
+    setNomeIndicacaoColaboradorId("");
     setTipoIndicacaoOpen(false);
     setCompanyTypeOpenIndex(null);
     setCurrentStepIndex(0);
@@ -1420,7 +1475,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
           available: step.available,
         }))}
         onSelectStep={(stepId) => selectWizardStep(stepId as WizardStepId)}
-        onRequestClose={onRequestClose}
+        onRequestClose={onRequestClose ? requestClose : undefined}
         closeLabel="Fechar cadastro"
       />
 
@@ -1470,6 +1525,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                       setTipoLead(item);
                       // Outra origem abre outros campos: não herdar os erros da tentativa anterior.
                       setValidatedStep(null);
+                      if (item !== "Indicacao") limparIndicacao();
                       if (item !== "Lead Digital") setPlataforma("");
                       if (item !== "Cross Selling") {
                         // Saindo do cross selling: cliente, empresa que veio dele e áreas não ficam para trás.
@@ -1517,16 +1573,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
                         modal={false}
                         items={INDICATION_TYPE_SELECT_ITEMS}
                         value={tipoIndicacao}
-                        onValueChange={(v) => {
-                          const next = v ?? "";
-                          setTipoIndicacao(next);
-                          if (next === "Colaborador") {
-                            setNomeIndicacaoMode("colaborador");
-                          } else if (nomeIndicacaoMode === "colaborador") {
-                            setNomeIndicacaoMode("existing");
-                            setNomeIndicacaoColaboradorId("");
-                          }
-                        }}
+                        onValueChange={(v) => changeTipoIndicacao(v ?? "")}
                       >
                         <SelectTrigger
                           {...controlProps("tipoIndicacao")}
@@ -2386,7 +2433,7 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               variant="ghost"
               className="hidden sm:inline-flex"
               disabled={isSaving}
-              onClick={onRequestClose}
+              onClick={requestClose}
             >
               Cancelar
             </Button>
@@ -2459,6 +2506,32 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
               }}
             >
               {isSaving ? "Enviando..." : "Confirmar envio"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar o cadastro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O que você preencheu neste lead será perdido. Para continuar de onde parou, escolha Voltar ao cadastro.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:space-x-0">
+            <AlertDialogCancel type="button" className="mt-0">
+              Voltar ao cadastro
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setConfirmDiscardOpen(false);
+                onRequestClose?.();
+              }}
+            >
+              Descartar
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

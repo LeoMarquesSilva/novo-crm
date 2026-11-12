@@ -4,6 +4,7 @@ import { buildClienteLookupResult } from "@/lib/crm/lookup-cliente-by-document";
 import { digitsOnly, isCnpj, isCpf } from "@/lib/crm/normalize-document";
 import { requireAuthApi } from "@/lib/auth/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { listarClientesDaCarteiraAtiva } from "@/lib/crm/clientes-carteira-ativa";
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,18 +21,23 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createSupabaseAdminClient();
-    const { data: clientes, error: clientesError } = await supabase
-      .from("clientes")
-      .select(
+    // Cliente existente = carteira ativa do escritório (OrquestrAI); lead que nunca virou cliente não conta
+    // e não dispara a pergunta "contrato novo ou aditivo" (12/11/2026).
+    let clientes: Array<ClienteCadastroRow & { grupo_id: string | null }>;
+    try {
+      clientes = await listarClientesDaCarteiraAtiva(
+        supabase,
         "id, razao_social, documento, logradouro, numero, complemento, bairro, cidade, uf, cep, email_principal, telefone_principal",
       );
-
-    if (clientesError) {
-      return NextResponse.json({ ok: false, error: clientesError.message }, { status: 500 });
+    } catch (error) {
+      return NextResponse.json(
+        { ok: false, error: error instanceof Error ? error.message : "Falha ao consultar clientes." },
+        { status: 500 },
+      );
     }
 
     const lookup = buildClienteLookupResult({
-      clientes: (clientes ?? []) as ClienteCadastroRow[],
+      clientes,
       documento,
       contratosByClienteId: new Map(),
     });
@@ -71,7 +77,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = buildClienteLookupResult({
-      clientes: (clientes ?? []) as ClienteCadastroRow[],
+      clientes,
       documento,
       contratosByClienteId,
     });

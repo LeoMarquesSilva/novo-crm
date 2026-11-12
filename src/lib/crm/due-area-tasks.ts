@@ -7,7 +7,10 @@ import {
   isDueReviewApprovedForCycle,
   type DueAreaTaskStatus,
 } from "@/lib/crm/due-area-task-status";
-import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
+import {
+  createEvolutionConnectorFromEnv,
+  describeWhatsappError,
+} from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
 import {
@@ -238,7 +241,10 @@ async function sendResendEmail(to: string, subject: string, html: string): Promi
   return res.ok;
 }
 
-async function sendDueWhatsappText(supabase: SupabaseClient, text: string): Promise<boolean> {
+/** Destino ativo do WhatsApp da DUE (`whatsapp_due_config`, use_case `due_diligence`). */
+export async function findActiveDueWhatsappDestination(
+  supabase: SupabaseClient,
+): Promise<{ destination: string | null; erro: string | null }> {
   const { data: config, error: cfgErr } = await supabase
     .from("whatsapp_due_config")
     .select("destination, is_active")
@@ -247,18 +253,28 @@ async function sendDueWhatsappText(supabase: SupabaseClient, text: string): Prom
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (cfgErr || !config?.destination) return false;
+  if (cfgErr) return { destination: null, erro: `Não foi possível ler o destino do WhatsApp: ${cfgErr.message}` };
+  if (!config?.destination) {
+    return { destination: null, erro: "Nenhum destino de WhatsApp da DUE ativo (Integrações → WhatsApp)." };
+  }
+  return { destination: String(config.destination), erro: null };
+}
+
+async function sendDueWhatsappText(
+  supabase: SupabaseClient,
+  text: string,
+): Promise<{ ok: boolean; erro: string | null }> {
+  const { destination, erro } = await findActiveDueWhatsappDestination(supabase);
+  if (!destination) return { ok: false, erro };
 
   try {
-    const connector = new EvolutionWhatsappConnector(
-      process.env.EVOLUTION_API_URL ?? "",
-      process.env.EVOLUTION_API_KEY ?? "",
-      process.env.EVOLUTION_INSTANCE ?? process.env.EVOLUTION_INSTANCE_NAME ?? "BP",
-    );
-    await withOneWhatsappRetry(() => connector.sendText({ destination: config.destination, text }));
-    return true;
-  } catch {
-    return false;
+    const connector = createEvolutionConnectorFromEnv();
+    await withOneWhatsappRetry(() => connector.sendText({ destination, text }));
+    return { ok: true, erro: null };
+  } catch (error) {
+    const motivo = describeWhatsappError(error);
+    console.warn("[whatsapp] envio da DUE falhou:", motivo);
+    return { ok: false, erro: motivo };
   }
 }
 
@@ -272,8 +288,8 @@ async function sendDueWhatsappOnce(
 ): Promise<boolean> {
   if (!(await claimWhatsappSend(supabase, input))) return false;
   const sent = await sendDueWhatsappText(supabase, input.text);
-  if (!sent) await markWhatsappSendFailed(supabase, input);
-  return sent;
+  if (!sent.ok) await markWhatsappSendFailed(supabase, { ...input, erro: sent.erro });
+  return sent.ok;
 }
 
 export async function findDueAreaResponsibleAppUserId(

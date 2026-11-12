@@ -42,6 +42,55 @@ export function applyWhatsappRedirect(destination: string, text: string): SendTe
   return { destination: redirect, text: `[TESTE · destino original: ${destination}]\n${text}` };
 }
 
+/**
+ * Instância da Evolution do escritório. A produção não tinha `EVOLUTION_INSTANCE` e o código caía em "BP",
+ * instância que não existe: todo WhatsApp da produção falhava (11/11/2026). A variável continua valendo.
+ */
+export const DEFAULT_EVOLUTION_INSTANCE = "COMERCIAL BP";
+
+export function evolutionConfigFromEnv(): { baseUrl: string; apiKey: string; instance: string } {
+  return {
+    baseUrl: (process.env.EVOLUTION_API_URL ?? process.env.EVOLUTION_API_BASE_URL ?? "").trim(),
+    apiKey: (process.env.EVOLUTION_API_KEY ?? "").trim(),
+    instance:
+      (process.env.EVOLUTION_INSTANCE ?? process.env.EVOLUTION_INSTANCE_NAME ?? "").trim() ||
+      DEFAULT_EVOLUTION_INSTANCE,
+  };
+}
+
+/** Conector com a configuração do ambiente (URL, chave e instância). */
+export function createEvolutionConnectorFromEnv(): EvolutionWhatsappConnector {
+  const { baseUrl, apiKey, instance } = evolutionConfigFromEnv();
+  return new EvolutionWhatsappConnector(baseUrl, apiKey, instance);
+}
+
+/** Só o `message` da resposta de erro da Evolution (ex.: `The "BP" instance does not exist`), nunca o corpo todo. */
+function evolutionErrorMessage(detail: string): string {
+  try {
+    const body = JSON.parse(detail) as { message?: unknown; response?: { message?: unknown } };
+    const raw = body.response?.message ?? body.message;
+    const list = Array.isArray(raw) ? raw : [raw];
+    return list
+      .filter((item): item is string => typeof item === "string")
+      .join("; ")
+      .slice(0, 200);
+  } catch {
+    return "";
+  }
+}
+
+/** Texto curto do erro de envio para o histórico do lead. */
+export function describeWhatsappError(error: unknown): string {
+  if (error instanceof IntegrationError) {
+    return [error.publicMessage, evolutionErrorMessage(error.detail)].filter(Boolean).join(" — ").slice(0, 300);
+  }
+  if (error instanceof Error) {
+    if (error.name === "TimeoutError" || error.name === "AbortError") return "Tempo esgotado ao falar com a Evolution.";
+    return error.message.slice(0, 300);
+  }
+  return String(error).slice(0, 300);
+}
+
 export class EvolutionWhatsappConnector {
   constructor(
     private readonly baseUrl: string,

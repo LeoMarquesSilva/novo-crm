@@ -8,6 +8,7 @@ import { normalizeLabelKey } from "@/lib/crm/field-code";
 import { isEmptyOrInvalidDateBrStoredValue } from "@/lib/crm/date-br";
 import { isValidFullNameTokens } from "@/lib/crm/full-name";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
+import { CRM_PRACTICE_AREAS, type CrmPracticeArea } from "@/lib/crm/crm-areas";
 import { getPayloadFieldsRequiredForStage } from "@/modules/crm/domain/workflow-rules";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
@@ -530,4 +531,21 @@ export function applyConfeccaoPropostaDefaults(
   const cur = fieldValues.cp_realizou_due;
   if (typeof cur === "string" && cur.trim() !== "") return fieldValues;
   return { ...fieldValues, cp_realizou_due: "Nao" };
+}
+
+/**
+ * Reunião → Elaboração da Proposta: o escopo já vem com as áreas de análise do cadastro do lead marcadas
+ * (`lead_intakes.areas_analise`), como o documento de etapas promete; antes vinha tudo desmarcado (teste de
+ * 11/11/2026). Só preenche quando ainda não há área escolhida e só com áreas do catálogo.
+ */
+export function prefillAreasObjetoFromCadastro(fieldValues: FormValues, areasCadastro: unknown): FormValues {
+  const cur = fieldValues.cp_areas_objeto;
+  const vazio =
+    cur == null || (typeof cur === "string" && cur.trim() === "") || (Array.isArray(cur) && cur.length === 0);
+  if (!vazio) return fieldValues;
+  const lista = (Array.isArray(areasCadastro) ? areasCadastro : [])
+    .map((area) => String(area).trim())
+    .filter((area): area is CrmPracticeArea => (CRM_PRACTICE_AREAS as readonly string[]).includes(area));
+  if (lista.length === 0) return fieldValues;
+  return { ...fieldValues, cp_areas_objeto: [...new Set(lista)] };
 }

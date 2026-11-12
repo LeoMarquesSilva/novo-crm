@@ -32,9 +32,10 @@ describe("lookupCnpj (04/11/2026)", () => {
       fonte: "fichario",
     });
     expect(String(fetchMock.mock.calls[0]![0])).toBe("https://cnpj.genesisinnovation.io/api/v1/cnpj/07396951000170");
-    // Mesmo CNPJ de novo: vem do cache, sem chamar a API.
+    // As três fontes são consultadas juntas (11/11/2026); o mesmo CNPJ de novo vem do cache, sem chamar a API.
+    const chamadas = fetchMock.mock.calls.length;
     await lookupCnpj("07396951000170", 2);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(chamadas);
   });
 
   it("limite do Fichário (429) cai na BrasilAPI", async () => {
@@ -64,5 +65,43 @@ describe("lookupCnpj (04/11/2026)", () => {
       }),
     );
     await expect(lookupCnpj("45997418000153", 1)).resolves.toMatchObject({ status: "error", cnpj: "45997418000153" });
+  });
+
+  it("manda User-Agent (a BrasilAPI recusa sem ele) e não espera o Fichário fora do ar (11/11/2026)", async () => {
+    const headersPorUrl = new Map<string, Record<string, string>>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        headersPorUrl.set(url, (init?.headers ?? {}) as Record<string, string>);
+        // Fichário pendurado: nunca responde.
+        if (url.includes("genesisinnovation")) return new Promise<Response>(() => {});
+        if (url.includes("opencnpj")) return Promise.resolve(json(404, {}));
+        return Promise.resolve(json(200, { razao_social: "PRISMA LTDA", municipio: "SAO PAULO", uf: "SP" }));
+      }),
+    );
+    await expect(lookupCnpj("09267863000609", 1)).resolves.toMatchObject({
+      status: "found",
+      razaoSocial: "PRISMA LTDA",
+      fonte: "brasilapi",
+    });
+    const brasil = [...headersPorUrl.entries()].find(([url]) => url.includes("brasilapi"))?.[1];
+    expect(brasil?.["User-Agent"]).toMatch(/CRM/);
+  });
+
+  it("OpenCNPJ cobre quando Fichário e BrasilAPI falham", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.includes("opencnpj")
+          ? json(200, { razao_social: "ACME COMERCIO LTDA", situacao_cadastral: "Ativa", municipio: "Campinas", uf: "SP" })
+          : json(403, {}),
+      ),
+    );
+    await expect(lookupCnpj("12345678000195", 1)).resolves.toMatchObject({
+      status: "found",
+      razaoSocial: "ACME COMERCIO LTDA",
+      situacao: "ATIVA",
+      fonte: "opencnpj",
+    });
   });
 });

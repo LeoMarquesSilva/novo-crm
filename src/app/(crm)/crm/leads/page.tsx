@@ -573,6 +573,8 @@ export default function LeadsPage() {
           aria-describedby={undefined}
           className="flex h-dvh max-h-dvh w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[min(90dvh,760px)] sm:max-w-[min(100vw-2rem,1120px)] sm:border"
           {...dialogSelectOutsideHandlers()}
+          // O Esc é do formulário: ele fecha só a lista aberta ou pede para descartar o que foi preenchido.
+          onEscapeKeyDown={(event) => event.preventDefault()}
         >
           <DialogTitle className="sr-only">Cadastro de novo lead</DialogTitle>
           <NewDemandForm

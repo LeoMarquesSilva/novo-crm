@@ -486,6 +486,14 @@ function PropostaBuilderDialog({
   const initialResponsavel = docState.snapshot.responsavel?.trim() || leadCreatorName;
   const [responsavel, setResponsavel] = useState(initialResponsavel);
   const [savedResponsavel, setSavedResponsavel] = useState(docState.snapshot.responsavel ?? "");
+  /**
+   * "Enviado por" preenchido sozinho (quem cadastrou o lead) enquanto nada foi gravado: não conta como
+   * alteração. Antes o editor abria com "Alterações não salvas" e pedia confirmação para fechar sem
+   * ninguém ter mexido (teste de 11/11/2026); o padrão é recalculado a cada abertura, nada se perde.
+   */
+  const [responsavelPadrao, setResponsavelPadrao] = useState(
+    docState.snapshot.responsavel?.trim() ? "" : initialResponsavel,
+  );
   const [proposalUsers, setProposalUsers] = useState<ProposalUserOption[]>([]);
   const [proposalUsersLoading, setProposalUsersLoading] = useState(true);
   const [generatedAt] = useState(() => new Date().toISOString());
@@ -556,7 +564,10 @@ function PropostaBuilderDialog({
                 user.name.toLocaleLowerCase("pt-BR") === creatorReference,
             )
           : null;
-        if (creator) setResponsavel((current) => current.trim() || creator.name);
+        if (creator) {
+          setResponsavel((current) => current.trim() || creator.name);
+          setResponsavelPadrao((current) => current || creator.name);
+        }
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -605,14 +616,17 @@ function PropostaBuilderDialog({
   const busy = saving || generating || previewing || scopeSaving;
 
   const isDirty = useMemo(() => {
-    if (selectedTemplateId !== savedTemplateId || responsavel !== savedResponsavel) return true;
+    const responsavelAlterado =
+      responsavel !== savedResponsavel &&
+      !(savedResponsavel.trim() === "" && responsavelPadrao !== "" && responsavel === responsavelPadrao);
+    if (selectedTemplateId !== savedTemplateId || responsavelAlterado) return true;
     // Compara só chaves que existem em qualquer um dos dois mapas
     const keys = new Set([...Object.keys(draftValues), ...Object.keys(savedValues)]);
     for (const k of keys) {
       if ((draftValues[k] ?? "") !== (savedValues[k] ?? "")) return true;
     }
     return false;
-  }, [draftValues, savedValues, selectedTemplateId, savedTemplateId, responsavel, savedResponsavel]);
+  }, [draftValues, savedValues, selectedTemplateId, savedTemplateId, responsavel, savedResponsavel, responsavelPadrao]);
 
   const selectedTemplate =
     templates.find((template) => template.id === selectedTemplateId) ?? docState.template;

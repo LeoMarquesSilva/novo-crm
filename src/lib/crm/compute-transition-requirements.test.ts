@@ -11,6 +11,7 @@ import {
   filterReuniaoDuplicateMeetingFields,
   linkFieldsMissing,
   listBlockingCustomFields,
+  prefillAreasObjetoFromCadastro,
   stageUsesTransitionFields,
 } from "./compute-transition-requirements";
 
@@ -275,5 +276,18 @@ describe("countBusinessDaysFromTomorrowInclusive", () => {
   it("skips weekend days in the range", () => {
     // Fri 2025-03-14 -> from tomorrow Sat (not counted), Sun (not), Mon (count 1), Tue (count 2)
     expect(countBusinessDaysFromTomorrowInclusive("2025-03-14", "2025-03-18")).toBe(2);
+  });
+});
+
+describe("prefillAreasObjetoFromCadastro (11/11/2026)", () => {
+  it("escopo vazio vem com as áreas de análise do cadastro", () => {
+    expect(prefillAreasObjetoFromCadastro({}, ["Cível", "Trabalhista"])).toEqual({ cp_areas_objeto: ["Cível", "Trabalhista"] });
+    expect(prefillAreasObjetoFromCadastro({ cp_areas_objeto: "" }, ["Tributário"])).toEqual({ cp_areas_objeto: ["Tributário"] });
+  });
+
+  it("não troca o que já foi escolhido e ignora área fora do catálogo", () => {
+    expect(prefillAreasObjetoFromCadastro({ cp_areas_objeto: ["Cível"] }, ["Trabalhista"])).toEqual({ cp_areas_objeto: ["Cível"] });
+    expect(prefillAreasObjetoFromCadastro({}, ["Família", null])).toEqual({});
+    expect(prefillAreasObjetoFromCadastro({}, undefined)).toEqual({});
   });
 });

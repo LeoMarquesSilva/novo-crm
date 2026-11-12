@@ -50,14 +50,21 @@ async function reclaimFailedWhatsappSend(
   return (data?.length ?? 0) > 0;
 }
 
-/** O envio falhou depois da trava: o histórico diz isso; o próximo evento igual tenta de novo. */
+/**
+ * O envio falhou depois da trava: o histórico diz isso e guarda o motivo (`metadata.erro`, desde 11/11/2026:
+ * antes só "(falhou)", sem como saber a causa); o próximo evento igual tenta de novo.
+ */
 export async function markWhatsappSendFailed(
   supabase: SupabaseClient,
-  input: { oportunidadeId: string; sourceId: string; title: string },
+  input: { oportunidadeId: string; sourceId: string; title: string; erro?: string | null },
 ): Promise<void> {
+  const erro = input.erro?.trim();
   await supabase
     .from("lead_activity_events")
-    .update({ title: `${input.title} (falhou)`, metadata: { canal: "whatsapp", falhou: true } })
+    .update({
+      title: `${input.title} (falhou)`,
+      metadata: { canal: "whatsapp", falhou: true, ...(erro ? { erro: erro.slice(0, 300) } : {}) },
+    })
     .eq("oportunidade_id", input.oportunidadeId)
     .eq("kind", "whatsapp_enviado")
     .eq("source_id", input.sourceId);

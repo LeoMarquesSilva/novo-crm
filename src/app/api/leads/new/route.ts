@@ -16,7 +16,7 @@ import {
   newLeadPayloadSchema,
   type NewLeadPayload,
 } from "@/modules/crm/application/services/new-lead-payload";
-import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
+import { createEvolutionConnectorFromEnv } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
 import {
   buildLeadDetailUrl,
@@ -88,11 +88,7 @@ async function notifyNewLeadWhatsapp(
   }
 
   try {
-    const connector = new EvolutionWhatsappConnector(
-      process.env.EVOLUTION_API_URL ?? "",
-      process.env.EVOLUTION_API_KEY ?? "",
-      process.env.EVOLUTION_INSTANCE ?? process.env.EVOLUTION_INSTANCE_NAME ?? "BP",
-    );
+    const connector = createEvolutionConnectorFromEnv();
 
     // Área do lead sem ninguém no cadastro de usuários: o alerta vai nesta mensagem (não numa à parte).
     // Só existe com due diligence (as tarefas por área são da DUE).

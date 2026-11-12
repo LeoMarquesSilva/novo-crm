@@ -5,6 +5,7 @@ import { requireCrmActorApi } from "@/lib/auth/crm-actor";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   applyConfeccaoPropostaDefaults,
+  prefillAreasObjetoFromCadastro,
   buildTransitionWarnings,
   collectPriorMeetingValues,
   computeLeadIntakeRequirement,
@@ -158,7 +159,7 @@ export async function GET(request: NextRequest) {
       loadIntake
         ? supabase
             .from("lead_intakes")
-            .select("local_reuniao, data_reuniao, horario_reuniao, empresas_json")
+            .select("local_reuniao, data_reuniao, horario_reuniao, empresas_json, areas_analise")
             .eq("oportunidade_id", opportunityId)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
@@ -458,6 +459,10 @@ export async function GET(request: NextRequest) {
       fieldValues = applyConfeccaoPropostaDefaults(fieldValues, {
         haveraDueDiligence: row.havera_due_diligence as boolean | null | undefined,
       });
+      fieldValues = prefillAreasObjetoFromCadastro(
+        fieldValues,
+        (intakeRow as { areas_analise?: unknown } | null)?.areas_analise,
+      );
     }
     const blockingCustom = listBlockingCustomFields(defs, fieldValues);
     const warnings = buildTransitionWarnings({
