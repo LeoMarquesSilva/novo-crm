@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { ClientLogo } from "@/components/crm/client-logo";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,7 +44,10 @@ export function ContractHubOrphanGroupsTrigger({
           <ul className="divide-y divide-border">
             {groups.map((group) => (
               <li key={group.orqestraiId} className="flex items-center justify-between gap-3 py-2">
-                <span className="min-w-0 truncate text-sm font-medium text-foreground">{group.name}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <ClientLogo name={group.name} logoUrl={group.logoUrl} size={24} />
+                  <span className="min-w-0 truncate text-sm font-medium text-foreground">{group.name}</span>
+                </span>
                 <Link
                   href="/crm/clientes"
                   className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}

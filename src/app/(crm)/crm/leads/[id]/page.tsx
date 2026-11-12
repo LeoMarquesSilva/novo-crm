@@ -18,6 +18,7 @@ import {
 import { formatMaybeDateLikeBr } from "@/lib/format-datetime";
 import { resolvePipelineEtapaFromDbAndRd } from "@/lib/crm/rd-pipeline-stage-from-reconciliation";
 import { loadRdMigrationLeadState, rdMigrationBlocksAdvance } from "@/lib/crm/rd-migration/state";
+import { carregarLogoDoCliente } from "@/lib/crm/logo-cliente-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
@@ -62,6 +63,8 @@ export interface LeadDetailData extends Oportunidade {
   }>;
   /** Empresas do cadastro inicial (`empresas_json`): um bloco por empresa na UI. */
   empresasIntake: LeadIntakeEmpresaRow[];
+  /** Logo do grupo do cliente ligado ao lead (`cliente_id`), a mesma do ICP; sem logo, `null`. */
+  clienteLogoUrl?: string | null;
   /** Custom fields do último snapshot RD (`rd_deal_reconciliacao`), com sobreposições do CRM quando existirem. */
   filledFields: Array<{
     key: string;
@@ -312,6 +315,8 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
   if (!data) {
     return null;
   }
+
+  const clienteLogoPromise = carregarLogoDoCliente(supabase, data.cliente_id);
 
   const dueRevisionCycle =
     typeof data.due_revision_cycle === "number"
@@ -856,6 +861,7 @@ async function getLeadById(id: string): Promise<LeadDetailData | null> {
     isSystemCreated: Boolean(intake),
     intakeFields,
     empresasIntake,
+    clienteLogoUrl: await clienteLogoPromise,
     filledFields: filledFieldsResolved,
     pipelineFields: pipelineFieldsResolved,
     escopoDetalhe,

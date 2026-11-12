@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowUpRight, Loader2 } from "lucide-react";
+import { ClientLogo } from "@/components/crm/client-logo";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,15 +98,18 @@ export function ContractClosingsTab({
             href={`/crm/contratos/${item.id}?tab=closings`}
             key={item.id}
           >
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-foreground" title={item.title}>
-                {item.title}
-              </p>
-              {sameContractLabel(item.title, item.clientName) ? null : (
-                <p className="truncate text-xs text-muted-foreground" title={item.clientName}>
-                  {item.clientName}
+            <div className="flex min-w-0 items-center gap-3">
+              <ClientLogo name={item.title} logoUrl={item.logoUrl} size={32} />
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-foreground" title={item.title}>
+                  {item.title}
                 </p>
-              )}
+                {sameContractLabel(item.title, item.clientName) ? null : (
+                  <p className="truncate text-xs text-muted-foreground" title={item.clientName}>
+                    {item.clientName}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-muted-foreground">

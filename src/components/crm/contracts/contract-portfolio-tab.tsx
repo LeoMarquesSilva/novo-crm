@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AlertCircle, ArrowUpRight, Search } from "lucide-react";
 
+import { ClientLogo } from "@/components/crm/client-logo";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
 import { Badge } from "@/components/ui/badge";
@@ -225,6 +226,7 @@ function PortfolioRow({ item }: { item: ContractPortfolioItem }) {
     <tr className="h-11 hover:bg-muted/50">
       <td className="max-w-xs px-3 py-2 align-middle">
         <div className="flex min-w-0 items-center gap-2">
+          <ClientLogo name={item.title} logoUrl={item.logoUrl} size={20} />
           <p className="min-w-0 truncate" title={names.full}>
             <span className="font-semibold text-foreground">{item.title}</span>
             {names.showClient ? <span className="text-muted-foreground"> · {item.clientName}</span> : null}
@@ -278,7 +280,8 @@ function PortfolioCard({ item }: { item: ContractPortfolioItem }) {
       href={`/crm/contratos/${item.id}`}
       className="flex items-center justify-between gap-3 rounded-(--radius-v2-lg) border border-border bg-background px-3 py-2.5"
     >
-      <div className="min-w-0">
+      <ClientLogo name={item.title} logoUrl={item.logoUrl} size={24} />
+      <div className="min-w-0 flex-1">
         <p className="truncate text-sm" title={names.full}>
           <span className="font-semibold text-foreground">{item.title}</span>
           {names.showClient ? <span className="text-muted-foreground"> · {item.clientName}</span> : null}

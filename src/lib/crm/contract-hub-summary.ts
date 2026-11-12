@@ -7,6 +7,8 @@ export type HubOrphanGroup = {
   orqestraiId: string;
   name: string;
   localGroupId: string | null;
+  /** Logo do grupo (a mesma do ICP), preenchida na página de contratos; sem logo, iniciais. */
+  logoUrl?: string | null;
 };
 
 export type ActiveGroupCoverage = {

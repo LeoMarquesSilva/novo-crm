@@ -19,6 +19,7 @@ import {
 } from "@/lib/crm/carteira-grupo-enrichment";
 import { origemLinhaFromGrupoCategoria } from "@/lib/crm/grupo-categoria";
 import { loadCaptadoresByGrupo } from "@/lib/crm/grupo-captador";
+import { carregarLogosPorNomeDeGrupo } from "@/lib/crm/logo-cliente-server";
 
 export const dynamic = "force-dynamic";
 
@@ -70,12 +71,14 @@ export default async function ClientesPage() {
     { data: titulos },
     orqestraiGroups,
     captadoresByGrupo,
+    logoDoGrupo,
   ] = await Promise.all([
     fetchGruposEconomicosCarteira(supabase),
     fetchAllClientes(supabase),
     supabase.from("grupo_titulos_resumo").select("grupo_id, titulos_abertos, titulos_pagos, valor_aberto"),
     fetchOrqestraiClientGroups().catch(() => null),
     loadCaptadoresByGrupo(supabase).catch(() => new Map()),
+    carregarLogosPorNomeDeGrupo(supabase),
   ]);
 
   const titleByGroup = new Map((titulos ?? []).map((row) => [row.grupo_id, row]));
@@ -125,6 +128,7 @@ export default async function ClientesPage() {
     return {
       id: grupo.id,
       nome: grupo.nome,
+      logoUrl: logoDoGrupo(grupo.nome),
       clienteStatus: groupStatus[index],
       origemLinha: origemLinhaFromGrupoCategoria(grupo.categoria),
       responsibleArea: enriched.responsibleArea,

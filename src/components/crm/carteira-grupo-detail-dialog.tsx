@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger } from "@/components/ui/select";
+import { ClientLogo } from "@/components/crm/client-logo";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { IndicationNamePicker } from "@/components/crm/indication-name-picker";
 import { SelectField, TagSelectable } from "@/components/crm/new-lead-modal";
@@ -66,6 +67,8 @@ const INDICATION_TYPE_ITEMS = Object.fromEntries(
 export type CarteiraGrupoDetail = {
   id: string;
   nome: string;
+  /** Logo do grupo (a mesma do ICP); sem logo, iniciais. */
+  logoUrl?: string | null;
   clienteStatus: CarteiraClienteStatus | null;
   origemLinha: CarteiraOrigemLinha;
   responsibleArea: string | null;
@@ -392,7 +395,10 @@ export function CarteiraGrupoDetailDialog({
             <DialogHeader className="pr-8">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <DialogTitle className="text-v2-heading-lg">{grupo.nome}</DialogTitle>
+                  <DialogTitle className="flex min-w-0 items-center gap-2.5 text-v2-heading-lg">
+                    <ClientLogo name={grupo.nome} logoUrl={grupo.logoUrl} size={32} />
+                    <span className="min-w-0 break-words">{grupo.nome}</span>
+                  </DialogTitle>
                   <DialogDescription>
                     Identidade do grupo econômico, categoria (Cliente ou Lead), indicação, áreas e
                     pessoas/CNPJs.

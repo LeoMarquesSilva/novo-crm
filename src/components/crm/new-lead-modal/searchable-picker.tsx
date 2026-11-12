@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Search, UserPlus } from "lucide-react";
+import { ClientLogo } from "@/components/crm/client-logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -445,6 +446,8 @@ export type ClientOption = {
   id: string;
   razao_social: string;
   documento: string;
+  /** Logo do grupo do cliente (a mesma do ICP), vinda de `GET /api/crm/clients`; sem logo, iniciais. */
+  logoUrl?: string | null;
 };
 
 export function ClientPickerField({
@@ -483,17 +486,21 @@ export function ClientPickerField({
       }
       renderTrigger={(client) =>
         client ? (
-        <span className="flex min-w-0 items-baseline gap-2 text-left">
+        <span className="flex min-w-0 items-center gap-2 text-left">
+          <ClientLogo name={client.razao_social} logoUrl={client.logoUrl} size={20} />
           <span className="truncate font-medium text-foreground">{client.razao_social}</span>
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{client.documento}</span>
         </span>
         ) : null
       }
       renderOption={(client) => (
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{client.razao_social}</span>
-          <span className="block truncate text-xs text-muted-foreground">{client.documento}</span>
-        </span>
+        <>
+          <ClientLogo name={client.razao_social} logoUrl={client.logoUrl} size={24} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{client.razao_social}</span>
+            <span className="block truncate text-xs text-muted-foreground">{client.documento}</span>
+          </span>
+        </>
       )}
     />
   );

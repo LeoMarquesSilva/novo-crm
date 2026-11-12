@@ -11,6 +11,8 @@ type CrmEntityHeaderProps = {
   breadcrumb?: ReactNode;
   title: string;
   icon?: LucideIcon;
+  /** No lugar do ícone, ao lado do título (ex.: logo do cliente, 24px). */
+  leading?: ReactNode;
   subtitle?: ReactNode;
   badges?: ReactNode;
   actions?: ReactNode;
@@ -26,6 +28,7 @@ export function CrmEntityHeader({
   breadcrumb,
   title,
   icon: Icon,
+  leading,
   subtitle,
   badges,
   actions,
@@ -40,7 +43,9 @@ export function CrmEntityHeader({
         <div className="min-w-0">
           {badges ? <div className="mb-2 flex flex-wrap items-center gap-2">{badges}</div> : null}
           <div className="flex min-w-0 items-start gap-2.5">
-            {Icon ? (
+            {leading ? (
+              <span className="mt-0.5 flex shrink-0">{leading}</span>
+            ) : Icon ? (
               <Icon
                 className="mt-1 h-5 w-5 shrink-0 text-muted-foreground"
                 strokeWidth={1.75}

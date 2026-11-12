@@ -30,6 +30,7 @@ import { DueAreaPreviaRelatorio, type PreviaDocumento } from "@/components/crm/d
 import { DueReestruturacaoNoCartao } from "@/components/crm/due-apresentacao/due-reestruturacao-cartao";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ClientLogo } from "@/components/crm/client-logo";
 import { CrmEntityHeader } from "@/components/crm/crm-entity-header";
 import { LeadDetailStageAdvance } from "@/components/crm/lead-detail-stage-advance";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
@@ -575,6 +576,11 @@ function LeadDetailHero({
         }
         title={lead.solicitante}
         icon={Building2}
+        leading={
+          lead.clienteLogoUrl ? (
+            <ClientLogo name={lead.solicitante} logoUrl={lead.clienteLogoUrl} size={24} />
+          ) : undefined
+        }
         subtitle={
           <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-4">
             {empresaLabel && !empresaIsTitle ? (

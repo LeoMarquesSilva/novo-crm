@@ -17,6 +17,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
 import { loadActiveGroupCoverage } from "@/lib/crm/contract-hub-coverage";
+import { carregarLogosPorNomeDeGrupo } from "@/lib/crm/logo-cliente-server";
 import { countContractsByArea, type AreaContractCount } from "@/lib/crm/contract-hub-summary";
 
 export const dynamic = "force-dynamic";
@@ -138,13 +139,20 @@ export default async function ContratosPage({
     typeof query.setupOpportunityId === "string" ? query.setupOpportunityId : null;
   const defaultTab = typeof query.tab === "string" ? query.tab : undefined;
 
-  const [{ linked, unlinked, missingNames, error }, appUsersByEmail, quota, portfolioResult, coverage] = await Promise.all([
-    getD4SignData(),
-    getAppUsersByEmail(),
-    getD4SignQuotaStatus("documents/list"),
-    getContractsPortfolio(),
-    loadActiveGroupCoverage(),
-  ]);
+  const [{ linked, unlinked, missingNames, error }, appUsersByEmail, quota, portfolioResult, coverageResult, logoDoGrupo] =
+    await Promise.all([
+      getD4SignData(),
+      getAppUsersByEmail(),
+      getD4SignQuotaStatus("documents/list"),
+      getContractsPortfolio(),
+      loadActiveGroupCoverage(),
+      carregarLogosPorNomeDeGrupo(createSupabaseAdminClient()),
+    ]);
+  // Logo de cada grupo ativo sem contrato, a mesma do ICP (12/11/2026).
+  const coverage = {
+    ...coverageResult,
+    orphans: coverageResult.orphans.map((group) => ({ ...group, logoUrl: logoDoGrupo(group.name) })),
+  };
   const firmSigners = getFirmSigners().map((s) => ({
     email: s.email,
     firstName: s.name.split(" ")[0],

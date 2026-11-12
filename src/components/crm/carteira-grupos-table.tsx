@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ClientLogo } from "@/components/crm/client-logo";
 import { centsToMaskedBrl } from "@/components/crm/contracts/contract-setup-form-helpers";
 import {
   CarteiraGrupoDetailDialog,
@@ -49,6 +50,8 @@ import { cn } from "@/lib/utils";
 export type CarteiraGrupoRow = {
   id: string;
   nome: string;
+  /** Logo do grupo (a mesma do ICP); sem logo, iniciais. */
+  logoUrl?: string | null;
   clienteStatus: CarteiraClienteStatus | null;
   origemLinha: CarteiraOrigemLinha;
   responsibleArea: string | null;
@@ -213,17 +216,20 @@ export function CarteiraGruposTable({
                 onClick={() => setDetail(grupo)}
               >
                 <TableCell className="font-medium">
-                  <button
-                    type="button"
-                    className="rounded-(--radius-v2-md) text-left font-medium text-interactive-700 hover:underline"
-                    aria-label={`Ver detalhes de ${grupo.nome}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setDetail(grupo);
-                    }}
-                  >
-                    {grupo.nome}
-                  </button>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <ClientLogo name={grupo.nome} logoUrl={grupo.logoUrl} size={24} />
+                    <button
+                      type="button"
+                      className="rounded-(--radius-v2-md) text-left font-medium text-interactive-700 hover:underline"
+                      aria-label={`Ver detalhes de ${grupo.nome}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDetail(grupo);
+                      }}
+                    >
+                      {grupo.nome}
+                    </button>
+                  </span>
                 </TableCell>
                 <TableCell>
                   {grupo.clienteStatus ? (

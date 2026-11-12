@@ -3,6 +3,7 @@ import { parseAiProvenance, type AiProvenanceItem } from "@/lib/contract-import/
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 import { contractPortfolioLabels } from "@/lib/crm/contract-portfolio-identity";
+import { carregarLogosPorNomeDeGrupo } from "@/lib/crm/logo-cliente-server";
 import { effectiveContractRenewalDate } from "@/lib/crm/contract-renewal-date";
 import { competencyMonthStart } from "@/lib/format-datetime";
 import { fetchSioeContractUsage } from "@/lib/sioe/usage";
@@ -33,6 +34,8 @@ export type ContractPortfolioItem = {
   title: string;
   clientId: string | null;
   clientName: string;
+  /** Logo do grupo do contrato (a mesma do ICP, `logo-cliente-server.ts`); `null` sem grupo ou sem logo. */
+  logoUrl: string | null;
   managerId: string | null;
   managerName: string;
   areas: string[];
@@ -352,13 +355,14 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
 
   const contractIds = rows.map((row) => row.id);
   const clientIds = [...new Set(rows.map((row) => row.cliente_id).filter((id): id is string => Boolean(id)))];
-  const [clientsResult, responsiblesResult, versionsResult, closingsResult] = await Promise.all([
+  const [clientsResult, responsiblesResult, versionsResult, closingsResult, logoDoGrupo] = await Promise.all([
     clientIds.length
       ? supabase.from("clientes").select("id, razao_social, grupo_id").in("id", clientIds)
       : Promise.resolve({ data: [], error: null }),
     supabase.from("contrato_responsaveis").select("id, contrato_id, papel, app_user_id, nome").in("contrato_id", contractIds),
     supabase.from("contrato_versoes").select("id, contrato_id, numero, status, origem_snapshot, updated_at").in("contrato_id", contractIds),
     supabase.from("contrato_fechamentos").select("id, contrato_id, status, competencia").in("contrato_id", contractIds),
+    carregarLogosPorNomeDeGrupo(supabase),
   ]);
 
   const versions = versionsResult.data ?? [];
@@ -421,8 +425,9 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
     const areaKeyById = new Map(areas.map((area) => [area.id, area.area_key]));
     const monthly = monthlyProjectionCents(components, areaKeyById, usage);
     const variable = hasVariableBilling(components);
+    const groupName = groupById.get(contract.grupo_id ?? client?.grupo_id ?? "") ?? null;
     const labels = contractPortfolioLabels({
-      groupName: groupById.get(contract.grupo_id ?? client?.grupo_id ?? "") ?? null,
+      groupName,
       legalName: client?.razao_social ?? null,
       fallbackTitle: contract.titulo,
     });
@@ -431,6 +436,7 @@ export async function getContractsPortfolio(): Promise<ContractPortfolioResult> 
       title: labels.title,
       clientId: contract.cliente_id,
       clientName: labels.clientName,
+      logoUrl: logoDoGrupo(groupName),
       managerId: manager?.app_user_id ?? null,
       managerName: manager?.nome ?? "Sem responsável",
       areas: areas.map((area) => area.area_key),
