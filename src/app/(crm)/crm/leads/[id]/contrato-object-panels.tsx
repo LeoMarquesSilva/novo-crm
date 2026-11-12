@@ -11,6 +11,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { CrmUserLabel } from "@/components/crm/crm-user-label";
+import { DocumentSectionHeader } from "@/components/crm/document-section-nav";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,8 +66,8 @@ export function EscoposContratadosSection({
   const complete = scopes.length > 0 && scopes.every((s) => !s.missingProfile);
   return (
     <div className="space-y-3">
-      <SectionHeading num={num} title="Escopos Contratados" complete={complete} />
-      <div className="ml-10 space-y-3">
+      <SectionHeading num={num} title="Escopos contratados" complete={complete} />
+      <div className="space-y-3">
         <p className="text-xs text-muted-foreground">
           Herdados da proposta, separados por área.
         </p>
@@ -172,8 +173,8 @@ export function ObjetoContratoSection({
 
   return (
     <div className="space-y-3">
-      <SectionHeading num={num} title="Objeto do Contrato" complete={complete} />
-      <div className="ml-10 space-y-4">
+      <SectionHeading num={num} title="Objeto do contrato" complete={complete} />
+      <div className="space-y-4">
         {!object ? (
           <p className="text-xs text-muted-foreground">O objeto será resolvido a partir da proposta.</p>
         ) : (
@@ -624,33 +625,13 @@ export function AlterarEscoposDialog({
 }
 
 export function SectionHeading({
-  num,
   title,
   complete,
 }: {
-  num: number;
+  /** Mantido por compatibilidade; o título não mostra mais número (12/11/2026). */
+  num?: number;
   title: string;
   complete: boolean;
 }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span
-        className={cn(
-          "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-black",
-          complete ? "bg-success-bg text-success-text" : "bg-surface-subtle text-text-muted-v2",
-        )}
-      >
-        {complete ? <Check className="size-3.5" aria-hidden /> : num}
-      </span>
-      <h3 className="text-v2-heading-md text-foreground">{title}</h3>
-      <span
-        className={cn(
-          "rounded-full px-2 py-0.5 text-xs font-bold",
-          complete ? "bg-success-bg text-success-text" : "bg-warning-bg text-warning-text",
-        )}
-      >
-        {complete ? "Completo" : "Pendente"}
-      </span>
-    </div>
-  );
+  return <DocumentSectionHeader title={title} state={complete ? "complete" : "pending"} />;
 }

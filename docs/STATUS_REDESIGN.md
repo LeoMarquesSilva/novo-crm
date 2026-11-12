@@ -261,6 +261,25 @@ Registradas no fechamento da Fase 4 (achado bloqueante já corrigido — ver Cha
 
 ## Changelog
 
+- **12/11/2026** — Etapas e editores com uma linguagem só (P1 da crítica de design). Antes havia cinco desenhos de etapa (wizard, abas em cartão da proposta, pílulas coloridas do contrato, trilho de 4 passos e a faixa da ficha), e a proposta navegava por etapas enquanto o contrato rolava. Agora há três usos, cada um com um componente:
+  - **Etapas de processo:** `CrmStepper` (`src/components/crm/crm-stepper.tsx`), tirado do `WizardHeader`. Mostra número em círculo, rótulo, apoio opcional e fio até a próxima etapa. No Novo lead é interativo (`onSelect`, `compactLabels` no celular). No contrato, o andamento Elaboração → Revisão → Envio → Assinatura (`ContractWorkflowRail`) é só leitura.
+  - **Seções dos editores:** `DocumentSectionNav` e `DocumentSectionHeader` (`src/components/crm/document-section-nav.tsx`).
+    - A barra fica fixa no topo do painel de edição. O estado é um ponto de 6px mais o nome, a seção atual é sublinhada (`useActiveDocumentSection`) e o clique rola só o painel (`scrollPaneToDocumentSection`, antes local no contrato).
+    - No painel estreito a barra rola sozinha até a seção atual.
+    - Os títulos de seção têm nome e estado (ponto + texto) e não têm número nem o recuo de 40px.
+  - **Histórico de tempo:** a faixa da ficha (`LeadStageDurationStrip`), sem mudança.
+  - **Proposta, por decisão do usuário: rolagem nos dois editores.** As 5 seções ficam numa rolagem só, como no contrato. Saíram as abas em cartão, a barra de progresso e os botões Anterior/Próxima. O rodapé resume "N de 5 seções completas · N pendências" e tem "Gerar PDF" e "Gerar Word". As pendências levam até a seção. O painel tem fundo branco, e o aviso do escopo e a caixa de pendências usam tokens `info-*`/`warning-*`.
+  - **Contrato:**
+    - as pílulas coloridas viraram a barra compartilhada;
+    - Cláusulas e Assinaturas usam o título padrão (antes ícone em círculo e selos próprios);
+    - os títulos ficaram em minúsculas: "Escopos contratados", "Objeto do contrato", "Cláusulas adicionais" e "Posicionar assinaturas";
+    - a barra e os títulos passaram a usar a mesma regra de estado. Antes, Vigência saía "completa" na barra só por haver build, e Assinaturas saía "opcional" mesmo com pins.
+  - **Salvar:** os dois editores já usavam o mesmo cabeçalho (`DocumentBuilderDialogHeader`: Salvar, Gerar Word e estado salvo/alterado). O "Salvar esta área" do escopo continua próprio, porque também avisa as áreas (regra de negócio).
+  - **Verificação no navegador a 1280px:**
+    - a barra marca a seção atual, o clique rola o painel e as pendências aparecem como ponto âmbar;
+    - os estados do contrato batem com os títulos;
+    - o Novo lead mantém o indicador.
+  - **Testes:** 1459 passando, typecheck limpo e lint sem avisos novos.
 - **12/11/2026** — Fins de fluxo com confirmação e consequência visível (P1 da crítica de design):
   - **Novo lead:** ao criar, o kanban mostra "Lead criado: {razão social}. Ele já aparece no kanban." (`role="status"`, `success-*`) com o link "Abrir ficha". Antes o modal fechava sem nada. Com aviso da API, o mesmo bloco fica em `warning-*` e mostra o aviso. O `onSuccess` do `NewDemandForm` passou a devolver também `nome` (razão social da primeira empresa, o nome do lead no CRM).
   - **Contrato, "Ajustar redação":** quando a revisão de Societário e Contratos já começou ou terminou, o diálogo avisa que ela volta para pendente e o botão vira "Ajustar e reabrir revisão". A prop `reviewReopens` de `ObjetoContratoSection` usa a mesma condição do PATCH da tarefa de revisão. "Override específico deste contrato" virou "Redação ajustada só neste contrato", em tokens `warning-*`.
