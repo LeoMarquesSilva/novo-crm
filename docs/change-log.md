@@ -2,6 +2,11 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-11-13 — Abertura no VIOS pelo robô do SAMA (Fase 2)
+
+- Lead com due pede ao robô do SAMA a abertura no VIOS (prospect, pasta de atendimento Comercial/Due Diligence Prospect e tarefas ENVIAR, Protocolo e Ciência da abertura de pasta), atrás de `VIOS_ABERTURA_MODO` (`desligado` padrão, `simular`, `ativo`). No cadastro (`POST /api/leads/new`) e na ficha quando a due é ligada depois ou a data de entrega é preenchida. O CRM só manda o pedido; o resultado fica no SAMA. Sem migration. Detalhes em `system-context.md` §14.14.
+- Novos: `build-vios-abertura-payload.ts`, `solicitar-abertura-vios.ts`, `sama-rpa-client.ts`; `IntegrationName` ganha `vios_rpa`; `.env.example` com `VIOS_ABERTURA_MODO`, `SAMA_RPA_ENQUEUE_URL`, `CRM_SAMA_SECRET`, `VIOS_ABERTURA_RESPONSAVEL_PASTA`.
+- Validações: `tsc --noEmit`, `npm run lint` (0 erros), `npm test`, `npm run build`; ensaio com um lead real com due montando o pedido sem enviar (nomes do VIOS pelo RH conferidos).
 ## 2026-11-04 — ICP: faixa E
 
 - Cinco faixas de receita em 12 meses: A ≥ R$ 200 mil, B R$ 60–200 mil, C R$ 20–60 mil, D R$ 10–20 mil e E < R$ 10 mil (a antiga D, até R$ 20 mil, foi dividida em R$ 10 mil). ICP continua A + B. Em 04/11: D com 28 grupos (3,1% da receita) e E com 61 (2,0%).

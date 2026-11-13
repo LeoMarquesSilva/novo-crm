@@ -4,6 +4,10 @@ import { syncDueAreaTasksForOpportunity } from "@/lib/crm/due-area-tasks";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
 import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
+import {
+  solicitarAberturaVios,
+  viosAberturaModo,
+} from "@/modules/crm/application/services/solicitar-abertura-vios";
 import { mockCrmSession } from "@/test/mock-crm-auth";
 import { createSupabaseFake } from "@/test/supabase-fake";
 import { POST } from "./route";
@@ -20,6 +24,10 @@ vi.mock("@/modules/crm/infrastructure/integrations/sharepoint-graph", () => ({
   SharePointGraphClient: { fromEnv: vi.fn(() => ({ createListItem })) },
 }));
 vi.mock("@/lib/crm/due-area-tasks", () => ({ syncDueAreaTasksForOpportunity: vi.fn() }));
+vi.mock("@/modules/crm/application/services/solicitar-abertura-vios", () => ({
+  viosAberturaModo: vi.fn(() => "desligado"),
+  solicitarAberturaVios: vi.fn(),
+}));
 vi.mock("@/lib/auth/server", () => ({ requireAuthApi: vi.fn() }));
 vi.mock("@/lib/auth/module-access", () => ({ listUserModules: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
@@ -71,6 +79,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   sendText.mockResolvedValue(undefined);
   createListItem.mockResolvedValue({ id: "sp-1", webUrl: null });
+  vi.mocked(viosAberturaModo).mockReturnValue("desligado");
+  vi.mocked(solicitarAberturaVios).mockResolvedValue({ status: "enviado", avisos: [] });
   mockCrmSession({ role: "comercial" });
 });
 
@@ -120,6 +130,7 @@ describe("POST /api/leads/new — aviso no grupo da DUE", () => {
     expect(text).toContain("- *Prazo de entrega:* 09/11/2026 às 18:00");
     expect(text).toContain("> *Atenção:* nenhum usuário cadastrado na área Recuperação de Créditos");
     expect(createListItem).toHaveBeenCalledTimes(1);
+    expect(solicitarAberturaVios).not.toHaveBeenCalled();
   });
 
   it("falha no WhatsApp não derruba o cadastro: volta como aviso", async () => {
@@ -150,5 +161,54 @@ describe("POST /api/leads/new — aviso no grupo da DUE", () => {
     expect(comDue.json.warning).toContain("WhatsApp DUE: Configuração de destino WhatsApp não encontrada ou inativa.");
     expect(sendText).not.toHaveBeenCalled();
     expect(EvolutionWhatsappConnector).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/leads/new — abertura no VIOS (VIOS_ABERTURA_MODO)", () => {
+  const comDue = () =>
+    payload({
+      due_diligence: "Sim",
+      data_entrega_due: "2026-11-09",
+      horario_entrega_due: "18:00",
+      data_reuniao: "2026-11-10",
+    });
+
+  it("simular: pede ao SAMA e mantém o SharePoint; falha do robô não vira aviso", async () => {
+    setupDb();
+    vi.mocked(viosAberturaModo).mockReturnValue("simular");
+    vi.mocked(solicitarAberturaVios).mockResolvedValue({ status: "erro", mensagem: "Robô fora do ar. (ref abc)" });
+    const { status, json } = await criar(comDue());
+
+    expect(status).toBe(201);
+    expect(solicitarAberturaVios).toHaveBeenCalledWith(expect.anything(), "op-1", { modo: "simular" });
+    expect(createListItem).toHaveBeenCalledTimes(1);
+    expect(json.warning).toBeNull();
+  });
+
+  it("ativo: só o SAMA, sem SharePoint; falha vira aviso na tela", async () => {
+    setupDb();
+    vi.mocked(viosAberturaModo).mockReturnValue("ativo");
+    vi.mocked(solicitarAberturaVios).mockResolvedValue({ status: "erro", mensagem: "Robô fora do ar. (ref abc)" });
+    const { status, json } = await criar(comDue());
+
+    expect(status).toBe(201);
+    expect(SharePointGraphClient.fromEnv).not.toHaveBeenCalled();
+    expect(createListItem).not.toHaveBeenCalled();
+    expect(json.warning).toBe("Abertura no VIOS: Robô fora do ar. (ref abc)");
+  });
+
+  it("ativo e enviado: sem aviso", async () => {
+    setupDb();
+    vi.mocked(viosAberturaModo).mockReturnValue("ativo");
+    const { json } = await criar(comDue());
+    expect(solicitarAberturaVios).toHaveBeenCalledTimes(1);
+    expect(json.warning).toBeNull();
+  });
+
+  it("lead sem DUE não pede abertura em nenhum modo", async () => {
+    setupDb();
+    vi.mocked(viosAberturaModo).mockReturnValue("ativo");
+    await criar(payload());
+    expect(solicitarAberturaVios).not.toHaveBeenCalled();
   });
 });

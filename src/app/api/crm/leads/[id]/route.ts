@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { patchLeadDetail } from "@/lib/crm/patch-lead-detail";
@@ -6,6 +6,37 @@ import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { evaluateLeadAction } from "@/lib/auth/crm-access-policy";
 import { forbiddenResponse, requireCrmActorApi, requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { internalErrorResponse, logServerError } from "@/lib/http/api-errors";
+import {
+  solicitarAberturaVios,
+  viosAberturaModo,
+} from "@/modules/crm/application/services/solicitar-abertura-vios";
+
+/**
+ * DUE ligada depois do cadastro (D1 do plano), ou data de entrega preenchida depois: pede a
+ * abertura no VIOS. A chave é uma por oportunidade, então o SAMA ignora o pedido repetido.
+ */
+function dispararAberturaVios(field: { key: string; value: string } | undefined): boolean {
+  if (!field || viosAberturaModo() === "desligado") return false;
+  if (field.key === "havera_due_diligence" || field.key === "due_diligence_intake") {
+    return field.value.trim().toLowerCase() === "sim";
+  }
+  return field.key === "data_entrega_due" && field.value.trim() !== "";
+}
+
+/** Depois da resposta: a edição na ficha não espera o robô. Fora de uma requisição, só dispara. */
+function pedirAberturaViosDepoisDaResposta(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  oportunidadeId: string,
+): void {
+  const run = async () => {
+    await solicitarAberturaVios(supabase, oportunidadeId);
+  };
+  try {
+    after(run);
+  } catch {
+    void run();
+  }
+}
 
 const patchBodySchema = z
   .object({
@@ -114,6 +145,10 @@ export async function PATCH(
         { ok: false, error: result.error },
         { status: result.status ?? 500 },
       );
+    }
+
+    if (dispararAberturaVios(parsed.data.intakeField)) {
+      pedirAberturaViosDepoisDaResposta(supabase, id);
     }
 
     return NextResponse.json({ ok: true });

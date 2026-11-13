@@ -22,6 +22,10 @@ import {
   buildLeadDetailUrl,
   sendLeadNotificationEmail,
 } from "@/modules/crm/application/services/send-lead-notification-email";
+import {
+  solicitarAberturaVios,
+  viosAberturaModo,
+} from "@/modules/crm/application/services/solicitar-abertura-vios";
 import { syncDueAreaTasksForOpportunity } from "@/lib/crm/due-area-tasks";
 import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { requestIndicatorApprovalIfNew } from "@/lib/crm/ensure-pending-indicator";
@@ -339,7 +343,21 @@ export async function POST(request: Request) {
     });
     if (whatsappWarning) warnings.push(whatsappWarning);
 
-    if (hasDue) {
+    // Abertura no VIOS (`VIOS_ABERTURA_MODO`): `desligado` e `simular` mantêm o SharePoint;
+    // `simular` e `ativo` pedem ao robô do SAMA. Só no `ativo` uma falha vira aviso na tela —
+    // na simulação o SharePoint continua sendo o caminho real.
+    const modoVios = viosAberturaModo();
+
+    if (hasDue && modoVios !== "desligado") {
+      const abertura = await solicitarAberturaVios(supabase, oportunidade.id, { modo: modoVios });
+      if (modoVios === "ativo" && (abertura.status === "erro" || abertura.status === "pulado")) {
+        warnings.push(
+          `Abertura no VIOS: ${abertura.status === "erro" ? abertura.mensagem : `pedido não enviado (${abertura.motivo})`}`,
+        );
+      }
+    }
+
+    if (hasDue && modoVios !== "ativo") {
       try {
         const sharePointClient = SharePointGraphClient.fromEnv();
         const fields = buildDueSharePointAgendamentoFields(payload);

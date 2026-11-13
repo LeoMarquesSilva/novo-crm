@@ -12,7 +12,14 @@ export class PublicError extends Error {
   }
 }
 
-export type IntegrationName = "evolution" | "sharepoint" | "rd" | "microsoft" | "openai" | "d4sign";
+export type IntegrationName =
+  | "evolution"
+  | "sharepoint"
+  | "rd"
+  | "microsoft"
+  | "openai"
+  | "d4sign"
+  | "vios_rpa";
 
 /**
  * Falha de integração externa: `publicMessage` vai para a tela; `detail` (corpo da
