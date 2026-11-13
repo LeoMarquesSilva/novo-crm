@@ -70,7 +70,7 @@ Exemplo: pasta CI 61356, cliente CI 61067.
 |---|---|---|---|
 | ENVIAR | ENVIAR DUE DILLIGENCE PROSPECT | data do cadastro | **uma tarefa por responsável de área** |
 | PROTOCOLO | PROTOCOLO DUE DILLIGENCE PROSPECT | **data de entrega da due** | **todos** os responsáveis de área numa tarefa só |
-| PROVIDÊNCIA | CIÊNCIA DA ABERTURA DE PASTA | data do cadastro | responsável da pasta (parece vir do fluxo automático do VIOS; confirmar) |
+| PROVIDÊNCIA | CIÊNCIA DA ABERTURA DE PASTA | data do cadastro | responsável da pasta. **O próprio VIOS cria ao abrir a pasta** (confirmado em 13/11/2026) |
 
 A descrição das tarefas ENVIAR e PROTOCOLO segue este modelo:
 
@@ -207,8 +207,8 @@ Ficha do lead: card "Abertura no VIOS" com status, links para pessoa/pasta/taref
 - [x] Confirmar no VIOS (conferido em 12/11/2026):
   - **categoria "Prospecção":** é o id `23` (diferente de "Prospect", `2`);
   - **"Grupo de pessoas":** fica em Configurações da pessoa (`clientes_parm.php`), no campo `form[clientes_grupos_id]`; "Grupo prospect" é o `10`;
-  - **"CIÊNCIA DA ABERTURA DE PASTA":** é um tipo de tarefa comum (PROVIDÊNCIA). Nada indica que o VIOS a crie sozinho.
-- [ ] **Pergunta em aberto:** a abertura deve agendar também a "CIÊNCIA DA ABERTURA DE PASTA" para o responsável da pasta, como fazia a central? Se sim, ela entra como uma terceira tarefa no pedido do CRM.
+  - **"CIÊNCIA DA ABERTURA DE PASTA":** é um tipo de tarefa comum (PROVIDÊNCIA). ~~Nada indica que o VIOS a crie sozinho.~~ O teste gravando de 13/11/2026 mostrou que **o VIOS cria sozinho** ao abrir a pasta, e recusa uma segunda.
+- [x] ~~**Pergunta em aberto:**~~ Respondida em 13/11/2026: o VIOS cria a ciência sozinho; o pedido do CRM não a leva. A pergunta era: a abertura deve agendar também a "CIÊNCIA DA ABERTURA DE PASTA" para o responsável da pasta, como fazia a central? Se sim, ela entra como uma terceira tarefa no pedido do CRM.
 - [ ] Descobrir quem processa a lista do SharePoint hoje. Nenhum fluxo do n8n lê a lista, então é Power Automate ou a equipe da central de agendamentos.
 - [ ] Confirmar se o formulário antigo ainda chama o webhook `cadastro-lead` do n8n. Ver os achados abaixo.
 - [ ] Levantar o de-para dos usuários do CRM (responsáveis de área da DUE) para o **nome exato no VIOS**, conferido no catálogo `vios_catalogo_tarefas` do SAMA.
@@ -332,7 +332,7 @@ Tudo atrás de `VIOS_ABERTURA_MODO = desligado | simular | ativo`. O padrão é 
 >     pasta 61356).
 >   - Os demais valores (escritório, departamento, área, agrupador, categoria, grupo, etapas e etiquetas) são constantes em
 >     `VIOS_ABERTURA_PADRAO` e `VIOS_TAREFAS`.
-> - **Ciência da abertura:** a "CIÊNCIA DA ABERTURA DE PASTA" (etapa 496, etiqueta PROVIDÊNCIA 204) entra como 3ª tarefa,
+> - **Ciência da abertura (revisto no mesmo dia):** saiu do pedido, porque o VIOS a cria ao abrir a pasta. Antes: a "CIÊNCIA DA ABERTURA DE PASTA" (etapa 496, etiqueta PROVIDÊNCIA 204) entrava como 3ª tarefa,
 >   para o responsável da pasta, como a central fazia na pasta 61356.
 > - **Modo `simular`:** o SharePoint continua e a falha do robô não aparece na tela.
 > - **Modo `ativo`:** o SharePoint para e a falha de envio vira aviso no cadastro.
@@ -396,6 +396,29 @@ Tudo atrás de `VIOS_ABERTURA_MODO = desligado | simular | ativo`. O padrão é 
   - rota do callback (segredo, idempotência, retorno velho);
   - `lead-detail-overview.test.ts` e `lead-intake-to-fields.test.ts`.
 - [ ] `npm run lint`, `npm run test` e `npm run build`.
+
+### Virada antecipada (13/11/2026)
+
+> **Mudança de rumo:** este CRM ainda está em desenvolvimento e a lista do SharePoint era do **CRM antigo**. Por
+> isso as Fases 3 a 5 foram encurtadas, a pedido do usuário. O cadastro deixou de gravar no SharePoint e a produção
+> do CRM foi para `VIOS_ABERTURA_MODO=ativo`. O que o robô cria nos testes é apagado à mão no VIOS. O n8n não foi
+> mexido.
+>
+> - **Robô (sama-rpa #52, `c447251`):** grava pessoa, grupo, pasta e envolvidos, conferindo cada passo relendo o
+>   VIOS. Implantado no Easypanel às 20:09 UTC, com a fila livre.
+> - **CRM (#31):** cadastro sem SharePoint e e-mail sem o botão do Power Apps. Na Vercel, `ativo` e republicado.
+> - **Teste gravando** (chave `crm:teste_ativo:20261113201333`, prospect e envolvido fictícios, 20:14 → 20:28 UTC):
+>   - pessoa nova CI 61132, posta no Grupo prospect;
+>   - envolvido novo CI 61133, incluído em Partes;
+>   - pasta nova CI 61484;
+>   - ENVIAR CI 941487 e Protocolo CI 941485.
+>
+>   A ciência que o CRM mandava foi recusada ("Já existe outra tarefa cadastrada no processo para este mesmo
+>   tipo"), porque o VIOS já a tinha criado. Ela saiu do pedido. **A apagar no VIOS:** pessoas 61132 e 61133, a
+>   pasta 61484 e as tarefas dela.
+> - **Ainda vale das fases seguintes:**
+>   - acompanhar os primeiros leads reais;
+>   - a limpeza do código do SharePoint (Fase 5).
 
 ### Fase 3: Execução em paralelo (simulação)
 

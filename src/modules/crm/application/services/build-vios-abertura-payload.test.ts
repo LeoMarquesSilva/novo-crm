@@ -66,7 +66,7 @@ describe("buildViosAberturaPedido", () => {
     });
     expect(pedido.pasta.descricao).toContain("DUE DILIGENCE - Alessandro Di Salvo Neto, Bruno Di Salvo, ACME Ltda");
 
-    // Um ENVIAR por responsável (dia do cadastro), um Protocolo com todos (entrega) e a ciência.
+    // Um ENVIAR por responsável (dia do cadastro) e um Protocolo com todos (entrega). A ciência da abertura o VIOS cria.
     expect(pedido.tarefas.map((t) => [t.tarefa, t.tarefa_id, t.etiqueta_id, t.data, t.responsavel])).toEqual([
       ["ENVIAR", "708", "1", "13/11/2026", ["Giancarlo Murta Zotini"]],
       ["ENVIAR", "708", "1", "13/11/2026", ["Daniel Pressatto Fernandes"]],
@@ -78,7 +78,6 @@ describe("buildViosAberturaPedido", () => {
         "20/11/2026",
         ["Giancarlo Murta Zotini", "Daniel Pressatto Fernandes", "Francisco de Assis Barbosa Campos Zanin"],
       ],
-      ["CIÊNCIA DA ABERTURA DE PASTA", "496", "204", "13/11/2026", ["Ligia Gilberti Lopes"]],
     ]);
     expect(r.avisos).toEqual([]);
   });
@@ -121,7 +120,7 @@ describe("buildViosAberturaPedido", () => {
     expect(r.pedido.tarefas.find((t) => t.tarefa === "Protocolo")!.responsavel).toEqual(["Leonardo Marques Silva"]);
   });
 
-  it("área sem responsável vira aviso; sem nenhum, vai só a ciência", () => {
+  it("área sem responsável vira aviso; sem nenhum, só a pasta (sem tarefas)", () => {
     const umaSem = buildViosAberturaPedido(
       entrada({
         responsaveis: [
@@ -135,7 +134,8 @@ describe("buildViosAberturaPedido", () => {
 
     const nenhum = buildViosAberturaPedido(entrada({ responsaveis: [{ area: "Cível", nomeVios: null }] }));
     if (!nenhum.ok) throw new Error(nenhum.motivo);
-    expect(nenhum.pedido.tarefas.map((t) => t.tarefa)).toEqual(["CIÊNCIA DA ABERTURA DE PASTA"]);
+    expect(nenhum.pedido.tarefas).toEqual([]);
+    expect(nenhum.pedido.pasta.responsavel).toBe("Ligia Gilberti Lopes");
   });
 
   it("PJ pelo CNPJ; envolvido sem documento válido vai sem documento e repetido sai", () => {
