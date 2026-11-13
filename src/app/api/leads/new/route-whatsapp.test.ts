@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { syncDueAreaTasksForOpportunity } from "@/lib/crm/due-area-tasks";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { EvolutionWhatsappConnector } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
-import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
 import {
   solicitarAberturaVios,
   viosAberturaModo,
@@ -12,16 +11,13 @@ import { mockCrmSession } from "@/test/mock-crm-auth";
 import { createSupabaseFake } from "@/test/supabase-fake";
 import { POST } from "./route";
 
-// Nada sai de verdade: Evolution, SharePoint e e-mail são falsos.
-const { sendText, createListItem } = vi.hoisted(() => ({ sendText: vi.fn(), createListItem: vi.fn() }));
+// Nada sai de verdade: Evolution, robô do SAMA e e-mail são falsos.
+const { sendText } = vi.hoisted(() => ({ sendText: vi.fn() }));
 vi.mock("@/modules/crm/infrastructure/integrations/evolution-whatsapp", () => ({
   EvolutionWhatsappConnector: vi.fn(function EvolutionWhatsappConnectorFake() {
     return { sendText };
   }),
   createEvolutionConnectorFromEnv: vi.fn(() => ({ sendText })),
-}));
-vi.mock("@/modules/crm/infrastructure/integrations/sharepoint-graph", () => ({
-  SharePointGraphClient: { fromEnv: vi.fn(() => ({ createListItem })) },
 }));
 vi.mock("@/lib/crm/due-area-tasks", () => ({ syncDueAreaTasksForOpportunity: vi.fn() }));
 vi.mock("@/modules/crm/application/services/solicitar-abertura-vios", () => ({
@@ -78,14 +74,13 @@ async function criar(body: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   sendText.mockResolvedValue(undefined);
-  createListItem.mockResolvedValue({ id: "sp-1", webUrl: null });
   vi.mocked(viosAberturaModo).mockReturnValue("desligado");
   vi.mocked(solicitarAberturaVios).mockResolvedValue({ status: "enviado", avisos: [] });
   mockCrmSession({ role: "comercial" });
 });
 
 describe("POST /api/leads/new — aviso no grupo da DUE", () => {
-  it("lead sem DUE também avisa o grupo, com o modelo novo_lead, sem tarefas nem SharePoint", async () => {
+  it("lead sem DUE também avisa o grupo, com o modelo novo_lead, sem tarefas nem abertura no VIOS", async () => {
     const fake = setupDb();
     const { status, json } = await criar(payload());
 
@@ -105,11 +100,11 @@ describe("POST /api/leads/new — aviso no grupo da DUE", () => {
       fake.calls.some((c) => c.table === "whatsapp_message_templates" && c.method === "eq" && c.args[1] === "novo_lead"),
     ).toBe(true);
     expect(syncDueAreaTasksForOpportunity).not.toHaveBeenCalled();
-    expect(SharePointGraphClient.fromEnv).not.toHaveBeenCalled();
+    expect(solicitarAberturaVios).not.toHaveBeenCalled();
     expect(fake.calls.some((c) => c.table === "due_area_tasks")).toBe(false);
   });
 
-  it("lead com DUE segue com novo_lead_due, tarefas, alerta de área e SharePoint", async () => {
+  it("lead com DUE segue com novo_lead_due, tarefas e alerta de área (modo desligado: sem abertura no VIOS)", async () => {
     setupDb({ semResponsavel: ["Recuperação de Créditos"] });
     const { status, json } = await criar(
       payload({
@@ -129,7 +124,6 @@ describe("POST /api/leads/new — aviso no grupo da DUE", () => {
     expect(text.startsWith("*NOVO LEAD · DUE DILIGENCE*\n")).toBe(true);
     expect(text).toContain("- *Prazo de entrega:* 09/11/2026 às 18:00");
     expect(text).toContain("> *Atenção:* nenhum usuário cadastrado na área Recuperação de Créditos");
-    expect(createListItem).toHaveBeenCalledTimes(1);
     expect(solicitarAberturaVios).not.toHaveBeenCalled();
   });
 
@@ -173,7 +167,7 @@ describe("POST /api/leads/new — abertura no VIOS (VIOS_ABERTURA_MODO)", () => 
       data_reuniao: "2026-11-10",
     });
 
-  it("simular: pede ao SAMA e mantém o SharePoint; falha do robô não vira aviso", async () => {
+  it("simular: pede ao SAMA em simulação; falha do robô não vira aviso", async () => {
     setupDb();
     vi.mocked(viosAberturaModo).mockReturnValue("simular");
     vi.mocked(solicitarAberturaVios).mockResolvedValue({ status: "erro", mensagem: "Robô fora do ar. (ref abc)" });
@@ -181,19 +175,17 @@ describe("POST /api/leads/new — abertura no VIOS (VIOS_ABERTURA_MODO)", () => 
 
     expect(status).toBe(201);
     expect(solicitarAberturaVios).toHaveBeenCalledWith(expect.anything(), "op-1", { modo: "simular" });
-    expect(createListItem).toHaveBeenCalledTimes(1);
     expect(json.warning).toBeNull();
   });
 
-  it("ativo: só o SAMA, sem SharePoint; falha vira aviso na tela", async () => {
+  it("ativo: pede ao SAMA gravando; falha vira aviso na tela", async () => {
     setupDb();
     vi.mocked(viosAberturaModo).mockReturnValue("ativo");
     vi.mocked(solicitarAberturaVios).mockResolvedValue({ status: "erro", mensagem: "Robô fora do ar. (ref abc)" });
     const { status, json } = await criar(comDue());
 
     expect(status).toBe(201);
-    expect(SharePointGraphClient.fromEnv).not.toHaveBeenCalled();
-    expect(createListItem).not.toHaveBeenCalled();
+    expect(solicitarAberturaVios).toHaveBeenCalledWith(expect.anything(), "op-1", { modo: "ativo" });
     expect(json.warning).toBe("Abertura no VIOS: Robô fora do ar. (ref abc)");
   });
 

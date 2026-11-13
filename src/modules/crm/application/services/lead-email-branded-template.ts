@@ -7,10 +7,6 @@ import { LEAD_EMAIL_BRAND as B, LEAD_EMAIL_FONT as F } from "./lead-email-html-u
  */
 export type BrandedLeadEmailVariant = "due" | "sem_due";
 
-/** Link da Power Apps de abertura de pasta (mantido do e-mail anterior). */
-const ABERTURA_DE_PASTA_URL =
-  "https://apps.powerapps.com/play/e/default-5411b7aa-53ee-4f05-bb25-dfca7a522fc2/a/eb58d0a1-df95-4e3d-887c-e35455aea134?tenantId=5411b7aa-53ee-4f05-bb25-dfca7a522fc2&amp;source=portal&amp;screenColor=rgba%2827%2c%2041%2c%2056%2c%201%29";
-
 function sectionTitle(title: string): string {
   return `<p style="margin:0 0 10px;${F}font-size:11px;line-height:1.4;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;color:${B.goldText};">${title}</p>`;
 }
@@ -54,8 +50,8 @@ export function brandedLeadEmailHtml(variant: BrandedLeadEmailVariant): string {
     : `<td style="padding:14px 16px;vertical-align:top;">${highlight("Reunião", "{{reuniao_data_horario_sem}}", "{{local_reuniao}}")}</td>`;
   const proximosPassos = due
     ? steps([
-        ["Abertura de pasta", "criar a pasta de atendimento no sistema"],
-        ["Agendamentos no VIOS", "registrar prazos e responsáveis"],
+        ["Abertura de pasta", "o robô abre a pasta de atendimento no VIOS"],
+        ["Agendamentos no VIOS", "o robô agenda os prazos e os responsáveis das áreas"],
         ["Levantamento", "coletar os documentos e as informações de cada área"],
       ])
     : steps([
@@ -63,9 +59,8 @@ export function brandedLeadEmailHtml(variant: BrandedLeadEmailVariant): string {
         ["Material de apoio", "apresentação institucional e cases da área"],
         ["Proposta", "preencher no CRM os campos para a confecção da proposta"],
       ]);
-  const botoes = due
-    ? `${button("{{link_lead}}", "Abrir lead no CRM", "primary")}${button(ABERTURA_DE_PASTA_URL, "Solicitar abertura de pasta", "gold")}`
-    : button("{{link_lead}}", "Abrir lead no CRM", "primary");
+  // A abertura de pasta é automática (robô do SAMA, 13/11/2026): saiu o botão do Power Apps do CRM antigo.
+  const botoes = button("{{link_lead}}", "Abrir lead no CRM", "primary");
 
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${B.page};">
 <tr><td align="center" style="padding:24px 12px;">

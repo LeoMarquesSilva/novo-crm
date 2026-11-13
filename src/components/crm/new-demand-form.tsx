@@ -2491,7 +2491,8 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
             </AlertDialogTitle>
             <AlertDialogDescription>
               O lead será criado e o CRM avisará o grupo da DUE no WhatsApp. Se houver due
-              diligence, também criará as tarefas das áreas e o agendamento no SharePoint.
+              diligence, também criará as tarefas das áreas e pedirá a abertura da pasta e os
+              agendamentos no VIOS.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:space-x-0">
