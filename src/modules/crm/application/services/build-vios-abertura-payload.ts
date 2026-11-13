@@ -36,13 +36,9 @@ export const VIOS_TAREFAS = {
     etiqueta_id: "3",
     titulo: "PROTOCOLO DUE DILLIGENCE PROSPECT",
   },
-  ciencia: {
-    tarefa: "CIÊNCIA DA ABERTURA DE PASTA",
-    tarefa_id: "496",
-    tipo: "Providência",
-    etiqueta_id: "204",
-    titulo: "CIÊNCIA DA ABERTURA DE PASTA",
-  },
+  // A "CIÊNCIA DA ABERTURA DE PASTA" (etapa 496) não entra: o próprio VIOS a cria para o responsável quando a
+  // pasta é aberta, e recusa uma segunda ("Já existe outra tarefa cadastrada no processo para este mesmo tipo").
+  // Visto no teste gravando de 13/11/2026 (pasta CI 61484).
 } as const;
 
 export type ViosAberturaModoEnvio = "simular" | "ativo";
@@ -94,7 +90,7 @@ export type ViosAberturaEntrada = {
   oportunidadeId: string;
   crmUrl: string | null;
   modo: ViosAberturaModoEnvio;
-  /** Dia do cadastro (`yyyy-mm-dd`, São Paulo): data da pasta, do ENVIAR e da ciência. */
+  /** Dia do cadastro (`yyyy-mm-dd`, São Paulo): data da pasta e do ENVIAR. */
   hojeYmd: string;
   responsavelPasta: string;
   intake: {
@@ -200,7 +196,7 @@ function tarefa(
  * - a 1ª empresa é o cliente da pasta; as demais entram como envolvidos (parte "Cliente");
  * - um ENVIAR por responsável de área, para o dia do cadastro;
  * - um Protocolo com todos os responsáveis, para a data de entrega da due;
- * - a "CIÊNCIA DA ABERTURA DE PASTA" para o responsável da pasta, no dia do cadastro.
+ * - a "CIÊNCIA DA ABERTURA DE PASTA" do responsável da pasta não vai no pedido: o VIOS a cria ao abrir a pasta.
  */
 export function buildViosAberturaPedido(entrada: ViosAberturaEntrada): ViosAberturaMontagem {
   const { intake } = entrada;
@@ -252,14 +248,6 @@ export function buildViosAberturaPedido(entrada: ViosAberturaEntrada): ViosAbert
     avisos.push("Nenhum responsável de área: o pedido vai sem ENVIAR e sem Protocolo.");
   }
   const responsavelPasta = entrada.responsavelPasta.trim() || VIOS_ABERTURA_PADRAO.responsavelPasta;
-  tarefas.push(
-    tarefa(
-      VIOS_TAREFAS.ciencia,
-      hoje,
-      [responsavelPasta],
-      `Pasta aberta automaticamente pelo CRM.\n\n${corpo}`,
-    ),
-  );
 
   const razoes = intake.empresas.map((e) => e.razao_social.trim()).filter(Boolean).join(", ");
   return {

@@ -2,6 +2,11 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-11-13 — Abertura no VIOS sem a tarefa de ciência
+
+- O pedido ao robô não leva mais a "CIÊNCIA DA ABERTURA DE PASTA": o VIOS cria essa tarefa sozinho ao abrir a pasta e recusou a segunda no teste gravando (pasta CI 61484).
+- Validações: `tsc --noEmit`, `npm test`.
+
 ## 2026-11-13 — Abertura no VIOS gravando e fim do SharePoint no cadastro
 
 - `POST /api/leads/new` não grava mais na lista do SharePoint (era do CRM antigo). `VIOS_ABERTURA_MODO`: `desligado` não pede nada, `simular` confere as telas, `ativo` grava no VIOS. E-mail de novo lead sem o botão do Power Apps e com os próximos passos do robô; diálogo do Novo lead sem "agendamento no SharePoint".
