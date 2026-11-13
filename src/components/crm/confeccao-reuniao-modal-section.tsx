@@ -275,7 +275,7 @@ export function ConfeccaoReuniaoModalSection({
             <Label className="text-xs font-medium text-[#111827]">
               {userFacingFieldLabel(gestorField.label, gestorField.field_code)}
               {gestorField.is_required ? (
-                <span className="text-red-500" aria-hidden>
+                <span className="text-danger-text" aria-hidden>
                   {" "}
                   *
                 </span>
@@ -422,7 +422,7 @@ export function ConfeccaoReuniaoModalSection({
             </Button>
           </div>
           {cepError ? (
-            <Alert variant="destructive" className="border-red-500/50" role="alert">
+            <Alert variant="destructive" className="border-danger-border" role="alert">
               <AlertTitle className="text-sm">CEP</AlertTitle>
               <AlertDescription className="text-sm">{cepError}</AlertDescription>
             </Alert>

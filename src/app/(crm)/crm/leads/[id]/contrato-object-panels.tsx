@@ -72,7 +72,7 @@ export function EscoposContratadosSection({
           Herdados da proposta, separados por área.
         </p>
         {groups.length === 0 ? (
-          <p className="text-xs text-amber-700">Nenhum escopo herdado da proposta.</p>
+          <p className="text-xs text-warning-text">Nenhum escopo herdado da proposta.</p>
         ) : (
           <div className="space-y-2.5">
             {groups.map((group) => {
@@ -83,7 +83,7 @@ export function EscoposContratadosSection({
                   aria-label={group.area}
                   className={cn(
                     "rounded-(--radius-v2-lg) border bg-white",
-                    semPerfil > 0 ? "border-amber-200" : "border-border",
+                    semPerfil > 0 ? "border-warning-border" : "border-border",
                   )}
                 >
                   <header className="flex items-center gap-3 border-b border-border px-3 py-2.5">
@@ -100,15 +100,15 @@ export function EscoposContratadosSection({
                     {group.items.map((scope) => (
                       <li key={scope.entryId} className="flex items-start gap-2.5 px-3 py-2 text-sm">
                         {scope.missingProfile ? (
-                          <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" aria-hidden />
+                          <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-warning-text" aria-hidden />
                         ) : (
-                          <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
+                          <Check className="mt-0.5 size-3.5 shrink-0 text-success-text" aria-hidden />
                         )}
-                        <span className={cn("min-w-0 flex-1", scope.missingProfile ? "text-amber-800" : "text-foreground")}>
+                        <span className={cn("min-w-0 flex-1", scope.missingProfile ? "text-warning-text" : "text-foreground")}>
                           {scope.label}
                         </span>
                         {scope.missingProfile ? (
-                          <span className="shrink-0 rounded-(--radius-v2-full) bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                          <span className="shrink-0 rounded-(--radius-v2-full) bg-warning-bg px-2 py-0.5 text-xs font-semibold text-warning-text">
                             Sem perfil contratual
                           </span>
                         ) : null}
@@ -121,11 +121,14 @@ export function EscoposContratadosSection({
           </div>
         )}
         {!proposalAligned ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+          <p className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-text">
             Contrato diverge da proposta
           </p>
         ) : (
-          <p className="text-xs font-medium text-emerald-700">Proposta e contrato alinhados ✓</p>
+          <p className="inline-flex items-center gap-1 text-xs font-medium text-success-text">
+            <Check className="size-3.5" aria-hidden />
+            Proposta e contrato alinhados
+          </p>
         )}
         <Button
           type="button"
@@ -183,17 +186,20 @@ export function ObjetoContratoSection({
               className={cn(
                 "rounded-xl border px-3 py-2 text-xs font-semibold",
                 complete
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-amber-200 bg-amber-50 text-amber-800",
+                  ? "border-success-border bg-success-bg text-success-text"
+                  : "border-warning-border bg-warning-bg text-warning-text",
               )}
             >
-              {complete
-                ? `✓ ${covered} de ${scopes.length} escopos representados`
-                : `⚠ ${covered} de ${scopes.length} escopos representados`}
+              {complete ? (
+                <Check className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />
+              ) : (
+                <TriangleAlert className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />
+              )}
+              {covered} de {scopes.length} escopos representados
             </div>
 
             {object.missingScopeIds.length > 0 ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <div className="rounded-xl border border-warning-border bg-warning-bg p-3 text-xs text-warning-text">
                 <p className="font-bold">Sem perfil</p>
                 <ul className="mt-1 space-y-1">
                   {object.missingScopeIds.map((id) => {
@@ -211,8 +217,9 @@ export function ObjetoContratoSection({
             {object.fieldValues.length > 0 ? (
               <div className="space-y-2.5">
                 {missingCount > 0 ? (
-                  <p className="text-xs font-bold text-amber-800">
-                    ⚠ Faltam {missingCount} {missingCount === 1 ? "informação" : "informações"} para gerar o
+                  <p className="text-xs font-semibold text-warning-text">
+                    <TriangleAlert className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />
+                    Faltam {missingCount} {missingCount === 1 ? "informação" : "informações"} para gerar o
                     Objeto
                   </p>
                 ) : null}
@@ -233,8 +240,8 @@ export function ObjetoContratoSection({
               </div>
             ) : null}
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <div className="rounded-xl border border-border bg-surface-subtle p-4">
+              <p className="text-xs font-semibold text-muted-foreground">
                 Redação
               </p>
               <div className="mt-3 space-y-3">
@@ -303,7 +310,7 @@ function ObjectFieldGroupBlock({
   const [open, setOpen] = useState(group.missingCount > 0);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/70">
+    <div className="rounded-xl border border-border bg-surface-subtle">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -314,21 +321,21 @@ function ObjectFieldGroupBlock({
           className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform duration-150", open && "rotate-90")}
           aria-hidden
         />
-        <span className="flex-1 truncate text-xs font-bold uppercase tracking-[0.1em] text-slate-600">
+        <span className="flex-1 truncate text-xs font-semibold text-text-secondary-v2">
           {group.scopeLabel}
         </span>
         {group.missingCount > 0 ? (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+          <span className="shrink-0 rounded-full bg-warning-bg px-2 py-0.5 text-xs font-bold text-warning-text">
             {group.missingCount} pendente{group.missingCount > 1 ? "s" : ""}
           </span>
         ) : (
-          <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
+          <span className="shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-xs font-bold text-success-text">
             Completo
           </span>
         )}
       </button>
       {open ? (
-        <div className="space-y-2 border-t border-slate-200 px-3 pb-3 pt-2.5">
+        <div className="space-y-2 border-t border-border px-3 pb-3 pt-2.5">
           {group.fields.map((field) => (
             <ObjectFieldInput
               key={`${field.scopeEntryId ?? "g"}:${field.key}`}
@@ -360,7 +367,7 @@ function ObjectFieldInput({
     <div
       className={cn(
         "space-y-1 rounded-lg border p-2 transition-colors duration-200",
-        isMissing ? "border-amber-200 bg-amber-50/40" : "border-transparent bg-transparent",
+        isMissing ? "border-warning-border bg-warning-bg" : "border-transparent bg-transparent",
       )}
     >
       <Label htmlFor={inputId} className="text-xs font-semibold text-foreground">
@@ -385,7 +392,7 @@ function ObjectFieldInput({
         autoComplete="off"
         className={cn(
           "h-9 bg-white text-sm",
-          isMissing ? "border-amber-300" : "border-slate-200",
+          isMissing ? "border-warning-border" : "border-border",
         )}
       />
       <SourceBadge source={field.source} filled={Boolean(field.value.trim())} />
@@ -463,7 +470,7 @@ function ObjectBlockPreview({
           {line.number}.{line.title ? ` ${line.title}.` : ""}
         </p>
         {override ? (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+          <span className="shrink-0 rounded-full bg-warning-bg px-2 py-0.5 text-xs font-bold text-warning-text">
             Ajustado
           </span>
         ) : null}

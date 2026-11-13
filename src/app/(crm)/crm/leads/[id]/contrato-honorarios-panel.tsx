@@ -39,7 +39,7 @@ export function HonorariosDaPropostaPanel({
     <div className="space-y-3">
       <div className="rounded-(--radius-v2-md) border border-info-border bg-info-bg p-3 text-xs text-foreground">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+          <p className="text-v2-caption-medium text-text-muted-v2">
             Cláusula de honorários
           </p>
           <DocumentInheritedBadge />

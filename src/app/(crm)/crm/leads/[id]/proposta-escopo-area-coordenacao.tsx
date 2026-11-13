@@ -127,7 +127,7 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-semibold text-muted-foreground">
             Estado por área
           </p>
           <ul className="flex flex-wrap gap-2">
@@ -170,7 +170,7 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
           )}
           {canNotify ? (
             <div className="mt-3 space-y-3 rounded-(--radius-v2-xl) border border-border bg-surface-subtle p-3">
-              <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+              <p className="text-v2-caption-medium text-text-muted-v2">
                 Selecionar destinatários
               </p>
               {solicitacoes
@@ -188,8 +188,8 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
                               className={cn(
                                 "flex cursor-pointer items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-xs font-bold transition-colors",
                                 checked
-                                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                                  : "border-slate-200 bg-white text-slate-600",
+                                  ? "border-success-border bg-success-bg text-success-text"
+                                  : "border-border bg-white text-text-secondary-v2",
                               )}
                             >
                               <input
@@ -210,7 +210,7 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
                         })}
                       </div>
                     ) : (
-                      <p className="mt-2 text-xs font-semibold text-rose-900">
+                      <p className="mt-2 text-xs font-semibold text-danger-text">
                         Nenhum comercial cadastrado nesta área.
                       </p>
                     )}
@@ -242,9 +242,9 @@ export function PropostaEscopoAreaCoordenacao({ leadId, solicitacoes, viewer, cl
             </p>
           </div>
         ) : showNotifyHint ? (
-          <div className="max-w-sm rounded-lg border border-amber-200/90 bg-amber-50/90 px-3 py-2 text-xs leading-snug text-amber-950">
-            <p className="font-medium text-amber-950">Para desbloquear &quot;Notificar outras áreas&quot;</p>
-            <p className="mt-1 text-amber-950/95">
+          <div className="max-w-sm rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs leading-snug text-warning-text">
+            <p className="font-medium text-warning-text">Para desbloquear &quot;Notificar outras áreas&quot;</p>
+            <p className="mt-1 text-warning-text">
               Preencha tipo, subtipo e todos os campos obrigatórios da <strong>sua</strong> área e clique em{" "}
               <strong>Salvar esta área</strong> nessa área. O ícone verde na sua área só aparece depois do servidor marcar
               o escopo como concluído (atualize a página se ela não atualizar sozinha).

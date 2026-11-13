@@ -93,7 +93,7 @@ function mountPreviewThumbnailShell(
 
   const caption = document.createElement("p");
   caption.className =
-    "mt-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
+    "mt-2 text-center text-xs font-semibold text-muted-foreground";
   caption.textContent = label;
 
   shell.append(frame, caption);
@@ -300,7 +300,7 @@ function insertReferenceThumbnailBefore(
 
   const caption = document.createElement("p");
   caption.className =
-    "mt-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
+    "mt-2 text-center text-xs font-semibold text-muted-foreground";
   caption.textContent = label;
 
   shell.append(frame, caption);

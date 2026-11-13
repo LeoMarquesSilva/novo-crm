@@ -1,6 +1,5 @@
 ﻿"use client";
 
-import { type ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { notFound, usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -11,13 +10,9 @@ import {
   CircleAlert,
   ChevronDown,
   ExternalLink,
-  FileSignature,
   FileSpreadsheet,
-  FileText,
-  Layers3,
   LinkIcon,
   Presentation,
-  ShieldCheck,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -330,11 +325,10 @@ export function LeadDetailView({
                 {isProposalStage && proposalPipelineFields.length === 0 ? (
                   <Card className="border-border bg-white p-6">
                     <CardHeader className="px-0 pt-0">
-                      <SectionEyebrow icon={FileText}>Documentos / Propostas</SectionEyebrow>
                       <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                         Proposta de serviços advocatícios
                       </CardTitle>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Ainda não há campos de proposta salvos. Avance pelo pipeline para pré-preencher qualificações e escopo.
                       </p>
                     </CardHeader>
@@ -344,11 +338,10 @@ export function LeadDetailView({
                 {!proposalDocumentAvailable ? (
                   <Card className="border-border bg-white p-6">
                     <CardHeader className="px-0 pt-0">
-                      <SectionEyebrow icon={FileText}>Documentos / Propostas</SectionEyebrow>
                       <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                         Proposta ainda não habilitada
                       </CardTitle>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Esta área fica disponível quando o lead entra na etapa de elaboração da proposta.
                       </p>
                     </CardHeader>
@@ -382,11 +375,10 @@ export function LeadDetailView({
                 <section id="pipeline" className="scroll-mt-6">
                   <Card className="border-border bg-white p-5 sm:p-6">
                     <CardHeader className="px-0 pt-0">
-                      <SectionEyebrow icon={Layers3}>Pipeline CRM</SectionEyebrow>
                       <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                         Campos da etapa atual
                       </CardTitle>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Valores armazenados no CRM ao avançar etapas no quadro.
                       </p>
                     </CardHeader>
@@ -418,17 +410,16 @@ export function LeadDetailView({
               <section id="rd" className="scroll-mt-6">
                 <Card className="border-border bg-white p-5 sm:p-6">
                   <CardHeader className="px-0 pt-0">
-                    <SectionEyebrow icon={ShieldCheck}>RD Station</SectionEyebrow>
                     <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                       Campos preenchidos no RD
                     </CardTitle>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       Snapshot dos custom fields da oportunidade na última sincronização. Ajustes no CRM sobrepõem a exibição.
                     </p>
                   </CardHeader>
                   <CardContent className="px-0 pb-0">
                     {lead.filledFields.length === 0 ? (
-                      <p className="rounded-2xl border border-dashed border-[#dfe5ee] bg-white p-4 text-sm text-slate-500">
+                      <p className="rounded-2xl border border-dashed border-[#dfe5ee] bg-white p-4 text-sm text-muted-foreground">
                         Nenhum campo mapeado preenchido para esta oportunidade.
                       </p>
                     ) : (
@@ -843,13 +834,12 @@ function DueCompilacaoSection({
     <section id="due-compilacao" className="scroll-mt-6">
                   <Card className="border-border bg-white p-5 sm:p-6">
         <CardHeader className="px-0 pt-0">
-          <SectionEyebrow icon={Presentation}>Due Diligence</SectionEyebrow>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
                       <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                 Compilação (PPT)
               </CardTitle>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Envie o PowerPoint da compilação. Para seguir para Revisão, é obrigatório ter pelo menos um .ppt/.pptx.
               </p>
             </div>
@@ -857,8 +847,8 @@ function DueCompilacaoSection({
         </CardHeader>
         <CardContent className="space-y-4 px-0 pb-0">
           {lead.dueCompilacaoEntradaEm ? (
-            <p className="text-xs text-slate-500">
-              <span className="font-semibold text-slate-600">Entrada em Compilação: </span>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-semibold text-text-secondary-v2">Entrada em Compilação: </span>
               {formatDateTimeBr(lead.dueCompilacaoEntradaEm)}
             </p>
           ) : null}
@@ -892,15 +882,15 @@ function DueCompilacaoSection({
           </div>
 
           {adjustmentTasks.length > 0 ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="rounded-2xl border border-warning-border bg-warning-bg p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-extrabold text-amber-950">Ajustes pendentes por área</p>
-                  <p className="mt-1 text-xs text-amber-900/85">
+                  <p className="text-sm font-extrabold text-warning-text">Ajustes pendentes por área</p>
+                  <p className="mt-1 text-xs text-warning-text">
                     Marque as áreas concluídas para esta rodada. Uma única evidência pode concluir múltiplas áreas.
                   </p>
                 </div>
-                <Badge variant="secondary" className="bg-white text-amber-900">
+                <Badge variant="secondary" className="bg-white text-warning-text">
                   {completedAdjustmentCount}/{adjustmentTasks.length} concluídas
                 </Badge>
               </div>
@@ -914,7 +904,7 @@ function DueCompilacaoSection({
                       key={task.id}
                       className={cn(
                         "flex items-start gap-2 rounded-xl border bg-white px-3 py-2 text-sm",
-                        isCompleted ? "border-emerald-200" : "border-amber-200",
+                        isCompleted ? "border-success-border" : "border-warning-border",
                       )}
                     >
                       <input
@@ -927,11 +917,11 @@ function DueCompilacaoSection({
                       <span className="min-w-0 flex-1">
                         <span className="font-semibold text-[#102033]">{task.areaKey}</span>
                         {isCompleted ? (
-                          <span className="block text-xs text-emerald-800">
+                          <span className="block text-xs text-success-text">
                             Ajuste concluído em {formatDateTimeBr(task.adjustmentCompletedAt)}
                           </span>
                         ) : (
-                          <span className="block text-xs text-amber-900/80">
+                          <span className="block text-xs text-warning-text">
                             {task.observacaoAjustes ? task.observacaoAjustes : "Aguardando conclusão dos ajustes"}
                           </span>
                         )}
@@ -956,7 +946,7 @@ function DueCompilacaoSection({
           ) : null}
 
           {pptDocs.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-[#dfe5ee] bg-white p-4 text-sm text-slate-500">
+            <p className="rounded-2xl border border-dashed border-[#dfe5ee] bg-white p-4 text-sm text-muted-foreground">
               Nenhum PPT enviado ainda.
             </p>
           ) : (
@@ -968,7 +958,7 @@ function DueCompilacaoSection({
                 >
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-[#102033]">{doc.originalFilename}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       {formatBytes(doc.byteSize)} · {formatDateTimeBr(doc.uploadedAt)}
                       {doc.uploadedBy?.fullName ? ` · ${doc.uploadedBy.fullName}` : ""}
                     </p>
@@ -1001,7 +991,7 @@ function DueCompilacaoSection({
           </DialogHeader>
           <div className="space-y-4 py-1">
             {adjustmentModalError ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+              <div className="rounded-xl border border-danger-border bg-danger-bg px-3 py-2 text-sm text-danger-text">
                 {adjustmentModalError}
               </div>
             ) : null}
@@ -1045,13 +1035,13 @@ function DueCompilacaoSection({
                     type="file"
                     accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                     disabled={!canManage || concludingAdjustments}
-                    className="block h-9 w-full rounded-xl border border-[#dfe5ee] bg-white px-2.5 py-1 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-sm file:font-medium"
+                    className="block h-9 w-full rounded-xl border border-[#dfe5ee] bg-white px-2.5 py-1 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-surface-subtle file:px-3 file:py-1 file:text-sm file:font-medium"
                     onChange={(event) => {
                       setAdjustmentEvidenceFile(event.target.files?.[0] ?? null);
                       setAdjustmentModalError(null);
                     }}
                   />
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     {attachedPptAfterRequest
                       ? `Já vale o PPT anexado depois do pedido: ${attachedPptAfterRequest.originalFilename} (${formatDateTimeBr(attachedPptAfterRequest.uploadedAt)}). Envie outro só para substituí-lo.`
                       : "Envie um .ppt ou .pptx atualizado após a solicitação de ajustes."}
@@ -1072,11 +1062,11 @@ function DueCompilacaoSection({
                     disabled={!canManage || concludingAdjustments}
                   />
                   {lead.linkProposta ? (
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       Link atual: {lead.linkProposta}
                     </p>
                   ) : (
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       Cole o URL atualizado da proposta ou do material desta rodada.
                     </p>
                   )}
@@ -1204,25 +1194,24 @@ function DueRevisaoSection({
     <section id="due-revisao" className="scroll-mt-6">
                   <Card className="border-border bg-white p-5 sm:p-6">
         <CardHeader className="px-0 pt-0">
-          <SectionEyebrow icon={ShieldCheck}>Due Diligence</SectionEyebrow>
                       <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
             Revisão por área
           </CardTitle>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Cada área deve aprovar o material ou solicitar ajustes. Ciclo atual: {lead.dueRevisionCycle}.
           </p>
         </CardHeader>
         <CardContent className="space-y-4 px-0 pb-0">
           {lead.dueRevisaoEntradaEm ? (
-            <p className="text-xs text-slate-500">
-              <span className="font-semibold text-slate-600">Entrada em Revisão: </span>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-semibold text-text-secondary-v2">Entrada em Revisão: </span>
               {formatDateTimeBr(lead.dueRevisaoEntradaEm)}
             </p>
           ) : null}
 
           {/* Material da revisão (05/11/2026): antes o PPT só aparecia na Compilação, que some nesta etapa. */}
           <div className="rounded-2xl border border-[#dfe5ee] bg-[#f8fafc] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Material para revisar</p>
+            <p className="text-xs font-semibold text-muted-foreground">Material para revisar</p>
             {pptAtual ? (
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
@@ -1231,7 +1220,7 @@ function DueRevisaoSection({
                   </span>
                   <div className="min-w-0">
                     <p className="break-words text-sm font-semibold text-[#102033]">{pptAtual.originalFilename}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       {formatDateTimeBr(pptAtual.uploadedAt)}
                       {pptAtual.uploadedBy?.fullName ? ` · ${pptAtual.uploadedBy.fullName}` : ""}
                     </p>
@@ -1248,16 +1237,16 @@ function DueRevisaoSection({
                 </Button>
               </div>
             ) : (
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-muted-foreground">
                 Nenhum PPT da compilação anexado. Peça ao MKT para gerar e anexar antes de revisar.
               </p>
             )}
             {ppts.length > 1 ? (
               <div className="mt-3 border-t border-[#e4e9f0] pt-2">
-                <p className="text-xs font-semibold text-slate-500">Versões anteriores</p>
+                <p className="text-xs font-semibold text-muted-foreground">Versões anteriores</p>
                 <ul className="mt-1 space-y-1">
                   {ppts.slice(1).map((doc) => (
-                    <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                    <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                       <span className="min-w-0 break-words">
                         {doc.originalFilename} · {formatDateTimeBr(doc.uploadedAt)}
                       </span>
@@ -1282,7 +1271,7 @@ function DueRevisaoSection({
           </div>
 
           {pendingAdjustments.length > 0 ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <div className="rounded-2xl border border-warning-border bg-warning-bg p-4 text-sm text-warning-text">
               <p className="font-bold">Ajustes solicitados</p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 {pendingAdjustments.map((t) => (
@@ -1292,21 +1281,21 @@ function DueRevisaoSection({
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-xs font-medium text-amber-900/90">
+              <p className="mt-2 text-xs font-medium text-warning-text">
                 Retorne à Compilação pelo pipeline, corriga o PPT e envie novamente antes de uma nova rodada de revisão.
               </p>
             </div>
           ) : null}
 
           {areasSemRevisao.length ? (
-            <p className="text-xs text-slate-500">
-              <span className="font-semibold text-slate-600">Sem revisão (sem processos ativos): </span>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-semibold text-text-secondary-v2">Sem revisão (sem processos ativos): </span>
               {areasSemRevisao.join(", ")}
             </p>
           ) : null}
 
           {tasks.length === 0 ? (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               {areasSemRevisao.length && areasSemRevisao.length === lead.dueAreaTasks.length
                 ? "Todas as áreas declararam que não têm processos ativos: não há revisão. Pode avançar para Due Diligence Finalizada."
                 : "Nenhuma tarefa de revisão encontrada para este ciclo."}
@@ -1341,7 +1330,7 @@ function DueRevisaoSection({
                         {/* Ícone da apresentação comercial (docs/ICONES-DAS-AREAS.md). */}
                         <PracticeAreaIconBadge area={task.areaKey} size="md" />
                         <div className="min-w-0">
-                          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                          <p className="text-xs font-semibold text-muted-foreground">
                             {isMine ? "Sua área" : "Área"}
                           </p>
                           <p className="mt-0.5 truncate text-sm font-extrabold text-[#102033]">{task.areaKey}</p>
@@ -1349,40 +1338,40 @@ function DueRevisaoSection({
                       </div>
                       <Badge
                         variant={task.status === "ajustes_solicitados" ? "destructive" : "secondary"}
-                        className={cn(task.status === "ok" && "bg-emerald-50 text-emerald-800")}
+                        className={cn(task.status === "ok" && "bg-success-bg text-success-text")}
                       >
                         {statusLabel}
                       </Badge>
                     </div>
-                    <div className="mt-3 space-y-1 text-xs text-slate-500">
+                    <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                       <p>
-                        <span className="font-bold text-slate-600">Responsável: </span>
+                        <span className="font-bold text-text-secondary-v2">Responsável: </span>
                         {task.responsavel?.fullName ?? "—"}
                       </p>
                       <p>
-                        <span className="font-bold text-slate-600">Prazo: </span>
+                        <span className="font-bold text-text-secondary-v2">Prazo: </span>
                         {task.prazoAte ? formatDateTimeMinutesBr(task.prazoAte) : "—"}
                       </p>
                       <p>
-                        <span className="font-bold text-slate-600">Tempo para revisar: </span>
+                        <span className="font-bold text-text-secondary-v2">Tempo para revisar: </span>
                         {formatElapsed(task.reviewElapsedMs)}
                       </p>
                       {task.status === "ajustes_solicitados" ? (
                         <p>
-                          <span className="font-bold text-slate-600">Tempo em compilação (ajustes): </span>
+                          <span className="font-bold text-text-secondary-v2">Tempo em compilação (ajustes): </span>
                           {formatElapsed(task.compilationElapsedMs)}
                         </p>
                       ) : null}
                       {task.respondedAt ? (
                         <p>
-                          <span className="font-bold text-slate-600">Respondido em: </span>
+                          <span className="font-bold text-text-secondary-v2">Respondido em: </span>
                           {formatDateTimeBr(task.respondedAt)}
                           {task.respondedBy?.fullName ? ` · ${task.respondedBy.fullName}` : ""}
                         </p>
                       ) : null}
                       {task.observacaoAjustes ? (
-                        <p className="text-amber-900">
-                          <span className="font-bold text-slate-600">Observação: </span>
+                        <p className="text-warning-text">
+                          <span className="font-bold text-text-secondary-v2">Observação: </span>
                           {task.observacaoAjustes}
                         </p>
                       ) : null}
@@ -1614,13 +1603,12 @@ function DueAreaTasksCard({
       <section id="due-levantamento" className="scroll-mt-6">
                   <Card className="border-border bg-white p-5 sm:p-6">
           <CardHeader className="px-0 pt-0">
-            <SectionEyebrow icon={CheckCircle2}>Due Diligence</SectionEyebrow>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                       <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
                   Levantamento de dados por área
                 </CardTitle>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Cada área anexa o relatório do levantamento (planilha .xlsx), que já entra na apresentação, e marca
                   como entregue. Sem processos na área, registre &quot;Sem processos ativos&quot;. A Reestruturação preenche
                   os dados da recuperação judicial na apresentação. Com todas entregues, o lead vai sozinho para
@@ -1629,7 +1617,7 @@ function DueAreaTasksCard({
               </div>
               <Badge
                 variant={hasPending ? "secondary" : "default"}
-                className={cn(!hasPending && "bg-emerald-600 text-white")}
+                className={cn(!hasPending && "bg-success-text text-white")}
               >
                 {done}/{total} áreas prontas
               </Badge>
@@ -1662,17 +1650,17 @@ function DueAreaTasksCard({
             {total > 0 ? (
               <>
                 <div className="rounded-2xl border border-[#dfe5ee] bg-[#f8fafc] p-4">
-                  <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-500">
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-muted-foreground">
                     <span>Progresso do levantamento</span>
                     <span>{progress}%</span>
                   </div>
                   <Progress value={progress} className="bg-white" />
                   {hasPending ? (
-                    <p className="mt-2 text-xs text-slate-500">
+                    <p className="mt-2 text-xs text-muted-foreground">
                       Aguardando as áreas restantes. Não é necessário mover manualmente para Compilação.
                     </p>
                   ) : (
-                    <p className="mt-2 text-xs font-semibold text-emerald-700">
+                    <p className="mt-2 text-xs font-semibold text-success-text">
                       Todas as áreas concluíram. Se a etapa ainda não atualizou, atualize a página.
                     </p>
                   )}
@@ -1719,7 +1707,7 @@ function DueAreaTasksCard({
                             {/* Ícone da apresentação comercial (docs/ICONES-DAS-AREAS.md). */}
                             <PracticeAreaIconBadge area={task.areaKey} size="md" />
                             <div className="min-w-0">
-                              <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                              <p className="text-xs font-semibold text-muted-foreground">
                                 {isMine ? "Sua área" : "Área"}
                               </p>
                               <p className="mt-0.5 truncate text-sm font-extrabold text-[#102033]">{task.areaKey}</p>
@@ -1728,48 +1716,48 @@ function DueAreaTasksCard({
                           <Badge
                             variant={effectiveStatus === "atrasado" ? "destructive" : "secondary"}
                             className={cn(
-                              effectiveStatus === "disponibilizado" && "bg-emerald-50 text-emerald-800",
-                              effectiveStatus === "em_andamento" && "bg-blue-50 text-blue-800",
+                              effectiveStatus === "disponibilizado" && "bg-success-bg text-success-text",
+                              effectiveStatus === "em_andamento" && "bg-info-bg text-info-text",
                             )}
                           >
                             {DUE_STATUS_LABELS[effectiveStatus]}
                           </Badge>
                         </div>
 
-                        <div className="mt-3 space-y-2 text-xs text-slate-500">
+                        <div className="mt-3 space-y-2 text-xs text-muted-foreground">
                           <p>
-                            <span className="font-bold text-slate-600">Responsável: </span>
+                            <span className="font-bold text-text-secondary-v2">Responsável: </span>
                             {task.responsavel?.fullName ?? "Não definido"}
                           </p>
                           <p>
-                            <span className="font-bold text-slate-600">Prazo: </span>
+                            <span className="font-bold text-text-secondary-v2">Prazo: </span>
                             {task.prazoAte ? formatDateTimeMinutesBr(task.prazoAte) : "Sem prazo"}
                           </p>
                           {task.iniciadoEm ? (
                             <p>
-                              <span className="font-bold text-slate-600">Iniciado em: </span>
+                              <span className="font-bold text-text-secondary-v2">Iniciado em: </span>
                               {formatDateTimeBr(task.iniciadoEm)}
                             </p>
                           ) : null}
                           {task.dadosDisponibilizadosEm ? (
                             <p>
-                              <span className="font-bold text-slate-600">Registrado em: </span>
+                              <span className="font-bold text-text-secondary-v2">Registrado em: </span>
                               {formatDateTimeBr(task.dadosDisponibilizadosEm)}
                             </p>
                           ) : null}
                           {delivered && task.semProcessosAtivos ? (
-                            <p className="font-semibold text-slate-700">Sem processos ativos nesta área.</p>
+                            <p className="font-semibold text-text-secondary-v2">Sem processos ativos nesta área.</p>
                           ) : null}
                           {task.observacaoSemProcessos ? (
                             <p>
-                              <span className="font-bold text-slate-600">Observação: </span>
+                              <span className="font-bold text-text-secondary-v2">Observação: </span>
                               {task.observacaoSemProcessos}
                             </p>
                           ) : null}
                         </div>
 
                         {relatorios.length ? (
-                          <p className="mt-3 flex items-start gap-1.5 text-xs font-semibold text-emerald-700">
+                          <p className="mt-3 flex items-start gap-1.5 text-xs font-semibold text-success-text">
                             <FileSpreadsheet className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
                             <span className="min-w-0 break-words">Relatório anexado: {relatorios.join(", ")}</span>
                           </p>
@@ -1842,7 +1830,7 @@ function DueAreaTasksCard({
                                 Sem processos ativos
                               </Button>
                             </div>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-muted-foreground">
                               {usaPlanilha
                                 ? relatorios.length
                                   ? "Confira o arquivo e marque como entregue. Dá para anexar mais de um."
@@ -1870,7 +1858,7 @@ function DueAreaTasksCard({
                 </div>
               </>
             ) : (
-              <p className="rounded-2xl border border-dashed border-[#dfe5ee] bg-white p-4 text-sm text-slate-500">
+              <p className="rounded-2xl border border-dashed border-[#dfe5ee] bg-white p-4 text-sm text-muted-foreground">
                 As tarefas automáticas ainda não foram geradas para esta DUE. Ao entrar em Levantamento de Dados, o CRM
                 cria uma tarefa por área selecionada.
               </p>
@@ -1887,7 +1875,7 @@ function DueAreaTasksCard({
               Registre que a área não possui processos ativos para esta Due Diligence.
             </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-text-secondary-v2">
             Use quando a área não encontrou processos ativos para esta Due Diligence. Opcionalmente descreva o contexto.
           </p>
           <div className="space-y-2 py-2">
@@ -1919,11 +1907,10 @@ function DueApresentacaoRecolhida({ onAbrir }: { onAbrir: () => void }) {
   return (
     <section id="due-apresentacao" className="scroll-mt-6">
       <Card className="border-border bg-white p-5 sm:p-6">
-        <SectionEyebrow icon={Presentation}>Due Diligence</SectionEyebrow>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="text-lg font-semibold tracking-tight text-foreground">Apresentação automática</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Só para o MKT (admin): na Compilação, revisa capa, formato e textos e gera o PPT da compilação. Os
               relatórios e os textos que as áreas mandam pelo cartão já entram aqui.
             </p>
@@ -1938,38 +1925,22 @@ function DueApresentacaoRecolhida({ onAbrir }: { onAbrir: () => void }) {
   );
 }
 
-function SectionEyebrow({
-  icon: Icon,
-  children,
-}: {
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-[#24615b]">
-      <Icon className="h-4 w-4" />
-      {children}
-    </div>
-  );
-}
-
 function EmptyTabCard({
-  icon: Icon,
   title,
   description,
 }: {
-  icon: LucideIcon;
+  /** Não é mais exibido (13/11/2026: título sem eyebrow com ícone). */
+  icon?: LucideIcon;
   title: string;
   description: string;
 }) {
   return (
     <Card className="border-border bg-white p-6">
       <CardHeader className="px-0 pt-0">
-        <SectionEyebrow icon={Icon}>Sem dados nesta área</SectionEyebrow>
-                      <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
+        <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
           {title}
         </CardTitle>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </CardHeader>
     </Card>
   );
@@ -1988,7 +1959,6 @@ function CrmLinksCard({ lead }: { lead: LeadDetailData }) {
     <section id="links" className="scroll-mt-6">
                   <Card className="border-border bg-white p-5 sm:p-6">
         <CardHeader className="px-0 pt-0">
-          <SectionEyebrow icon={LinkIcon}>Links no CRM</SectionEyebrow>
                       <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
             Proposta e contrato
           </CardTitle>
@@ -2005,7 +1975,7 @@ function CrmLinksCard({ lead }: { lead: LeadDetailData }) {
 function LinkBlock({ label, href }: { label: string; href: string }) {
   return (
     <div className="rounded-2xl border border-[#e6e9ef] bg-white p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
       <Link
         href={href}
         target="_blank"
@@ -2039,9 +2009,8 @@ function D4SignDisclosure({
           aria-expanded={open}
         >
           <div className="min-w-0">
-            <SectionEyebrow icon={FileSignature}>Assinatura eletrônica</SectionEyebrow>
             <h2 className="text-lg font-semibold tracking-tight text-foreground">D4Sign</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               {hasDocument
                 ? `Último documento conectado${lead.d4signStatus ? `: ${lead.d4signStatus}` : "."}`
                 : "Envie contrato ou proposta para assinatura quando estiver pronto."}
@@ -2052,8 +2021,8 @@ function D4SignDisclosure({
               className={cn(
                 "hidden rounded-full border px-2.5 py-1 text-xs font-bold sm:inline-flex",
                 hasDocument
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-slate-200 bg-slate-50 text-slate-600",
+                  ? "border-success-border bg-success-bg text-success-text"
+                  : "border-border bg-surface-subtle text-text-secondary-v2",
               )}
             >
               {hasDocument ? "Conectado" : "Pendente"}

@@ -1303,7 +1303,7 @@ export function PipelineBoard({
                     <span className="font-semibold text-foreground">
                       {transitionModal.item.solicitante ?? "esta oportunidade"}
                     </span>{" "}
-                    no funil. O layout segue o mesmo padrão visual do cadastro de novo lead.
+                    no funil.
                   </>
                 }
                 pills={[

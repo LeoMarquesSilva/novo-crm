@@ -2,6 +2,7 @@
 
 import type { ComponentType, ReactNode } from "react";
 import { X } from "lucide-react";
+import { CrmStepper } from "@/components/crm/crm-stepper";
 import { cn } from "@/lib/utils";
 
 export interface NewLeadModalPill {
@@ -18,7 +19,6 @@ export interface NewLeadModalStep {
 }
 
 export function ModalHeader({
-  badge = "NOVO LEAD",
   title,
   subtitle,
   pills,
@@ -27,6 +27,7 @@ export function ModalHeader({
   onRequestClose,
   className,
 }: {
+  /** Não é mais exibido (13/11/2026: sem selo em caixa alta acima do título). */
   badge?: string;
   title: string;
   subtitle: ReactNode;
@@ -71,9 +72,6 @@ export function ModalHeader({
       <div className="space-y-5 lg:pr-14">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-2">
-            <div className="inline-flex items-center rounded-full border border-border bg-surface-subtle px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {badge}
-            </div>
             <h2 className="max-w-2xl text-2xl font-bold tracking-tight text-foreground">
               {title}
             </h2>
@@ -99,45 +97,17 @@ export function ModalHeader({
         </div>
 
         {steps?.length ? (
-          <div className="rounded-(--radius-v2-lg) border border-border bg-surface-subtle p-1.5">
-            <div className="grid gap-1 md:grid-cols-3 xl:grid-cols-6">
-              {steps.map((step, index) => (
-                <button
-                  key={step.id}
-                  type="button"
-                  disabled={!step.available}
-                  onClick={() => onSelectStep?.(step.id)}
-                  className={cn(
-                    "flex items-center gap-2 rounded-(--radius-v2-md) px-2.5 py-2 text-left transition-colors",
-                    step.active
-                      ? "bg-white text-foreground shadow-sm"
-                      : step.available
-                        ? "text-muted-foreground hover:bg-white hover:text-foreground"
-                        : "cursor-not-allowed text-text-disabled-v2",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
-                      step.active
-                        ? "border-interactive-300 bg-interactive-600 text-white"
-                        : step.done
-                          ? "border-success-border bg-success-bg text-success-text"
-                          : "border-border bg-white text-muted-foreground",
-                    )}
-                  >
-                    {step.done ? "✓" : index + 1}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-xs font-semibold">{step.label}</span>
-                    <span className={cn("block text-xs", step.active ? "text-muted-foreground" : "text-current/70")}>
-                      {step.done ? "Concluído" : step.active ? "Atual" : "Pendente"}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <CrmStepper
+            label="Etapas"
+            compactLabels
+            onSelect={onSelectStep ? (id) => onSelectStep(id) : () => undefined}
+            steps={steps.map((step) => ({
+              id: step.id,
+              label: step.label,
+              state: step.active ? "active" : step.done ? "done" : "pending",
+              available: step.available,
+            }))}
+          />
         ) : null}
       </div>
     </header>

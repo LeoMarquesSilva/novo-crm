@@ -502,11 +502,11 @@ export function PropostaEscopoPorArea({
             return (
               <div
                 key={area}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-muted-foreground"
+                className="rounded-2xl border border-border bg-surface-subtle px-4 py-4 text-sm text-muted-foreground"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <AreaIconLabel area={normalizePracticeAreaKey(area)} size="sm" nameClassName="font-extrabold text-foreground" />
-                  <Badge variant="outline" className="border-slate-300 bg-white text-xs font-black uppercase tracking-[0.08em] text-slate-600">
+                  <Badge variant="outline" className="border-border-strong bg-white text-xs font-semibold text-text-secondary-v2">
                     Sem acesso
                   </Badge>
                 </div>
@@ -525,7 +525,7 @@ export function PropostaEscopoPorArea({
                       />
                     ))
                   ) : (
-                    <span className="text-xs text-slate-500">Nenhum gestor cadastrado</span>
+                    <span className="text-xs text-muted-foreground">Nenhum gestor cadastrado</span>
                   )}
                 </div>
               </div>
@@ -709,11 +709,11 @@ function EscopoAreaDelegatedModal({
           <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
             <div className="min-w-0 flex-1 space-y-5">
             <div className="rounded-(--radius-v2-xl) border border-border bg-white p-5">
-              <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">Acionamento da área</p>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              <p className="text-v2-caption-medium text-text-muted-v2">Acionamento da área</p>
+              <p className="mt-2 text-sm leading-relaxed text-text-secondary-v2">
                 Você não pode preencher esta área. Selecione abaixo quem da prática deve receber a notificação para assumir o escopo.
               </p>
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950">
+              <div className="mt-4 rounded-2xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-text">
                 Permissão: somente admin ou comercial da área {areaLabel} pode editar este escopo.
               </div>
             </div>
@@ -736,12 +736,12 @@ function EscopoAreaDelegatedModal({
           <div className="rounded-(--radius-v2-xl) border border-border bg-white p-5">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">Quem notificar</p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="text-v2-caption-medium text-text-muted-v2">Quem notificar</p>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Responsáveis comerciais cadastrados na área {areaLabel}.
                 </p>
               </div>
-              <span className="text-xs font-bold text-slate-500">
+              <span className="text-xs font-bold text-muted-foreground">
                 {selectedTargetIds.length}/{responsaveis.length} selecionado(s)
               </span>
             </div>
@@ -777,7 +777,7 @@ function EscopoAreaDelegatedModal({
                 })}
               </div>
             ) : (
-              <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-900">
+              <p className="mt-4 rounded-2xl border border-danger-border bg-danger-bg p-3 text-sm font-semibold text-danger-text">
                 Nenhum usuário comercial está cadastrado para esta área. Ajuste a área do usuário na página de usuários.
               </p>
             )}
@@ -943,20 +943,20 @@ function EscopoAreaBlock({
 
   if (!tipos.length) {
     return (
-      <div className="overflow-hidden rounded-xl border border-amber-200/90 bg-amber-50/90 shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-warning-border bg-warning-bg shadow-sm">
         <button
           type="button"
-          className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-amber-100/50"
+          className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-warning-bg"
           onClick={onTogglePanel}
         >
           <ChevronDown
-            className={cn("size-5 shrink-0 text-amber-800/80 transition-transform", panelOpen && "rotate-180")}
+            className={cn("size-5 shrink-0 text-warning-text transition-transform", panelOpen && "rotate-180")}
             aria-hidden
           />
           <AreaIconLabel area={areaLabel} size="md" nameClassName="text-base font-semibold text-foreground" />
         </button>
         {panelOpen ? (
-          <div className="border-t border-amber-200/80 px-4 py-3">
+          <div className="border-t border-warning-border px-4 py-3">
             <p className="text-xs text-muted-foreground">
               Nenhum tipo/subtipo configurado no catálogo para esta área. Atualize o arquivo de dados ou o Excel e
               gere o catálogo de novo.
@@ -1147,7 +1147,7 @@ function AreaSummaryCard({
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-base font-extrabold tracking-[-0.02em] text-foreground">{areaLabel}</p>
               {scopeCount > 1 ? (
-                <Badge variant="outline" className="h-6 border-slate-200 bg-white text-xs font-bold text-slate-600">
+                <Badge variant="outline" className="h-6 border-border bg-white text-xs font-bold text-text-secondary-v2">
                   {scopeCount} escopos
                 </Badge>
               ) : null}
@@ -1157,16 +1157,16 @@ function AreaSummaryCard({
               <Badge
                 variant="outline"
                 className={cn(
-                  "h-6 border text-xs font-black uppercase tracking-[0.08em]",
+                  "h-6 border text-xs font-semibold",
                   tone === "delegated"
-                    ? "border-amber-200 bg-amber-50 text-amber-900"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-800",
+                    ? "border-warning-border bg-warning-bg text-warning-text"
+                    : "border-success-border bg-success-bg text-success-text",
                 )}
               >
                 {tone === "delegated" ? "Sem edição" : "Liberado"}
               </Badge>
             </div>
-            <p className="mt-1 text-xs font-semibold text-slate-500">{permissionLabel}</p>
+            <p className="mt-1 text-xs font-semibold text-muted-foreground">{permissionLabel}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {complete || request?.concluidoEm ? (
                 request?.gestor?.fullName ? (
@@ -1178,7 +1178,7 @@ function AreaSummaryCard({
                     variant="inline"
                   />
                 ) : (
-                  <span className="text-xs text-slate-500">Responsável não definido</span>
+                  <span className="text-xs text-muted-foreground">Responsável não definido</span>
                 )
               ) : responsaveis.length > 0 ? (
                 <>
@@ -1192,13 +1192,13 @@ function AreaSummaryCard({
                     />
                   ))}
                   {responsaveis.length > 2 ? (
-                    <span className="text-xs font-semibold text-slate-500">
+                    <span className="text-xs font-semibold text-muted-foreground">
                       +{responsaveis.length - 2}
                     </span>
                   ) : null}
                 </>
               ) : (
-                <span className="text-xs text-slate-500">Gestor responsável ainda não definido</span>
+                <span className="text-xs text-muted-foreground">Gestor responsável ainda não definido</span>
               )}
             </div>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -1245,7 +1245,7 @@ function EscopoModalHeader({
           <PracticeAreaIconBadge area={areaLabel} size="md" />
           <div className="min-w-0">
             <div className="mb-1.5 flex flex-wrap items-center gap-2">
-              <span className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+              <span className="text-v2-caption-medium text-text-muted-v2">
                 Escopo por área
               </span>
               <span className="rounded-(--radius-v2-full) border border-border bg-surface-subtle px-2 py-0.5 text-v2-caption-medium text-foreground">
@@ -1255,7 +1255,7 @@ function EscopoModalHeader({
             <DialogTitle className="text-xl font-extrabold tracking-[-0.035em] text-foreground sm:text-2xl">
               {areaLabel}
             </DialogTitle>
-            <DialogDescription className="mt-1 flex max-w-2xl flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-relaxed text-slate-500">
+            <DialogDescription className="mt-1 flex max-w-2xl flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-relaxed text-muted-foreground">
               {request?.gestor?.fullName ? (
                 <CrmUserLabel
                   name={request.gestor.fullName}
@@ -1273,7 +1273,7 @@ function EscopoModalHeader({
             </DialogDescription>
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-2 border-t border-slate-200 pt-3 sm:grid-cols-3 lg:min-w-[440px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+        <div className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-2 border-t border-border pt-3 sm:grid-cols-3 lg:min-w-[440px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
           <HeaderMeta
             label="Prazo"
             value={request?.prazoAte ? formatDateTimeMinutesBr(request.prazoAte) : "Não definido"}
@@ -1310,7 +1310,7 @@ function EscopoModalHeader({
 function HeaderMeta({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
       <div className="mt-1 truncate text-xs font-bold text-foreground">{value}</div>
     </div>
   );
@@ -1319,7 +1319,7 @@ function HeaderMeta({ label, value }: { label: string; value: ReactNode }) {
 function ReadOnlyPair({ label, value, dark }: { label: string; value: string; dark?: boolean }) {
   return (
     <div className={cn("rounded-(--radius-v2-xl) border p-3", dark ? "border-white/10 bg-white/10" : "border-border bg-white")}>
-      <p className={cn("text-xs font-black uppercase tracking-[0.14em]", dark ? "text-white/45" : "text-muted-foreground")}>
+      <p className={cn("text-xs font-semibold", dark ? "text-white/45" : "text-muted-foreground")}>
         {label}
       </p>
       <p className={cn("mt-1 text-sm font-bold", dark ? "text-white" : "text-foreground")}>{value}</p>
@@ -1333,11 +1333,11 @@ function PreviewGrid({ escopo }: { escopo: string }) {
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-border pb-3">
         <div className="min-w-0">
           <p className="text-v2-caption-medium text-text-muted-v2">Texto gerado</p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             Referência do conteúdo; a diagramação final aparece na prévia Word.
           </p>
         </div>
-        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">
+        <span className="shrink-0 rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-semibold text-muted-foreground">
           Word
         </span>
       </div>

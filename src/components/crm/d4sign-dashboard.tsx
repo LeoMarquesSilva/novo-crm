@@ -165,7 +165,7 @@ const STATUS_MAP: Record<string, StatusInfo> = {
   processing: { label: "Processando",  icon: Loader2,      pill: "bg-neutral-50 border-neutral-200 text-muted-foreground", group: "other" },
   "2":        { label: "Visualizado",  icon: Eye,          pill: "bg-info-bg border-info-border text-info-text",       group: "pending"   },
   "3":        { label: "Assinando…",   icon: Clock,        pill: "bg-warning-bg border-warning-border text-warning-text", group: "pending" },
-  "1":        { label: "Assinado ✓",   icon: CheckCircle2, pill: "bg-success-bg border-success-border text-success-text", group: "signed"  },
+  "1":        { label: "Assinado",   icon: CheckCircle2, pill: "bg-success-bg border-success-border text-success-text", group: "signed"  },
   "4":        { label: "Cancelado",    icon: XCircle,      pill: "bg-danger-bg border-danger-border text-danger-text", group: "cancelled" },
 };
 
@@ -431,7 +431,7 @@ function SignersDisplay({
           allSigned ? "text-success-text" : signedCount > 0 ? "text-warning-text" : "text-muted-foreground",
         )}>
           {allSigned
-            ? "✓ Todos assinaram"
+            ? "Todos assinaram"
             : signedCount === 0
               ? `Aguardando ${total} assinatura${total !== 1 ? "s" : ""}`
               : `${signedCount} / ${total} assinaram`}
