@@ -2,6 +2,11 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-11-13 — Abertura no VIOS gravando e fim do SharePoint no cadastro
+
+- `POST /api/leads/new` não grava mais na lista do SharePoint (era do CRM antigo). `VIOS_ABERTURA_MODO`: `desligado` não pede nada, `simular` confere as telas, `ativo` grava no VIOS. E-mail de novo lead sem o botão do Power Apps e com os próximos passos do robô; diálogo do Novo lead sem "agendamento no SharePoint".
+- Validações: `tsc --noEmit`, `npm run lint`, `npm test`.
+
 ## 2026-11-13 — Abertura no VIOS pelo robô do SAMA (Fase 2)
 
 - Lead com due pede ao robô do SAMA a abertura no VIOS (prospect, pasta de atendimento Comercial/Due Diligence Prospect e tarefas ENVIAR, Protocolo e Ciência da abertura de pasta), atrás de `VIOS_ABERTURA_MODO` (`desligado` padrão, `simular`, `ativo`). No cadastro (`POST /api/leads/new`) e na ficha quando a due é ligada depois ou a data de entrega é preenchida. O CRM só manda o pedido; o resultado fica no SAMA. Sem migration. Detalhes em `system-context.md` §14.14.

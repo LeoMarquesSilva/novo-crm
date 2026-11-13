@@ -3,7 +3,6 @@ import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { internalErrorResponse, logServerError, publicErrorMessage } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import { buildDueSharePointAgendamentoFields } from "@/modules/crm/application/services/build-due-sharepoint-agendamento-fields";
 import {
   buildDueWhatsappValues,
   newLeadWhatsappTemplateKey,
@@ -17,7 +16,6 @@ import {
   type NewLeadPayload,
 } from "@/modules/crm/application/services/new-lead-payload";
 import { createEvolutionConnectorFromEnv } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
-import { SharePointGraphClient } from "@/modules/crm/infrastructure/integrations/sharepoint-graph";
 import {
   buildLeadDetailUrl,
   sendLeadNotificationEmail,
@@ -31,26 +29,6 @@ import { recordLeadActivityEvent } from "@/lib/crm/record-lead-activity";
 import { requestIndicatorApprovalIfNew } from "@/lib/crm/ensure-pending-indicator";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
-
-async function updateSharePointAudit(
-  supabase: SupabaseAdminClient,
-  oportunidadeId: string,
-  values: Pick<
-    Database["public"]["Tables"]["lead_intakes"]["Update"],
-    | "sharepoint_agendamento_id"
-    | "sharepoint_agendamento_url"
-    | "sharepoint_agendamento_error"
-    | "sharepoint_agendamento_created_at"
-  >,
-) {
-  const { error } = await supabase
-    .from("lead_intakes")
-    .update(values)
-    .eq("oportunidade_id", oportunidadeId);
-
-  if (!error) return null;
-  return `ref ${logServerError("leads/new/sharepoint-audit", error, { oportunidadeId })}`;
-}
 
 /** Aviso seguro para a tela: mensagem pública da integração + referência do log. */
 function safeWarning(scope: string, error: unknown, fallback: string): string {
@@ -343,9 +321,9 @@ export async function POST(request: Request) {
     });
     if (whatsappWarning) warnings.push(whatsappWarning);
 
-    // Abertura no VIOS (`VIOS_ABERTURA_MODO`): `desligado` e `simular` mantêm o SharePoint;
-    // `simular` e `ativo` pedem ao robô do SAMA. Só no `ativo` uma falha vira aviso na tela —
-    // na simulação o SharePoint continua sendo o caminho real.
+    // Abertura no VIOS pelo robô do SAMA (`VIOS_ABERTURA_MODO`): `ativo` grava no VIOS, `simular` só
+    // confere as telas, `desligado` não pede nada. A lista do SharePoint era do CRM antigo e saiu daqui
+    // em 13/11/2026. No `ativo`, uma falha no pedido vira aviso na tela do cadastro.
     const modoVios = viosAberturaModo();
 
     if (hasDue && modoVios !== "desligado") {
@@ -353,37 +331,6 @@ export async function POST(request: Request) {
       if (modoVios === "ativo" && (abertura.status === "erro" || abertura.status === "pulado")) {
         warnings.push(
           `Abertura no VIOS: ${abertura.status === "erro" ? abertura.mensagem : `pedido não enviado (${abertura.motivo})`}`,
-        );
-      }
-    }
-
-    if (hasDue && modoVios !== "ativo") {
-      try {
-        const sharePointClient = SharePointGraphClient.fromEnv();
-        const fields = buildDueSharePointAgendamentoFields(payload);
-        const created = await sharePointClient.createListItem(fields);
-        const auditError = await updateSharePointAudit(supabase, oportunidade.id, {
-          sharepoint_agendamento_id: created.id,
-          sharepoint_agendamento_url: created.webUrl ?? null,
-          sharepoint_agendamento_error: null,
-          sharepoint_agendamento_created_at: new Date().toISOString(),
-        });
-
-        if (auditError) {
-          warnings.push(`SharePoint DUE: item criado, mas auditoria falhou (${auditError}).`);
-        }
-      } catch (error) {
-        // Gravado no lead e mostrado na ficha: só a mensagem pública + referência do log.
-        const message = safeWarning("sharepoint", error, "Falha ao criar agendamento da due no SharePoint.");
-        const auditError = await updateSharePointAudit(supabase, oportunidade.id, {
-          sharepoint_agendamento_error: message,
-          sharepoint_agendamento_created_at: null,
-        });
-
-        warnings.push(
-          `SharePoint DUE: ${message}${
-            auditError ? ` Auditoria também falhou (${auditError}).` : ""
-          }`,
         );
       }
     }
