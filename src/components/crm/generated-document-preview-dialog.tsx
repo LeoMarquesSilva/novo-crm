@@ -106,9 +106,7 @@ export function GeneratedDocumentPreviewDialog({
         <DialogDescription className="sr-only">Pré-visualização do arquivo {filename}.</DialogDescription>
 
         <div className="flex shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-5 py-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) border border-interactive-300 bg-interactive-50">
-            <FileText className="size-5 text-interactive-600" aria-hidden />
-          </div>
+          <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-sm font-bold text-foreground">v{versionNumber}</h2>
             <p className="truncate text-xs text-muted-foreground">{filename}</p>

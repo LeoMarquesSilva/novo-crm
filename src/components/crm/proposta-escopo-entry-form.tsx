@@ -99,7 +99,7 @@ export function PropostaEscopoEntryForm({
             Escopo {entryIndex + 1}
             {entryCount > 1 ? ` de ${entryCount}` : ""}
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             Tipo, subtipo e variáveis deste bloco na proposta.
           </p>
         </div>
@@ -108,7 +108,7 @@ export function PropostaEscopoEntryForm({
             type="button"
             size="sm"
             variant="outline"
-            className="shrink-0 gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50"
+            className="shrink-0 gap-1.5 border-danger-border text-danger-text hover:bg-danger-bg"
             onClick={onRemove}
           >
             <Trash2 className="size-3.5" aria-hidden />
@@ -119,7 +119,7 @@ export function PropostaEscopoEntryForm({
 
       <div className="grid min-w-0 gap-3 sm:grid-cols-2">
         <div className="min-w-0 space-y-1.5">
-          <Label className="text-xs font-semibold text-slate-600">Tipo do escopo</Label>
+          <Label className="text-xs font-semibold text-text-secondary-v2">Tipo do escopo</Label>
           <Select
             value={tipoSelectValue ? tipoSelectValue : SELECT_EMPTY}
             onValueChange={(v) => {
@@ -145,7 +145,7 @@ export function PropostaEscopoEntryForm({
           </Select>
         </div>
         <div className="min-w-0 space-y-1.5">
-          <Label className="text-xs font-semibold text-slate-600">Subtipo do escopo</Label>
+          <Label className="text-xs font-semibold text-text-secondary-v2">Subtipo do escopo</Label>
           <Select
             value={subtipoSelectValue ? subtipoSelectValue : SELECT_EMPTY}
             onValueChange={(v) => {
@@ -219,7 +219,7 @@ function PlaceholderField({
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <Label className="text-xs font-bold leading-snug text-slate-600">{config.label}</Label>
+      <Label className="text-xs font-bold leading-snug text-text-secondary-v2">{config.label}</Label>
       {config.control === "textarea" ? (
         <Textarea
           className="min-h-[104px] max-w-full resize-y rounded-(--radius-v2-md) border-border bg-white text-sm"
@@ -281,7 +281,7 @@ function PlaceholderField({
         />
       )}
       {horasPreview ? (
-        <p className="text-xs leading-relaxed text-slate-500">
+        <p className="text-xs leading-relaxed text-muted-foreground">
           Na proposta: <span className="font-semibold text-interactive-700">{horasPreview}</span>
         </p>
       ) : null}

@@ -261,6 +261,20 @@ Registradas no fechamento da Fase 4 (achado bloqueante já corrigido — ver Cha
 
 ## Changelog
 
+- **13/11/2026** — Menos "cara de template" no fluxo comercial (P2 da crítica de design):
+  - **Paleta crua → tokens:** 299 classes `amber/emerald/green/rose/red/blue/sky/indigo/slate/gray` viraram `warning-*`, `success-*`, `danger-*`, `info-*` e neutros (`muted-foreground`, `text-secondary-v2`, `surface-subtle`, `border`, `border-strong`). As trocas estão na ficha, no editor do contrato, no painel de objeto, no escopo e na coordenação por área, no formulário de escopo, na reunião → proposta e no editor da proposta. Ficam as cores de identidade dos signatários (pinos e marcadores `color === "teal|emerald|amber"`) e o realce de posicionar pino.
+  - **Ícone em caixa azul:** sai do título dos editores (`DocumentBuilderDialogHeader`), das prévias de documento (`generated-document-preview-dialog`, `d4sign-view-dialog`) e dos três blocos de Operações Legais. Onde o ícone fica, ele é neutro e em linha. As iniciais em círculo do envio para assinatura continuam, porque são avatar.
+  - **Rótulos em caixa alta:**
+    - os 11 `SectionEyebrow` da ficha ("Documentos / Propostas", "Due Diligence"…, em verde cru) e o eyebrow do `DocumentBuilderHubHeader` ("Documentos / Contrato") saíram;
+    - 36 rótulos pequenos `uppercase` + `tracking-*` viraram texto comum em semibold.
+
+    Os pinos desenhados na página e o texto do próprio documento continuam como estão. As props `eyebrow`/`icon` continuam opcionais, por compatibilidade.
+  - **Glifos:** ✓/⚠/⏳ viraram ícones lucide (`Check`, `TriangleAlert`) ou só texto, quando o selo já diz o estado. Mudou em "Resolvida pelo perfil contratual", "Contrato enviado", "Assinou", "Revisão concluída", "Assinado por todos", "Proposta e contrato alinhados", "N de M escopos representados", "Faltam N informações" e no D4Sign.
+  - **Modal de transição do kanban (`ModalHeader`):** sem o selo "TRANSIÇÃO DE ETAPA" em caixa alta. As etapas, quando houver, usam o `CrmStepper`. O subtítulo perdeu a frase "O layout segue o mesmo padrão visual do cadastro de novo lead".
+  - **Testes:** 1462 passando, typecheck limpo e lint sem avisos novos.
+  - **Conferência na tela (~680px):** feita na aba Due, no editor da proposta e na aba e no editor do contrato. Restam só as cores de identidade: ícone da área e signatários. A conferência trouxe dois ajustes:
+    - `CrmEntityHeader` põe título e ações lado a lado só a partir de `lg`. No tablet, o título do lead ficava espremido em quatro linhas.
+    - `proposta-investimento-consolidado-form.tsx` ganhou a mesma limpeza de caixa alta e paleta crua.
 - **12/11/2026** — Etapas e editores com uma linguagem só (P1 da crítica de design). Antes havia cinco desenhos de etapa (wizard, abas em cartão da proposta, pílulas coloridas do contrato, trilho de 4 passos e a faixa da ficha), e a proposta navegava por etapas enquanto o contrato rolava. Agora há três usos, cada um com um componente:
   - **Etapas de processo:** `CrmStepper` (`src/components/crm/crm-stepper.tsx`), tirado do `WizardHeader`. Mostra número em círculo, rótulo, apoio opcional e fio até a próxima etapa. No Novo lead é interativo (`onSelect`, `compactLabels` no celular). No contrato, o andamento Elaboração → Revisão → Envio → Assinatura (`ContractWorkflowRail`) é só leitura.
   - **Seções dos editores:** `DocumentSectionNav` e `DocumentSectionHeader` (`src/components/crm/document-section-nav.tsx`).

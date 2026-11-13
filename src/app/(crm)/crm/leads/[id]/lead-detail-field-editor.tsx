@@ -436,7 +436,6 @@ export function LeadDetailFieldEditor({
           <p
             className={cn(
               "flex items-center gap-1.5 text-xs font-medium text-muted-foreground",
-              displayVariant === "card" && "uppercase tracking-wide",
             )}
           >
             {LabelIcon ? <LabelIcon className="size-3.5 shrink-0" aria-hidden /> : null}

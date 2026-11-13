@@ -112,7 +112,7 @@ export function ContractBillingOnboardingPanel({
       <CardHeader className="gap-3 px-0 pt-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="flex items-center gap-2 text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+            <p className="flex items-center gap-2 text-v2-caption-medium text-text-muted-v2">
               <ReceiptText className="h-4 w-4" /> Inclusão no faturamento
             </p>
             <CardTitle className="mt-2 text-v2-heading-lg text-foreground">Contrato no gerenciamento de contratos</CardTitle>

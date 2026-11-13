@@ -153,9 +153,7 @@ function Highlight({ icon: Icon, label, children }: { icon: ComponentType<{ clas
   return (
     <div className="min-w-0 bg-white px-4 py-3.5">
       <div className="flex items-start gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 text-interactive-700">
-          <Icon className="size-4" />
-        </span>
+        <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
         <div className="min-w-0">
           <p className="text-xs font-medium text-muted-foreground">{label}</p>
           <div className="mt-1 min-w-0 text-sm text-foreground">{children}</div>
@@ -491,9 +489,7 @@ export function OpsLegaisReviewPanel({
     <section className="overflow-hidden rounded-(--radius-v2-xl) border border-border bg-white">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 text-interactive-700">
-            <ClipboardCheck className="size-4" aria-hidden />
-          </span>
+          <ClipboardCheck className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0">
             <h3 className="text-[15px] font-semibold tracking-tight text-foreground">Cadastro do cliente no VIOS</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -938,9 +934,7 @@ export function OpsLegaisReviewPanel({
         {view === 3 ? (
           <>
             <div className="flex items-start gap-3 rounded-(--radius-v2-lg) border border-border bg-surface-subtle px-4 py-3.5">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 text-interactive-700">
-                <MonitorCog className="size-4" aria-hidden />
-              </span>
+              <MonitorCog className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
               <div>
                 <p className="text-sm font-semibold text-foreground">Lance o cliente nos sistemas legados do escritório</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">

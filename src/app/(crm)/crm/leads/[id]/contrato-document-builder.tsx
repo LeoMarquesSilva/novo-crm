@@ -664,7 +664,7 @@ export function ContratoDocumentBuilder({
             <div className="grid gap-2.5 sm:grid-cols-3">
               {propostaEmpresaPrincipalNome ? (
                 <div className="rounded-(--radius-v2-md) bg-surface-subtle p-3">
-                  <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+                  <p className="text-v2-caption-medium text-text-muted-v2">
                     Empresa principal
                   </p>
                   <p className="mt-1 text-sm font-semibold text-foreground">
@@ -674,7 +674,7 @@ export function ContratoDocumentBuilder({
               ) : null}
               {inheritedFields.map((f) => (
                 <div key={f.definitionId} className="rounded-(--radius-v2-md) bg-surface-subtle p-3">
-                  <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+                  <p className="text-v2-caption-medium text-text-muted-v2">
                     {userFacingFieldLabel(f.label, f.fieldCode)}
                   </p>
                   <p className="mt-1 text-sm font-medium text-foreground">
@@ -740,10 +740,10 @@ export function ContratoDocumentBuilder({
                         onClick={() => goToPendingItem(item)}
                         className="group flex w-full items-center gap-2 rounded-(--radius-v2-md) px-1.5 py-1 text-left text-sm text-foreground transition-colors hover:bg-warning-bg"
                       >
-                        <TriangleAlert className="size-3.5 shrink-0 text-amber-500" aria-hidden />
+                        <TriangleAlert className="size-3.5 shrink-0 text-warning-text" aria-hidden />
                         <span className="flex-1">{item.label}</span>
                         <ChevronRight
-                          className="size-3.5 shrink-0 text-amber-400 opacity-0 transition-opacity group-hover:opacity-100"
+                          className="size-3.5 shrink-0 text-warning-text opacity-0 transition-opacity group-hover:opacity-100"
                           aria-hidden
                         />
                       </button>
@@ -1668,7 +1668,10 @@ function ContratoBuilderDialog({
                             ? "No primeiro pagamento"
                             : formatMaybeDateLikeBr(liveBuild.data.startRule.date ?? "") || "Data definida"}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">Resolvida pelo perfil contratual ✓</p>
+                      <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <Check className="size-3.5 text-success-text" aria-hidden />
+                        Resolvida pelo perfil contratual
+                      </p>
                     </div>
                   ) : null}
                   {(SECTION_PRAZO as readonly string[]).map((code) => {
@@ -1737,15 +1740,15 @@ function ContratoBuilderDialog({
               )}
             >
               {/* Cabeçalho do preview */}
-              <div className="flex shrink-0 items-center gap-2 border-b border-border bg-white px-4 py-2.5 text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+              <div className="flex shrink-0 items-center gap-2 border-b border-border bg-white px-4 py-2.5 text-v2-caption-medium text-text-muted-v2">
                 <FileText className="size-3.5 shrink-0" aria-hidden />
                 Preview ao vivo
-                <span className="ml-1 size-2 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                <span className="ml-1 size-2 shrink-0 rounded-full bg-success-text" aria-hidden />
               </div>
 
               {/* Banner: modo posicionamento ativo */}
               {pinMode ? (
-                <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-800">
+                <div className="flex shrink-0 items-center gap-2 border-b border-warning-border bg-warning-bg px-4 py-2 text-[12px] font-semibold text-warning-text">
                   <MapPin className="size-4 shrink-0" aria-hidden />
                   <span className="flex-1">
                     Clique na <strong>folha de assinaturas</strong> (abaixo) para posicionar{" "}
@@ -1870,7 +1873,7 @@ function ContratoBuilderDialog({
                 setConfirmClose(false);
                 onOpenChange(false);
               }}
-              className="bg-rose-600 hover:bg-rose-700"
+              className="bg-danger-text hover:bg-danger-text/90"
             >
               Descartar e fechar
             </AlertDialogAction>
@@ -1884,11 +1887,11 @@ function ContratoBuilderDialog({
 // ─── D4Sign — status por tipo_post ───────────────────────────────────────────
 
 const D4SIGN_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  sent:       { label: "Enviado para assinatura", color: "text-blue-700 bg-blue-50 border-blue-200" },
-  "2":        { label: "Documento visualizado",   color: "text-indigo-700 bg-indigo-50 border-indigo-200" },
-  "3":        { label: "Assinado por um signatário", color: "text-amber-700 bg-amber-50 border-amber-200" },
-  "1":        { label: "Assinado por todos ✓",    color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-  "4":        { label: "Cancelado",               color: "text-rose-700 bg-rose-50 border-rose-200" },
+  sent:       { label: "Enviado para assinatura", color: "text-info-text bg-info-bg border-info-border" },
+  "2":        { label: "Documento visualizado",   color: "text-info-text bg-info-bg border-info-border" },
+  "3":        { label: "Assinado por um signatário", color: "text-warning-text bg-warning-bg border-warning-border" },
+  "1":        { label: "Assinado por todos",      color: "text-success-text bg-success-bg border-success-border" },
+  "4":        { label: "Cancelado",               color: "text-danger-text bg-danger-bg border-danger-border" },
 };
 
 function D4SignSendSection({
@@ -1927,10 +1930,10 @@ function D4SignSendSection({
   return (
     <div className="overflow-hidden rounded-(--radius-v2-xl) border border-border bg-white">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
+      <div className="flex items-center gap-3 border-b border-border bg-surface-subtle px-5 py-3.5">
         <span className={cn(
           "flex size-7 shrink-0 items-center justify-center rounded-lg",
-          isSigned ? "bg-emerald-100 text-emerald-700" : alreadySent ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500",
+          isSigned ? "bg-success-bg text-success-text" : alreadySent ? "bg-info-bg text-info-text" : "bg-surface-subtle text-muted-foreground",
         )}>
           {isSigned ? <CheckCircle2 className="size-4" aria-hidden /> : <Send className="size-4" aria-hidden />}
         </span>
@@ -1953,13 +1956,13 @@ function D4SignSendSection({
       <div className="px-5 py-4 space-y-4">
         {/* Já enviado: mostrar info + link + signatários */}
         {alreadySent && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+          <div className="rounded-xl border border-border bg-surface-subtle p-3 space-y-3">
             {/* UUID */}
             <div className="space-y-1">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              <p className="text-xs font-semibold text-muted-foreground">
                 UUID do documento D4Sign
               </p>
-              <p className="font-mono text-xs text-slate-700 break-all">{lead.d4signDocumentUuid}</p>
+              <p className="font-mono text-xs text-text-secondary-v2 break-all">{lead.d4signDocumentUuid}</p>
             </div>
 
             {/* Ações: ver PDF + link de assinatura */}
@@ -1979,7 +1982,7 @@ function D4SignSendSection({
                   href={(lead.linkContrato ?? sendResult?.linkContrato)!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-text-secondary-v2 hover:bg-surface-subtle transition-colors"
                 >
                   <ExternalLink className="size-3" aria-hidden />
                   Link de assinatura
@@ -1996,9 +1999,10 @@ function D4SignSendSection({
 
         {/* Resultado de envio recente */}
         {sendResult && !alreadySent && sendResult.linkContrato && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-1.5">
-            <p className="text-xs font-semibold text-emerald-700">
-              ✓ Contrato enviado com sucesso. Link de assinatura primário:
+          <div className="rounded-xl border border-success-border bg-success-bg p-3 space-y-1.5">
+            <p className="text-xs font-semibold text-success-text">
+              <Check className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />
+              Contrato enviado com sucesso. Link de assinatura primário:
             </p>
             <a
               href={sendResult.linkContrato}
@@ -2014,14 +2018,14 @@ function D4SignSendSection({
 
         {/* Revisão Societário — gate de envio */}
         {!isSigned && !reviewApproved && reviewBlockReason ? (
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3.5 space-y-2">
+          <div className="rounded-xl border border-info-border bg-info-bg p-3.5 space-y-2">
             <div className="flex items-start gap-2">
-              <ClipboardList className="mt-0.5 size-4 shrink-0 text-blue-700" aria-hidden />
+              <ClipboardList className="mt-0.5 size-4 shrink-0 text-info-text" aria-hidden />
               <div>
-                <p className="text-xs font-bold text-blue-900">Envio bloqueado — revisão pendente</p>
-                <p className="mt-1 text-xs text-blue-800/90">{reviewBlockReason}</p>
+                <p className="text-xs font-bold text-info-text">Envio bloqueado — revisão pendente</p>
+                <p className="mt-1 text-xs text-info-text">{reviewBlockReason}</p>
                 {reviewTask ? (
-                  <p className="mt-2 text-xs font-semibold text-blue-700/80">
+                  <p className="mt-2 text-xs font-semibold text-info-text">
                     Status:{" "}
                     {reviewTask.status === "pendente"
                       ? "Aguardando revisão"
@@ -2036,9 +2040,9 @@ function D4SignSendSection({
         ) : null}
 
         {!isSigned && reviewApproved ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 flex items-center gap-2">
-            <CheckCircle2 className="size-4 shrink-0 text-emerald-600" aria-hidden />
-            <p className="text-xs font-semibold text-emerald-800">
+          <div className="rounded-xl border border-success-border bg-success-bg px-3.5 py-2.5 flex items-center gap-2">
+            <CheckCircle2 className="size-4 shrink-0 text-success-text" aria-hidden />
+            <p className="text-xs font-semibold text-success-text">
               Revisão Societário e Contratos concluída — envio liberado.
             </p>
           </div>
@@ -2046,11 +2050,11 @@ function D4SignSendSection({
 
         {/* Pendências bloqueando envio */}
         {pending.length > 0 && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-            <p className="text-xs font-semibold text-amber-700">
+          <div className="rounded-xl border border-warning-border bg-warning-bg p-3">
+            <p className="text-xs font-semibold text-warning-text">
               Preencha os campos pendentes no builder antes de enviar:
             </p>
-            <ul className="mt-1 space-y-0.5 text-xs text-amber-600">
+            <ul className="mt-1 space-y-0.5 text-xs text-warning-text">
               {pending.slice(0, 4).map((p) => (
                 <li key={p.label} className="flex items-center gap-1.5">
                   <TriangleAlert className="size-3 shrink-0" aria-hidden />
@@ -2123,7 +2127,7 @@ function SignersStatusList({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+      <p className="text-xs font-semibold text-muted-foreground">
         Signatários&nbsp;
         <span className="normal-case font-normal text-muted-foreground">
           ({totalSigned}/{signers.length} assinaram)
@@ -2132,7 +2136,7 @@ function SignersStatusList({
 
       {contratada.length > 0 ? (
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-text-muted-v2">
+          <p className="text-xs font-semibold text-text-muted-v2">
             CONTRATADA
           </p>
           <ul className="space-y-1.5">
@@ -2145,7 +2149,7 @@ function SignersStatusList({
 
       {contratante.length > 0 ? (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-800">
+          <p className="text-xs font-semibold text-warning-text">
             CONTRATANTE
           </p>
           <ul className="space-y-1.5">
@@ -2187,7 +2191,7 @@ function SignerRow({
       className={cn(
         "flex items-center gap-3 rounded-xl border bg-white px-3.5 py-2.5",
         signer.signed
-          ? "border-emerald-200"
+          ? "border-success-border"
           : accent === "teal" ? "border-info-border" : "border-warning-border",
       )}
     >
@@ -2202,7 +2206,7 @@ function SignerRow({
         <span className={cn(
           "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-black",
           signer.signed
-            ? "bg-emerald-100 text-emerald-700"
+            ? "bg-success-bg text-success-text"
             : accent === "teal" ? "bg-info-bg text-info-text" : "bg-warning-bg text-warning-text",
         )}>
           {initials}
@@ -2219,11 +2223,12 @@ function SignerRow({
         ) : null}
         <p className={cn(
           "text-xs font-semibold leading-tight mt-0.5",
-          signer.signed ? "text-emerald-600" : "text-amber-600",
+          signer.signed ? "text-success-text" : "text-warning-text",
         )}>
+          {signer.signed ? <Check className="mr-1 inline size-3 align-[-1px]" aria-hidden /> : null}
           {signer.signed
-            ? signedDate ? `✓ Assinou em ${signedDate}` : "✓ Assinou"
-            : "⏳ Aguardando assinatura"}
+            ? signedDate ? `Assinou em ${signedDate}` : "Assinou"
+            : "Aguardando assinatura"}
         </p>
       </div>
 
@@ -2231,8 +2236,8 @@ function SignerRow({
       <span className={cn(
         "shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold",
         signer.signed
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-slate-200 bg-slate-50 text-muted-foreground",
+          ? "border-success-border bg-success-bg text-success-text"
+          : "border-border bg-surface-subtle text-muted-foreground",
       )}>
         {signer.signed ? "Assinou" : "Pendente"}
       </span>
@@ -2324,9 +2329,9 @@ const REVIEW_STATUS_CFG: Record<
   ReviewTask["status"],
   { label: string; color: string; bg: string; border: string }
 > = {
-  pendente:    { label: "Aguardando revisão", color: "text-amber-700",  bg: "bg-amber-50",  border: "border-amber-200"  },
-  em_revisao:  { label: "Em revisão",          color: "text-blue-700",   bg: "bg-blue-50",   border: "border-blue-200"   },
-  concluido:   { label: "Revisão concluída ✓", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" },
+  pendente:    { label: "Aguardando revisão", color: "text-warning-text",  bg: "bg-warning-bg",  border: "border-warning-border"  },
+  em_revisao:  { label: "Em revisão",          color: "text-info-text",   bg: "bg-info-bg",   border: "border-info-border"   },
+  concluido:   { label: "Revisão concluída",   color: "text-success-text", bg: "bg-success-bg", border: "border-success-border" },
 };
 
 function ReviewTaskCard({
@@ -2394,8 +2399,8 @@ function ReviewTaskCard({
           className={cn(
             "flex size-7 shrink-0 items-center justify-center rounded-lg",
             reviewTask.status === "concluido"
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-blue-100 text-blue-700",
+              ? "bg-success-bg text-success-text"
+              : "bg-info-bg text-info-text",
           )}
         >
           <ClipboardList className="size-4" aria-hidden />
@@ -2416,7 +2421,7 @@ function ReviewTaskCard({
         {prazoStr && (
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Prazo</p>
+              <p className="text-xs font-semibold text-muted-foreground">Prazo</p>
               <p className={cn("text-sm font-bold", atrasado ? "text-danger-text" : "text-foreground")}>
                 {prazoStr}
                 {diasRestantes !== null && reviewTask.status !== "concluido" && (
@@ -2431,7 +2436,7 @@ function ReviewTaskCard({
         )}
 
         {reviewTask.observacao && (
-          <p className="text-xs text-slate-600 border-l-2 border-slate-300 pl-3">
+          <p className="text-xs text-text-secondary-v2 border-l-2 border-border-strong pl-3">
             {reviewTask.observacao}
           </p>
         )}
@@ -2453,7 +2458,7 @@ function ReviewTaskCard({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-8 gap-1.5 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs"
+                className="h-8 gap-1.5 border-info-border bg-info-bg text-info-text hover:bg-info-bg text-xs"
                 disabled={updating}
                 onClick={() => void updateStatus("em_revisao")}
               >
@@ -2466,7 +2471,7 @@ function ReviewTaskCard({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-8 gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs"
+                className="h-8 gap-1.5 border-success-border bg-success-bg text-success-text hover:bg-success-bg text-xs"
                 disabled={updating}
                 onClick={() => void updateStatus("concluido")}
               >
@@ -2756,7 +2761,7 @@ function ClauseGroupBlock({
   const isExclusionMerge = group.title === EXCLUSION_MERGE_SECTION_TITLE;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/70">
+    <div className="rounded-xl border border-border bg-surface-subtle">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -2767,7 +2772,7 @@ function ClauseGroupBlock({
           className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform duration-150", open && "rotate-90")}
           aria-hidden
         />
-        <span className="flex-1 truncate text-xs font-bold uppercase tracking-[0.1em] text-slate-600">
+        <span className="flex-1 truncate text-xs font-semibold text-text-secondary-v2">
           {group.title}
         </span>
         {hasIssues ? (
@@ -2783,9 +2788,9 @@ function ClauseGroupBlock({
         <span className="shrink-0 text-xs font-semibold text-muted-foreground">{group.rows.length}</span>
       </button>
       {open ? (
-        <div className="space-y-2 border-t border-slate-200 px-3 pb-3 pt-2.5">
+        <div className="space-y-2 border-t border-border px-3 pb-3 pt-2.5">
           {isEngineControlled ? (
-            <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-amber-800">
+            <p className="flex items-start gap-1.5 rounded-lg border border-warning-border bg-warning-bg px-2.5 py-2 text-xs leading-relaxed text-warning-text">
               <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
               Esta seção já é gerada automaticamente pelo motor a partir do escopo contratado.
               Cláusulas adicionadas aqui viram um bloco separado no contrato — normalmente não é
@@ -2793,7 +2798,7 @@ function ClauseGroupBlock({
             </p>
           ) : null}
           {isExclusionMerge ? (
-            <p className="flex items-start gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-2 text-xs leading-relaxed text-sky-800">
+            <p className="flex items-start gap-1.5 rounded-lg border border-info-border bg-info-bg px-2.5 py-2 text-xs leading-relaxed text-info-text">
               <Check className="mt-0.5 size-3 shrink-0" aria-hidden />
               Cláusulas adicionadas aqui se juntam automaticamente à seção &ldquo;2. Objetos
               Excluídos do Contrato&rdquo; no documento final, sem repetir &ldquo;Exclusão&rdquo;
@@ -2900,7 +2905,7 @@ function ClauseRowItem({
         {editing ? (
           <p
             className={cn(
-              "mt-2 whitespace-pre-wrap rounded-md border bg-white p-2 text-xs leading-relaxed text-slate-600",
+              "mt-2 whitespace-pre-wrap rounded-md border bg-white p-2 text-xs leading-relaxed text-text-secondary-v2",
               inContractNow ? "border-success-border" : "border-warning-border",
             )}
           >
@@ -2924,7 +2929,7 @@ function ClauseRowItem({
             <Check className="size-2.5" aria-hidden />
           </span>
         ) : (
-          <span className="size-4 shrink-0 rounded-full border-2 border-slate-300" aria-hidden />
+          <span className="size-4 shrink-0 rounded-full border-2 border-border-strong" aria-hidden />
         )}
         <span className="flex-1 truncate text-xs font-semibold text-foreground">{row.title}</span>
         {row.isAdded ? (
@@ -2943,7 +2948,7 @@ function ClauseRowItem({
               type="button"
               onClick={onRemove}
               disabled={disabled}
-              className="flex size-6 shrink-0 items-center justify-center rounded border border-rose-200 text-danger-text hover:border-rose-300 hover:text-danger-text disabled:opacity-30"
+              className="flex size-6 shrink-0 items-center justify-center rounded border border-danger-border text-danger-text hover:border-danger-border hover:text-danger-text disabled:opacity-30"
               aria-label="Remover cláusula"
             >
               <X className="size-3" aria-hidden />
@@ -2974,7 +2979,7 @@ function ClauseRowItem({
           onChange={(e) => onUpdateContent(e.target.value)}
           disabled={disabled}
           placeholder="Conteúdo da cláusula…"
-          className="mt-2 min-h-[90px] resize-y border-slate-200 bg-slate-50 text-xs leading-relaxed"
+          className="mt-2 min-h-[90px] resize-y border-border bg-surface-subtle text-xs leading-relaxed"
         />
       ) : null}
     </div>
@@ -3072,9 +3077,9 @@ function PinsSection({
                     signer.color === "amber" && "bg-amber-500",
                   )}
                 />
-                <span className="flex-1 text-[12px] font-semibold text-slate-700">
+                <span className="flex-1 text-[12px] font-semibold text-text-secondary-v2">
                   {signer.label}
-                  <span className="ml-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span className="ml-1.5 text-xs font-semibold text-muted-foreground">
                     {signer.role}
                   </span>
                 </span>
@@ -3121,9 +3126,9 @@ function PinsSection({
 
         {/* Lista de pins colocados */}
         {pins.length > 0 ? (
-          <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2">
+          <div className="space-y-1.5 rounded-lg border border-border bg-surface-subtle p-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+              <p className="text-xs font-semibold text-muted-foreground">
                 Pins posicionados
               </p>
               <Button
@@ -3156,10 +3161,10 @@ function PinsSection({
                           color === "amber" && "border-amber-200 bg-amber-50/60",
                         )}
                       >
-                        <span className="text-xs font-bold text-slate-600">
+                        <span className="text-xs font-bold text-text-secondary-v2">
                           {pin.type === 1 ? "🖋" : pin.type === 2 ? "🔖" : "✍️"}
                         </span>
-                        <span className="flex-1 text-xs font-semibold text-slate-700">
+                        <span className="flex-1 text-xs font-semibold text-text-secondary-v2">
                           {getSignerLabel(pin.email)}
                         </span>
                         <span className="text-xs text-text-secondary-v2">
@@ -3219,7 +3224,7 @@ function ClickablePreview({
 
       {/* Folha de assinaturas — pins D4Sign */}
       <div>
-        <p className="mb-2 text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+        <p className="mb-2 text-v2-caption-medium text-text-muted-v2">
           Folha de assinaturas — última página do PDF
         </p>
         <div
@@ -3405,7 +3410,7 @@ function ReajusteFields({
             }}
             disabled={disabled}
           >
-            <SelectTrigger id="contrato-reajuste-indice" className="h-10 border-slate-200 bg-white text-sm">
+            <SelectTrigger id="contrato-reajuste-indice" className="h-10 border-border bg-white text-sm">
               <CrmSelectValue value={value?.index ?? ""} placeholder="Selecionar..." />
             </SelectTrigger>
             <CrmSelectContent>
@@ -3430,7 +3435,7 @@ function ReajusteFields({
               }}
               disabled={disabled}
             >
-              <SelectTrigger id="contrato-reajuste-periodo" className="h-10 border-slate-200 bg-white text-sm">
+              <SelectTrigger id="contrato-reajuste-periodo" className="h-10 border-border bg-white text-sm">
                 <CrmSelectValue value={`A cada ${value.periodMonths ?? 12} meses`} placeholder="Selecionar..." />
               </SelectTrigger>
               <CrmSelectContent>
@@ -3480,7 +3485,7 @@ function CcFieldInput({
       <div className="space-y-1.5">
         {labelNode}
         <Select value={value} onValueChange={(v) => { if (v) onChange(v); }} disabled={disabled}>
-          <SelectTrigger className="h-10 border-slate-200 bg-white text-sm">
+          <SelectTrigger className="h-10 border-border bg-white text-sm">
             <CrmSelectValue value={value} placeholder="Selecionar..." />
           </SelectTrigger>
           <CrmSelectContent className="max-h-[min(280px,50dvh)]">
@@ -3503,7 +3508,7 @@ function CcFieldInput({
           value={value}
           onChange={onChange}
           disabled={disabled}
-          className="h-10 border-slate-200 bg-white text-sm"
+          className="h-10 border-border bg-white text-sm"
         />
       </div>
     );
@@ -3518,7 +3523,7 @@ function CcFieldInput({
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           placeholder={ccFieldPlaceholder(field, label)}
-          className="min-h-[110px] resize-y border-slate-200 bg-white text-sm leading-relaxed"
+          className="min-h-[110px] resize-y border-border bg-white text-sm leading-relaxed"
         />
       </div>
     );
@@ -3532,7 +3537,7 @@ function CcFieldInput({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={ccFieldPlaceholder(field, label)}
-        className="h-10 border-slate-200 bg-white text-sm"
+        className="h-10 border-border bg-white text-sm"
       />
     </div>
   );
@@ -3625,7 +3630,7 @@ function ContratoBodyPages({ page }: { page: ContratoDocumentPagePreview }) {
         .filter((pageBlocks) => pageBlocks.length > 0)
         .map((pageBlocks, i) => (
           <div key={i}>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">
               Folha {i + 1} — Corpo do contrato
             </p>
             <div
@@ -3986,7 +3991,7 @@ function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePre
           {(page.contratantesAssinatura ?? []).map((c) => (
             <Fragment key={`${c.documento}-${c.nome}`}>
               <p className="mt-6 w-full" style={{ borderTop: "1px solid #333" }} />
-              <p className="mt-1 text-[9pt] text-slate-500">
+              <p className="mt-1 text-[9pt] text-muted-foreground">
                 {c.nome}
                 {c.documento ? ` · ${c.documentoTipo} ${c.documento}` : ""}
               </p>
@@ -3998,9 +4003,9 @@ function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePre
           <p className="font-bold">CONTRATADA</p>
           <p style={{ fontSize: "10pt" }}>Bismarchi | Pires – Sociedade de Advogados</p>
           <p className="mt-6 w-full" style={{ borderTop: "1px solid #333" }} />
-          <p className="mt-1 text-[9pt] text-slate-500">Gustavo Bismarchi Motta</p>
+          <p className="mt-1 text-[9pt] text-muted-foreground">Gustavo Bismarchi Motta</p>
           <p className="mt-4 w-full" style={{ borderTop: "1px solid #333" }} />
-          <p className="mt-1 text-[9pt] text-slate-500">Ricardo Viscardi Pires</p>
+          <p className="mt-1 text-[9pt] text-muted-foreground">Ricardo Viscardi Pires</p>
         </div>
       </div>
     </div>

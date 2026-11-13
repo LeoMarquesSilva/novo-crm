@@ -119,9 +119,7 @@ export function D4SignViewDialog({
 
         {/* Header */}
         <div className="flex shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-5 py-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-(--radius-v2-md) bg-interactive-50 border border-interactive-300">
-            <FileSignature className="size-5 text-interactive-600" aria-hidden />
-          </div>
+          <FileSignature className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           <div className="flex-1 min-w-0">
             <h2 className="truncate text-sm font-bold text-foreground">
               {documentName ? documentName.replace(/\.docx?$/i, "") : "Contrato"}

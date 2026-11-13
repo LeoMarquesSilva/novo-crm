@@ -1440,7 +1440,7 @@ function PropostaBuilderDialog({
                 setConfirmClose(false);
                 onOpenChange(false);
               }}
-              className="bg-rose-600 hover:bg-rose-700"
+              className="bg-danger-text hover:bg-danger-text/90"
             >
               Descartar e fechar
             </AlertDialogAction>
@@ -1884,7 +1884,7 @@ function ProposalCompanySummary({
             <Building2 className="size-4" aria-hidden />
           </span>
           <div className="min-w-0">
-            <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+            <p className="text-v2-caption-medium text-text-muted-v2">
               Empresa principal
             </p>
             <p className="mt-1 truncate text-sm font-semibold text-foreground">

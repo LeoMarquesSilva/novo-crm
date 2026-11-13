@@ -39,7 +39,8 @@ export function CrmEntityHeader({
     <header className={cn(className)}>
       {breadcrumb ? <div className="mb-3">{breadcrumb}</div> : null}
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      {/* Título e ações lado a lado só em tela larga: no tablet o título longo ficava espremido. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           {badges ? <div className="mb-2 flex flex-wrap items-center gap-2">{badges}</div> : null}
           <div className="flex min-w-0 items-start gap-2.5">
@@ -60,7 +61,7 @@ export function CrmEntityHeader({
             <div className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">{subtitle}</div>
           ) : null}
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2 sm:pt-1">{actions}</div> : null}
+        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2 lg:pt-1">{actions}</div> : null}
       </div>
 
       {context.length > 0 ? (

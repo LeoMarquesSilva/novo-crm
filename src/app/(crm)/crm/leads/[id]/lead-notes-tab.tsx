@@ -290,7 +290,7 @@ export function LeadNotesTab({ leadId }: { leadId: string }) {
         <CardHeader className="border-b border-neutral-200 bg-white px-5 py-5 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                 <MessageSquareText className="h-4 w-4" />
                 Histórico interno
               </div>

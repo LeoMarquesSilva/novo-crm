@@ -67,12 +67,12 @@ export function DocumentSaveStatus({
 }
 
 export function DocumentBuilderHubHeader({
-  eyebrow,
   title,
   description,
   actions,
 }: {
-  eyebrow: string;
+  /** Não é mais exibido (13/11/2026: sem eyebrow em caixa alta acima do título). */
+  eyebrow?: string;
   title: string;
   description: string;
   actions?: ReactNode;
@@ -80,8 +80,7 @@ export function DocumentBuilderHubHeader({
   return (
     <div className="flex flex-col gap-4 border-b border-border bg-white px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
       <div className="min-w-0">
-        <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">{eyebrow}</p>
-        <h2 className="mt-1 text-v2-heading-lg text-foreground">{title}</h2>
+        <h2 className="text-v2-heading-lg text-foreground">{title}</h2>
         <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted-foreground">{description}</p>
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
@@ -126,7 +125,6 @@ export function DocumentMobilePaneToggle({
 }
 
 export function DocumentBuilderDialogHeader({
-  icon,
   title,
   description,
   saving,
@@ -137,7 +135,8 @@ export function DocumentBuilderDialogHeader({
   mobilePane,
   onMobilePaneChange,
 }: {
-  icon: ReactNode;
+  /** Não é mais exibido (13/11/2026: título sem ícone em caixa azul). */
+  icon?: ReactNode;
   title: string;
   description: string;
   saving: boolean;
@@ -153,9 +152,6 @@ export function DocumentBuilderDialogHeader({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-(--radius-v2-md) border border-border bg-interactive-50 text-interactive-700">
-              {icon}
-            </span>
             <h2 className="text-v2-heading-md text-foreground">{title}</h2>
             <p className="sr-only">{description}</p>
             <DocumentSaveStatus saving={saving} dirty={dirty} />
