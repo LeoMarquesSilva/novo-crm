@@ -93,10 +93,10 @@ export function PropostaInvestimentoConsolidadoForm({
     <div className="space-y-4">
       <div className="space-y-3">
         <div>
-          <p className="text-v2-caption-medium uppercase tracking-wide text-text-muted-v2">
+          <p className="text-v2-caption-medium text-text-muted-v2">
             Valor total e forma de pagamento
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             Pode haver mais de uma forma (ex.: fixo mensal + êxito). Tipo e subtipo vêm do catálogo
             de investimento. As alterações entram no rascunho — use Salvar, Gerar Word ou Gerar PDF
             para gravar.
@@ -182,7 +182,7 @@ function InvestimentoFormaCard({
   return (
     <div className="space-y-3 rounded-(--radius-v2-xl) border border-border bg-white p-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+        <p className="text-xs font-semibold text-muted-foreground">
           Forma {index + 1}
         </p>
         {canRemove ? (
@@ -190,7 +190,7 @@ function InvestimentoFormaCard({
             type="button"
             size="sm"
             variant="ghost"
-            className="h-8 gap-1.5 text-xs text-rose-600 hover:text-rose-700"
+            className="h-8 gap-1.5 text-xs text-danger-text hover:text-danger-text"
             disabled={disabled}
             onClick={onRemove}
           >
@@ -202,7 +202,7 @@ function InvestimentoFormaCard({
 
       <div className="grid gap-3">
         <div className="min-w-0 space-y-1.5">
-          <Label htmlFor={fieldId("tipo")} className="text-xs uppercase tracking-wide text-muted-foreground">
+          <Label htmlFor={fieldId("tipo")} className="text-xs text-muted-foreground">
             Tipo
           </Label>
           <Select
@@ -231,7 +231,7 @@ function InvestimentoFormaCard({
           </Select>
         </div>
         <div className="min-w-0 space-y-1.5">
-          <Label htmlFor={fieldId("subtipo")} className="text-xs uppercase tracking-wide text-muted-foreground">
+          <Label htmlFor={fieldId("subtipo")} className="text-xs text-muted-foreground">
             Subtipo
           </Label>
           <Select
@@ -269,7 +269,7 @@ function InvestimentoFormaCard({
 
       {primarySumKey && invSubDef ? (
         <div className="space-y-1.5">
-          <Label htmlFor={fieldId(primarySumKey)} className="text-xs font-bold text-slate-500">
+          <Label htmlFor={fieldId(primarySumKey)} className="text-xs font-semibold text-muted-foreground">
             {getPropostaPlaceholderLabel(primarySumKey)}
           </Label>
           <PropostaBrlCurrencyInput
@@ -289,7 +289,7 @@ function InvestimentoFormaCard({
 
       {extraPaymentKeys.map((key) => (
         <div key={key} className={cn("space-y-1.5", key.length > 20 && "sm:col-span-2")}>
-          <Label htmlFor={fieldId(key)} className="text-xs font-bold text-slate-500">
+          <Label htmlFor={fieldId(key)} className="text-xs font-semibold text-muted-foreground">
             {getPropostaPlaceholderLabel(key)}
           </Label>
           {isInvestimentoCurrencyKey(key) ? (
@@ -323,7 +323,7 @@ function InvestimentoFormaCard({
                 }}
                 className="h-10 border-border bg-white pr-8"
               />
-              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500">
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
                 %
               </span>
             </div>
