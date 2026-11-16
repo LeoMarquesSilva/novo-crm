@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/crm/leads/*/document/*": ["./templates/proposta/*.docx", "./assets/proposta-pdf/**/*"],
     "/api/crm/due/modelos": ["./templates/due/*.pptx"],
+    // Gerar o Word do contrato e enviar à D4Sign leem o modelo oficial; sem isto a Vercel não leva o arquivo
+    // e o contrato não era gerado em produção ("Template oficial do contrato ausente", 16/11/2026).
+    "/api/crm/leads/*/contrato/*": ["./templates/contrato/*.docx"],
   },
   async headers() {
     return [

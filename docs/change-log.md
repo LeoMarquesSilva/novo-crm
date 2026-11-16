@@ -9,6 +9,36 @@ Formato: data (ISO) | onda | resumo | validações.
 - Push: `public/sw.js`, `src/app/manifest.ts`, `crm_push_subscriptions`, gatilho pg_net → `POST /api/push/dispatch` (web-push/VAPID), `POST/DELETE /api/crm/push/subscriptions`, `POST /api/crm/push/test`. `PATCH /api/crm/notifications` (marcar todas) e `{ read: false }` no PATCH por id. Migration `20261116120000_crm_push_notifications.sql` aplicada no remoto em 16/11/2026 e segredos do push criados no Vault; variáveis do push cadastradas na Vercel (Production e Preview). Falta o deploy. Novas variáveis no `.env.example`. Dependência `web-push`. Detalhes em `system-context.md` §14.15.
 - Validações: `tsc --noEmit`, `npm run lint` (0 erros), `npm test` (1 falha intermitente em `rd-migration-form.test.tsx`, passa isolado), 26 testes novos; tela conferida no navegador com dados fictícios (desktop e celular).
 
+## 2026-11-16 — Feriados ANBIMA, horário de Brasília e área sem processos na DUE
+
+- Dias úteis pelo calendário de feriados nacionais da ANBIMA (`src/lib/dias-uteis.ts`): mínimo da reunião do Novo lead e aviso de prazo do escopo.
+- Apresentação da DUE: área que marcou "Sem processos ativos" aparece como levantamento concluído (quem e quando), não como "sem planilha anexada".
+- Horário de Brasília em datas de documento, nomes de arquivo, notificações, e-mail de novo lead, alertas, importação do RD e telas (`formatDateBrAt`, `saoPauloFileStamp`, `timeZone` nos `toLocale*String`).
+- Validações: `tsc --noEmit`, eslint, `vitest` completo (1518 testes).
+
+## 2026-11-16 — Ajustes do CRM (tributação, objeto, assinaturas, primeiro faturamento)
+
+- Proposta: tributação "Englobando tributos" / "Líquido de tributos".
+- Contrato: "O presente Contrato tem por objeto…" só no primeiro escopo (`object-opening.ts`).
+- Contrato: folha de assinaturas empilhada e centralizada, escritório primeiro (Gustavo, Ricardo, com OAB) e depois as empresas (CNPJ/MF), sem rótulos; posições padrão da D4Sign recalibradas no PDF do Word.
+- Dados do faturamento: o envio ao Financeiro pede a confirmação (ou correção) da data do primeiro faturamento.
+- Validações: `tsc --noEmit`, eslint, testes novos (`object-opening`, objeto com dois escopos, folha de assinaturas no Word, posições, confirmação no modal); PDF da folha conferido pelo Word.
+
+## 2026-11-16 — Teste ponta a ponta em produção: e-mail pelo Outlook e prazo no fuso de Brasília
+
+- E-mails das tarefas da DUE (levantamento, revisão, compilação) e do pedido de escopo passam a sair pelo Outlook do CRM (`sendCrmNotificationEmail`), como o aviso de novo lead. Iam pelo Resend, sem chave em nenhum ambiente, e nunca saíam; o motivo da falha agora vai para `ultimo_erro_canais`. Resend removido do código.
+- `POST /api/leads/new`: e-mail de novo lead em `after()` (era uma promessa solta depois da resposta).
+- Prazo das tarefas da DUE e datas do lead no sino no fuso de Brasília (`prazoBrasiliaIso`); antes, na Vercel (UTC), o prazo ficava 3 h mais cedo.
+- `next.config.ts`: o modelo do contrato (`templates/contrato/*.docx`) entra no pacote das rotas `/api/crm/leads/*/contrato/*`. Em produção o Word do contrato falhava com "Template oficial do contrato ausente" e o envio à D4Sign também dependia dele.
+- Contrato: escopos com vigências diferentes geram a cláusula com o prazo de cada escopo (`mergeTermRules`); antes o contrato saía com a nota interna "REQUIRES LEGAL DECISION".
+- Abertura no VIOS: cada ENVIAR leva "Responsável: <nome> (<áreas>)" no texto. Com duas áreas o VIOS recusava o 2º ENVIAR ("Nessa pasta já existe uma tarefa aberta com a mesma descrição").
+- Validações: `tsc --noEmit`, eslint, `vitest` em `src/lib/crm`, `src/app/api` e `src/modules` (1008 testes) e o teste novo do prazo com `TZ=UTC`.
+
+## 2026-11-16 — Prévia dos links do CRM no WhatsApp
+
+- Imagem de prévia (`src/app/opengraph-image.png` e `twitter-image.png`, 1200×630, com texto alternativo) e metadata do `layout.tsx` com título "CRM Bismarchi | Pires", descrição em português e `metadataBase`. Antes o WhatsApp mostrava a foto da tela de login cortada e a descrição "CRM proprietário em Next.js com shadcn/ui".
+- Validações: `tsc --noEmit`, eslint; `/crm/leads/…` sem sessão redireciona ao login com `og:title`, `og:description` e `og:image` (200, image/png).
+
 ## 2026-11-13 — Abertura no VIOS sem a tarefa de ciência
 
 - O pedido ao robô não leva mais a "CIÊNCIA DA ABERTURA DE PASTA": o VIOS cria essa tarefa sozinho ao abrir a pasta e recusou a segunda no teste gravando (pasta CI 61484).
@@ -24,6 +54,35 @@ Formato: data (ISO) | onda | resumo | validações.
 - Lead com due pede ao robô do SAMA a abertura no VIOS (prospect, pasta de atendimento Comercial/Due Diligence Prospect e tarefas ENVIAR, Protocolo e Ciência da abertura de pasta), atrás de `VIOS_ABERTURA_MODO` (`desligado` padrão, `simular`, `ativo`). No cadastro (`POST /api/leads/new`) e na ficha quando a due é ligada depois ou a data de entrega é preenchida. O CRM só manda o pedido; o resultado fica no SAMA. Sem migration. Detalhes em `system-context.md` §14.14.
 - Novos: `build-vios-abertura-payload.ts`, `solicitar-abertura-vios.ts`, `sama-rpa-client.ts`; `IntegrationName` ganha `vios_rpa`; `.env.example` com `VIOS_ABERTURA_MODO`, `SAMA_RPA_ENQUEUE_URL`, `CRM_SAMA_SECRET`, `VIOS_ABERTURA_RESPONSAVEL_PASTA`.
 - Validações: `tsc --noEmit`, `npm run lint` (0 erros), `npm test`, `npm run build`; ensaio com um lead real com due montando o pedido sem enviar (nomes do VIOS pelo RH conferidos).
+
+## 2026-11-04 — ICP: aba Inadimplência
+
+- Nova aba **Inadimplência** no ICP, entre Clientes e Marketing: indicadores (total em atraso, atraso de quem paga ÷ receita de 12 meses, quem deve e não pagou nada em 12 meses, vencido há mais de 1 ano), tabela por faixa ordenável (grupos com atraso, valor, parte do atraso, atraso ÷ receita, média por grupo, tempo de atraso e % com mais de 1 ano, com linhas de pagantes, de quem não pagou e do escritório) e destaques; tempo desde o vencimento (até 30 dias, 31–90, 91–180, 181 dias a 1 ano, mais de 1 ano) e área que emitiu a cobrança, recortáveis por faixa; lista **Quem deve** com busca, filtro por faixa, ordenação, vencimento mais antigo, pastas ativas, horas e CSV.
+- Cálculo: o loader passa a ler `data_vencimento` das parcelas em aberto; `computeIcp` guarda o envelhecimento e a parcela mais antiga de cada grupo (`overdueAging`, `oldestOverdue`) e devolve quem deve sem ter pago em 12 meses em `overdueOutside` (antes esse atraso não aparecia em lugar nenhum). Contas da tela em `icp-overdue.ts`; `OverdueCell` foi para `icp-primitives`. Cache renomeado (`crm-icp-data-v8`).
+- Em 04/11: R$ 5,38 mi em atraso, R$ 3,87 mi de 49 grupos pagantes e R$ 1,5 mi de 17 grupos sem pagamento em 12 meses; R$ 2,39 mi venceu há mais de 1 ano. A tabela da 1ª área com processo (Carteira) passou a dizer "Faixas C a E".
+
+Validações: `npx vitest run src/components/crm/icp src/modules/icp`, `npx tsc --noEmit`, eslint; cálculo rodado com os dados reais do SIOE.
+
+## 2026-11-11 — Due Diligence: insolvência (RJ pela documentação inicial e pedidos de falência) e acabamento dos slides
+
+- Reestruturação: composição do endividamento só pela documentação inicial (`endividamentoFonte: "inicial"`; tabela com 2 colunas, sem variação nem rótulos do AJ) e pedidos de falência (`falencias`, um slide de processo cada). Formulário com as duas opções; leitura por IA e mescla reconhecem os campos novos. Slide da RJ só com dados da RJ; juiz, relator, administrador e resumo vazios saem.
+- Slides de processo: partes longas empurram os blocos de baixo (mais de duas viram "A, B e outros"), vara sem repetir a comarca, acentos comuns devolvidos (`acentuar`), "movido/movida" pela classe, blocos vazios saem.
+- Conclusão com crédito passa a ter as notas de rodapé (`CONC_NOTAS`); no modo compacto a marca da nota vai junto do valor.
+- Cível: sem a coluna "Polo do cliente", o polo vem da "Posição do cliente" (Requerido/Executado = passivo, Requerente = ativo); antes a planilha inteira era somada como passivo. Capa: empresa sem CNPJ mostra "CNPJ: —". Logo do cliente centrado e dentro do círculo da capa (a caixa do modelo ficava deslocada e logos largos encostavam na borda).
+- Pessoa física sem logo: silhueta de pessoa no círculo do cliente. Lead do RD: a sugestão da capa separa os CPFs/CNPJs emendados em `clientes.documento` na ordem dos nomes. Cível sem a coluna de sócio: o quadro vira "Polo do cliente".
+- Capa de pessoa física (Alessandro di Salvo, 11/2026): "NOME"/"CPF:", sem o ícone de empresa, sem a linha do documento quando não há CPF; até 4 empresas ou pessoas além da principal. Tributário: PGFN por devedor vira a tabela "Débitos por devedor"; sem execução fiscal, os textos e a nota da conclusão falam só da dívida ativa. Cível: nome de credor muito longo encurtado na tabela dos maiores valores.
+- Trabalhista com até 5 processos ativos sai em tabela, como a área monta (número, reclamante, reclamadas, origem do valor, valor envolvido, últimos andamentos), em vez de um slide por processo. A tabela da lista ganhou o estilo da área (cabeçalho azul-marinho, bordas finas, texto centralizado, linhas que ocupam o cartão) e a coluna extra, que sai nas outras áreas (`dropColumns`). Na tela, "Lista de processos" virou "Tabela de processos".
+- Modelo: `scripts/due-ppt/prepare-due-template.py` regenerado (capa da due, endividamento, painel tributário, conclusão com crédito e lista). Precisa subir o modelo novo como ativo.
+
+Validações: `npx vitest run src/lib/due-ppt src/components/crm/due-apresentacao` (75 testes), `npx tsc --noEmit`, eslint; due da Prisma (Cível, Recuperação de Crédito, Trabalhista e Reestruturação com RJ e 2 pedidos de falência) gerada e renderizada no PowerPoint.
+
+## 2026-11-04 — Due Diligence: acabamento da capa e do Cível
+
+- Capa: razão social longa sai com fonte menor para caber em 2 linhas (`escalaRazaoSocial`, op `fontScale` em `TXT_RAZAO_SOCIAL`).
+- Cível: tabela "Casos com maior valor" mostra só a primeira parte do polo ativo (a lista de credores empurrava a tabela sobre o total); leitura executiva concorda com a classe ("execução … movida").
+
+Validações: `npx vitest run src/lib/due-ppt src/components/crm/due-apresentacao` (61 testes), `npx tsc --noEmit`, eslint; PPT gerado com a planilha real (Prisma, 113 processos) e renderizado no PowerPoint.
+
 ## 2026-11-04 — ICP: faixa E
 
 - Cinco faixas de receita em 12 meses: A ≥ R$ 200 mil, B R$ 60–200 mil, C R$ 20–60 mil, D R$ 10–20 mil e E < R$ 10 mil (a antiga D, até R$ 20 mil, foi dividida em R$ 10 mil). ICP continua A + B. Em 04/11: D com 28 grupos (3,1% da receita) e E com 61 (2,0%).

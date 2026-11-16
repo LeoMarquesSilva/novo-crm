@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   daysBetweenYmd,
+  formatDateBrAt,
   formatDateYmdBr,
   formatMaybeDateLikeBr,
   maskHmDigitsInput,
@@ -9,6 +10,7 @@ import {
   parseBrDateDigitsToYmd,
   parseDateOnlyInput,
   saoPauloDateYmd,
+  saoPauloFileStamp,
   saoPauloMidnightIso,
 } from "./format-datetime";
 
@@ -84,5 +86,14 @@ describe("parseBrDateDigitsToYmd", () => {
 
   it("rejects invalid calendar dates", () => {
     expect(parseBrDateDigitsToYmd("31022026")).toBe(null);
+  });
+});
+
+describe("horário de Brasília em instantes (16/11/2026)", () => {
+  it("23:30 de Brasília ainda é o mesmo dia (em UTC já é o seguinte)", () => {
+    const noite = new Date("2026-11-17T02:30:00Z"); // 16/11 23:30 em Brasília
+    expect(formatDateBrAt(noite)).toBe("16/11/2026");
+    expect(saoPauloFileStamp(noite)).toBe("2026-11-16-2330");
+    expect(saoPauloDateYmd(noite)).toBe("2026-11-16");
   });
 });

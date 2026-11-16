@@ -1,9 +1,9 @@
 "use client";
 
 import type React from "react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { format } from "date-fns";
+import { formatDateBrAt } from "@/lib/format-datetime";
 import { useCrmActor } from "@/components/crm/crm-session-context";
 import { SendContractSignatureDialog } from "@/components/crm/contracts/send-contract-signature-dialog";
 import { canPerformLeadAction } from "@/lib/auth/crm-access-policy";
@@ -120,6 +120,7 @@ import { applyObjectOverride } from "@/lib/crm/contract-engine/object-engine";
 import { appendContractEngineEvent } from "@/lib/crm/contract-engine/object-events";
 import { resolveContractScopes } from "@/lib/crm/contract-engine/proposal-snapshot";
 import { contractPartyGrammar } from "@/lib/crm/contract-engine/party-language";
+import { blocosDeAssinatura } from "@/lib/crm/contrato-assinaturas";
 import {
   listDraftTokenIssues,
   listDraftTokensInText,
@@ -1111,7 +1112,7 @@ function ContratoBuilderDialog({
       TRIBUTARIO_LIMITE_ACOES: f("cc_tributario_limite_acoes"),
       INCLUIR_EXITO: f("cc_incluir_exito"),
       EXITO_PERCENTUAL: f("cc_exito_percentual"),
-      DATA_ASSINATURA: format(new Date(), "dd/MM/yyyy"),
+      DATA_ASSINATURA: formatDateBrAt(),
       P: "1",
       F: "1",
     };
@@ -2182,7 +2183,7 @@ function SignerRow({
   const displayName = signer.name?.trim() || null;
   const initials = signerInitials(displayName, signer.email);
   const signedDate = signer.signed_at
-    ? new Date(signer.signed_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+    ? new Date(signer.signed_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })
     : null;
   const appUser = signer.email ? appUsersByEmail[signer.email.toLowerCase()] : undefined;
 
@@ -3964,7 +3965,6 @@ function buildClauseBlocks(
 /** Folha dedicada de assinaturas — sempre a última página do PDF enviado à D4Sign. */
 function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePreview }) {
   const ELLIPSIS = "…";
-  const contratanteNoun = contractPartyGrammar(page.qualificacoesPartes?.length || 1).noun;
 
   return (
     <div
@@ -3984,29 +3984,23 @@ function ContratoSignaturePageDocument({ page }: { page: ContratoDocumentPagePre
       <p className="mb-14 text-center">
         Campinas/SP, {page.dataAssinatura || ELLIPSIS}.
       </p>
-      <div className="grid grid-cols-2 gap-10">
-        <div className="flex flex-col items-center text-center">
-          <div className="mb-1 w-full" style={{ borderTop: "1px solid #333" }} />
-          <p className="font-bold">{contratanteNoun}</p>
-          {(page.contratantesAssinatura ?? []).map((c) => (
-            <Fragment key={`${c.documento}-${c.nome}`}>
-              <p className="mt-6 w-full" style={{ borderTop: "1px solid #333" }} />
-              <p className="mt-1 text-[9pt] text-muted-foreground">
-                {c.nome}
-                {c.documento ? ` · ${c.documentoTipo} ${c.documento}` : ""}
-              </p>
-            </Fragment>
-          ))}
-        </div>
-        <div className="flex flex-col items-center text-center">
-          <div className="mb-1 w-full" style={{ borderTop: "1px solid #333" }} />
-          <p className="font-bold">CONTRATADA</p>
-          <p style={{ fontSize: "10pt" }}>Bismarchi | Pires – Sociedade de Advogados</p>
-          <p className="mt-6 w-full" style={{ borderTop: "1px solid #333" }} />
-          <p className="mt-1 text-[9pt] text-muted-foreground">Gustavo Bismarchi Motta</p>
-          <p className="mt-4 w-full" style={{ borderTop: "1px solid #333" }} />
-          <p className="mt-1 text-[9pt] text-muted-foreground">Ricardo Viscardi Pires</p>
-        </div>
+      {/* Mesmo layout do Word (16/11/2026): empilhado, centralizado, escritório primeiro, sem rótulos. */}
+      <div className="flex flex-col items-center">
+        {blocosDeAssinatura(page.contratantesAssinatura).map((bloco, i) => (
+          <div
+            key={`${i}-${bloco.titulo}`}
+            className="w-[62%] text-center"
+            style={{ marginTop: i === 0 ? 0 : 88 }}
+          >
+            <div style={{ borderTop: "1px solid #333" }} />
+            <p className="pt-1 font-bold" style={{ fontVariant: "small-caps" }}>
+              {bloco.titulo}
+            </p>
+            {bloco.linhas.map((linha) => (
+              <p key={linha}>{linha}</p>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );

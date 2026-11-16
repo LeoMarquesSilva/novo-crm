@@ -22,13 +22,18 @@ export type ContratoSignaturePin = {
   type?: 0 | 1 | 2;
 };
 
-/** Presets calibrados para a tabela CONTRATANTE | CONTRATADA na folha de assinaturas. */
+/**
+ * Posições padrão (centro do carimbo, como a prévia desenha) para a folha de assinaturas empilhada de 16/11/2026
+ * (`contrato-assinaturas.ts`). Medidas no PDF do Word gerado com o modelo oficial: traços em y = 252 (Gustavo),
+ * 398 (Ricardo) e 545 (1ª empresa), centralizados em x ≈ 411; o carimbo fica ~30 px acima do traço.
+ * As anteriores (x 580/200, y 480–620) eram da tabela de duas colunas e caíam abaixo dos traços.
+ */
 const SIGNATURE_PIN_PRESETS: Array<
   Pick<ContratoSignaturePin, "email" | "position_x" | "position_y" | "type">
 > = [
-  { email: "__client__", position_x: 200, position_y: 520, type: 0 },
-  { email: "gustavo@bpplaw.com.br", position_x: 580, position_y: 480, type: 0 },
-  { email: "ricardo@bpplaw.com.br", position_x: 580, position_y: 620, type: 0 },
+  { email: "gustavo@bpplaw.com.br", position_x: 411, position_y: 222, type: 0 },
+  { email: "ricardo@bpplaw.com.br", position_x: 411, position_y: 368, type: 0 },
+  { email: "__client__", position_x: 411, position_y: 515, type: 0 },
 ];
 
 export function buildDefaultSignaturePins(

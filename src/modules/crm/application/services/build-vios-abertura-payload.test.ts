@@ -86,7 +86,11 @@ describe("buildViosAberturaPedido", () => {
     const r = buildViosAberturaPedido(entrada());
     if (!r.ok) throw new Error(r.motivo);
     const enviar = r.pedido.tarefas[0]!.observacao;
-    expect(enviar.startsWith("ENVIAR DUE DILLIGENCE PROSPECT\n\nTipo de Lead: Indicação\n")).toBe(true);
+    expect(
+      enviar.startsWith(
+        "ENVIAR DUE DILLIGENCE PROSPECT\n\nResponsável: Giancarlo Murta Zotini (Cível)\n\nTipo de Lead: Indicação\n",
+      ),
+    ).toBe(true);
     expect(enviar).toContain("Indicação: Contador\nNome da Indicação: Fulano");
     expect(enviar).toContain("- Prazo de Entrega: 20/11/2026 às 09:00");
     expect(enviar).toContain("- Áreas de Análise: Cível, Trabalhista, Tributário");
@@ -117,7 +121,17 @@ describe("buildViosAberturaPedido", () => {
     );
     if (!r.ok) throw new Error(r.motivo);
     expect(r.pedido.tarefas.filter((t) => t.tarefa === "ENVIAR")).toHaveLength(1);
+    expect(r.pedido.tarefas[0]!.observacao).toContain("Responsável: Leonardo Marques Silva (Cível, Trabalhista)");
     expect(r.pedido.tarefas.find((t) => t.tarefa === "Protocolo")!.responsavel).toEqual(["Leonardo Marques Silva"]);
+  });
+
+  it("cada ENVIAR tem texto único (o VIOS recusa duas tarefas abertas com a mesma descrição na pasta)", () => {
+    const r = buildViosAberturaPedido(entrada());
+    if (!r.ok) throw new Error(r.motivo);
+    const textos = r.pedido.tarefas.filter((t) => t.tarefa === "ENVIAR").map((t) => t.observacao);
+    expect(textos).toHaveLength(3);
+    expect(new Set(textos).size).toBe(3);
+    expect(r.pedido.tarefas.find((t) => t.tarefa === "Protocolo")!.observacao).not.toContain("Responsável:");
   });
 
   it("área sem responsável vira aviso; sem nenhum, só a pasta (sem tarefas)", () => {

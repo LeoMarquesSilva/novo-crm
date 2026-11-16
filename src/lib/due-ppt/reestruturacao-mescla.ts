@@ -38,13 +38,14 @@ const CAMPOS_SIMPLES = [
   ["extraconcursalEdital", "Extraconcursal (edital)"],
   ["extraconcursalAj", "Extraconcursal (AJ)"],
   ["endividamentoResumo", "Destaque do endividamento"],
+  ["endividamentoFonte", "Fonte da composição"],
 ] as const satisfies ReadonlyArray<readonly [keyof Form, string]>;
 
 type CampoSimples = (typeof CAMPOS_SIMPLES)[number][0];
 
 const DATAS = new Set<string>(["ajuizamento", "deferimento"]);
 
-type Lista = "classes" | "pagamento" | "opcoes" | "medidas";
+type Lista = "classes" | "pagamento" | "opcoes" | "medidas" | "falencias";
 
 type ConfigLista = {
   max: number;
@@ -124,9 +125,31 @@ const LISTAS: Record<Lista, ConfigLista> = {
     nova: "Nova medida",
     resumo: (r) => juntar([str(r.categoria), str(r.titulo), str(r.destaque)]),
   },
+  falencias: {
+    max: 6,
+    campos: [
+      ["autos", "autos"],
+      ["requerente", "requerente"],
+      ["devedora", "devedora"],
+      ["competencia", "competência"],
+      ["juiz", "juiz"],
+      ["ajuizamento", "ajuizamento"],
+      ["valorCausa", "valor da causa"],
+      ["credito", "crédito na inicial"],
+      ["creditoObs", "observação do crédito"],
+      ["fundamento", "fundamento"],
+      ["situacao", "situação"],
+      ["status", "status processual"],
+    ],
+    fixos: ["autos"],
+    chave: (r) => str(r.autos).replace(/\D/g, ""),
+    nome: (r) => `Falência · ${str(r.requerente) || str(r.autos) || "pedido"}`,
+    nova: "Novo pedido de falência",
+    resumo: (r) => juntar([str(r.autos), str(r.requerente), str(r.situacao)]),
+  },
 };
 
-const ORDEM_LISTAS: Lista[] = ["classes", "pagamento", "opcoes", "medidas"];
+const ORDEM_LISTAS: Lista[] = ["classes", "pagamento", "opcoes", "medidas", "falencias"];
 
 function normalizar(t: string): string {
   return t
@@ -160,6 +183,7 @@ function mostrar(campo: string, v: Valor): string {
   if (v == null) return "";
   if (typeof v === "number") return brl(v);
   if (DATAS.has(campo)) return dataBr(v) || v;
+  if (campo === "endividamentoFonte") return v === "inicial" ? "Documentação inicial" : "Edital + relatório do AJ";
   return v.length > 160 ? `${v.slice(0, 159)}…` : v;
 }
 

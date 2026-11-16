@@ -1,5 +1,6 @@
 import { applyAnnualRenewalDefaults } from "@/lib/crm/contract-renewal-date";
 import { isValidIsoDateString } from "@/lib/crm/date-br";
+import { saoPauloDateYmd } from "@/lib/format-datetime";
 import { moneyCents } from "@/modules/contracts/domain/money";
 import type { ContractConfigurationInput } from "@/modules/contracts/domain/contract-validation";
 import type { BillingComponent, BillingInstallment } from "@/modules/contracts/domain/entities";
@@ -140,7 +141,7 @@ export function mapExtractionToConfiguration(input: {
 }): ContractConfigurationInput {
   const { extraction, clientId, versionId, nextId } = input;
   const startsAt = extraction.startsAt ?? extraction.signedAt ?? extraction.firstInvoiceAt ?? null;
-  const versionFrom = startsAt ?? new Date().toISOString().slice(0, 10);
+  const versionFrom = startsAt ?? saoPauloDateYmd();
   const tax =
     extraction.taxMode === "included" || extraction.taxMode === "added"
       ? { mode: extraction.taxMode, percentageBasisPoints: 0 }

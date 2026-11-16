@@ -26,6 +26,7 @@ export const dynamic = "force-dynamic";
 function formatSyncedAt(value: string | null): string | null {
   if (!value) return null;
   return new Date(value).toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
     dateStyle: "short",
     timeStyle: "short",
   });

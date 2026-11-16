@@ -7,7 +7,7 @@ import { DateInputBr } from "@/components/ui/date-input-br";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { ReestruturacaoForm as Form } from "@/lib/due-ppt/draft";
+import type { PedidoFalencia, ReestruturacaoForm as Form } from "@/lib/due-ppt/draft";
 import { maskBrlCurrencyFromInput, parseBrlUserInput } from "@/lib/crm/proposta-valor-brl-extenso";
 import { REEST_PDF_MAX_ARQUIVOS } from "@/lib/due-ppt/reestruturacao-ia";
 import { aceitasPadrao, aplicarSugestoes, destacado, sugestoesIa } from "@/lib/due-ppt/reestruturacao-mescla";
@@ -88,6 +88,26 @@ function Campo({
   );
 }
 
+const FALENCIA_VAZIA: PedidoFalencia = {
+  autos: "",
+  requerente: "",
+  devedora: "",
+  competencia: "",
+  juiz: "",
+  ajuizamento: "",
+  valorCausa: null,
+  credito: null,
+  creditoObs: "",
+  fundamento: "art. 94, I, da Lei nº 11.101/2005",
+  situacao: "",
+  status: "",
+};
+
+const FONTES: Array<{ valor: Form["endividamentoFonte"]; rotulo: string }> = [
+  { valor: "edital_aj", rotulo: "Edital + relatório do AJ" },
+  { valor: "inicial", rotulo: "Só a documentação inicial (art. 51)" },
+];
+
 type Revisao = { ia: Form; aceitas: Set<string>; arquivos: string[]; avisos: string[] };
 type Aplicado = { antes: Form; depois: Form; destacados: Set<string> };
 
@@ -101,6 +121,8 @@ export function ReestruturacaoForm({
   onChange: (v: Form) => void;
 }) {
   const set = <K extends keyof Form>(k: K, v: Form[K]) => onChange({ ...value, [k]: v });
+  const setFalencia = <K extends keyof PedidoFalencia>(i: number, k: K, v: PedidoFalencia[K]) =>
+    set("falencias", value.falencias.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
 
   // ─── leitura dos PDFs pela IA ────────────────────────────────────────────────
   const inputPdf = useRef<HTMLInputElement>(null);
@@ -171,6 +193,8 @@ export function ReestruturacaoForm({
 
   const mostrarExtra =
     f.classes.length > 0 || f.extraconcursalEdital != null || f.extraconcursalAj != null || !!f.endividamentoResumo;
+  const inicial = f.endividamentoFonte === "inicial";
+  const colunasClasse = inicial ? "sm:grid-cols-[1fr_170px_auto]" : "sm:grid-cols-[1fr_170px_170px_auto]";
 
   return (
     <div className="space-y-5">
@@ -178,8 +202,8 @@ export function ReestruturacaoForm({
         <div className="flex flex-wrap items-center gap-2 rounded-(--radius-v2-md) border border-dashed border-border px-3 py-2">
           <Sparkles className="h-4 w-4 shrink-0 text-info-text" aria-hidden />
           <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-            Edital do art. 52, §1º, relatório do AJ ou plano em PDF (até {REEST_PDF_MAX_ARQUIVOS}): a IA preenche o que achar e
-            você confere antes de entrar no formulário.
+            Edital do art. 52, §1º, relatório do AJ, plano ou pedido de falência em PDF (até {REEST_PDF_MAX_ARQUIVOS}): a IA
+            preenche o que achar e você confere antes de entrar no formulário.
           </p>
           <Button
             type="button"
@@ -289,7 +313,7 @@ export function ReestruturacaoForm({
             <Campo id="rj-autos" label="Autos nº" value={f.autos} onChange={(v) => set("autos", v)} className={hl("autos")} />
             <div className="space-y-1">
               <Label htmlFor="rj-passivo" className="text-xs">
-                Passivo total (edital art. 52, §1º)
+                Passivo total ({inicial ? "documentação inicial" : "edital art. 52, §1º"})
               </Label>
               <ValorInput
                 id="rj-passivo"
@@ -368,8 +392,27 @@ export function ReestruturacaoForm({
         <div>
           <p className="text-xs font-semibold text-muted-foreground">Composição do endividamento</p>
           <div className="mt-2 space-y-2">
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Fonte da composição do endividamento">
+              {FONTES.map((o) => (
+                <button
+                  key={o.valor}
+                  type="button"
+                  role="radio"
+                  aria-checked={f.endividamentoFonte === o.valor}
+                  onClick={() => set("endividamentoFonte", o.valor)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+                    f.endividamentoFonte === o.valor
+                      ? "border-brand-navy bg-brand-navy text-white"
+                      : "border-border bg-white text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {o.rotulo}
+                </button>
+              ))}
+            </div>
             {f.classes.map((c, i) => (
-              <div key={i} className="grid gap-2 sm:grid-cols-[1fr_170px_170px_auto]">
+              <div key={i} className={cn("grid gap-2", colunasClasse)}>
                 <Input
                   aria-label="Classe"
                   value={c.classe}
@@ -379,18 +422,20 @@ export function ReestruturacaoForm({
                 />
                 <ValorInput
                   id={`rj-classe-${i}-edital`}
-                  label="Edital"
+                  label={inicial ? "Documentação inicial" : "Edital"}
                   value={c.edital}
                   className={hl(`classes.${i}.edital`)}
                   onChange={(v) => set("classes", value.classes.map((x, j) => (j === i ? { ...x, edital: v } : x)))}
                 />
-                <ValorInput
-                  id={`rj-classe-${i}-aj`}
-                  label="Relatório do AJ"
-                  value={c.aj}
-                  className={hl(`classes.${i}.aj`)}
-                  onChange={(v) => set("classes", value.classes.map((x, j) => (j === i ? { ...x, aj: v } : x)))}
-                />
+                {inicial ? null : (
+                  <ValorInput
+                    id={`rj-classe-${i}-aj`}
+                    label="Relatório do AJ"
+                    value={c.aj}
+                    className={hl(`classes.${i}.aj`)}
+                    onChange={(v) => set("classes", value.classes.map((x, j) => (j === i ? { ...x, aj: v } : x)))}
+                  />
+                )}
                 <Button
                   type="button"
                   variant="ghost"
@@ -403,7 +448,11 @@ export function ReestruturacaoForm({
               </div>
             ))}
             {f.classes.length ? (
-              <p className="text-[11px] text-muted-foreground">Colunas: classe · edital (art. 52, §1º) · relatório do AJ.</p>
+              <p className="text-[11px] text-muted-foreground">
+                {inicial
+                  ? "Colunas: classe · lista de credores da documentação inicial (art. 51)."
+                  : "Colunas: classe · edital (art. 52, §1º) · relatório do AJ."}
+              </p>
             ) : null}
             <Button
               type="button"
@@ -427,22 +476,24 @@ export function ReestruturacaoForm({
               <Plus className="h-3.5 w-3.5" aria-hidden /> {f.classes.length ? "Adicionar classe" : "Preencher classes I a IV"}
             </Button>
             {mostrarExtra ? (
-              <div className="grid gap-2 sm:grid-cols-[1fr_170px_170px_auto]">
+              <div className={cn("grid gap-2", colunasClasse)}>
                 <span className="self-center text-xs font-medium text-foreground">Extraconcursal</span>
                 <ValorInput
                   id="rj-extra-edital"
-                  label="Extraconcursal (edital)"
+                  label={inicial ? "Extraconcursal (documentação inicial)" : "Extraconcursal (edital)"}
                   value={f.extraconcursalEdital}
                   onChange={(v) => set("extraconcursalEdital", v)}
                   className={hl("extraconcursalEdital")}
                 />
-                <ValorInput
-                  id="rj-extra-aj"
-                  label="Extraconcursal (AJ)"
-                  value={f.extraconcursalAj}
-                  onChange={(v) => set("extraconcursalAj", v)}
-                  className={hl("extraconcursalAj")}
-                />
+                {inicial ? null : (
+                  <ValorInput
+                    id="rj-extra-aj"
+                    label="Extraconcursal (AJ)"
+                    value={f.extraconcursalAj}
+                    onChange={(v) => set("extraconcursalAj", v)}
+                    className={hl("extraconcursalAj")}
+                  />
+                )}
                 <span />
               </div>
             ) : null}
@@ -554,10 +605,146 @@ export function ReestruturacaoForm({
             ) : null}
           </div>
         </div>
+
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground">Pedidos de falência (até 6)</p>
+          <div className="mt-2 space-y-2">
+            {f.falencias.map((p, i) => (
+              <div key={i} className="grid gap-2 rounded-(--radius-v2-md) border border-border/70 p-2 sm:grid-cols-2">
+                <Campo
+                  id={`fal-${i}-autos`}
+                  label="Autos nº"
+                  value={p.autos}
+                  onChange={(v) => setFalencia(i, "autos", v)}
+                  className={hl(`falencias.${i}.autos`)}
+                />
+                <Campo
+                  id={`fal-${i}-situacao`}
+                  label="Situação (etiqueta do slide)"
+                  value={p.situacao}
+                  placeholder="Em andamento"
+                  onChange={(v) => setFalencia(i, "situacao", v)}
+                  className={hl(`falencias.${i}.situacao`)}
+                />
+                <Campo
+                  id={`fal-${i}-requerente`}
+                  label="Requerente"
+                  value={p.requerente}
+                  onChange={(v) => setFalencia(i, "requerente", v)}
+                  className={hl(`falencias.${i}.requerente`)}
+                />
+                <Campo
+                  id={`fal-${i}-devedora`}
+                  label="Empresa devedora"
+                  value={p.devedora}
+                  placeholder="Vazio = razão social da capa"
+                  onChange={(v) => setFalencia(i, "devedora", v)}
+                  className={hl(`falencias.${i}.devedora`)}
+                />
+                <Campo
+                  id={`fal-${i}-competencia`}
+                  label="Competência (vara e comarca)"
+                  value={p.competencia}
+                  onChange={(v) => setFalencia(i, "competencia", v)}
+                  className={hl(`falencias.${i}.competencia`)}
+                />
+                <Campo
+                  id={`fal-${i}-juiz`}
+                  label="Juiz(a)"
+                  value={p.juiz}
+                  onChange={(v) => setFalencia(i, "juiz", v)}
+                  className={hl(`falencias.${i}.juiz`)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor={`fal-${i}-ajuizamento`} className="text-xs">
+                    Ajuizamento
+                  </Label>
+                  <DateInputBr
+                    id={`fal-${i}-ajuizamento`}
+                    value={p.ajuizamento}
+                    onChange={(ymd) => setFalencia(i, "ajuizamento", ymd)}
+                    className={hl(`falencias.${i}.ajuizamento`)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`fal-${i}-valor`} className="text-xs">
+                    Valor da causa
+                  </Label>
+                  <ValorInput
+                    id={`fal-${i}-valor`}
+                    label="Valor da causa"
+                    value={p.valorCausa}
+                    onChange={(v) => setFalencia(i, "valorCausa", v)}
+                    className={hl(`falencias.${i}.valorCausa`)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`fal-${i}-credito`} className="text-xs">
+                    Crédito indicado na inicial
+                  </Label>
+                  <ValorInput
+                    id={`fal-${i}-credito`}
+                    label="Crédito indicado na inicial"
+                    value={p.credito}
+                    onChange={(v) => setFalencia(i, "credito", v)}
+                    className={hl(`falencias.${i}.credito`)}
+                  />
+                </div>
+                <Campo
+                  id={`fal-${i}-credito-obs`}
+                  label="Observação do crédito"
+                  value={p.creditoObs}
+                  placeholder="após pagamentos parciais"
+                  onChange={(v) => setFalencia(i, "creditoObs", v)}
+                  className={hl(`falencias.${i}.creditoObs`)}
+                />
+                <div className="sm:col-span-2">
+                  <Campo
+                    id={`fal-${i}-fundamento`}
+                    label="Fundamento"
+                    value={p.fundamento}
+                    onChange={(v) => setFalencia(i, "fundamento", v)}
+                    className={hl(`falencias.${i}.fundamento`)}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Campo
+                    id={`fal-${i}-status`}
+                    label="Status processual (resumo do slide)"
+                    value={p.status}
+                    onChange={(v) => setFalencia(i, "status", v)}
+                    multiline
+                    className={hl(`falencias.${i}.status`)}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="sm:col-span-2 sm:justify-self-end"
+                  onClick={() => set("falencias", value.falencias.filter((_, j) => j !== i))}
+                >
+                  Remover pedido
+                </Button>
+              </div>
+            ))}
+            {f.falencias.length < 6 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1"
+                onClick={() => set("falencias", [...value.falencias, { ...FALENCIA_VAZIA }])}
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden /> Adicionar pedido de falência
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </fieldset>
       <p className="text-[11px] text-muted-foreground">
-        Só entram os slides com dado: sem classes, o slide de endividamento sai; sem plano, o de pagamento sai; e assim por
-        diante.
+        Só entram os slides com dado: sem dados da recuperação judicial, o slide dela sai; sem classes, o de endividamento
+        sai; sem plano, o de pagamento sai; cada pedido de falência vira um slide.
       </p>
     </div>
   );

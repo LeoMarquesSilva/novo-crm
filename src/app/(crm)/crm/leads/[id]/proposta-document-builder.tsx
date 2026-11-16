@@ -1613,7 +1613,7 @@ function PropFieldInput({
             <CrmSelectValue
               value={selected}
               labels={PROPOSTA_TRIBUTACAO_LABELS}
-              placeholder="Incluindo ou não tributos"
+              placeholder="Englobando ou líquido de tributos"
             />
           </SelectTrigger>
           <CrmSelectContent inModal>

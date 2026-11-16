@@ -11,8 +11,9 @@ import {
   createEvolutionConnectorFromEnv,
   describeWhatsappError,
 } from "@/modules/crm/infrastructure/integrations/evolution-whatsapp";
-import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+import { prazoBrasiliaIso } from "@/lib/crm/due-diligence-deadline";
 import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
+import { sendCrmNotificationEmail } from "@/modules/crm/application/services/send-lead-notification-email";
 import {
   buildLevantamentoConcluidoValues,
   buildRevisaoAjusteAdicionalValues,
@@ -214,14 +215,6 @@ function getPublicAppUrl(): string {
   return base.startsWith("http") ? base : `https://${base}`;
 }
 
-function combineDateAndTimeIso(date: string | null, time: string | null): string | null {
-  if (!date) return null;
-  const normalizedTime = time?.trim() || "18:00";
-  const value = `${date}T${normalizedTime.length === 5 ? `${normalizedTime}:00` : normalizedTime}`;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-}
-
 function elapsedMs(startIso: string | null, endIso: string | null): number | null {
   if (!startIso || !endIso) return null;
   const ms = Date.parse(endIso) - Date.parse(startIso);
@@ -229,16 +222,23 @@ function elapsedMs(startIso: string | null, endIso: string | null): number | nul
   return Math.round(ms);
 }
 
-async function sendResendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  const key = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL ?? "CRM <onboarding@resend.dev>";
-  if (!key) return false;
-  const res = await fetchWithTimeout("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [to], subject, html }),
-  });
-  return res.ok;
+/**
+ * E-mail das tarefas da DUE pelo Outlook do CRM (o mesmo dos avisos de lead). Antes ia pelo Resend, que
+ * não tem chave em nenhum ambiente: nenhum desses e-mails saía e a falha não ficava registrada (16/11/2026).
+ * Devolve o motivo quando não sai, para gravar em `ultimo_erro_canais`.
+ */
+async function sendTaskEmail(
+  supabase: SupabaseClient,
+  to: string,
+  subject: string,
+  html: string,
+): Promise<{ ok: boolean; erro: string | null }> {
+  try {
+    const sent = await sendCrmNotificationEmail(supabase, { to: [to], subject, html });
+    return { ok: sent.ok, erro: sent.ok ? null : `e-mail: ${sent.error ?? "falha no envio"}`.slice(0, 300) };
+  } catch (error) {
+    return { ok: false, erro: `e-mail: ${error instanceof Error ? error.message : String(error)}`.slice(0, 300) };
+  }
 }
 
 /** Destino ativo do WhatsApp da DUE (`whatsapp_due_config`, use_case `due_diligence`). */
@@ -333,7 +333,7 @@ export async function syncDueAreaTasksForOpportunity(
   const rawAreas = Array.isArray(intake.areas_analise) ? intake.areas_analise : [];
   const areas = [...new Set(rawAreas.map((area) => normalizePracticeAreaKey(String(area))).filter(Boolean))];
   const areaSet = new Set(areas);
-  const prazoAte = combineDateAndTimeIso(
+  const prazoAte = prazoBrasiliaIso(
     intake.data_entrega_due as string | null,
     intake.horario_entrega_due as string | null,
   );
@@ -633,11 +633,14 @@ async function dispatchDueAreaTaskNotifications(
       const { data: authData } = await supabase.auth.admin.getUserById(user.auth_user_id);
       const email = authData.user?.email ?? null;
       if (email) {
-        emailOk = await sendResendEmail(
+        const sent = await sendTaskEmail(
+          supabase,
           email,
           title,
           `<p>${bodyText}</p><p><a href="${link}">Abrir oportunidade no CRM</a></p>`,
         );
+        emailOk = sent.ok;
+        if (sent.erro) errMsg = [errMsg, sent.erro].filter(Boolean).join("; ");
       }
     } else {
       errMsg = "Responsável sem auth_user_id.";
@@ -690,11 +693,13 @@ export async function notifyDueCompilationOwner(
   const { data: authData } = await supabase.auth.admin.getUserById(authId);
   const email = authData.user?.email ?? null;
   if (email) {
-    await sendResendEmail(
+    const sent = await sendTaskEmail(
+      supabase,
       email,
       title,
       `<p>Todas as áreas concluíram o levantamento. Compilação disponível para ${preview}.</p><p><a href="${link}">Abrir no CRM</a></p>`,
     );
+    if (sent.erro) console.warn("[due] aviso de compilação:", sent.erro);
   }
 }
 
@@ -883,11 +888,14 @@ export async function notifyDueReviewAreas(
       const { data: authData } = await supabase.auth.admin.getUserById(user.auth_user_id);
       const email = authData.user?.email ?? null;
       if (email) {
-        emailOk = await sendResendEmail(
+        const sent = await sendTaskEmail(
+          supabase,
           email,
           title,
           `<p>${bodyText}</p><p><a href="${link}">Abrir oportunidade no CRM</a></p>`,
         );
+        emailOk = sent.ok;
+        if (sent.erro) errMsg = [errMsg, sent.erro].filter(Boolean).join("; ");
       }
     } else {
       errMsg = "Responsável sem auth_user_id.";

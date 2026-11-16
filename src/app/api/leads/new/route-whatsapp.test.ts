@@ -24,6 +24,11 @@ vi.mock("@/modules/crm/application/services/solicitar-abertura-vios", () => ({
   viosAberturaModo: vi.fn(() => "desligado"),
   solicitarAberturaVios: vi.fn(),
 }));
+// `after` só roda dentro de uma requisição do Next; no teste executa na hora.
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: (fn: () => unknown) => void fn(),
+}));
 vi.mock("@/lib/auth/server", () => ({ requireAuthApi: vi.fn() }));
 vi.mock("@/lib/auth/module-access", () => ({ listUserModules: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));

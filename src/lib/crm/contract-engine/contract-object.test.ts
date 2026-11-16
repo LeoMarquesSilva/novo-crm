@@ -338,6 +338,28 @@ describe("várias áreas", () => {
     expect(joined).toMatch(/3ª Vara Cível de Campinas/);
   });
 
+  it("'O presente Contrato tem por objeto…' só no primeiro escopo (pedido de 16/11/2026)", () => {
+    const result = buildCanonicalContract({
+      snapshot: snapshot({
+        Cível: [
+          entry("um_processo", "contencioso", {
+            NUMERO_PROCESSO_CIVEL: "0000202-22.2025.8.26.0224",
+            VARA_TRIBUNAL_CIVEL: "3ª Vara Cível de Guarulhos/SP",
+          }),
+        ],
+        Trabalhista: [entry(SCOPE_IDS.auditoria)],
+      }),
+    });
+    const conteudos = result.data.contractObject.numberedLines.map((l) => l.content);
+    const abertura = /^(O\s+(presente\s+)?Contrato\s+tem\s+por\s+objeto|O\s+objeto\s+(deste|do\s+presente)\s+Contrato)/;
+    expect(conteudos.filter((c) => abertura.test(c))).toHaveLength(1);
+    expect(abertura.test(conteudos[0]!)).toBe(true);
+    expect(conteudos.some((c) => /^A prestação de serviços advocatícios na área/.test(c))).toBe(true);
+    // O texto que vai para o documento (seção 1) é o mesmo.
+    const objeto = result.data.sections.find((s) => s.title === "OBJETO DO CONTRATO");
+    expect(objeto?.clauses.filter((c) => abertura.test(c.content))).toHaveLength(1);
+  });
+
   it("Reestruturação e Insolvência (negociacoes_estrategicas) já tem perfil real", () => {
     const result = buildCanonicalContract({
       snapshot: snapshot({

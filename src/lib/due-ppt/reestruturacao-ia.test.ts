@@ -260,10 +260,10 @@ describe("reestruturacaoJsonSchema", () => {
   });
 
   it("tem os mesmos campos do reestruturacaoSchema", () => {
-    const exemplo = reestruturacaoSchema.parse({ classes: [{}], pagamento: [{}], opcoes: [{}], medidas: [{}] });
+    const exemplo = reestruturacaoSchema.parse({ classes: [{}], pagamento: [{}], opcoes: [{}], medidas: [{}], falencias: [{}] });
     const props = (reestruturacaoJsonSchema as unknown as No).properties!;
     expect(Object.keys(props).sort()).toEqual(Object.keys(exemplo).sort());
-    for (const lista of ["classes", "pagamento", "opcoes", "medidas"] as const) {
+    for (const lista of ["classes", "pagamento", "opcoes", "medidas", "falencias"] as const) {
       expect(Object.keys(props[lista]!.items!.properties!).sort(), lista).toEqual(Object.keys(exemplo[lista][0]!).sort());
     }
   });

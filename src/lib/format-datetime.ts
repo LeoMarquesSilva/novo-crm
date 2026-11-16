@@ -132,6 +132,26 @@ export function saoPauloDateYmd(at: Date = new Date(), timeZone = BR_TIMEZONE): 
   }).format(at);
 }
 
+/** Instante → `dd/mm/aaaa` no horário de Brasília (no servidor, `format(new Date())` sai em UTC). */
+export function formatDateBrAt(at: Date = new Date()): string {
+  return formatDateYmdBr(saoPauloDateYmd(at));
+}
+
+/** Instante → `aaaa-mm-dd-HHmm` no horário de Brasília (carimbo em nome de arquivo). */
+export function saoPauloFileStamp(at: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BR_TIMEZONE,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(at);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")}-${get("hour")}${get("minute")}`;
+}
+
 /** Dias corridos de `fromYmd` até `toYmd` (negativo se `toYmd` já passou). */
 export function daysBetweenYmd(fromYmd: string, toYmd: string): number | null {
   const from = parseDateOnlyInput(fromYmd);

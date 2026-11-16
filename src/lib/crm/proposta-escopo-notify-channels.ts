@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appUserAreaCandidatesForScopeKey, normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import type { InAppNotificationActor } from "@/lib/crm/in-app-notification-meta";
-import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
+import { sendCrmNotificationEmail } from "@/modules/crm/application/services/send-lead-notification-email";
 import {
   createEvolutionConnectorFromEnv,
   describeWhatsappError,
@@ -29,16 +29,22 @@ function getPublicAppUrl(): string {
   return base.startsWith("http") ? base : `https://${base}`;
 }
 
-async function sendResendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  const key = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL ?? "CRM <onboarding@resend.dev>";
-  if (!key) return false;
-  const res = await fetchWithTimeout("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [to], subject, html }),
-  });
-  return res.ok;
+/**
+ * E-mail do pedido de escopo pelo Outlook do CRM (o mesmo dos avisos de lead). Antes ia pelo Resend, que
+ * não tem chave em nenhum ambiente: o e-mail nunca saía (16/11/2026).
+ */
+async function sendEscopoEmail(
+  supabase: SupabaseClient,
+  to: string,
+  subject: string,
+  html: string,
+): Promise<{ ok: boolean; erro: string | null }> {
+  try {
+    const sent = await sendCrmNotificationEmail(supabase, { to: [to], subject, html });
+    return { ok: sent.ok, erro: sent.ok ? null : (sent.error ?? "falha no envio").slice(0, 200) };
+  } catch (error) {
+    return { ok: false, erro: (error instanceof Error ? error.message : String(error)).slice(0, 200) };
+  }
 }
 
 /**
@@ -69,7 +75,7 @@ async function sendEscopoWhatsappText(
 }
 
 /**
- * Para cada solicitação ainda não notificada: in-app + e-mail (Resend) por gestor, com auditoria. No WhatsApp
+ * Para cada solicitação ainda não notificada: in-app + e-mail (Outlook) por gestor, com auditoria. No WhatsApp
  * (Evolution) sai UMA mensagem com todas as áreas do pedido, no fim.
  */
 export async function dispatchPropostaEscopoChannelNotifications(
@@ -183,14 +189,15 @@ export async function dispatchPropostaEscopoChannelNotifications(
       if (nInsErr) errMsg = (errMsg ? errMsg + "; " : "") + `in-app ${gestor.full_name}: ${nInsErr.message}`;
 
       if (email) {
-        const sent = await sendResendEmail(
+        const sent = await sendEscopoEmail(
+          supabase,
           email,
           title,
           `<p>${bodyText}</p><p><a href="${link}">Abrir oportunidade no CRM</a></p>`,
         );
-        emailOk = emailOk || sent;
-        if (!sent && process.env.RESEND_API_KEY) {
-          errMsg = (errMsg ? errMsg + "; " : "") + `e-mail Resend falhou para ${gestor.full_name}.`;
+        emailOk = emailOk || sent.ok;
+        if (!sent.ok) {
+          errMsg = (errMsg ? errMsg + "; " : "") + `e-mail falhou para ${gestor.full_name}: ${sent.erro}`;
         }
       }
     }

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CRM_PRACTICE_AREAS } from "@/lib/crm/crm-areas";
 import { isValidCnpj, isValidCpf } from "@/lib/crm/rd-migration/documents";
 import { isEmailValido, isTelefoneBrValido } from "@/lib/crm/nome-pessoa";
+import { proximoDiaUtil } from "@/lib/dias-uteis";
 
 /** Mesmas opções que `cp_areas_objeto` e `PROPOSAL_SCOPE_OPTIONS` (`crm-areas.ts`). */
 export const leadAreas = CRM_PRACTICE_AREAS;
@@ -103,15 +104,9 @@ export const newLeadPayloadSchema = z
       }
 
       if (value.data_entrega_due && value.data_reuniao) {
-        const dueDate = new Date(`${value.data_entrega_due}T00:00:00`);
-        const meetingDate = new Date(`${value.data_reuniao}T00:00:00`);
-        const minMeetingDate = new Date(dueDate);
-
-        do {
-          minMeetingDate.setDate(minMeetingDate.getDate() + 1);
-        } while ([0, 6].includes(minMeetingDate.getDay()));
-
-        if (meetingDate < minMeetingDate) {
+        // Próximo dia útil pelo calendário ANBIMA (feriados nacionais), em datas `aaaa-mm-dd` (16/11/2026).
+        const minMeetingDate = proximoDiaUtil(value.data_entrega_due.slice(0, 10));
+        if (value.data_reuniao.slice(0, 10) < minMeetingDate) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["data_reuniao"],

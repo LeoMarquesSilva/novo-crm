@@ -10,20 +10,17 @@ import {
   Packer,
   Paragraph,
   Table,
-  TableCell,
-  TableRow,
   TextRun,
-  WidthType,
 } from "docx";
 
 import type { ContratoDocumentPagePreview } from "./contrato-docx-data";
 import { contractPartyGrammar } from "./contract-engine/party-language";
+import { blocosDeAssinatura } from "./contrato-assinaturas";
 
 // ─── Constantes tipográficas ──────────────────────────────────────────────────
 
 const FONT = "Times New Roman";
 const PT11 = 22; // 11 pt em meios-pontos (half-points)
-const PT10 = 20;
 const PT13 = 26; // letterhead
 const PT8 = 16;
 
@@ -37,7 +34,10 @@ type BorderDef = {
 };
 
 const LINE_DARK: BorderDef = { style: BorderStyle.SINGLE, size: 6, color: "444444", space: 3 };
-const NO_BORDER: BorderDef = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+/** Folha de assinaturas: recuo de cada lado (o traço fica com ~62% da largura do texto) e espaço para assinar. */
+const SIG_INDENT = 1600;
+const SIG_ESPACO_PRIMEIRA = 400;
+const SIG_ESPACO = 1300;
 
 function run(text: string, bold = false, size = PT11): TextRun {
   return new TextRun({ text, font: FONT, size, bold });
@@ -376,88 +376,32 @@ export async function generateContratoDocxBuffer(
     }),
   );
 
-  const sigCell = (label: string, sub?: string, extraLines?: string[]) =>
-    new TableCell({
-      borders: {
-        top: NO_BORDER,
-        bottom: NO_BORDER,
-        left: NO_BORDER,
-        right: NO_BORDER,
-      },
-      children: [
-        new Paragraph({
-          alignment: AlignmentType.CENTER,
-          border: { top: LINE_DARK },
-          spacing: { after: 0 },
-          children: [run(label, true)],
-        }),
-        ...(sub
-          ? [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { after: extraLines?.length ? 400 : 0 },
-                children: [run(sub, false, PT10)],
-              }),
-            ]
-          : []),
-        ...(extraLines ?? []).flatMap((line, i, arr) => [
+  // Uma assinatura embaixo da outra, centralizadas, começando pelo escritório; sem "CONTRATANTE"/"CONTRATADA"
+  // (16/11/2026). O traço é a borda do parágrafo do título, com recuo dos dois lados para ficar curto e no
+  // centro. Antes o traço vinha num parágrafo vazio e o Word juntava bordas iguais seguidas: a linha do
+  // cliente nem aparecia. As posições padrão da D4Sign (`contrato-signature-pins.ts`) seguem este layout.
+  blocosDeAssinatura(page.contratantesAssinatura).forEach((bloco, i) => {
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        indent: { left: SIG_INDENT, right: SIG_INDENT },
+        border: { top: LINE_DARK },
+        spacing: { before: i === 0 ? SIG_ESPACO_PRIMEIRA : SIG_ESPACO, after: 0 },
+        keepNext: bloco.linhas.length > 0,
+        keepLines: true,
+        children: [new TextRun({ text: bloco.titulo, font: FONT, size: PT11, bold: true, smallCaps: true })],
+      }),
+      ...bloco.linhas.map(
+        (linha, j) =>
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            border: { top: LINE_DARK },
-            spacing: { before: i === 0 ? 400 : 200, after: 40 },
-            children: [],
+            spacing: { after: 0 },
+            keepNext: j < bloco.linhas.length - 1,
+            children: [run(linha)],
           }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: i < arr.length - 1 ? 200 : 0 },
-            children: [run(line, false, PT10)],
-          }),
-        ]),
-      ],
-    });
-
-  const spacerCell = new TableCell({
-    borders: {
-      top: NO_BORDER,
-      bottom: NO_BORDER,
-      left: NO_BORDER,
-      right: NO_BORDER,
-    },
-    width: { size: 1800, type: WidthType.DXA },
-    children: [new Paragraph({ children: [] })],
+      ),
+    );
   });
-
-  children.push(
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      borders: {
-        top: NO_BORDER,
-        bottom: NO_BORDER,
-        left: NO_BORDER,
-        right: NO_BORDER,
-        insideHorizontal: NO_BORDER,
-        insideVertical: NO_BORDER,
-      },
-      rows: [
-        new TableRow({
-          children: [
-            sigCell(
-              contratanteGrammar.noun,
-              undefined,
-              (page.contratantesAssinatura ?? []).map((c) =>
-                [c.nome, c.documento ? `${c.documentoTipo} ${c.documento}` : ""].filter(Boolean).join(" · "),
-              ),
-            ),
-            spacerCell,
-            sigCell("CONTRATADA", "Bismarchi | Pires – Sociedade de Advogados", [
-              "Gustavo Bismarchi Motta",
-              "Ricardo Viscardi Pires",
-            ]),
-          ],
-        }),
-      ],
-    }),
-  );
 
   if (standaloneBranding) {
     // ── Rodapé ───────────────────────────────────────────────────────────────

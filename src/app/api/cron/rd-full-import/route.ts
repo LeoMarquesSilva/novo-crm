@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeCronRequest } from "@/lib/http/cron-auth";
 import { runRdFullImport } from "@/lib/crm/rd-import-run";
+import { saoPauloDateYmd } from "@/lib/format-datetime";
 
 /**
  * Sincronização agendada (ex.: Vercel Cron 2x/dia).
@@ -16,7 +17,7 @@ async function run(request: Request) {
   const yearParam = url.searchParams.get("year");
   const year = yearParam
     ? Number.parseInt(yearParam, 10)
-    : new Date().getFullYear();
+    : Number(saoPauloDateYmd().slice(0, 4));
 
   if (!Number.isFinite(year) || year < 2000 || year > 2100) {
     return NextResponse.json({ ok: false, error: "year inválido." }, { status: 400 });

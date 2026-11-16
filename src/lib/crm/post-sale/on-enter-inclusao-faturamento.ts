@@ -5,6 +5,7 @@ import { autoIncludeLeadContract } from "@/lib/crm/contract-inclusion/auto-inclu
 import { contractSetupHref } from "@/lib/crm/contract-inclusion/lead-inclusion-view";
 import { notifyAudience } from "@/lib/crm/notifications/crm-notify";
 import { logServerError } from "@/lib/http/api-errors";
+import { saoPauloDateYmd } from "@/lib/format-datetime";
 
 /** Depois da resposta (a leitura do PDF leva até 90 s); fora de uma requisição, roda direto. */
 function afterResponse(task: () => Promise<void>, opportunityId: string): void {
@@ -54,7 +55,7 @@ export async function onEnteredInclusaoFaturamento(
     .maybeSingle();
   const operationalId = (operational as { app_user_id: string | null } | null)?.app_user_id ?? null;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = saoPauloDateYmd();
   await supabase.from("contrato_alertas").upsert(
     {
       contrato_id: row.id,

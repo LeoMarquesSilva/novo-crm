@@ -4,14 +4,7 @@ import {
   extractOportunidadeIdFromNotificationPayload,
   type EnrichableInAppNotificationRow,
 } from "@/lib/crm/in-app-notification-enrich-lead-creator";
-
-function combineDateAndTimeIso(date: string | null, time: string | null): string | null {
-  if (!date?.trim()) return null;
-  const normalizedTime = time?.trim() || "18:00";
-  const value = `${date.trim()}T${normalizedTime.length === 5 ? `${normalizedTime}:00` : normalizedTime}`;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-}
+import { prazoBrasiliaIso as combineDateAndTimeIso } from "@/lib/crm/due-diligence-deadline";
 
 /**
  * Acrescenta `lead_contexto_datas` ao payload (criação do lead na oportunidade, prazo DUE, reunião — `lead_intakes`).

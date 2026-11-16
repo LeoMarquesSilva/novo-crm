@@ -22,6 +22,8 @@ export type DueAreaDef = {
   /** Tem relatório em planilha (Reestruturação é preenchida no formulário). */
   usaPlanilha: boolean;
   variantes: Array<"painel" | "detalhe" | "lista">;
+  /** Formato do automático com até LIMITE_DETALHE processos ativos. */
+  variantePoucos: "detalhe" | "lista";
 };
 
 export const DUE_AREAS: Record<DueAreaId, DueAreaDef> = {
@@ -36,6 +38,7 @@ export const DUE_AREAS: Record<DueAreaId, DueAreaDef> = {
     conclusaoKey: "REEST",
     usaPlanilha: false,
     variantes: ["painel"],
+    variantePoucos: "detalhe",
   },
   rec_cred: {
     id: "rec_cred",
@@ -48,6 +51,7 @@ export const DUE_AREAS: Record<DueAreaId, DueAreaDef> = {
     conclusaoKey: null,
     usaPlanilha: true,
     variantes: ["painel", "detalhe", "lista"],
+    variantePoucos: "detalhe",
   },
   civel: {
     id: "civel",
@@ -60,6 +64,7 @@ export const DUE_AREAS: Record<DueAreaId, DueAreaDef> = {
     conclusaoKey: "CIVEL",
     usaPlanilha: true,
     variantes: ["painel", "detalhe", "lista"],
+    variantePoucos: "detalhe",
   },
   trabalhista: {
     id: "trabalhista",
@@ -72,6 +77,8 @@ export const DUE_AREAS: Record<DueAreaId, DueAreaDef> = {
     conclusaoKey: "TRAB",
     usaPlanilha: true,
     variantes: ["painel", "detalhe", "lista"],
+    // Como a área monta: uma tabela com os processos ativos (número, partes, origem e valor, andamento).
+    variantePoucos: "lista",
   },
   tributario: {
     id: "tributario",
@@ -84,10 +91,11 @@ export const DUE_AREAS: Record<DueAreaId, DueAreaDef> = {
     conclusaoKey: "TRIB",
     usaPlanilha: true,
     variantes: ["painel"],
+    variantePoucos: "detalhe",
   },
 };
 
-/** Até quantos processos o padrão é um slide por processo (sem gráficos). */
+/** Até quantos processos o automático usa `variantePoucos` (sem gráficos). */
 export const LIMITE_DETALHE = 5;
 
 export function normalizarTexto(s: unknown): string {

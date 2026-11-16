@@ -5,7 +5,7 @@
  */
 import { uploadDueFile, type DueDocument } from "@/lib/crm/upload-due-ppt";
 import { DUE_AREA_IDS, type DueAreaId } from "./areas";
-import { composeDeck, type AreaDados, type ComposeResult } from "./compose";
+import { composeDeck, type AreaDados, type AreaSemProcessos, type ComposeResult } from "./compose";
 import type { DueApresentacaoDraft } from "./draft";
 import type { ImageAsset } from "./pptx/image";
 import { buildDeck } from "./pptx/build";
@@ -86,6 +86,7 @@ export function dadosPorArea(docs: DueDocumentoLista[], lidas: Map<string, Plani
         area.processos.push(p);
       }
       if (n.extras.pge != null) area.extras.pge = (area.extras.pge ?? 0) + n.extras.pge;
+      if (n.extras.pgfnDevedores?.length) (area.extras.pgfnDevedores ??= []).push(...n.extras.pgfnDevedores);
       if (n.extras.pgfn) {
         const acc = area.extras.pgfn ?? { tributario: 0, previdenciario: 0, multa: 0 };
         acc.tributario += n.extras.pgfn.tributario;
@@ -144,13 +145,21 @@ export async function gerarApresentacao(opts: {
   logo: ImageAsset | null;
   anexar: boolean;
   onEtapa?: (texto: string) => void;
+  /** Áreas que concluíram sem processos ativos (não viram aviso de "sem planilha"). */
+  semProcessos?: AreaSemProcessos[];
 }): Promise<GeracaoResultado> {
   opts.onEtapa?.("Baixando o modelo…");
   const modelo = await baixarModeloAtivo();
   opts.onEtapa?.("Montando os slides…");
   // Deixa a UI pintar o texto da etapa antes do trabalho pesado.
   await new Promise((r) => setTimeout(r, 30));
-  const composto: ComposeResult = composeDeck({ draft: opts.draft, areas: opts.areas, logo: opts.logo, hoje: new Date() });
+  const composto: ComposeResult = composeDeck({
+    draft: opts.draft,
+    areas: opts.areas,
+    logo: opts.logo,
+    hoje: new Date(),
+    semProcessos: opts.semProcessos,
+  });
   const result = buildDeck(new Uint8Array(modelo), composto.spec);
   const arquivo = new File([result.bytes as BlobPart], nomeArquivo(opts.draft.capa.razaoSocial), {
     type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",

@@ -11,10 +11,12 @@ import {
   notificationTitle,
 } from "./presentation";
 
-const NOW = new Date(2026, 10, 16, 15, 30); // 16/11/2026 15:30 local
+// Horário de Brasília explícito (−03:00): o resultado não depende do fuso de quem roda o teste.
+const NOW = new Date("2026-11-16T15:30:00-03:00"); // 16/11/2026 15:30 em Brasília
 
 function at(day: number, hour: number, minute = 0): string {
-  return new Date(2026, 10, day, hour, minute).toISOString();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return new Date(`2026-11-${p(day)}T${p(hour)}:${p(minute)}:00-03:00`).toISOString();
 }
 
 describe("notificationHref", () => {

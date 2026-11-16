@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { internalErrorResponse, PublicError } from "@/lib/http/api-errors";
 import { runRdFullImport } from "@/lib/crm/rd-import-run";
+import { saoPauloDateYmd } from "@/lib/format-datetime";
 import { requireRdMigrationActor } from "@/lib/crm/rd-migration/route-helpers";
 import {
   convertAllRdMigrations,
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
         if (await isRdSyncFrozen(supabase)) {
           throw new PublicError("O RD já está congelado; reabra o sync para importar de novo.", 409, "FROZEN");
         }
-        const result = await runRdFullImport(new Date().getFullYear());
+        const result = await runRdFullImport(Number(saoPauloDateYmd().slice(0, 4)));
         return NextResponse.json({
           ok: true,
           import: {

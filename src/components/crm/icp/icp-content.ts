@@ -7,16 +7,18 @@ import type {
   IcpData,
   IcpEmployeeBand,
   IcpGroupRow,
+  IcpOverdueAgingKey,
   IcpSizeBucketKey,
   IcpTierKey,
 } from "@/modules/icp/domain/compute";
 
-export type IcpTabKey = "resumo" | "carteira" | "clientes" | "marketing" | "comercial";
+export type IcpTabKey = "resumo" | "carteira" | "clientes" | "inadimplencia" | "marketing" | "comercial";
 
 export const ICP_TABS: { key: IcpTabKey; label: string }[] = [
   { key: "resumo", label: "Resumo" },
   { key: "carteira", label: "Carteira" },
   { key: "clientes", label: "Clientes" },
+  { key: "inadimplencia", label: "Inadimplência" },
   { key: "marketing", label: "Marketing" },
   { key: "comercial", label: "Pauta comercial" },
 ];
@@ -108,7 +110,35 @@ export const INFO = {
   mediaMensal: "Honorários pagos em 12 meses divididos por 12.",
   atrasoGrupo: "Parcelas de honorários vencidas e não pagas hoje, de qualquer data de vencimento.",
   areasGrupo: "Áreas que faturaram honorários para o grupo nos últimos 12 meses, da que mais faturou para a que menos.",
+  atrasoTotal:
+    "Parcelas de honorários vencidas e não pagas até a data do cálculo, de qualquer data de vencimento (financeiro do VIOS). Soma os grupos que pagaram algo em 12 meses e os que não pagaram nada no período. Só conta quem está cadastrado como cliente.",
+  atrasoPagantes:
+    "Atraso dos grupos que pagaram honorários em 12 meses (os das faixas A a E), comparado com a receita deles no mesmo período.",
+  atrasoSemPagamento:
+    "Grupos com honorário vencido em aberto que não pagaram nada em 12 meses. Ficam fora das faixas, que são pela receita, mas entram no total em atraso.",
+  atrasoAntigo:
+    "Parte do valor em aberto cuja parcela venceu há mais de 365 dias. Quanto mais antigo o atraso, menor a chance de receber.",
+  envelhecimento:
+    "Valor em aberto separado pelo tempo desde o vencimento de cada parcela, contado até a data do cálculo. Do amarelo (até 30 dias) ao vermelho escuro (mais de 1 ano).",
+  devedoresFaixa: "Grupos com pelo menos uma parcela de honorário vencida e em aberto, sobre o total de grupos da faixa.",
+  parteAtraso:
+    "Quanto a linha representa de todo o valor em atraso do escritório, incluindo quem não pagou nada em 12 meses.",
+  mediaDevedor: "Valor em atraso dividido pelo número de grupos que devem.",
+  atrasoMaisAntigo: "Vencimento da parcela em aberto mais antiga do grupo e há quanto tempo ela venceu.",
+  atrasoArea: "Valor em aberto separado pelo departamento que emitiu a cobrança.",
+  atrasoAreasGrupo: "Áreas que emitiram as parcelas em aberto do grupo, da que tem mais valor para a que tem menos.",
+  atrasoReceitaGrupo:
+    "Valor em atraso dividido pelos honorários pagos em 12 meses. Acima de 50% fica em vermelho. Quem não pagou nada no período fica sem a conta.",
 } as const;
+
+/** Tempo de atraso: do amarelo (recente) ao vermelho escuro (mais de 1 ano). */
+export const AGING_TONE: Record<IcpOverdueAgingKey, string> = {
+  ate30: "bg-warning-border",
+  "31a90": "bg-chart-3/55",
+  "91a180": "bg-chart-3",
+  "181a365": "bg-chart-5/70",
+  mais365: "bg-danger-text",
+};
 
 /* -------------------------------------------------------------- Escalas de cor */
 

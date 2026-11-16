@@ -15,12 +15,9 @@ export const LEAD_EMAIL_COLORS = {
 
 export function leadEmailNowSaoPaulo(): { date: string; time: string } {
   const now = new Date();
-  const spOffset = -3 * 60;
-  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  const spDate = new Date(utc + spOffset * 60000);
   return {
-    date: spDate.toLocaleDateString("pt-BR"),
-    time: spDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+    date: now.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+    time: now.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }),
   };
 }
 

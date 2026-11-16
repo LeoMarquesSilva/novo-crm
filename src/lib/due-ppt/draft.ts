@@ -39,6 +39,12 @@ export const reestruturacaoSchema = z.object({
     .default([]),
   extraconcursalEdital: valor,
   extraconcursalAj: valor,
+  /**
+   * De onde vem a composição: edital do art. 52, §1º + relatório do AJ, ou só a lista de credores
+   * da documentação inicial (art. 51), quando o processamento não foi deferido. Em "inicial" os
+   * valores ficam em `edital` e as colunas do AJ e da variação saem do slide.
+   */
+  endividamentoFonte: z.enum(["edital_aj", "inicial"]).default("edital_aj"),
   endividamentoResumo: texto(1000),
   pagamento: z
     .array(
@@ -76,8 +82,31 @@ export const reestruturacaoSchema = z.object({
     )
     .max(3)
     .default([]),
+  /** Pedidos de falência contra a empresa (um slide cada). */
+  falencias: z
+    .array(
+      z.object({
+        autos: texto(200),
+        requerente: texto(300),
+        devedora: texto(300),
+        competencia: texto(300),
+        juiz: texto(200),
+        ajuizamento: texto(40),
+        valorCausa: valor,
+        credito: valor,
+        /** Ex.: "após pagamentos parciais". */
+        creditoObs: texto(200),
+        fundamento: texto(200),
+        /** Etiqueta do slide: "Em andamento", "Extinto", "Falência decretada"… */
+        situacao: texto(60),
+        status: texto(1000),
+      }),
+    )
+    .max(6)
+    .default([]),
 });
 export type ReestruturacaoForm = z.infer<typeof reestruturacaoSchema>;
+export type PedidoFalencia = ReestruturacaoForm["falencias"][number];
 
 export const draftSchema = z.object({
   versao: z.literal(1).default(1),
@@ -85,7 +114,7 @@ export const draftSchema = z.object({
     .object({
       razaoSocial: texto(300),
       cnpj: texto(40),
-      empresas: z.array(z.object({ razaoSocial: texto(300), cnpj: texto(40) })).max(3).default([]),
+      empresas: z.array(z.object({ razaoSocial: texto(300), cnpj: texto(40) })).max(4).default([]),
     })
     .default({ razaoSocial: "", cnpj: "", empresas: [] }),
   areas: z.partialRecord(z.enum(DUE_AREA_IDS), areaDraftSchema).default({}),

@@ -32,7 +32,7 @@ export async function assertD4SignQuota(
   const quota = await getD4SignQuotaStatus(method);
   if (quota.remaining < needed) {
     const resetHint = quota.resetAt
-      ? ` Libera ${new Date(quota.resetAt).toLocaleTimeString("pt-BR")}.`
+      ? ` Libera ${new Date(quota.resetAt).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}.`
       : "";
     return {
       ok: false,

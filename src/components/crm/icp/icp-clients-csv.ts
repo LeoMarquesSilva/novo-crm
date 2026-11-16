@@ -3,6 +3,7 @@
  * direto no Excel em pt-BR).
  */
 import { sortedPlans } from "@/modules/icp/domain/plano-contas";
+import { saoPauloDateYmd } from "@/lib/format-datetime";
 import type { IcpGroupRow } from "@/modules/icp/domain/compute";
 import { employeeRangeText, entryAreaLabel, formatCnpj, groupName, noSectorLabel } from "./icp-format";
 
@@ -68,7 +69,7 @@ export function buildClientsCsv(rows: IcpGroupRow[]): string {
 }
 
 export function clientsCsvFileName(now = new Date()): string {
-  return `icp-clientes-${now.toISOString().slice(0, 10)}.csv`;
+  return `icp-clientes-${saoPauloDateYmd(now)}.csv`;
 }
 
 /** Baixa a lista filtrada em CSV. */

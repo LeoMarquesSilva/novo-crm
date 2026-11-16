@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireLeadActionApi } from "@/lib/auth/crm-actor";
 import { internalErrorResponse, logServerError, publicErrorMessage } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -335,13 +335,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // Envio de e-mail de notificação (não-bloqueante)
-    sendLeadNotificationEmail(supabase, payload, { oportunidadeId: oportunidade.id }).then((result) => {
-      if (!result.ok) {
-        console.warn("[leads/new] E-mail de notificação falhou:", result.error);
+    // E-mail de notificação depois da resposta. Com `after` a Vercel mantém a função viva até o envio
+    // terminar; a promessa solta de antes podia ser cortada quando a resposta saía (16/11/2026).
+    after(async () => {
+      try {
+        const result = await sendLeadNotificationEmail(supabase, payload, { oportunidadeId: oportunidade.id });
+        if (!result.ok) console.warn("[leads/new] E-mail de notificação falhou:", result.error);
+      } catch (err) {
+        console.error("[leads/new] Erro inesperado ao enviar e-mail:", err);
       }
-    }).catch((err) => {
-      console.error("[leads/new] Erro inesperado ao enviar e-mail:", err);
     });
 
     return NextResponse.json(

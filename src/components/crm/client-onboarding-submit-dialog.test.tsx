@@ -41,6 +41,9 @@ const response = (permissions = { editDraft: true, submit: true }) => ({
 let getResponse = response();
 const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
+  if (url.endsWith("/billing") && init?.method === "POST") {
+    return new Response(JSON.stringify({ ok: true, stage: "inclusao_faturamento" }), { status: 200 });
+  }
   if (url.endsWith("/submit") && init?.method === "POST") {
     return new Response(JSON.stringify({ ok: true, stage: "cadastro_novo_cliente" }), { status: 200 });
   }
@@ -116,4 +119,57 @@ test("sem permissão de envio o modal só mostra o cadastro", async () => {
   expect(await screen.findByText(/Só o responsável pelo lead/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Enviar para Operações Legais/ })).toBeDisabled();
   expect(screen.queryByRole("button", { name: /Salvar rascunho/ })).not.toBeInTheDocument();
+});
+
+test("faturamento: pede a confirmação da data do primeiro faturamento antes de enviar (16/11/2026)", async () => {
+  const futuro = parseClientOnboardingPayload({
+    ...payload,
+    financeiro: { ...payload.financeiro, inicioVigencia: "2030-01-01", primeiroFaturamento: "2030-01-10" },
+  });
+  getResponse = {
+    ...response(),
+    stage: "cadastro_novo_cliente",
+    payload: futuro,
+    permissions: {
+      editDraft: true,
+      editCadastro: false,
+      editFaturamento: true,
+      submit: false,
+      submitBilling: true,
+      review: false,
+      returnToOwner: false,
+      conclude: false,
+    } as never,
+  };
+  const user = userEvent.setup();
+  const onSubmitted = vi.fn();
+  render(
+    <ClientOnboardingSubmitDialog
+      open
+      onOpenChange={vi.fn()}
+      leadId="lead-1"
+      leadName="ACME LTDA"
+      step="faturamento"
+      onSubmitted={onSubmitted}
+    />,
+  );
+
+  const enviar = await screen.findByRole("button", { name: /Enviar para o Financeiro/ });
+  await waitFor(() => expect(enviar).toBeEnabled());
+  await user.click(enviar);
+
+  // Ainda não enviou: mostra a data que veio preenchida para confirmar ou corrigir.
+  expect(await screen.findByText("Confirme a data do primeiro faturamento")).toBeInTheDocument();
+  expect(screen.getByText(/10\/01\/2030/)).toBeInTheDocument();
+  expect(callsTo("POST")).toHaveLength(0);
+
+  const campo = document.getElementById("dlg-confirmar-faturamento-data") as HTMLInputElement;
+  await user.clear(campo);
+  await user.type(campo, "15022030");
+  await user.click(screen.getByRole("button", { name: /Confirmar data e enviar/ }));
+
+  await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith({ stage: "inclusao_faturamento" }));
+  const [url, init] = callsTo("POST")[0]!;
+  expect(String(url)).toMatch(/\/billing$/);
+  expect(JSON.parse(String(init?.body)).payload.financeiro.primeiroFaturamento).toBe("2030-02-15");
 });

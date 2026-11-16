@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { saoPauloFileStamp } from "@/lib/format-datetime";
 import type { InvestimentoTipoDef } from "@/data/proposta-investimento-catalog";
 import type { PropostaTiposCatalog } from "@/data/proposta-tipos-catalog";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -404,10 +404,7 @@ export function buildGeneratedDocxFilePath(params: {
   fileStamp?: string;
 }): string {
   const base = sanitizeFilenamePart(params.baseName);
-  return `documentos/propostas/${params.oportunidadeId}/v${params.versionNumber}-${base}-${params.fileStamp ?? format(
-    params.generatedAt,
-    "yyyy-MM-dd-HHmm",
-  )}.docx`;
+  return `documentos/propostas/${params.oportunidadeId}/v${params.versionNumber}-${base}-${params.fileStamp ?? saoPauloFileStamp(params.generatedAt)}.docx`;
 }
 
 export function buildGeneratedContratoDocxFilePath(params: {
@@ -418,10 +415,7 @@ export function buildGeneratedContratoDocxFilePath(params: {
   fileStamp?: string;
 }): string {
   const base = sanitizeFilenamePart(params.baseName);
-  return `documentos/contratos/${params.oportunidadeId}/v${params.versionNumber}-${base}-${params.fileStamp ?? format(
-    params.generatedAt,
-    "yyyy-MM-dd-HHmm",
-  )}.docx`;
+  return `documentos/contratos/${params.oportunidadeId}/v${params.versionNumber}-${base}-${params.fileStamp ?? saoPauloFileStamp(params.generatedAt)}.docx`;
 }
 
 export function buildGeneratedPdfFilePath(params: {

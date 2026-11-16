@@ -20,7 +20,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { Oportunidade } from "@/modules/crm/domain/entities";
-import { formatDateTimeBr, formatDateYmdBr } from "@/lib/format-datetime";
+import { formatDateTimeBr, formatDateYmdBr, saoPauloDateYmd } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 import {
   KanbanAreaRow,
@@ -29,11 +29,9 @@ import {
   type KanbanPanelTone,
 } from "@/components/crm/pipeline-kanban-panel-shell";
 
+/** Hoje no horário de Brasília (não no fuso do computador). */
 function isTodayYmd(ymd: string): boolean {
-  const today = new Date();
-  const [y, m, d] = ymd.split("-").map(Number);
-  if (!y || !m || !d) return false;
-  return today.getFullYear() === y && today.getMonth() + 1 === m && today.getDate() === d;
+  return ymd.trim().slice(0, 10) === saoPauloDateYmd();
 }
 
 function meetingSubtitle(dataReuniao: string | null | undefined): string | null {

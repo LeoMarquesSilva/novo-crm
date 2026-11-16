@@ -20,9 +20,9 @@ import {
 } from "@/modules/icp/domain/compute";
 import { IcpAreaBadge, IcpAreaBadgeSpacer } from "./icp-area-icon";
 import { PlanLegend, PlanMixBar, PlanoContasPanel } from "./icp-plano-contas-panel";
-import { EMPLOYEE_BAND_TONE, INFO, SRC, TIER_TONE, overdueTone } from "./icp-content";
+import { EMPLOYEE_BAND_TONE, INFO, SRC, TIER_TONE } from "./icp-content";
 import { countOf, decimal, excludedRevenueNote, money, moneyOrDash, pct, ratio } from "./icp-format";
-import { BarRow, Callout, Kpi, KpiGroup, Panel, ShareBar } from "./icp-primitives";
+import { BarRow, Callout, Kpi, KpiGroup, OverdueCell, Panel, ShareBar } from "./icp-primitives";
 import { BucketListPanel, SizeCardsPanel, type IcpBucketView } from "./icp-size-panels";
 import { SortableHead, nextSort, sortRows, type SortState } from "./icp-sort";
 
@@ -178,20 +178,6 @@ function mensaisShare(groups: IcpGroupRow[]): number {
 }
 
 const groupHours = (groups: IcpGroupRow[]) => groups.map((g) => ({ revenue: g.revenue12m, hours: g.hours12m }));
-
-function OverdueCell({ value }: { value: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className={cn("w-10 text-right tabular-nums", value >= 0.5 && "font-semibold text-danger-text")}>{pct(value)}</span>
-      <div className="h-1.5 w-12 overflow-hidden rounded-full bg-neutral-100">
-        <div
-          className={cn("h-full rounded-full", overdueTone(value))}
-          style={{ width: `${Math.min(100, Math.max(3, value * 100))}%` }}
-        />
-      </div>
-    </div>
-  );
-}
 
 function TierPanel({ data }: { data: IcpData }) {
   const [sort, setSort] = useState<SortState<TierSortKey>>({ key: "faixa", desc: false });
@@ -506,7 +492,7 @@ function EntryPanel({ data }: { data: IcpData }) {
           <TableRow className="hover:bg-transparent">
             <TableHead className={headClass}>Área</TableHead>
             <TableHead className={cn(headClass, "text-right")}>Faixas A e B</TableHead>
-            <TableHead className={cn(headClass, "text-right")}>Faixas C e D</TableHead>
+            <TableHead className={cn(headClass, "text-right")}>Faixas C a E</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
