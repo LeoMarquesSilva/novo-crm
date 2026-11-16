@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { adminInitialPasswordSchema } from "@/lib/auth/admin-user-policy";
 import { requireAdminApi } from "@/lib/auth/server";
+import { invalidateCrmUserDirectory } from "@/lib/crm/kanban-data-cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { overlayOfficialAvatars } from "@/lib/official-photos/overlay";
 
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 
+    invalidateCrmUserDirectory();
     return NextResponse.json({ data: { ...appUser, email: parsed.email } }, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";

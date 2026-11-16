@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireAuthApi } from "@/lib/auth/server";
+import { invalidateCrmUserDirectory } from "@/lib/crm/kanban-data-cache";
 import { logServerError } from "@/lib/http/api-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -48,5 +49,6 @@ export async function PATCH(request: Request) {
     );
   }
 
+  invalidateCrmUserDirectory();
   return NextResponse.json({ ok: true });
 }

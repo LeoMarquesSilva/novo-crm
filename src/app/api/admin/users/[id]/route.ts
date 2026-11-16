@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminApi } from "@/lib/auth/server";
+import { invalidateCrmUserDirectory } from "@/lib/crm/kanban-data-cache";
 import { normalizePracticeAreaKey } from "@/lib/crm/area-keys-alignment";
 import { APP_USER_ALL_AREAS } from "@/lib/crm/crm-areas";
 import { logServerError } from "@/lib/http/api-errors";
@@ -91,6 +92,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Não foi possível ler o usuário.", ref }, { status: 500 });
     }
 
+    invalidateCrmUserDirectory();
     return NextResponse.json({ data });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
@@ -138,6 +140,7 @@ export async function DELETE(
       );
     }
 
+    invalidateCrmUserDirectory();
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
