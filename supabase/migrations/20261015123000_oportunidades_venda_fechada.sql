@@ -39,7 +39,7 @@ set
   encerramento = 'ganho',
   venda_fechada_em = coalesce(
     (
-      select min(t.created_at)
+      select min(t.criado_em)
       from public.transicoes_etapa t
       where t.oportunidade_id = o.id
         and t.etapa_destino = 'contrato_assinado'::public.opportunity_stage
