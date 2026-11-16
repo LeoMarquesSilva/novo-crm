@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { composeDeck, type AreaDados } from "./compose";
+import { composeDeck, ehPessoaFisica, escalaRazaoSocial, type AreaDados } from "./compose";
 import { draftSchema } from "./draft";
+import { acentuar, separarDocumentos } from "./format";
 import { conferirModelo } from "./modelo";
 import { buildDeck } from "./pptx/build";
 import { PptxPackage, slideMarker } from "./pptx/package";
@@ -62,7 +63,7 @@ describe.skipIf(!existsSync(MODELO))("apresentação gerada a partir do modelo d
     expect(c.marcadores).toBeGreaterThan(100);
   });
 
-  it("monta Cível (painel), Trabalhista (1 slide por processo) e Tributário sem sobrar marcador", () => {
+  it("monta Cível (painel), Trabalhista (1 slide por processo, escolhido) e Tributário sem sobrar marcador", () => {
     const civel = Array.from({ length: 12 }, (_, i) => proc(i + 1, { fase: i % 4 === 0 ? "Execução" : "Conhecimento" }));
     const trab = Array.from({ length: 3 }, (_, i) =>
       proc(i + 50, { poloAtivo: `RECLAMANTE ${i}`, valorEnvolvido: 5000 * (i + 1), assuntos: "Horas Extras", tribunal: "TRT15" }),
@@ -75,7 +76,12 @@ describe.skipIf(!existsSync(MODELO))("apresentação gerada a partir do modelo d
     ];
     const draft = draftSchema.parse({
       capa: { razaoSocial: "EMPRESA TESTE LTDA", cnpj: "00.000.000/0001-00", empresas: [{ razaoSocial: "FILIAL", cnpj: "1" }] },
-      areas: { civel: { incluir: true }, trabalhista: { incluir: true }, tributario: { incluir: true }, rec_cred: { incluir: false } },
+      areas: {
+        civel: { incluir: true },
+        trabalhista: { incluir: true, variante: "detalhe" },
+        tributario: { incluir: true },
+        rec_cred: { incluir: false },
+      },
     });
     const { spec, resumos } = composeDeck({ draft, areas, hoje: new Date("2026-10-20T00:00:00Z") });
     expect(resumos.map((r) => [r.id, r.variante])).toEqual([
@@ -122,6 +128,53 @@ describe.skipIf(!existsSync(MODELO))("apresentação gerada a partir do modelo d
     expect(pkg.files().some((f) => f.startsWith("ppt/charts/"))).toBe(false);
     expect(out.bytes.byteLength).toBeLessThan(modelo.byteLength);
     expect(pkg.files().filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f))).toHaveLength(slides.length);
+  });
+
+  it("Trabalhista com poucos processos sai em tabela (como a área monta); Cível em lista sem a coluna extra", () => {
+    const trab = Array.from({ length: 3 }, (_, i) =>
+      proc(i + 50, {
+        poloAtivo: `RECLAMANTE ${i}`,
+        poloPassivo: "TERCEIRA LTDA, EMPRESA TESTE LTDA, OUTRA LTDA",
+        valorEnvolvido: 5000 * (i + 1),
+        origemValor: "Decisão homologatória",
+        ultimoMovimento: "Aguardando homologação de cálculos.",
+        tribunal: "TRT15",
+      }),
+    );
+    const civel = Array.from({ length: 3 }, (_, i) => proc(i + 1, {}));
+    const draft = draftSchema.parse({
+      capa: { razaoSocial: "EMPRESA TESTE LTDA" },
+      areas: { trabalhista: { incluir: true }, civel: { incluir: true, variante: "lista" } },
+    });
+    const { spec, resumos } = composeDeck({
+      draft,
+      areas: [
+        { id: "trabalhista", processos: trab, extras: { pge: null, pgfn: null } },
+        { id: "civel", processos: civel, extras: { pge: null, pgfn: null } },
+      ],
+      hoje: new Date("2026-11-11T00:00:00Z"),
+    });
+    expect(resumos.map((r) => [r.id, r.variante])).toEqual([
+      ["civel", "lista"],
+      ["trabalhista", "lista"],
+    ]);
+    const out = buildDeck(modelo, spec);
+    expect(out.warnings).toEqual([]);
+    const pkg = new PptxPackage(out.bytes);
+    const slides = pkg.slidePaths();
+    const listas = slides.filter((p) => slideMarker(pkg.xml(p)) === "SLIDE_LISTA");
+    expect(listas).toHaveLength(2);
+    const colunas = (p: string) => desc(desc(findShape(pkg.xml(p), "TBL_LISTA")!, NS.a, "tbl")[0]!, NS.a, "gridCol").length;
+    const [civelLista, trabLista] = listas as [string, string];
+    expect(colunas(civelLista)).toBe(5);
+    expect(colunas(trabLista)).toBe(6);
+    const texto = textoDoSlide(pkg, trabLista);
+    expect(texto).toContain("PROCESSOS ATIVOS (3)");
+    expect(texto).toContain("Origem do valor");
+    expect(texto).toContain("Decisão homologatória");
+    expect(texto).toContain("Aguardando homologação de cálculos.");
+    expect(texto).toContain("TERCEIRA LTDA, EMPRESA TESTE LTDA e outros");
+    for (const p of slides) expect(textoDoSlide(pkg, p)).not.toContain("{{");
   });
 
   it("Recuperação de Crédito em painel atualiza os gráficos e vai para a conclusão com crédito", () => {
@@ -208,5 +261,204 @@ describe.skipIf(!existsSync(MODELO))("apresentação gerada a partir do modelo d
     expect(findShape(um.doc, "CIVEL_TRIBUNAL_2_NOME")).toBeNull();
     expect(findByPrefix(um.doc, "CIVEL_TRIBUNAL_DIV_")).toHaveLength(0);
     expect(box(findShape(um.doc, "CIVEL_TRIBUNAL_1_NOME")!).w).toBe(2 * col1.w);
+  });
+});
+
+describe.skipIf(!existsSync(MODELO))("Reestruturação e slides por processo", () => {
+  const modelo = new Uint8Array(readFileSync(MODELO));
+  const montar = (draft: unknown, areas: AreaDados[] = []) => {
+    const { spec, resumos } = composeDeck({ draft: draftSchema.parse(draft), areas, hoje: new Date("2026-11-11T00:00:00Z") });
+    const out = buildDeck(modelo, spec);
+    const pkg = new PptxPackage(out.bytes);
+    const slides = pkg.slidePaths();
+    const marcadores = slides.map((p) => slideMarker(pkg.xml(p)));
+    return { out, pkg, slides, marcadores, resumos };
+  };
+
+  it("RJ só com a documentação inicial e pedidos de falência", () => {
+    const { out, pkg, slides, marcadores, resumos } = montar({
+      capa: { razaoSocial: "EMPRESA TESTE LTDA" },
+      areas: { reestruturacao: { incluir: true } },
+      reestruturacao: {
+        autos: "5014630-47.2022.8.24.0038",
+        recuperandas: "EMPRESA TESTE LTDA",
+        passivoTotal: 300,
+        endividamentoFonte: "inicial",
+        classes: [
+          { classe: "Classe I – Trabalhista", edital: 100 },
+          { classe: "Classe III – Quirografário", edital: 200 },
+        ],
+        falencias: [
+          { autos: "5057064-80.2026.8.21.0010", requerente: "CREDORA S.A.", valorCausa: 50, situacao: "Em andamento", juiz: "Fulano" },
+          { autos: "", requerente: "" },
+        ],
+      },
+    });
+    expect(out.warnings).toEqual([]);
+    expect(marcadores.filter((m) => m === "SLIDE_DETALHE")).toHaveLength(1);
+    expect(resumos[0]?.notaConclusao).toContain("documentação inicial");
+
+    const rj = pkg.xml(slides[marcadores.indexOf("SLIDE_REEST_RJ")]!);
+    expect(findShape(rj, "Juiz Label")).toBeNull();
+    expect(findShape(rj, "Admin Value")).toBeNull();
+
+    const end = pkg.xml(slides[marcadores.indexOf("SLIDE_REEST_ENDIVIDAMENTO")]!);
+    const tbl = desc(findShape(end, "TBL_RJ_CLASSES")!, NS.a, "tbl")[0]!;
+    expect(desc(tbl, NS.a, "gridCol")).toHaveLength(2);
+    expect(findShape(end, "RJ_VARIACAO_CHIP")).toBeNull();
+    const textoEnd = textoDoSlide(pkg, slides[marcadores.indexOf("SLIDE_REEST_ENDIVIDAMENTO")]!);
+    expect(textoEnd).toContain("DOCUMENTAÇÃO INICIAL");
+    expect(textoEnd).not.toContain("RELATÓRIO AJ");
+
+    const fal = slides[marcadores.indexOf("SLIDE_DETALHE")]!;
+    const textoFal = textoDoSlide(pkg, fal);
+    expect(textoFal).toContain("Pedido de Falência");
+    expect(textoFal).toContain("TJRS");
+    expect(textoFal).toContain("EMPRESA TESTE LTDA");
+    expect(findShape(pkg.xml(fal), "Cargo Label")).toBeNull();
+    for (const p of slides) expect(textoDoSlide(pkg, p)).not.toContain("{{");
+  });
+
+  it("slide de processo: partes longas empurram os blocos e a vara não repete a comarca", () => {
+    const rc = [
+      proc(1, {
+        poloAtivo: "EMPRESA COMERCIAL EXPORTADORA DE OLEOQUIMICOS LTDA",
+        poloPassivo: "DEVEDOR UM LTDA, DEVEDOR DOIS LTDA, DEVEDOR TRES LTDA",
+        classe: "EXECUCAO DE TITULO EXTRAJUDICIAL",
+        vara: "PRIMEIRA VARA CIVEL DA COMARCA DE SAO BENTO DO SUL",
+        comarca: "SAO BENTO DO SUL",
+        uf: "SC",
+      }),
+    ];
+    const { pkg, slides, marcadores } = montar(
+      { capa: { razaoSocial: "X" }, areas: { rec_cred: { incluir: true } } },
+      [{ id: "rec_cred", processos: rc, extras: { pge: null, pgfn: null } }],
+    );
+    const p = slides[marcadores.indexOf("SLIDE_DETALHE")]!;
+    const texto = textoDoSlide(pkg, p);
+    expect(texto).toContain("DEVEDOR UM LTDA, DEVEDOR DOIS LTDA e outros");
+    expect(texto).toContain("Primeira Vara Cível da Comarca de São Bento do Sul/SC");
+    expect(texto).toContain("Execução de Título Extrajudicial movida por");
+    const base = new PptxPackage(modelo);
+    const original = base.xml(base.slidePaths().find((s) => slideMarker(base.xml(s)) === "SLIDE_DETALHE")!);
+    expect(box(findShape(pkg.xml(p), "Pedidos Label")!).y).toBeGreaterThan(box(findShape(original, "Pedidos Label")!).y);
+  });
+});
+
+describe("acentos", () => {
+  it("devolve acentos comuns e não mexe em texto acentuado", () => {
+    expect(acentuar("EXECUCAO DE TITULO EXTRAJUDICIAL")).toBe("EXECUÇÃO DE TÍTULO EXTRAJUDICIAL");
+    expect(acentuar("Cumprimento de sentenca")).toBe("Cumprimento de sentença");
+    expect(acentuar("Execução de titulo")).toBe("Execução de titulo");
+  });
+});
+
+describe.skipIf(!existsSync(MODELO))("pessoas físicas e Tributário só com dívida ativa", () => {
+  const modelo = new Uint8Array(readFileSync(MODELO));
+
+  it("capa com nome, sem documento, e 4 pessoas; PGFN por devedor; texto sem execução fiscal", () => {
+    const draft = draftSchema.parse({
+      capa: {
+        razaoSocial: "FULANO DE TAL NETO",
+        cnpj: "",
+        empresas: [
+          { razaoSocial: "BELTRANO DE TAL", cnpj: "123.456.789-09" },
+          { razaoSocial: "CICLANA DE TAL", cnpj: "" },
+          { razaoSocial: "OUTRO DE TAL", cnpj: "" },
+          { razaoSocial: "EMPRESA DE TAL LTDA", cnpj: "07.339.867/0001-15" },
+        ],
+      },
+      areas: { tributario: { incluir: true } },
+    });
+    const extras = {
+      pge: 10,
+      pgfn: { tributario: 300, previdenciario: 0, multa: 0 },
+      pgfnDevedores: [
+        { nome: "BELTRANO DE TAL", valor: 100 },
+        { nome: "FULANO DE TAL NETO", valor: 200 },
+      ],
+    };
+    const { spec, resumos } = composeDeck({
+      draft,
+      areas: [{ id: "tributario", processos: [], extras }],
+      hoje: new Date("2026-11-13T00:00:00Z"),
+    });
+    expect(resumos[0]?.textos.leitura?.texto).toContain("Não foram identificados processos judiciais");
+    const out = buildDeck(modelo, spec);
+    expect(out.warnings).toEqual([]);
+    const pkg = new PptxPackage(out.bytes);
+    const slides = pkg.slidePaths();
+    const marcadores = slides.map((p) => slideMarker(pkg.xml(p)));
+
+    const capaPath = slides[marcadores.indexOf("SLIDE_DUE_CAPA")]!;
+    const capa = textoDoSlide(pkg, capaPath);
+    expect(capa).toContain("NOME");
+    expect(capa).not.toContain("RAZÃO SOCIAL");
+    expect(capa).toContain("CPF: 123.456.789-09");
+    expect(capa).toContain("CNPJ: 07.339.867/0001-15");
+    expect(capa).toContain("OUTRO DE TAL");
+    const capaXml = pkg.xml(capaPath);
+    expect(findShape(capaXml, "TXT_CNPJ")).toBeNull();
+    expect(findShape(capaXml, "ICO_EMPRESA_1")).toBeNull();
+    expect(findShape(capaXml, "ICO_EMPRESA_4")).not.toBeNull();
+    // Pessoa física sem logo: o círculo do cliente fica, com a silhueta de pessoa.
+    expect(findShape(capaXml, "IMG_ICONE_PESSOA")).not.toBeNull();
+    expect(findShape(capaXml, "CIRCULO_CLIENTE")).not.toBeNull();
+    expect(findShape(capaXml, "IMG_LOGO_CLIENTE")).toBeNull();
+
+    const trib = textoDoSlide(pkg, slides[marcadores.indexOf("SLIDE_TRIB_PAINEL")]!);
+    expect(trib).toContain("DÉBITOS POR DEVEDOR");
+    expect(trib).toContain("Fulano de Tal Neto");
+    expect(trib).not.toContain("Previdenciário");
+    for (const p of slides) expect(textoDoSlide(pkg, p)).not.toContain("{{");
+  });
+});
+
+describe("capa", () => {
+  it("separa os CPFs/CNPJs emendados do cadastro do RD, na ordem dos nomes", () => {
+    expect(separarDocumentos("2169943080262125796872216993268273016441284002034137841", 5)).toEqual([
+      "216.994.308-02",
+      "621.257.968-72",
+      "216.993.268-27",
+      "301.644.128-40",
+      "020.341.378-41",
+    ]);
+    expect(separarDocumentos("073398670001150733986700038729138855000165", 3)).toEqual([
+      "07.339.867/0001-15",
+      "07.339.867/0003-87",
+      "29.138.855/0001-65",
+    ]);
+    expect(separarDocumentos("2169943080262125796872", 3)).toEqual([]);
+    expect(separarDocumentos("12345678901", 1)).toEqual([]);
+  });
+
+  it("pessoa física: CPF, ou nome sem cara de empresa", () => {
+    expect(ehPessoaFisica("FULANO DE TAL", "")).toBe(true);
+    expect(ehPessoaFisica("QUALQUER COISA", "123.456.789-09")).toBe(true);
+    expect(ehPessoaFisica("SYNVIA LABORATÓRIOS E TOXICOLOGIA LTDA", "")).toBe(false);
+    expect(ehPessoaFisica("SYNVIA PARTICIPAÇÕES SOCIETÁRIAS", "")).toBe(false);
+  });
+
+  it("razão social longa sai com fonte menor para caber em 2 linhas", () => {
+    expect(escalaRazaoSocial("SEDNA YATCHS LTDA")).toBe(1);
+    expect(escalaRazaoSocial("PRISMA COMERCIAL EXPORTADORA DE OLEOQUÍMICOS LTDA.")).toBe(0.75);
+  });
+});
+
+describe("área que concluiu sem processos ativos (16/11/2026)", () => {
+  it("não vira aviso de 'sem planilha': aparece como levantamento concluído", () => {
+    const draft = draftSchema.parse({ capa: { razaoSocial: "X" }, areas: { trabalhista: { incluir: true }, tributario: { incluir: true } } });
+    const r = composeDeck({
+      draft,
+      areas: [],
+      hoje: new Date("2026-11-16T12:00:00Z"),
+      semProcessos: [{ area: "trabalhista", responsavel: "Daniel Pressatto Fernandes", em: "16/11/2026" }],
+    });
+    expect(r.avisos.some((a) => a.startsWith("Trabalhista"))).toBe(false);
+    expect(r.concluidasSemProcessos).toEqual([
+      "Trabalhista: levantamento concluído em 16/11/2026 (Daniel Pressatto Fernandes), sem processos ativos — não entra na apresentação.",
+    ]);
+    // Área sem planilha e sem a marcação continua sendo pendência.
+    expect(r.avisos).toContain("Tributário: sem planilha anexada — a área fica fora da apresentação.");
   });
 });

@@ -32,6 +32,18 @@ export function dueDeadlineInstantIso(
   return `${d}T${t}${BR_OFFSET}`;
 }
 
+/**
+ * Prazo de tarefa (data + hora de Brasília) em ISO UTC; sem horário, 18:00. Antes as tarefas montavam
+ * "2026-11-19T18:00:00" sem fuso e, no servidor da Vercel (UTC), o prazo virava 15:00 de Brasília (16/11/2026).
+ */
+export function prazoBrasiliaIso(date: string | null | undefined, time: string | null | undefined): string | null {
+  if (!date?.trim()) return null;
+  const instant = dueDeadlineInstantIso(date, time?.trim() || "18:00");
+  if (!instant) return null;
+  const ms = Date.parse(instant);
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
 export function formatDueDeadlineDisplay(
   dataEntregaDue: string | null | undefined,
   horarioEntregaDue: string | null | undefined,

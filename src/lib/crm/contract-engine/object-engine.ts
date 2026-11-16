@@ -1,6 +1,7 @@
 import { getObjectTemplate, type ContractObjectTemplate } from "./object-catalog";
 import { resolveApplicableComposition } from "./object-composition";
 import { fieldValuesToPlaceholderMap, resolveContractObjectFields } from "./object-fields";
+import { semAberturaDoObjeto } from "./object-opening";
 import { applyPartyPlaceholders, type PartyGrammar } from "./party-language";
 import { resolveContractClausePlaceholders } from "./placeholders";
 import type {
@@ -238,6 +239,8 @@ export function resolveContractObject(params: {
       kind?: ContractObjectBlock["kind"];
       title?: string;
       opensSubscopeGroup?: boolean;
+      /** Escopo que não é o primeiro: o bloco sai sem "O presente Contrato tem por objeto…". */
+      semAbertura?: boolean;
     } = {},
   ) => {
     const template = getObjectTemplate(key);
@@ -261,6 +264,10 @@ export function resolveContractObject(params: {
       opensSubscopeGroup: extra.opensSubscopeGroup,
       override: overrideByKey.get(template.stableKey),
     });
+    // Redação ajustada à mão (override) fica como foi escrita.
+    if (extra.semAbertura && !overrideByKey.has(template.stableKey)) {
+      built.block.content = semAberturaDoObjeto(built.block.content);
+    }
     blocks.push(built.block);
     unresolvedRequired.push(...built.unresolvedRequired);
     if (extra.scope) represented.add(extra.scope.entryId);
@@ -290,13 +297,19 @@ export function resolveContractObject(params: {
     }
   }
 
+  // "O presente Contrato tem por objeto…" só abre o primeiro escopo (ou o objeto geral da composição);
+  // nos escopos seguintes o primeiro bloco começa pelo próprio objeto (16/11/2026).
+  let objetoAberto = Boolean(composition);
   for (const scope of scopes) {
     if (composition && composedSubtypeIds.has(scope.subtypeId)) continue;
     if (!scope.profile) continue;
+    let primeiroBloco = true;
     for (const key of scope.profile.objectDefinition.objectBlockKeys) {
       if (key.endsWith(".subscope")) continue;
-      pushTemplate(key, { scope });
+      pushTemplate(key, { scope, semAbertura: primeiroBloco && objetoAberto });
+      primeiroBloco = false;
     }
+    if (!primeiroBloco) objetoAberto = true;
   }
 
   // Subtipo sem perfil em código: a redação vem das cláusulas do banco (clause-engine).

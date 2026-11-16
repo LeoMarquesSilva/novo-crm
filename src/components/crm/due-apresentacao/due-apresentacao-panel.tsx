@@ -32,7 +32,7 @@ import {
   type DueDocumentoLista,
   type PlanilhaLida,
 } from "@/lib/due-ppt/client";
-import { composeDeck } from "@/lib/due-ppt/compose";
+import { composeDeck, type AreaSemProcessos } from "@/lib/due-ppt/compose";
 import { areaDraft, draftSchema, emptyDraft, type AreaDraft, type DueApresentacaoDraft } from "@/lib/due-ppt/draft";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { detectarArea, normalizarPlanilha } from "@/lib/due-ppt/processos";
@@ -75,6 +75,8 @@ export function DueApresentacaoPanel({
 }) {
   const [draft, setDraft] = useState<DueApresentacaoDraft | null>(null);
   const [docs, setDocs] = useState<DueDocumentoLista[]>([]);
+  /** Áreas que concluíram o levantamento com "Sem processos ativos" (16/11/2026). */
+  const [semProcessos, setSemProcessos] = useState<AreaSemProcessos[]>([]);
   const [lidas, setLidas] = useState<Map<string, PlanilhaLida>>(new Map());
   const [logo, setLogo] = useState<ImageAsset | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -105,6 +107,7 @@ export function DueApresentacaoPanel({
               return b as {
                 draft: DueApresentacaoDraft | null;
                 sugestao: Sugestao;
+                semProcessos?: AreaSemProcessos[];
                 atualizadoEm: string | null;
                 geradoEm: string | null;
                 migrationPending: boolean;
@@ -116,6 +119,7 @@ export function DueApresentacaoPanel({
         ]);
         if (!vivo) return;
         setDocs(lista);
+        setSemProcessos(resDraft.semProcessos ?? []);
         setDraft(resDraft.draft ? draftSchema.parse(resDraft.draft) : draftInicial(resDraft.sugestao, lista));
         setSalvo({ estado: "ok", em: resDraft.atualizadoEm });
         setGerado({ em: resDraft.geradoEm });
@@ -292,11 +296,11 @@ export function DueApresentacaoPanel({
   const previa = useMemo(() => {
     if (!draft) return null;
     try {
-      return composeDeck({ draft, areas: areasDados, logo: null, hoje: new Date() });
+      return composeDeck({ draft, areas: areasDados, logo: null, hoje: new Date(), semProcessos });
     } catch {
       return null;
     }
-  }, [draft, areasDados]);
+  }, [draft, areasDados, semProcessos]);
   const lendo = docs.some((d) => d.document_kind === "planilha_area" && !lidas.has(d.id));
 
   async function gerar(anexar: boolean) {
@@ -316,6 +320,7 @@ export function DueApresentacaoPanel({
         logo,
         anexar,
         onEtapa: setGerando,
+        semProcessos,
       });
       baixarArquivoLocal(r.arquivo);
       setResultado({ nome: r.arquivo.name, slides: r.slides, avisos: r.avisos, anexado: !!r.documento });
@@ -474,7 +479,7 @@ export function DueApresentacaoPanel({
               </div>
             </div>
             <div className="mt-3 space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground">Demais empresas diligenciadas (até 3)</p>
+              <p className="text-xs font-semibold text-muted-foreground">Demais empresas ou pessoas diligenciadas (até 4)</p>
               {draft.capa.empresas.map((e, i) => (
                 <div key={i} className="grid gap-2 sm:grid-cols-[1fr_220px_auto]">
                   <Input
@@ -514,7 +519,7 @@ export function DueApresentacaoPanel({
                   </Button>
                 </div>
               ))}
-              {draft.capa.empresas.length < 3 ? (
+              {draft.capa.empresas.length < 4 ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -670,6 +675,7 @@ export function DueApresentacaoPanel({
                 docs={docs.filter((d) => d.document_kind === "planilha_area" && d.area_key === id)}
                 lidas={lidas}
                 resumo={previa?.resumos.find((r) => r.id === id) ?? null}
+                semProcessos={semProcessos.find((s) => s.area === id) ?? null}
                 onChange={(patch) => setArea(id, patch)}
                 onUpload={(file) => void anexar(file, id)}
                 onRemove={(doc) => void remover(doc)}
@@ -690,6 +696,19 @@ export function DueApresentacaoPanel({
               </DueAreaCard>
             ))}
           </div>
+
+          {previa?.concluidasSemProcessos.length ? (
+            <div className="rounded-(--radius-v2-md) border border-success-border bg-success-bg px-3 py-2 text-xs text-success-text">
+              <p className="flex items-center gap-1.5 font-semibold">
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> Levantamento concluído sem processos ativos
+              </p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {previa.concluidasSemProcessos.map((a) => (
+                  <li key={a}>{a}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {previa?.avisos.length ? (
             <div className="rounded-(--radius-v2-md) border border-warning-border bg-warning-bg px-3 py-2 text-xs text-warning-text">

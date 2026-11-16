@@ -3,8 +3,10 @@ import { z } from "zod";
 import { requireAuthApi } from "@/lib/auth/server";
 import { parseEmpresasIntakeFromRecord } from "@/lib/crm/parse-lead-intake-empresas";
 import { dueAreaFromCrmKey, type DueAreaId } from "@/lib/due-ppt/areas";
+import type { AreaSemProcessos } from "@/lib/due-ppt/compose";
 import { draftSchema, type DueApresentacaoDraft } from "@/lib/due-ppt/draft";
-import { formatarDocumento } from "@/lib/due-ppt/format";
+import { formatarDocumento, separarDocumentos } from "@/lib/due-ppt/format";
+import { formatDateYmdBr, saoPauloDateYmd } from "@/lib/format-datetime";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -35,7 +37,7 @@ async function guard(params: Promise<{ id: string }>) {
   const supabase = createSupabaseAdminClient();
   const { data: op, error } = await supabase
     .from("oportunidades")
-    .select("id, solicitante_nome, havera_due_diligence")
+    .select("id, solicitante_nome, havera_due_diligence, cliente_id")
     .eq("id", oportunidadeId)
     .maybeSingle();
   if (error) return { error: NextResponse.json({ ok: false, error: error.message }, { status: 500 }) } as const;
@@ -63,17 +65,23 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         .filter((a): a is DueAreaId => !!a),
     ),
   ];
-  // Lead do RD não tem empresas no cadastro: o nome costuma vir como "EMPRESA A, EMPRESA B".
-  const doNome = String(op.solicitante_nome ?? "")
+  // Lead do RD não tem empresas no cadastro: o nome costuma vir como "EMPRESA A, EMPRESA B", e o
+  // cadastro do cliente guarda os CPFs/CNPJs emendados na mesma ordem.
+  const nomes = String(op.solicitante_nome ?? "")
     .split(/\s*,\s*/)
     .map((n) => n.trim().toUpperCase())
-    .filter(Boolean)
-    .map((razaoSocial) => ({ razaoSocial, cnpj: "" }));
+    .filter(Boolean);
+  let documentos: string[] = [];
+  if (!empresas.length && op.cliente_id) {
+    const { data: cliente } = await supabase.from("clientes").select("documento").eq("id", op.cliente_id).maybeSingle();
+    documentos = separarDocumentos(String(cliente?.documento ?? ""), nomes.length);
+  }
+  const doNome = nomes.map((razaoSocial, i) => ({ razaoSocial, cnpj: documentos[i] ?? "" }));
   const base = empresas.length ? empresas : doNome;
   const sugestao = {
     razaoSocial: base[0]?.razaoSocial ?? "",
     cnpj: base[0]?.cnpj ?? "",
-    empresas: base.slice(1, 4),
+    empresas: base.slice(1, 5),
     areas: areasCadastro,
   };
 
@@ -93,9 +101,42 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     geradoEm: row?.gerado_em ?? null,
     geradoDocumentoId: row?.gerado_documento_id ?? null,
     sugestao,
+    semProcessos: await areasSemProcessos(supabase, oportunidadeId),
     migrationPending: !!error,
     aviso: error ? MIGRATION_MSG : null,
   });
+}
+
+/**
+ * Áreas que concluíram o levantamento marcando "Sem processos ativos": a apresentação mostra que a área
+ * terminou, em vez de "sem planilha anexada" (16/11/2026). Dia no horário de Brasília.
+ */
+async function areasSemProcessos(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  oportunidadeId: string,
+): Promise<AreaSemProcessos[]> {
+  const { data: tarefas } = await supabase
+    .from("due_area_tasks")
+    .select("area_key, responsavel_app_user_id, dados_disponibilizados_em")
+    .eq("oportunidade_id", oportunidadeId)
+    .eq("sem_processos_ativos", true);
+  if (!tarefas?.length) return [];
+  const ids = [...new Set(tarefas.map((t) => t.responsavel_app_user_id).filter((v): v is string => Boolean(v)))];
+  const { data: usuarios } = ids.length
+    ? await supabase.from("app_users").select("id, full_name").in("id", ids)
+    : { data: [] as Array<{ id: string; full_name: string | null }> };
+  const nome = new Map((usuarios ?? []).map((u) => [u.id, u.full_name ?? null]));
+  const out: AreaSemProcessos[] = [];
+  for (const t of tarefas) {
+    const area = dueAreaFromCrmKey(String(t.area_key));
+    if (!area) continue;
+    out.push({
+      area,
+      responsavel: t.responsavel_app_user_id ? (nome.get(t.responsavel_app_user_id) ?? null) : null,
+      em: t.dados_disponibilizados_em ? formatDateYmdBr(saoPauloDateYmd(new Date(t.dados_disponibilizados_em))) : null,
+    });
+  }
+  return out;
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

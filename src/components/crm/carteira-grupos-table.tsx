@@ -166,7 +166,7 @@ export function CarteiraGruposTable({
           {copied ? <span className="text-v2-caption text-success-text">Link copiado</span> : null}
           {link ? (
             <span className="text-v2-caption text-muted-foreground">
-              Válido até {new Date(link.expiresAt).toLocaleDateString("pt-BR")}
+              Válido até {new Date(link.expiresAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
             </span>
           ) : null}
         </div>

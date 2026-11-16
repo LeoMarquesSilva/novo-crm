@@ -1,4 +1,5 @@
 /** Formatação dos números da apresentação DUE (padrão dos PPTs já entregues). */
+import { isValidCnpj, isValidCpf } from "@/lib/crm/rd-migration/documents";
 
 const NUM_2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const NUM_1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -80,11 +81,58 @@ export function formatarDocumento(doc: string): string {
   return (doc ?? "").trim();
 }
 
+/**
+ * Cadastro do cliente vindo do RD guarda os documentos de todas as partes emendados, na ordem dos
+ * nomes ("2169943080262125796872…" = 5 CPFs). Separa em `n` CPFs (11 dígitos) ou CNPJs (14) e só
+ * devolve se todos forem válidos; senão, lista vazia.
+ */
+export function separarDocumentos(documento: string, n: number): string[] {
+  const d = (documento ?? "").replace(/\D/g, "");
+  if (n < 1 || !d) return [];
+  for (const [tamanho, valido] of [
+    [11, isValidCpf],
+    [14, isValidCnpj],
+  ] as const) {
+    if (d.length !== tamanho * n) continue;
+    const partes = Array.from({ length: n }, (_, i) => d.slice(i * tamanho, (i + 1) * tamanho));
+    if (partes.every((p) => valido(p))) return partes.map(formatarDocumento);
+  }
+  return [];
+}
+
 /** Lista em português: ["a","b","c"] → "a, b e c". */
 export function listaPt(itens: string[]): string {
   const xs = itens.filter(Boolean);
   if (xs.length <= 1) return xs[0] ?? "";
   return `${xs.slice(0, -1).join(", ")} e ${xs[xs.length - 1]}`;
+}
+
+/** Palavras que às vezes chegam sem acento nas planilhas; só as que não têm outra leitura. */
+const ACENTOS: Record<string, string> = {
+  acao: "ação", acoes: "ações", alienacao: "alienação", apreensao: "apreensão", avaliacao: "avaliação",
+  citacao: "citação", civel: "cível", civeis: "cíveis", cobranca: "cobrança", conceicao: "conceição",
+  decisao: "decisão", distribuicao: "distribuição", execucao: "execução", execucoes: "execuções",
+  falencia: "falência", familia: "família", fiduciaria: "fiduciária", homologacao: "homologação",
+  indenizacao: "indenização", intimacao: "intimação", joao: "joão", juridica: "jurídica", liquidacao: "liquidação",
+  monitoria: "monitória", obrigacao: "obrigação", obrigacoes: "obrigações", peticao: "petição",
+  prestacao: "prestação", publica: "pública", recuperacao: "recuperação", regiao: "região",
+  reparacao: "reparação", rescisao: "rescisão", sao: "são", sentenca: "sentença", servicos: "serviços",
+  titulo: "título", titulos: "títulos", unica: "única",
+};
+
+/**
+ * Devolve os acentos de palavras comuns ("EXECUCAO DE TITULO" → "EXECUÇÃO DE TÍTULO"),
+ * mantendo maiúsculas. Texto que já tem acento volta como veio.
+ */
+export function acentuar(texto: string): string {
+  if (!texto || /[À-ÖØ-öø-ÿ]/.test(texto)) return texto;
+  return texto.replace(/[A-Za-z]+/g, (w) => {
+    const certo = ACENTOS[w.toLowerCase()];
+    if (!certo) return w;
+    if (w === w.toUpperCase()) return certo.toUpperCase();
+    if (w[0] === w[0]!.toUpperCase()) return certo[0]!.toUpperCase() + certo.slice(1);
+    return certo;
+  });
 }
 
 /** "BANCO BRADESCO FINANCIAMENTOS S.A" → "Banco Bradesco Financiamentos S.A". */

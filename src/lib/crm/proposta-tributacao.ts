@@ -3,9 +3,10 @@ export const TRIBUTACAO_ENGLOBANDO = "Valor Englobando Tributos";
 /** Valor canónico — honorários líquidos, sem tributos. */
 export const TRIBUTACAO_LIQUIDO = "Valor Líquido de Tributos";
 
+/** Rótulos na tela (16/11/2026; antes "Incluindo tributos" / "Não incluindo tributos"). */
 export const PROPOSTA_TRIBUTACAO_OPTIONS = [
-  { value: TRIBUTACAO_ENGLOBANDO, label: "Incluindo tributos" },
-  { value: TRIBUTACAO_LIQUIDO, label: "Não incluindo tributos" },
+  { value: TRIBUTACAO_ENGLOBANDO, label: "Englobando tributos" },
+  { value: TRIBUTACAO_LIQUIDO, label: "Líquido de tributos" },
 ] as const;
 
 export const PROPOSTA_TRIBUTACAO_LABELS: Record<string, string> = Object.fromEntries(

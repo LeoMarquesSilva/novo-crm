@@ -240,6 +240,12 @@ export const reestruturacaoJsonSchema = obj({
   },
   extraconcursalEdital: n("Créditos extraconcursais informados pela recuperanda / edital, em reais."),
   extraconcursalAj: n("Créditos extraconcursais informados pelo administrador judicial, em reais."),
+  endividamentoFonte: {
+    type: "string",
+    enum: ["edital_aj", "inicial"],
+    description:
+      '"inicial" quando os valores das classes vêm só da lista de credores da petição inicial (art. 51), sem edital do art. 52, §1º nem relação do AJ; senão "edital_aj".',
+  },
   endividamentoResumo: s("Uma frase curta destacando o principal da composição do endividamento."),
   pagamento: {
     type: "array",
@@ -274,6 +280,24 @@ export const reestruturacaoJsonSchema = obj({
       objetivo: s("Objetivo da medida."),
     }),
   },
+  falencias: {
+    type: "array",
+    description: "Pedidos de falência contra a empresa, um por processo (só se os trechos forem de pedido de falência).",
+    items: obj({
+      autos: s("Número dos autos do pedido de falência (formato CNJ)."),
+      requerente: s("Credor que pediu a falência."),
+      devedora: s("Empresa devedora (contra quem se pede a falência)."),
+      competencia: s("Vara e comarca do pedido."),
+      juiz: s("Juiz(a) do processo."),
+      ajuizamento: s("Data do ajuizamento (yyyy-mm-dd)."),
+      valorCausa: n("Valor da causa, em reais."),
+      credito: n("Crédito indicado na petição inicial, em reais."),
+      creditoObs: s('Observação curta sobre o crédito (ex.: "após pagamentos parciais").'),
+      fundamento: s('Fundamento legal (ex.: "art. 94, I, da Lei nº 11.101/2005").'),
+      situacao: s('Situação em poucas palavras: "Em andamento", "Extinto", "Falência decretada"…'),
+      status: s("Status processual em uma ou duas frases, só com fatos dos documentos."),
+    }),
+  },
 });
 
 export function buildReestruturacaoSystemPrompt(): string {
@@ -290,6 +314,8 @@ export function buildReestruturacaoSystemPrompt(): string {
     "- Havendo várias recuperandas, todas em recuperandas, separadas por \" | \".",
     "- pagamento: uma linha por classe, como está no plano.",
     "- opcoes: no máximo 2 formas especiais / alternativas de pagamento; medidas: no máximo 3 meios de recuperação, os de maior impacto.",
+    "- endividamentoFonte: \"inicial\" só quando as classes vêm da lista de credores da petição inicial (processamento ainda não deferido); senão \"edital_aj\".",
+    "- falencias: um item por pedido de falência contra a empresa, se os trechos forem desse tipo de processo; senão [].",
     "- Textos em português, curtos e objetivos, sem markdown.",
   ].join("\n");
 }
@@ -401,6 +427,24 @@ export function parseRespostaReestruturacao(raw: unknown): ReestruturacaoForm {
     .filter((x) => !vazio(x))
     .slice(0, 3);
 
+  const falencias = linhas(o.falencias)
+    .map((x) => ({
+      autos: txt(x.autos, 200),
+      requerente: txt(x.requerente, 300),
+      devedora: txt(x.devedora, 300),
+      competencia: txt(x.competencia, 300),
+      juiz: txt(x.juiz, 200),
+      ajuizamento: dataIa(x.ajuizamento),
+      valorCausa: valorIa(x.valorCausa),
+      credito: valorIa(x.credito),
+      creditoObs: txt(x.creditoObs, 200),
+      fundamento: txt(x.fundamento, 200),
+      situacao: txt(x.situacao, 60),
+      status: txt(x.status, 1000),
+    }))
+    .filter((x) => !vazio(x))
+    .slice(0, 6);
+
   return reestruturacaoSchema.parse({
     autos: txt(o.autos, 200),
     recuperandas: txt(o.recuperandas, 2000),
@@ -416,9 +460,11 @@ export function parseRespostaReestruturacao(raw: unknown): ReestruturacaoForm {
     classes,
     extraconcursalEdital,
     extraconcursalAj,
+    endividamentoFonte: o.endividamentoFonte === "inicial" ? "inicial" : "edital_aj",
     endividamentoResumo: txt(o.endividamentoResumo, 1000),
     pagamento,
     opcoes,
     medidas,
+    falencias,
   });
 }

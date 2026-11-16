@@ -47,6 +47,11 @@ export type ExtrasTributario = {
   pge: number | null;
   /** Dívida ativa federal (aba PGFN), por natureza. */
   pgfn: { tributario: number; previdenciario: number; multa: number } | null;
+  /**
+   * Aba PGFN que traz o valor de cada devedor, sem a natureza: as linhas ficam aqui (e o total
+   * entra em `pgfn.tributario`, só para somar). O slide mostra a tabela por devedor.
+   */
+  pgfnDevedores?: Array<{ nome: string; valor: number }>;
 };
 
 export type PlanilhaNormalizada = {
@@ -65,7 +70,7 @@ const ALIASES: Array<[Campo, string[]]> = [
   ["classe", ["classe", "tipo de acao", "tipo da acao", "classe processual", "tipo"]],
   ["poloAtivo", ["partes polo ativo", "polo ativo", "polo ativo principal", "parte ativa", "autor", "reclamante", "exequente", "credor"]],
   ["poloPassivo", ["partes polo passivo", "polo passivo", "polo passivo principal", "parte passiva", "reu", "reclamada", "reclamadas", "executado"]],
-  ["poloCliente", ["polo do cliente", "polo cliente"]],
+  ["poloCliente", ["polo do cliente", "polo cliente", "posicao do cliente", "posicao cliente"]],
   ["socioPoloPassivo", ["socio no polo passivo", "socio no polo passivo?", "socio polo passivo"]],
   ["dataDistribuicao", ["data da distribuicao", "data distribuicao", "data de distribuicao", "distribuicao", "data do ajuizamento", "ajuizamento"]],
   ["anoDistribuicao", ["ano", "ano da distribuicao", "ano de distribuicao", "ano do ajuizamento"]],
@@ -90,6 +95,17 @@ const ALIASES: Array<[Campo, string[]]> = [
   ["documento", ["cpf/cnpj", "cnpjs", "cnpj"]],
   ["nome", ["nome", "razao social"]],
 ];
+
+/**
+ * "Polo do cliente" (PASSIVO / ATIVO / TERCEIRO) ou, sem essa coluna, "Posição do cliente"
+ * (Requerido, Executado, Réu… = passivo; Requerente, Autor, Exequente… = ativo).
+ */
+function poloDoCliente(v: string): Processo["poloCliente"] {
+  if (/^(pass|requerid|reu\b|re\b|executad|reclamad|demandad|impetrad)/.test(v)) return "PASSIVO";
+  if (/^(ativ|requerent|autor|exequent|reclamant|demandant|impetrant)/.test(v)) return "ATIVO";
+  if (/^(terc|interessad)/.test(v)) return "TERCEIRO";
+  return null;
+}
 
 function headerKey(raw: CellValue): string {
   return normalizarTexto(raw).replace(/\(r\$\)/g, "").replace(/[?:]/g, "").replace(/\s+/g, " ").trim();
@@ -194,7 +210,7 @@ function lerProcessos(sheet: SheetData): { processos: Processo[]; colunas: strin
       classe: texto(get(row, "classe")),
       poloAtivo: texto(get(row, "poloAtivo")),
       poloPassivo: texto(get(row, "poloPassivo")),
-      poloCliente: polo.startsWith("pass") ? "PASSIVO" : polo.startsWith("ativ") ? "ATIVO" : polo.startsWith("terc") ? "TERCEIRO" : null,
+      poloCliente: poloDoCliente(polo),
       socioPoloPassivo: socio == null ? null : socio ? "SIM" : "NAO",
       dataDistribuicao: parseData(get(row, "dataDistribuicao")),
       anoDistribuicao: parseAno(get(row, "anoDistribuicao")),
@@ -258,7 +274,10 @@ export function normalizarPlanilha(sheets: SheetData[]): PlanilhaNormalizada {
         const r = normalizarTexto(l.rotulo);
         if (r.includes("previd")) acc.previdenciario += l.valor;
         else if (r.includes("multa") || r.includes("trabalh") || r.includes("fgts")) acc.multa += l.valor;
-        else acc.tributario += l.valor;
+        else {
+          acc.tributario += l.valor;
+          if (!/tribut|natureza|demais|outr/.test(r)) (extras.pgfnDevedores ??= []).push({ nome: l.rotulo, valor: l.valor });
+        }
       }
       extras.pgfn = acc;
       continue;

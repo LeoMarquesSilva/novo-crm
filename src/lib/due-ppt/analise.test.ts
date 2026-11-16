@@ -89,8 +89,22 @@ describe("Cível", () => {
 
   it("casos de maior valor vêm do polo passivo e a leitura cita o maior", () => {
     expect(a.top.map((t) => t.processo)).toEqual(["1", "2", "5"]);
-    expect(a.leitura).toContain("Maior exposição: busca e apreensão movido por Banco X S.A");
+    expect(a.leitura).toContain("Maior exposição: busca e apreensão movida por Banco X S.A");
     expect(a.socios.map((s) => s.nome)).toEqual(["Sim", "Não informado"]);
+    expect(a.semSocio).toBe(false);
+  });
+
+  it("sem a coluna de sócio, agrupa pelo polo do cliente", () => {
+    const b = analisarCivel([
+      proc({ numero: "1", poloCliente: "PASSIVO", valorCausa: 100, socioPoloPassivo: null }),
+      proc({ numero: "2", poloCliente: "PASSIVO", valorCausa: 50, socioPoloPassivo: null }),
+      proc({ numero: "3", poloCliente: "ATIVO", valorCausa: 30, socioPoloPassivo: null }),
+    ]);
+    expect(b.semSocio).toBe(true);
+    expect(b.polos).toEqual([
+      { nome: "Polo passivo", qtd: 2, valor: 150 },
+      { nome: "Polo ativo", qtd: 1, valor: 30 },
+    ]);
   });
 
   const porTribunal = (tribunal: string, numero: string, qtd: number) =>

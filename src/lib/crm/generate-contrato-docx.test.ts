@@ -56,3 +56,33 @@ describe("generateContratoDocxBuffer — qualificação de CONTRATANTE(S)", () =
     expect(xml).toContain("CONTRATANTES");
   });
 });
+
+describe("generateContratoDocxBuffer — folha de assinaturas (16/11/2026)", () => {
+  it("empilha escritório (Gustavo, Ricardo) e depois as empresas, sem rótulos CONTRATANTE/CONTRATADA", async () => {
+    const page = basePage({
+      contratantesAssinatura: [
+        { nome: "NIGRO ALUMÍNIO LTDA.", documento: "43.948.561/0001-20", documentoTipo: "CNPJ" },
+        { nome: "EMPRESA B LTDA", documento: "22.222.222/0001-22", documentoTipo: "CNPJ" },
+      ],
+    });
+    const xml = await extractDocumentXml(await generateContratoDocxBuffer(page));
+    const folha = xml.slice(xml.indexOf("PÁGINA DE ASSINATURAS"));
+    const texto = [...folha.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => m[1]).join("\n");
+    const ordem = [
+      "Gustavo Bismarchi Motta",
+      "OAB/SP 275.477",
+      "Ricardo Viscardi Pires",
+      "OAB/SP 353.389",
+      "NIGRO ALUMÍNIO LTDA.",
+      "CNPJ/MF 43.948.561/0001-20",
+      "EMPRESA B LTDA",
+      "CNPJ/MF 22.222.222/0001-22",
+    ].map((t) => texto.indexOf(t));
+    expect(ordem.every((pos) => pos >= 0)).toBe(true);
+    expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
+    expect(texto.match(/Bismarchi \| Pires – Sociedade de Advogados/g)).toHaveLength(2);
+    expect(texto).not.toMatch(/^CONTRATANTES?$|^CONTRATADA$/m);
+    // Traço é a borda do próprio parágrafo do nome (parágrafo vazio com borda some no Word).
+    expect(folha).toContain("<w:smallCaps/>");
+  });
+});

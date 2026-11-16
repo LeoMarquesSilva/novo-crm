@@ -62,8 +62,10 @@ export function buildCanonicalContract(input: {
   });
   const contratantes = parties.filter((p) => p.role === "contratante");
   const grammar = contractPartyGrammar(contratantes.length);
+  const comPrazo = scopes.filter((s) => Boolean(s.profile?.defaultTermRule));
   const term = mergeTermRules(
-    scopes.map((s) => s.profile?.defaultTermRule).filter((r): r is NonNullable<typeof r> => Boolean(r)),
+    comPrazo.map((s) => s.profile!.defaultTermRule),
+    comPrazo.map((s) => s.label),
   );
   const startRule = mergeStartRules(
     scopes.map((s) => s.profile?.defaultStartRule).filter((r): r is NonNullable<typeof r> => Boolean(r)),

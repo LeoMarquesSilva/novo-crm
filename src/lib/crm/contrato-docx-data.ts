@@ -1,5 +1,5 @@
 import type { LeadIntakeEmpresaRow } from "@/app/(crm)/crm/leads/[id]/lead-intake-types";
-import { format } from "date-fns";
+import { formatDateBrAt } from "@/lib/format-datetime";
 import { resolvePropostaEmpresaPrincipal } from "@/lib/crm/proposta-empresa-principal";
 
 function formatCepBr(raw: string): string {
@@ -126,7 +126,8 @@ export function buildContratoDocxTemplateData(
     EXITO_PERCENTUAL: f("cc_exito_percentual"),
 
     // ── Data gerada ────────────────────────────────────────────────────────
-    DATA_ASSINATURA: format(generatedAt, "dd/MM/yyyy"),
+    // Dia de Brasília: no servidor (UTC), depois das 21 h saía o dia seguinte.
+    DATA_ASSINATURA: formatDateBrAt(generatedAt),
 
     // ── Página (estático, como na proposta) ────────────────────────────────
     P: "1",

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { AreaIconLabel } from "@/lib/crm/area-lucide-icon";
+import { saoPauloDateYmd } from "@/lib/format-datetime";
 import { CrmSelectContent, CrmSelectItem, CrmSelectValue } from "@/components/crm/crm-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,7 +77,7 @@ export function ContractComponentsEditor({
         id: newContractDraftId(),
         kind,
         description: BILLING_KIND_LABELS[kind] ?? "Novo componente",
-        effectiveFrom: startsAt ?? new Date().toISOString().slice(0, 10),
+        effectiveFrom: startsAt ?? saoPauloDateYmd(),
         effectiveTo: null,
         ...(areas[0] ? { areaId: areas[0].id } : {}),
         amountCents: "0",

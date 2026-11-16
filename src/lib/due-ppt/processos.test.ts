@@ -46,6 +46,21 @@ describe("normalização", () => {
     expect(n.extras.pge).toBe(140323428.94);
   });
 
+  it("aba PGFN por devedor (sem natureza) guarda os devedores; por natureza, não", () => {
+    const porDevedor = normalizarPlanilha([
+      { name: "PGFN", rows: [["Dívida Ativa Federal", "Valor"], ["FULANO DE TAL", 100], ["BELTRANA", 50], ["TOTAL", 150]] },
+    ]);
+    expect(porDevedor.extras.pgfn).toEqual({ tributario: 150, previdenciario: 0, multa: 0 });
+    expect(porDevedor.extras.pgfnDevedores).toEqual([
+      { nome: "FULANO DE TAL", valor: 100 },
+      { nome: "BELTRANA", valor: 50 },
+    ]);
+    const porNatureza = normalizarPlanilha([
+      { name: "PGFN", rows: [["Natureza", "Valor"], ["Tributário", 100], ["Previdenciário", 30], ["TOTAL", 130]] },
+    ]);
+    expect(porNatureza.extras.pgfnDevedores).toBeUndefined();
+  });
+
   it("reconhece a área pelo nome do arquivo e pelas colunas", () => {
     expect(detectarArea("DUE - CÍVEL - ALEA.xlsx", [])).toBe("civel");
     expect(detectarArea("1.3 ALEA S.A. - Rec cred_final.xlsx", [])).toBe("rec_cred");
@@ -112,5 +127,22 @@ describe("planilha Cível no formato das áreas (POLO ... PRINCIPAL, POLO CLIENT
       situacao: "EM TRÂMITE",
       fase: "CONHECIMENTO",
     });
+  });
+
+  it("sem POLO CLIENTE, usa a POSIÇÃO DO CLIENTE (Requerido/Executado = passivo, Requerente = ativo)", () => {
+    const linhas = (posicao: string, i: number) => [`000000${i}-11.2025.8.26.0100`, "PROCEDIMENTO COMUM CÍVEL", 1000, posicao];
+    const [a, b, c, d] = normalizarPlanilha([
+      {
+        name: "dados",
+        rows: [
+          ["Número do processo", "Classe", "Valor de causa (R$)", "POSIÇÃO DO CLIENTE"],
+          linhas("Requerido", 1),
+          linhas("Executado", 2),
+          linhas("Requerente", 3),
+          linhas("Réu", 4),
+        ],
+      },
+    ]).processos;
+    expect([a, b, c, d].map((p) => p?.poloCliente)).toEqual(["PASSIVO", "PASSIVO", "ATIVO", "PASSIVO"]);
   });
 });

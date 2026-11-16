@@ -32,7 +32,7 @@ export type PreviaDocumento = { id: string; originalFilename: string };
 const FORMATO: Record<VarianteEfetiva, string> = {
   painel: "Painel com gráficos",
   detalhe: "Um slide por processo",
-  lista: "Lista de processos",
+  lista: "Tabela de processos",
 };
 
 /** `**trecho**` sai em negrito, como na apresentação. */

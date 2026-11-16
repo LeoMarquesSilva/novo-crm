@@ -123,6 +123,15 @@ def tok(slide, name, token, sid=None, new_name=None):
     return s
 
 
+def set_runs_text(paragraph, text):
+    """Parágrafo com um run só (o 1º, com a formatação dele) e o texto dado."""
+    p = paragraph._p
+    runs = p.findall(qn("a:r"))
+    runs[0].find(qn("a:t")).text = text
+    for extra in runs[1:]:
+        p.remove(extra)
+
+
 def set_runs(shape, texts):
     """Mantém a formatação de cada run (ex.: rótulo em negrito + valor)."""
     p = shape.text_frame._txBody.find(qn("a:p"))
@@ -258,6 +267,24 @@ def placeholder_logo_png():
     return buf
 
 
+def icone_pessoa_png():
+    """Silhueta de pessoa no dourado da marca (cliente pessoa física sem logo)."""
+    s = 4
+    n = 600 * s
+    gold = (212, 176, 112, 255)
+    img = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy, r = n // 2, int(n * 0.33), int(n * 0.19)
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=gold)
+    top, w, h = int(n * 0.60), int(n * 0.70), int(n * 0.56)
+    d.ellipse([cx - w // 2, top, cx + w // 2, top + h], fill=gold)
+    d.rectangle([0, int(n * 0.90), n, n], fill=(0, 0, 0, 0))
+    buf = io.BytesIO()
+    img.resize((600, 600), Image.LANCZOS).save(buf, "PNG")
+    buf.seek(0)
+    return buf
+
+
 # ─── preparo ──────────────────────────────────────────────────────────────────
 
 
@@ -312,6 +339,40 @@ def main(src_path, out_path):
     _, new_rid = s5.part.get_or_add_image_part(placeholder_logo_png())
     logo._element.blipFill.blip.set(qn("r:embed"), new_rid)
     s5.part.drop_rel(old_rid)
+    # Caixa do logo centrada no círculo e dentro dele (no original ficava deslocada para a
+    # direita, e logos largos encostavam na borda); o gerador encaixa a imagem nessa caixa.
+    circ = find(s5, "CIRCULO_CLIENTE")
+    logo.width, logo.height = Emu(int(circ.width * 0.84)), Emu(int(circ.width * 0.42))
+    logo.left = Emu(circ.left + (circ.width - logo.width) // 2)
+    logo.top = Emu(circ.top + (circ.height - logo.height) // 2)
+    # Pessoa física sem logo: silhueta de pessoa no lugar do logo (o gerador escolhe um dos dois).
+    lado = int(circ.width * 0.5)
+    pessoa = s5.shapes.add_picture(
+        icone_pessoa_png(),
+        Emu(circ.left + (circ.width - lado) // 2),
+        Emu(circ.top + (circ.height - lado) // 2),
+        Emu(lado),
+        Emu(lado),
+    )
+    pessoa.name = "IMG_ICONE_PESSOA"
+    # Rótulos mudam para pessoa física ("NOME" / "CPF:"); sem documento, a linha sai.
+    tok(s5, "CaixaDeTexto 8", "{{CAPA_L_NOME}}", new_name="CAPA_ROTULO_NOME")
+    tok(s5, "CaixaDeTexto 15", "{{CAPA_L_DOC}}", new_name="CAPA_ROTULO_DOC")
+    rename(s5, "Retângulo: Cantos Arredondados 10", "CAPA_DOC_FUNDO")
+    # Demais empresas/pessoas: até 4, a linha do documento vira um campo só ("CNPJ: …" / "CPF: …").
+    sid = next_shape_id(s5)
+    for suf in ("TXT", "ICO"):
+        el = copy.deepcopy(find(s5, f"{suf}_EMPRESA_3")._element)
+        s5.shapes._spTree.append(el)
+        set_shape_id_name(el, sid, f"{suf}_EMPRESA_4")
+        sid += 1
+    for i in range(1, 5):
+        txt = find(s5, f"TXT_EMPRESA_{i}")
+        ps = txt.text_frame.paragraphs
+        set_runs_text(ps[0], f"{{{{EMPRESA_{i}_RAZAO_SOCIAL}}}}")
+        set_runs_text(ps[1], f"{{{{EMPRESA_{i}_DOC}}}}")
+        txt.top = Emu(Inches(4.98 + (i - 1) * 0.6))
+        find(s5, f"ICO_EMPRESA_{i}").top = Emu(Inches(4.98 + (i - 1) * 0.6 + 0.14))
 
     # ── 6. Áreas envolvidas: todas as áreas como grupos
     s6 = S[6]
@@ -349,14 +410,31 @@ def main(src_path, out_path):
         set_text_body(tc.txBody, text)
     for tc, text in zip(tail[1].tc_lst[1:], ["{{RJ_EXTRA_EDITAL}}", "{{RJ_EXTRA_AJ}}", "{{RJ_EXTRA_VARIACAO}}"]):
         set_text_body(tc.txBody, text)
+    # Cabeçalho e rótulos do quadro lateral mudam com a fonte (edital + AJ ou documentação inicial).
+    head = t9.table._tbl.tr_lst[0]
+    for tc, text in zip(head.tc_lst[1:], ["{{RJ_L_EDITAL}}", "{{RJ_L_AJ}}", "{{RJ_L_VARIACAO}}"]):
+        set_text_body(tc.txBody, text)
     for name, token in [
+        ("Text 104", "{{RJ_L_CONCURSAL}}"),
         ("Text 105", "{{RJ_CONCURSAL_AJ}}"),
         ("Text 109", "{{RJ_VARIACAO_EDITAL}}"),
+        ("Text 110", "{{RJ_L_EXTRA}}"),
         ("Text 111", "{{RJ_EXTRACONCURSAL_AJ}}"),
+        ("Text 112", "{{RJ_L_TOTAL}}"),
         ("Text 113", "{{RJ_ENDIVIDAMENTO_TOTAL}}"),
         ("Text 116", "{{RJ_ENDIVIDAMENTO_RESUMO}}"),
     ]:
         tok(s9, name, token)
+    for name, new in [
+        ("Text 107", "RJ_VARIACAO_ROTULO"),
+        ("Shape 108", "RJ_VARIACAO_CHIP"),
+        ("Text 109", "RJ_VARIACAO_TEXTO"),
+        ("Text 110", "RJ_EXTRA_ROTULO"),
+        ("Text 111", "RJ_EXTRA_VALOR"),
+        ("Text 112", "RJ_TOTAL_ROTULO"),
+        ("Text 113", "RJ_TOTAL_VALOR"),
+    ]:
+        rename(s9, name, new)
 
     # ── 10. Forma de pagamento
     t10 = rename(S[10], "Tabela 102", "TBL_RJ_PAGAMENTO")
@@ -483,6 +561,8 @@ def main(src_path, out_path):
     # sócio no polo passivo: slot 1 + cópia como slot 2
     socio1 = ("Retângulo: Cantos Arredondados 9", "Elipse 11", "CaixaDeTexto 13", "CaixaDeTexto 15", "CaixaDeTexto 17", "Conector reto 29")
     name_fase_slots(s17, "CIVEL_SOCIO", {1: socio1})
+    # Sem a coluna de sócio (ex.: pessoa física), o quadro mostra o polo do cliente.
+    tok(s17, "CaixaDeTexto 155", "{{CIVEL_SOCIO_TITULO}}")
     rename(s17, "Conector reto 1", "CIVEL_SOCIO_LINHA")
     dy = Emu(Inches(1.42))
     sid = next_shape_id(s17)
@@ -565,9 +645,13 @@ def main(src_path, out_path):
     t_origem = rename(s21, "Tabela 73", "TBL_TRIB_ORIGEM")
     tail = table_row_template(t_origem, ["{{row.origem}}", "{{row.valor}}"], keep_after=1)
     set_text_body(tail[0].tc_lst[1].txBody, "{{TRIB_ORIGEM_TOTAL}}")
+    # PGFN: por natureza (tributário, previdenciário, multa) ou, quando a planilha só traz o
+    # valor de cada devedor, por devedor; o gerador escolhe as linhas, o cabeçalho e o título.
     t_nat = rename(s21, "Tabela 84", "TBL_TRIB_NATUREZA")
-    for row, token in zip(range(1, 5), ["{{TRIB_PGFN_TRIBUTARIO}}", "{{TRIB_PGFN_PREVIDENCIARIO}}", "{{TRIB_PGFN_MULTA}}", "{{TRIB_PGFN_TOTAL}}"]):
-        set_cell(t_nat.table.cell(row, 1), token)
+    set_cell(t_nat.table.cell(0, 0), "{{TRIB_L_NATUREZA}}")
+    tail = table_row_template(t_nat, ["{{row.rotulo}}", "{{row.valor}}"], keep_after=1)
+    set_text_body(tail[0].tc_lst[1].txBody, "{{TRIB_PGFN_TOTAL}}")
+    set_runs(find(s21, "CaixaDeTexto 80"), ["{{TRIB_T_NATUREZA}} ", "(Dívida ativa federal – PGFN)"])
     t_adm = rename(s21, "Tabela 99", "TBL_TRIB_ADM")
     for row, token in zip(range(1, 4), ["{{TRIB_ADM_PGFN}}", "{{TRIB_ADM_PGE}}", "{{TRIB_ADM_TOTAL}}"]):
         set_cell(t_adm.table.cell(row, 1), token)
@@ -626,6 +710,10 @@ def main(src_path, out_path):
     tok(s23, "TextBox 208", "{{CONC_DESCRICAO}}")
     tok(s23, "Credit Total Value", "{{CRED_TOTAL}}")
     tok(s23, "Credit Label 1", "{{CRED_DESCRICAO}}")
+    # Notas de rodapé (Reestruturação, Tributário) também quando há o quadro de crédito.
+    el = copy_shape_to(s22, find(s22, "CONC_NOTAS")._element, s23, rid_cache)
+    set_shape_id_name(el, sid, "CONC_NOTAS")
+    sid += 1
 
     # ── Slide de lista de processos (tabela), criado a partir do painel Cível
     lista = duplicate_slide(prs, s17)
@@ -634,7 +722,7 @@ def main(src_path, out_path):
         "Retângulo 8",
         "Retângulo: Cantos Arredondados 88",
         "Elipse 90",
-        "Gráfico 181",
+        "Gráfico 183",  # ícone de documento (o da situação processual), como no slide da área trabalhista
         "CaixaDeTexto 104",
         "Retângulo: Cantos Arredondados 10",
         "Elipse 19",
@@ -665,7 +753,7 @@ def main(src_path, out_path):
     tok(lista, "CaixaDeTexto 6", "{{LISTA_AREA}}", new_name="SLIDE_LISTA")
     place("Retângulo: Cantos Arredondados 88", 0.17, 0.98, 12.99, 6.36)
     place("Elipse 90", 0.30, 1.10, 0.56, 0.56)
-    place("Gráfico 181", 0.36, 1.16, 0.44, 0.44)
+    place("Gráfico 183", 0.36, 1.16, 0.44, 0.44)
     place("CaixaDeTexto 104", 0.95, 1.20, 6.0, 0.32, text="{{LISTA_TITULO}}")
     place("Retângulo: Cantos Arredondados 10", 8.10, 0.12, 5.06, 0.70)
     place("Elipse 19", 8.20, 0.19, 0.56, 0.56)
@@ -677,24 +765,40 @@ def main(src_path, out_path):
     tbl = tbl_shape.table._tbl
     grid = tbl.tblGrid
     gridcols = grid.findall(qn("a:gridCol"))
-    while len(gridcols) < 5:
+    # 6 colunas; a 4ª ({{LISTA_L_EXTRA}}, ex.: origem do valor no Trabalhista) sai nas áreas que não a usam.
+    while len(gridcols) < 6:
         gc = copy.deepcopy(gridcols[-1])
         grid.append(gc)
         gridcols.append(gc)
-    for gc, w in zip(gridcols, (2.15, 2.85, 2.85, 1.55, 3.13)):
+    for gc, w in zip(gridcols, (2.20, 1.95, 2.55, 1.75, 1.60, 2.48)):
         gc.set("w", str(Emu(Inches(w))))
     for tr in tbl.tr_lst:
         tcs = tr.tc_lst
-        while len(tcs) < 5:
+        while len(tcs) < 6:
             tc = copy.deepcopy(tcs[-1])
             tcs[-1].addnext(tc)
             tcs = tr.tc_lst
     new_a16_ids(tbl)
-    header = ["Processo", "{{LISTA_L_PARTE_A}}", "{{LISTA_L_PARTE_B}}", "{{LISTA_L_VALOR_COL}}", "{{LISTA_L_INFO}}"]
+    header = [
+        "Número do processo",
+        "{{LISTA_L_PARTE_A}}",
+        "{{LISTA_L_PARTE_B}}",
+        "{{LISTA_L_EXTRA}}",
+        "{{LISTA_L_VALOR_COL}}",
+        "{{LISTA_L_INFO}}",
+    ]
     for i, text in enumerate(header):
         set_text_body(tbl.tr_lst[0].tc_lst[i].txBody, text)
-    for i, text in enumerate(["{{row.processo}}", "{{row.parteA}}", "{{row.parteB}}", "{{row.valor}}", "{{row.info}}"]):
+    row = ["{{row.processo}}", "{{row.parteA}}", "{{row.parteB}}", "{{row.extra}}", "{{row.valor}}", "{{row.info}}"]
+    for i, text in enumerate(row):
         set_text_body(tbl.tr_lst[1].tc_lst[i].txBody, text)
+    # Estilo da tabela que a área trabalhista monta: cabeçalho azul-marinho, corpo sem fundo,
+    # bordas finas pretas, texto centralizado.
+    tbl.find(qn("a:tblPr")).set("bandRow", "0")
+    for tc in tbl.tr_lst[0].tc_lst:
+        style_cell(tc, fill="0F243E", color="FFFFFF", size=1000, bold=True)
+    for tc in tbl.tr_lst[1].tc_lst:
+        style_cell(tc, fill=None, color="1A1A1A", size=900, bold=False)
     move_slide(prs, lista, 15)  # logo depois do slide de detalhe
 
     # marcadores de slide (depois dos tokens: alguns títulos foram usados acima)
@@ -704,6 +808,39 @@ def main(src_path, out_path):
     strip_notes_and_comments(prs)
     prs.save(out_path)
     print("ok ->", out_path)
+
+
+def style_cell(tc, fill, color, size, bold):
+    """Célula com borda fina preta, texto centralizado (horizontal e vertical) e fundo `fill` (None = sem fundo)."""
+    tcPr = tc.get_or_add_tcPr()
+    for child in list(tcPr):
+        tcPr.remove(child)
+    tcPr.set("anchor", "ctr")
+    for tag in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
+        ln = etree.SubElement(tcPr, qn(tag), w="9525")
+        etree.SubElement(etree.SubElement(ln, qn("a:solidFill")), qn("a:srgbClr"), val="000000")
+    if fill:
+        etree.SubElement(etree.SubElement(tcPr, qn("a:solidFill")), qn("a:srgbClr"), val=fill)
+    else:
+        etree.SubElement(tcPr, qn("a:noFill"))
+    for p in tc.txBody.findall(qn("a:p")):
+        pPr = p.find(qn("a:pPr"))
+        if pPr is None:
+            pPr = etree.Element(qn("a:pPr"))
+            p.insert(0, pPr)
+        pPr.set("algn", "ctr")
+        for r in p.findall(qn("a:r")):
+            rPr = r.find(qn("a:rPr"))
+            if rPr is None:
+                rPr = etree.Element(qn("a:rPr"))
+                r.insert(0, rPr)
+            rPr.set("sz", str(size))
+            rPr.set("b", "1" if bold else "0")
+            for old in rPr.findall(qn("a:solidFill")):
+                rPr.remove(old)
+            sf = etree.Element(qn("a:solidFill"))
+            etree.SubElement(sf, qn("a:srgbClr"), val=color)
+            rPr.insert(0, sf)
 
 
 def name_fase_slots(slide, prefix, slots):

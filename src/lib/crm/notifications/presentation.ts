@@ -8,6 +8,7 @@ import {
   notificationTabGroupForTipo,
   type NotificationTabGroupId,
 } from "@/lib/crm/in-app-notification-meta";
+import { BR_TIMEZONE, saoPauloDateYmd } from "@/lib/format-datetime";
 
 export type CrmNotificationRow = {
   id: string;
@@ -77,8 +78,10 @@ const DAY_BUCKET_LABELS: Record<NotificationDayBucket, string> = {
   antigas: "Mais antigas",
 };
 
+/** Dia civil de Brasília do instante, como número de dias (o servidor do push roda em UTC). */
 function startOfLocalDay(date: Date): number {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const ymd = saoPauloDateYmd(date);
+  return Date.UTC(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10)));
 }
 
 export function notificationDayBucket(iso: string, now: Date = new Date()): NotificationDayBucket {
@@ -124,16 +127,19 @@ export function formatNotificationTime(iso: string, now: Date = new Date()): str
   const diffMs = now.getTime() - when.getTime();
   if (diffMs < 60_000) return "agora";
   if (diffMs < 60 * 60_000) return `${Math.floor(diffMs / 60_000)} min`;
-  const hhmm = when.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const hhmm = when.toLocaleTimeString("pt-BR", { timeZone: BR_TIMEZONE, hour: "2-digit", minute: "2-digit" });
   const bucket = notificationDayBucket(iso, now);
   if (bucket === "hoje") return hhmm;
   if (bucket === "ontem") return `ontem ${hhmm}`;
   if (bucket === "semana") {
-    const weekday = when.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+    const weekday = when.toLocaleDateString("pt-BR", { timeZone: BR_TIMEZONE, weekday: "short" }).replace(".", "");
     return `${weekday} ${hhmm}`;
   }
-  const sameYear = when.getFullYear() === now.getFullYear();
-  return when.toLocaleDateString("pt-BR", sameYear ? { day: "2-digit", month: "2-digit" } : { dateStyle: "short" });
+  const sameYear = saoPauloDateYmd(when).slice(0, 4) === saoPauloDateYmd(now).slice(0, 4);
+  return when.toLocaleDateString(
+    "pt-BR",
+    sameYear ? { timeZone: BR_TIMEZONE, day: "2-digit", month: "2-digit" } : { timeZone: BR_TIMEZONE, dateStyle: "short" },
+  );
 }
 
 /** Corpo do push (service worker) e da notificação local do navegador. */

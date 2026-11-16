@@ -9,6 +9,9 @@ import {
 
 describe("proposta-tributacao", () => {
   it("normaliza rótulos novos e valores do catálogo", () => {
+    expect(normalizeTributacaoValue("Englobando tributos")).toBe(TRIBUTACAO_ENGLOBANDO);
+    expect(normalizeTributacaoValue("Líquido de tributos")).toBe(TRIBUTACAO_LIQUIDO);
+    // Rótulos anteriores a 16/11/2026 continuam valendo.
     expect(normalizeTributacaoValue("Incluindo tributos")).toBe(TRIBUTACAO_ENGLOBANDO);
     expect(normalizeTributacaoValue("Não incluindo tributos")).toBe(TRIBUTACAO_LIQUIDO);
     expect(normalizeTributacaoValue(TRIBUTACAO_LIQUIDO)).toBe(TRIBUTACAO_LIQUIDO);

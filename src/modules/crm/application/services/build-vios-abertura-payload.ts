@@ -179,13 +179,14 @@ function tarefa(
   data: string,
   responsavel: string[],
   corpo: string,
+  cabecalho?: string,
 ): ViosAberturaTarefa {
   return {
     tarefa: tipo.tarefa,
     tarefa_id: tipo.tarefa_id,
     tipo: tipo.tipo,
     etiqueta_id: tipo.etiqueta_id,
-    observacao: `${tipo.titulo}\n\n${corpo}`,
+    observacao: [tipo.titulo, cabecalho, corpo].filter(Boolean).join("\n\n"),
     data,
     responsavel,
   };
@@ -194,7 +195,8 @@ function tarefa(
 /**
  * Monta o pedido a partir do cadastro do lead. Regras (D2 e D4 do plano):
  * - a 1ª empresa é o cliente da pasta; as demais entram como envolvidos (parte "Cliente");
- * - um ENVIAR por responsável de área, para o dia do cadastro;
+ * - um ENVIAR por responsável de área, para o dia do cadastro, com o nome e as áreas dele no texto
+ *   (o VIOS não aceita duas tarefas abertas com a mesma descrição na pasta);
  * - um Protocolo com todos os responsáveis, para a data de entrega da due;
  * - a "CIÊNCIA DA ABERTURA DE PASTA" do responsável da pasta não vai no pedido: o VIOS a cria ao abrir a pasta.
  */
@@ -231,6 +233,7 @@ export function buildViosAberturaPedido(entrada: ViosAberturaEntrada): ViosAbert
   }
 
   const nomes: string[] = [];
+  const areasDoNome = new Map<string, string[]>();
   for (const r of entrada.responsaveis) {
     const nome = r.nomeVios?.trim();
     if (!nome) {
@@ -238,10 +241,18 @@ export function buildViosAberturaPedido(entrada: ViosAberturaEntrada): ViosAbert
       continue;
     }
     if (!nomes.includes(nome)) nomes.push(nome);
+    const areas = areasDoNome.get(nome) ?? [];
+    if (!areas.includes(r.area)) areas.push(r.area);
+    areasDoNome.set(nome, areas);
   }
 
   const corpo = corpoDaTarefa(entrada);
-  const tarefas: ViosAberturaTarefa[] = nomes.map((nome) => tarefa(VIOS_TAREFAS.enviar, hoje, [nome], corpo));
+  // O VIOS do escritório recusa duas tarefas abertas com a mesma descrição na pasta ("Nessa pasta já existe uma
+  // tarefa aberta com a mesma descrição"): o 2º ENVIAR caía no teste de 16/11/2026 (pasta CI 61486). Cada ENVIAR
+  // diz de quem é e de qual área, e o texto fica único.
+  const tarefas: ViosAberturaTarefa[] = nomes.map((nome) =>
+    tarefa(VIOS_TAREFAS.enviar, hoje, [nome], corpo, `Responsável: ${nome} (${(areasDoNome.get(nome) ?? []).join(", ")})`),
+  );
   if (nomes.length > 0) {
     tarefas.push(tarefa(VIOS_TAREFAS.protocolo, entrega, nomes, corpo));
   } else {

@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: `Quota D4Sign esgotada (${quotaBefore.used}/${quotaBefore.limit} req/h). Tente após ${quotaBefore.resetAt ? new Date(quotaBefore.resetAt).toLocaleTimeString("pt-BR") : "1 hora"}.`,
+          error: `Quota D4Sign esgotada (${quotaBefore.used}/${quotaBefore.limit} req/h). Tente após ${quotaBefore.resetAt ? new Date(quotaBefore.resetAt).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }) : "1 hora"}.`,
           quota: quotaBefore,
         },
         { status: 429 },

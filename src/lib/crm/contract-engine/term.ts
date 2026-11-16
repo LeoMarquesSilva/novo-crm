@@ -72,15 +72,64 @@ export function renderStartText(rule: ContractStartRule): string {
   }
 }
 
-export function mergeTermRules(rules: ContractTermRule[]): ContractTermRule {
+/** Prazo de um escopo como trecho de frase, para a cláusula com vigências distintas. */
+function termPhrase(rule: ContractTermRule): string {
+  const deliverable = rule.deliverable?.trim() || "entregável contratado";
+  switch (rule.kind) {
+    case "fixed_months": {
+      const months = rule.months ?? 12;
+      return `${months} (${extensoMeses(months)}) ${months === 1 ? "mês" : "meses"}, contados da data de assinatura do Contrato`;
+    }
+    case "fixed_days": {
+      const days = rule.days ?? 30;
+      return `${days} ${days === 1 ? "dia" : "dias"}`;
+    }
+    case "until_deliverable":
+      return `até a entrega, pela Contratada, do ${deliverable}`;
+    case "until_deliverable_with_estimate": {
+      const estimate =
+        rule.estimateLabel?.trim() || (rule.months ? `${rule.months} meses` : rule.days ? `${rule.days} dias` : "");
+      return `até a entrega, pela Contratada, do ${deliverable}${estimate ? `, com prazo estimado de ${estimate}` : ""}`;
+    }
+    case "indefinite":
+      return "prazo indeterminado";
+    case "manual":
+      return rule.estimateLabel?.trim() || "a definida nas condições contratuais";
+    default:
+      return "a definida nas condições contratuais";
+  }
+}
+
+const ROMANOS = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"];
+
+/**
+ * Vigência do contrato a partir da vigência de cada escopo. Escopos com o mesmo prazo dão o próprio prazo;
+ * prazos diferentes viram uma cláusula com o prazo de cada escopo. Antes, prazos diferentes saíam no
+ * contrato como "Vigências distintas por escopo — REQUIRES LEGAL DECISION…" (nota interna; teste de
+ * 16/11/2026 com Contencioso Cível + Auditoria Trabalhista).
+ */
+export function mergeTermRules(
+  rules: ContractTermRule[],
+  scopeLabels?: string[],
+): ContractTermRule {
   if (rules.length === 0) return { kind: "manual" };
   if (rules.length === 1) return rules[0];
-  const kinds = new Set(rules.map((r) => r.kind));
-  if (kinds.size === 1) return rules[0];
+  const grupos = new Map<string, { rule: ContractTermRule; labels: string[] }>();
+  rules.forEach((rule, i) => {
+    const chave = JSON.stringify([rule.kind, rule.months ?? null, rule.days ?? null, rule.deliverable ?? null, rule.estimateLabel ?? null]);
+    const grupo = grupos.get(chave) ?? { rule, labels: [] };
+    const label = scopeLabels?.[i]?.trim();
+    if (label && !grupo.labels.includes(label)) grupo.labels.push(label);
+    grupos.set(chave, grupo);
+  });
+  if (grupos.size === 1) return rules[0];
+  const partes = [...grupos.values()].map((g, i) => {
+    const quem = g.labels.length ? g.labels.join(" e ") : `escopo ${i + 1}`;
+    return `(${ROMANOS[i] ?? i + 1}) ${quem}: ${termPhrase(g.rule)}`;
+  });
   return {
     kind: "manual",
-    estimateLabel:
-      "Vigências distintas por escopo — REQUIRES LEGAL DECISION para consolidar um único prazo.",
+    estimateLabel: `A vigência do presente Contrato observa o prazo de cada escopo contratado: ${partes.join("; ")}.`,
   };
 }
 
@@ -98,8 +147,17 @@ function extensoMeses(n: number): string {
     2: "dois",
     3: "três",
     4: "quatro",
+    5: "cinco",
     6: "seis",
+    7: "sete",
+    8: "oito",
+    9: "nove",
+    10: "dez",
+    11: "onze",
     12: "doze",
+    18: "dezoito",
+    24: "vinte e quatro",
+    36: "trinta e seis",
   };
   return map[n] ?? String(n);
 }

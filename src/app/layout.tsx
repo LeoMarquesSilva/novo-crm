@@ -21,9 +21,34 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/** URL pública do CRM: a prévia de link (WhatsApp, e-mail) precisa da imagem com endereço completo. */
+function urlBase(): URL {
+  const raw =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ||
+    process.env.VERCEL_URL?.trim() ||
+    "http://localhost:3000";
+  return new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+}
+
+const TITULO = "CRM Bismarchi | Pires";
+const DESCRICAO = "Leads, due diligence, propostas e contratos do escritório em um só lugar.";
+
+// Os links do CRM nos avisos (WhatsApp, e-mail) caem no login para quem não está logado: a prévia
+// mostra este título, a descrição e `opengraph-image.png`, não o título da tela de login.
 export const metadata: Metadata = {
+  metadataBase: urlBase(),
   title: "CRM Jurídico",
-  description: "CRM proprietário em Next.js com shadcn/ui",
+  description: DESCRICAO,
+  applicationName: TITULO,
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: TITULO,
+    title: TITULO,
+    description: DESCRICAO,
+  },
+  twitter: { card: "summary_large_image", title: TITULO, description: DESCRICAO },
 };
 
 export default function RootLayout({

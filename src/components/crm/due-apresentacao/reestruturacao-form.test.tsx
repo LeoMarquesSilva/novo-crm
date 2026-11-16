@@ -104,3 +104,34 @@ describe("ReestruturacaoForm — valores em reais", () => {
     expect(passivo).toHaveValue("");
   });
 });
+
+describe("ReestruturacaoForm — documentação inicial e pedidos de falência", () => {
+  it("só a documentação inicial esconde a coluna do AJ", () => {
+    const onChange = vi.fn();
+    render(<Tela inicial={reestruturacaoSchema.parse({ classes: [{ classe: "Classe I" }] })} onChange={onChange} />);
+    expect(screen.getByLabelText("Relatório do AJ")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Só a documentação inicial (art. 51)" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ endividamentoFonte: "inicial" }));
+    expect(screen.queryByLabelText("Relatório do AJ")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Documentação inicial")).toBeInTheDocument();
+  });
+
+  it("adiciona um pedido de falência com o fundamento padrão e grava os campos", () => {
+    const onChange = vi.fn();
+    render(<Tela inicial={reestruturacaoSchema.parse({})} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar pedido de falência/ }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ falencias: [expect.objectContaining({ fundamento: "art. 94, I, da Lei nº 11.101/2005" })] }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Requerente"), { target: { value: "CREDORA S.A." } });
+    fireEvent.change(screen.getByLabelText("Crédito indicado na inicial"), { target: { value: "5719510" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ falencias: [expect.objectContaining({ requerente: "CREDORA S.A.", credito: 57195.1 })] }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Remover pedido" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ falencias: [] }));
+  });
+});

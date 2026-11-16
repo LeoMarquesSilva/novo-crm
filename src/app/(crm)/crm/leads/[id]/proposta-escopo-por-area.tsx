@@ -311,7 +311,7 @@ export function PropostaEscopoPorArea({
         setEscopo(normalizedNext);
         collapseCompleteEditableAreas(normalizedNext);
         setLastSavedAt(
-          new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+          new Date().toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", second: "2-digit" }),
         );
         // Acknowledge only what this PATCH saved; retain other local draft edits.
         onSaved?.(confirmedJson);

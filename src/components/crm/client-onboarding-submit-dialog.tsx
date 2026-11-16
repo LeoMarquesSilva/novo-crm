@@ -6,6 +6,8 @@ import { Loader2, Save, Send, TriangleAlert } from "lucide-react";
 import { ClientOnboardingForm } from "@/app/(crm)/crm/leads/[id]/client-onboarding/client-onboarding-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { DateInputBr } from "@/components/ui/date-input-br";
+import { formatDateYmdBr } from "@/lib/format-datetime";
 import {
   Dialog,
   DialogContent,
@@ -117,6 +119,11 @@ export function ClientOnboardingSubmitDialog({
   };
   const [busy, setBusy] = useState<"saving" | "submitting" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Antes de enviar ao Financeiro, a data do primeiro faturamento é confirmada (pedido de 16/11/2026): ela vem
+   * preenchida do contrato, da proposta ou de um rascunho antigo e pode ter ficado para trás.
+   */
+  const [confirmarData, setConfirmarData] = useState<string | null>(null);
 
   useEffect(() => {
     // Reabrir sem ter salvo mantém o que foi digitado.
@@ -216,19 +223,47 @@ export function ClientOnboardingSubmitDialog({
 
   async function close() {
     if (busy) return;
+    setConfirmarData(null);
     if (dirty && editable && !(await saveDraft())) return;
     onOpenChange(false);
   }
 
-  async function submit() {
+  /** Faturamento com data (não condicionado): primeiro pede a confirmação da data; o resto envia direto. */
+  function pedirEnvio() {
     if (!payload || !canSubmit || missing.length > 0) return;
+    if (step === "faturamento" && !payload.financeiro.primeiroFaturamentoCondicionado) {
+      setError(null);
+      setConfirmarData(payload.financeiro.primeiroFaturamento);
+      return;
+    }
+    void submit(payload);
+  }
+
+  const hoje = todayYmdSaoPaulo();
+  const dataConfirmadaValida = Boolean(confirmarData && /^\d{4}-\d{2}-\d{2}$/.test(confirmarData) && confirmarData >= hoje);
+
+  function confirmarDataEEnviar() {
+    if (!payload || !confirmarData || !dataConfirmadaValida) return;
+    const next: ClientOnboardingPayload = {
+      ...payload,
+      financeiro: { ...payload.financeiro, primeiroFaturamento: confirmarData },
+    };
+    if (confirmarData !== payload.financeiro.primeiroFaturamento) {
+      setPayload(next);
+      setDirty(true);
+    }
+    void submit(next);
+  }
+
+  async function submit(toSend: ClientOnboardingPayload) {
+    if (!canSubmit) return;
     setBusy("submitting");
     setError(null);
     try {
       const res = await fetch(`${base}/${copy.submitUrl}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload }),
+        body: JSON.stringify({ payload: toSend }),
       });
       const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; stage?: string } | null;
       if (!res.ok || !json?.ok) {
@@ -236,6 +271,7 @@ export function ClientOnboardingSubmitDialog({
         return;
       }
       setDirty(false);
+      setConfirmarData(null);
       onSubmitted({ stage: json.stage ?? copy.nextStage });
       onOpenChange(false);
     } catch {
@@ -286,7 +322,7 @@ export function ClientOnboardingSubmitDialog({
             ) : null}
             <ClientOnboardingForm
               payload={payload}
-              readOnly={!editable || busy !== null}
+              readOnly={!editable || busy !== null || confirmarData !== null}
               inModal
               sections={step}
               leadParties={state.leadParties}
@@ -302,6 +338,41 @@ export function ClientOnboardingSubmitDialog({
 
         {editable && missing.length > 0 ? (
           <p className="text-v2-caption text-muted-foreground">Para enviar, falta: {missing.join(", ")}.</p>
+        ) : null}
+        {confirmarData !== null ? (
+          <div
+            className="space-y-3 rounded-(--radius-v2-md) border border-warning-border bg-warning-bg p-4"
+            role="group"
+            aria-labelledby="dlg-confirmar-faturamento"
+          >
+            <div className="space-y-1">
+              <p id="dlg-confirmar-faturamento" className="text-v2-body-sm font-semibold text-warning-text">
+                Confirme a data do primeiro faturamento
+              </p>
+              <p className="text-v2-caption text-warning-text">
+                Ela já veio preenchida
+                {payload?.financeiro.primeiroFaturamento
+                  ? ` (${formatDateYmdBr(payload.financeiro.primeiroFaturamento)})`
+                  : ""}
+                . Confira se continua valendo ou corrija antes de enviar ao Financeiro.
+              </p>
+            </div>
+            <div className="max-w-56">
+              <DateInputBr
+                id="dlg-confirmar-faturamento-data"
+                value={confirmarData}
+                minYmd={hoje}
+                onChange={setConfirmarData}
+                disabled={busy !== null}
+                aria-describedby="dlg-confirmar-faturamento"
+              />
+            </div>
+            {confirmarData && !dataConfirmadaValida ? (
+              <p className="text-v2-caption text-danger-text" role="alert">
+                Informe uma data a partir de hoje.
+              </p>
+            ) : null}
+          </div>
         ) : null}
         {error ? (
           <p className="text-v2-body-sm text-danger-text" role="alert">
@@ -322,17 +393,35 @@ export function ClientOnboardingSubmitDialog({
               Salvar rascunho
             </Button>
           ) : null}
-          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void close()}>
-            Fechar
-          </Button>
-          <Button
-            type="button"
-            disabled={loading || !canSubmit || missing.length > 0 || busy !== null}
-            onClick={() => void submit()}
-          >
-            {busy === "submitting" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
-            {busy === "submitting" ? "Enviando…" : copy.submit}
-          </Button>
+          {confirmarData !== null ? (
+            <>
+              <Button type="button" variant="outline" disabled={busy !== null} onClick={() => setConfirmarData(null)}>
+                Voltar
+              </Button>
+              <Button
+                type="button"
+                disabled={!dataConfirmadaValida || busy !== null}
+                onClick={confirmarDataEEnviar}
+              >
+                {busy === "submitting" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+                {busy === "submitting" ? "Enviando…" : "Confirmar data e enviar"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void close()}>
+                Fechar
+              </Button>
+              <Button
+                type="button"
+                disabled={loading || !canSubmit || missing.length > 0 || busy !== null}
+                onClick={pedirEnvio}
+              >
+                {busy === "submitting" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+                {busy === "submitting" ? "Enviando…" : copy.submit}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

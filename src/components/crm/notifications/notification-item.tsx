@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 
 function fullDate(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "short" });
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" });
 }
 
 function ReadToggle({ row, className }: { row: CrmNotificationRow; className?: string }) {

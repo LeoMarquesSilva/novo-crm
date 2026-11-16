@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 export function formatKanbanRefreshLabel(at: Date, now = new Date()): string {
   const diffMs = now.getTime() - at.getTime();
   if (diffMs < 45_000) return "Atualizado agora";
-  return `Atualizado ${at.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  return `Atualizado ${at.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}`;
 }
 
 type PipelineKanbanRefreshIndicatorProps = {

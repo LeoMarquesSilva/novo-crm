@@ -3,7 +3,7 @@
  * os PPTs já entregues (ex.: Cível Sul Fluminense, Trabalhista ALEA S.A.).
  */
 import { normalizarTexto } from "./areas";
-import { brl, brlCompacto, listaPt, pct, tituloNome } from "./format";
+import { acentuar, brl, brlCompacto, listaPt, pct, tituloNome } from "./format";
 import type { ExtrasTributario, Processo } from "./processos";
 
 export type Agrupado = { nome: string; qtd: number; valor: number };
@@ -73,7 +73,15 @@ function inicioTramitacao(p: Processo): string | null {
 
 /** "BUSCA E APREENSÃO EM ALIENAÇÃO FIDUCIÁRIA" → "busca e apreensão em alienação fiduciária". */
 function classeMinuscula(classe: string): string {
-  return classe.toLowerCase();
+  return acentuar(classe).toLowerCase();
+}
+
+/** Concordância com a classe: "execução … movida", "embargos … movidos", "cumprimento … movido". */
+export function movidoPor(classe: string): string {
+  const palavra = normalizarTexto(classe).split(/\s+/)[0] ?? "";
+  if (palavra.endsWith("os")) return "movidos";
+  if (/(cao|sao|a)$/.test(palavra)) return "movida";
+  return "movido";
 }
 
 /** Primeiro nome da lista de partes ("A, B, C" → "A"). */
@@ -97,6 +105,10 @@ export type AnaliseCivel = {
   regioes: Agrupado[];
   fases: Agrupado[];
   socios: Agrupado[];
+  /** A planilha não tem a coluna "Sócio no polo passivo". */
+  semSocio: boolean;
+  /** Processos por polo do cliente (passivo, ativo, terceiro). */
+  polos: Agrupado[];
   top: Array<{ parte: string; processo: string; valor: number; classe: string }>;
   /** A planilha não diz o polo do cliente: todo processo conta como passivo. */
   semPoloCliente: boolean;
@@ -108,7 +120,7 @@ export type TribunalCivel = { sigla: string; uf: string | null; qtd: number };
 const SEM_TRIBUNAL = "Não informado";
 
 /** Sigla pelo número CNJ: justiça estadual (J=8) → TJ + UF; federal (J=4) → TRF + região. */
-function tribunalDoNumero(numero: string): string | null {
+export function tribunalDoNumero(numero: string): string | null {
   const m = /\d{7}-?\d{2}\.?\d{4}\.?(\d)\.?(\d{2})\.?\d{4}/.exec(numero);
   if (!m) return null;
   if (m[1] === "4") return `TRF${Number(m[2])}`;
@@ -172,6 +184,21 @@ export function analisarCivel(processos: Processo[]): AnaliseCivel {
   }
   const ordemSocio = ["Sim", "Não", "Não informado"];
   const socios = [...socioMap.values()].sort((a, b) => ordemSocio.indexOf(a.nome) - ordemSocio.indexOf(b.nome));
+  const semSocio = considerados.every((p) => p.socioPoloPassivo == null);
+
+  // Sem a coluna de sócio (pessoa física, por exemplo): o quadro mostra em que polo está o cliente.
+  const ROTULO_POLO = { PASSIVO: "Polo passivo", ATIVO: "Polo ativo", TERCEIRO: "Terceiro interessado" } as const;
+  const poloMap = new Map<string, Agrupado>();
+  for (const p of considerados) {
+    if (!p.poloCliente) continue;
+    const nome = ROTULO_POLO[p.poloCliente];
+    const g = poloMap.get(nome) ?? { nome, qtd: 0, valor: 0 };
+    g.qtd += 1;
+    g.valor += p.valorCausa;
+    poloMap.set(nome, g);
+  }
+  const ordemPolo: string[] = Object.values(ROTULO_POLO);
+  const polos = [...poloMap.values()].sort((a, b) => ordemPolo.indexOf(a.nome) - ordemPolo.indexOf(b.nome));
 
   const top = [...passivos]
     .sort((a, b) => b.valorCausa - a.valorCausa)
@@ -189,7 +216,7 @@ export function analisarCivel(processos: Processo[]): AnaliseCivel {
   const maiorCaso = top[0];
   if (maiorCaso && passivo > 0) {
     linhas.push(
-      `Maior exposição: ${classeMinuscula(maiorCaso.classe) || "processo"} movido por ${tituloNome(primeiraParte(maiorCaso.parte))} (${brlCompacto(maiorCaso.valor)}, ${pct(maiorCaso.valor / passivo, 0)} do potencial passivo).`,
+      `Maior exposição: ${classeMinuscula(maiorCaso.classe) || "processo"} ${movidoPor(maiorCaso.classe)} por ${tituloNome(primeiraParte(maiorCaso.parte))} (${brlCompacto(maiorCaso.valor)}, ${pct(maiorCaso.valor / passivo, 0)} do potencial passivo).`,
     );
   }
 
@@ -205,6 +232,8 @@ export function analisarCivel(processos: Processo[]): AnaliseCivel {
     regioes,
     fases,
     socios,
+    semSocio,
+    polos,
     top,
     semPoloCliente,
     leitura: linhas.join("\n"),
@@ -410,6 +439,8 @@ export type AnaliseTributario = {
   passivoJudicial: number;
   origens: Array<{ origem: string; valor: number; qtd: number }>;
   pgfn: { tributario: number; previdenciario: number; multa: number };
+  /** Devedores da PGFN, quando a planilha traz o valor por devedor (sem a natureza). */
+  pgfnDevedores: Array<{ nome: string; valor: number }>;
   pge: number;
   administrativo: number;
   /** judicial + administrativo (é o que entra na conclusão). */
@@ -446,6 +477,7 @@ export function analisarTributario(processos: Processo[], extras: ExtrasTributar
   }
   const origens = [...origemMap.values()].sort((a, b) => b.valor - a.valor);
   const pgfn = extras.pgfn ?? { tributario: 0, previdenciario: 0, multa: 0 };
+  const pgfnDevedores = extras.pgfnDevedores ?? [];
   const pgfnTotal = pgfn.tributario + pgfn.previdenciario + pgfn.multa;
   const pge = extras.pge ?? 0;
   const administrativo = pgfnTotal + pge;
@@ -461,9 +493,11 @@ export function analisarTributario(processos: Processo[], extras: ExtrasTributar
     pontos.push(`Maior execução fiscal${a ? ` (${a})` : ""}: ${brlCompacto(maior.valorCausa)}.`);
   }
   pontos.push(
-    suspensos === 0
-      ? "Todos os processos judiciais estão em tramitação."
-      : `${suspensos} processo(s) suspenso(s); ${considerados.length - suspensos} em tramitação.`,
+    considerados.length === 0
+      ? "Nenhuma execução fiscal localizada; o passivo tributário está na dívida ativa."
+      : suspensos === 0
+        ? "Todos os processos judiciais estão em tramitação."
+        : `${suspensos} processo(s) suspenso(s); ${considerados.length - suspensos} em tramitação.`,
   );
   pontos.push(
     pgfnTotal > 0
@@ -474,7 +508,9 @@ export function analisarTributario(processos: Processo[], extras: ExtrasTributar
 
   const partes: string[] = [];
   partes.push(
-    `Foram identificados ${considerados.length} processos judiciais de natureza tributária (execuções fiscais)${suspensos === 0 ? ", todos em tramitação" : ""}, com potencial passivo de ${brlCompacto(passivoJudicial)}.`,
+    considerados.length === 0
+      ? "Não foram identificados processos judiciais de natureza tributária (execuções fiscais)."
+      : `Foram identificados ${considerados.length} processos judiciais de natureza tributária (execuções fiscais)${suspensos === 0 ? ", todos em tramitação" : ""}, com potencial passivo de ${brlCompacto(passivoJudicial)}.`,
   );
   const adm: string[] = [];
   if (pge > 0) adm.push(`${brlCompacto(pge)} em dívida ativa estadual`);
@@ -492,6 +528,7 @@ export function analisarTributario(processos: Processo[], extras: ExtrasTributar
     passivoJudicial,
     origens,
     pgfn,
+    pgfnDevedores,
     pge,
     administrativo,
     passivoTotal: passivoJudicial + administrativo,

@@ -3,6 +3,7 @@ import {
   listRequiredStandardClauses,
 } from "./clause-catalog";
 import { adjustmentPlaceholders } from "./adjustment";
+import { semAberturaDoObjeto } from "./object-opening";
 import { applyPartyPlaceholders, type PartyGrammar } from "./party-language";
 import { renderStartText, renderTermText } from "./term";
 import type {
@@ -133,7 +134,16 @@ export function resolveContractClauses(params: {
       }
     }
   }
+  const antesDoBanco = collected.length;
   pushDbLinked(isObjectRole);
+  // Objeto vindo das cláusulas do banco: "O presente Contrato tem por objeto…" só no primeiro (16/11/2026).
+  let objetoAberto = collected.slice(0, antesDoBanco).some((c) => c.role === "object");
+  for (let i = antesDoBanco; i < collected.length; i++) {
+    const clause = collected[i]!;
+    if (clause.role !== "object") continue;
+    if (objetoAberto) collected[i] = { ...clause, content: semAberturaDoObjeto(clause.content) };
+    objetoAberto = true;
+  }
 
   push(resolveTemplate("exclusion_geral_base"), "standard", "PADRÃO BP");
   for (const scope of params.scopes) {

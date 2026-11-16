@@ -19,7 +19,7 @@ import {
   union,
   type Box,
 } from "./shapes";
-import { fillTable, type TableRows } from "./table";
+import { dropColumnsByHeader, fillTable, keepColumns, setBodyRowHeight, type TableRows } from "./table";
 import { fillTokens, type TokenValues } from "./text";
 import { NS, allKids, desc, type XDocument, type XElement } from "./xml";
 
@@ -53,6 +53,12 @@ export type SlideOp =
   | { kind: "fontScale"; names: string[]; scale: number }
   | { kind: "image"; name: string; image: ImageAsset }
   | { kind: "moveTo"; name: string; xIn?: number; yIn?: number }
+  /** Tabela já preenchida: só as colunas `keep` ficam, com a largura das outras repartida. */
+  | { kind: "keepColumns"; table: string; keep: number[] }
+  /** Tira as colunas cujo cabeçalho contém `header` (antes de preencher os campos). */
+  | { kind: "dropColumns"; table: string; header: string }
+  /** Altura mínima das linhas (menos o cabeçalho), em polegadas. */
+  | { kind: "rowHeight"; table: string; hIn: number }
   | { kind: "shift"; names: string[]; dxIn?: number; dyIn?: number };
 
 export type SlideSpec = {
@@ -361,6 +367,15 @@ export function buildDeck(template: ArrayBuffer | Uint8Array, spec: DeckSpec): B
           break;
         case "shift":
           matchNames(doc, op.names).forEach((shp) => moveBy(shp, inch(op.dxIn ?? 0), inch(op.dyIn ?? 0)));
+          break;
+        case "keepColumns":
+          if (!keepColumns(doc, op.table, op.keep)) warn(`Tabela ${op.table} não encontrada em ${s.source}.`);
+          break;
+        case "dropColumns":
+          if (!dropColumnsByHeader(doc, op.table, op.header)) warn(`Tabela ${op.table} não encontrada em ${s.source}.`);
+          break;
+        case "rowHeight":
+          if (!setBodyRowHeight(doc, op.table, inch(op.hIn))) warn(`Tabela ${op.table} não encontrada em ${s.source}.`);
           break;
         case "moveTo": {
           const shp = findShape(doc, op.name);

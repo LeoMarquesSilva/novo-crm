@@ -260,7 +260,7 @@ export function ScopeImportShell({ catalog }: Props) {
                   <span className="text-xs text-muted-foreground">
                     {b.document_count} documento(s) · {b.processed_count} processado(s)
                     {b.error_count ? ` · ${b.error_count} erro(s)` : ""} ·{" "}
-                    {new Date(b.created_at).toLocaleString("pt-BR")}
+                    {new Date(b.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
                   </span>
                 </button>
               </li>

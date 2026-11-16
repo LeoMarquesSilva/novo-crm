@@ -84,6 +84,7 @@ import {
 import type { ClienteCadastroRow } from "@/lib/crm/cliente-cadastro-cp-fields";
 import type { CnpjLookupResult } from "@/lib/crm/cnpj-lookup";
 import type { ClienteContratoResumo } from "@/lib/crm/lookup-cliente-by-document";
+import { proximoDiaUtil } from "@/lib/dias-uteis";
 
 interface NewDemandFormProps {
   /**
@@ -530,15 +531,10 @@ export function NewDemandForm({ onSuccess, onRequestClose }: NewDemandFormProps)
     }
   }
 
+  // Próximo dia útil depois do prazo da base, pelo calendário ANBIMA (feriados nacionais), sem fuso (16/11/2026).
   const reuniaoMinDate = useMemo(() => {
     if (dueDiligence !== "Sim" || !prazoDue) return "";
-    const minDate = new Date(`${prazoDue}T00:00:00`);
-
-    do {
-      minDate.setDate(minDate.getDate() + 1);
-    } while ([0, 6].includes(minDate.getDay()));
-
-    return minDate.toISOString().slice(0, 10);
+    return proximoDiaUtil(prazoDue.slice(0, 10));
   }, [dueDiligence, prazoDue]);
   const hasValidCompanies = useMemo(
     () => empresas.every((item) => item.razao_social.trim() && item.documento.trim()),

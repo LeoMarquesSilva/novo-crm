@@ -251,10 +251,11 @@ export function parseLeadContextoDatas(payload: unknown): LeadContextoDatasPaylo
   };
 }
 
-/** Formata ISO (UTC) para exibição em pt-BR (data e hora curtas). */
+/** Formata ISO (UTC) para exibição em pt-BR (data e hora curtas), no horário de Brasília. */
 export function formatContextoDateTimePtBr(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  // No servidor (UTC), sem o fuso a hora saía 3 h adiantada.
+  return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
 }

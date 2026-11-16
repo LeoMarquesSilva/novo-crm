@@ -505,7 +505,7 @@ Auth obrigatória. Body: `newLeadPayloadSchema`.
    - `syncDueAreaTasksForOpportunity`
    - WhatsApp Evolution (`whatsapp_due_config.use_case = due_diligence`)
    - item na lista SharePoint de agendamentos + auditoria no intake
-6. E-mail de notificação **não bloqueante** (`sendLeadNotificationEmail` — Graph OAuth ou Resend)
+6. E-mail de notificação depois da resposta, em `after()` (`sendLeadNotificationEmail` — Outlook/Graph)
 
 Falhas de WhatsApp/SharePoint viram `warning` no JSON 201; o lead já existe.
 
@@ -669,9 +669,9 @@ Prazo default de revisão: 120 h.
 
 ### 10.4 Canais DUE
 
-| Momento | In-app | E-mail Resend | WhatsApp Evolution | SharePoint |
+| Momento | In-app | E-mail (Outlook) | WhatsApp Evolution | SharePoint |
 |---------|--------|---------------|--------------------|------------|
-| Cadastro com DUE | indicadores se houver | `sendLeadNotificationEmail` (Graph/Resend) | sim — `whatsapp_due_config.use_case = due_diligence` | item de agendamento |
+| Cadastro com DUE | indicadores se houver | `sendLeadNotificationEmail` (Outlook/Graph) | sim — `whatsapp_due_config.use_case = due_diligence` | item de agendamento |
 | Levantamento (tarefa por área) | `due_area_task` | sim | **não** | — |
 | Compilação | `due_compilacao` | — | — | — |
 | Revisão / resposta | `due_revisao_area`, `due_revisao_resposta` | sim | sim (`sendDueWhatsappText`) | — |
@@ -884,7 +884,7 @@ Grupo “SLA de etapa” está preparado (`SLA_STAGE_NOTIFICATION_TIPOS`) mas **
 
 ### 15.2 E-mail de lead
 
-Admin: `/api/admin/lead-email-config` + OAuth Microsoft (`/api/admin/microsoft-mail/oauth/*`). Templates interpolados (`lead-email-interpolate.ts`, defaults em `lead-email-default-templates.ts`). Envio: Graph delegado ou Resend.
+Admin: `/api/admin/lead-email-config` + OAuth Microsoft (`/api/admin/microsoft-mail/oauth/*`). Templates interpolados (`lead-email-interpolate.ts`, defaults em `lead-email-default-templates.ts`). Envio: Graph delegado ou conta de aplicação `OUTLOOK_FROM_EMAIL`. Todo e-mail do CRM sai pelo Outlook (`sendCrmNotificationEmail`); não usar Resend.
 
 ### 15.3 Notas
 
@@ -934,7 +934,6 @@ flowchart TB
   SP[Microsoft Graph / SharePoint]
   OUT[Outlook / Graph Mail]
   OAI[OpenAI]
-  RS[Resend]
   CEP[ViaCEP]
   VIOS[VIOS - stub cliente]
   UI --> SB
@@ -944,7 +943,6 @@ flowchart TB
   UI --> SP
   UI --> OUT
   UI --> OAI
-  UI --> RS
   UI --> CEP
   UI --> VIOS
   RD -->|webhook| UI
@@ -957,9 +955,8 @@ flowchart TB
 | D4Sign | **real** | envio, webhook, vault, quota, PDF |
 | Evolution WhatsApp | **real** se env | DUE + grupo de escopo |
 | SharePoint Graph | **real** se env | lista de agendamentos DUE; `SHAREPOINT_INTEGRATION_SECRET` no POST interno |
-| Microsoft Mail | **real** se OAuth | e-mail de lead |
+| Microsoft Mail | **real** se OAuth ou `OUTLOOK_FROM_EMAIL` | todo e-mail do CRM (lead, tarefas da DUE, escopo, senha) |
 | OpenAI | **real** se key | só importação de catálogo |
-| Resend | **real** se key | fallback e-mail |
 | ViaCEP | **real** | **público** (sem sessão); `?cep=` 8 dígitos; cache `revalidate: 3600` |
 | VIOS cliente | **stub** | `vios_001` |
 | VIOS lançamento | **manual** | URL/referência no fechamento |
@@ -1213,7 +1210,6 @@ Fonte: `crm/.env.example`. `getAppEnv()` só **obriga** URL + anon key (+ opcion
 | `NEXT_PUBLIC_D4SIGN_KANBAN_POLLING` | só dev |
 | `EVOLUTION_API_URL` (ou `BASE_URL`) / `EVOLUTION_API_KEY` / `EVOLUTION_INSTANCE` | WhatsApp |
 | `EVOLUTION_GROUP_JID` | grupo de escopo |
-| `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | e-mail fallback |
 | `MICROSOFT_TENANT_ID` / `SHAREPOINT_CLIENT_ID` / `SHAREPOINT_CLIENT_SECRET` | Graph app |
 | `SHAREPOINT_SITE_ID` / `SHAREPOINT_AGENDAMENTOS_LIST_ID` | lista DUE |
 | `SHAREPOINT_INTEGRATION_SECRET` | POST agendamentos |

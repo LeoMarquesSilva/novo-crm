@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { AlertTriangle, ChevronDown, FileSpreadsheet, Loader2, RotateCcw, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, FileSpreadsheet, Loader2, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,16 +13,19 @@ import type {
 } from "@/lib/due-ppt/analise";
 import { DUE_AREAS, LIMITE_DETALHE, type DueAreaId } from "@/lib/due-ppt/areas";
 import type { DueDocumentoLista, PlanilhaLida } from "@/lib/due-ppt/client";
-import type { ResumoArea } from "@/lib/due-ppt/compose";
+import type { AreaSemProcessos, ResumoArea } from "@/lib/due-ppt/compose";
 import type { AreaDraft, VarianteEscolha } from "@/lib/due-ppt/draft";
 import { brl, brlCompacto } from "@/lib/due-ppt/format";
 import { formatDateTimeBr } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 
+/** O que o automático faz com poucos processos (`variantePoucos` da área). */
+const POUCOS_ROTULO = { detalhe: "um slide por processo", lista: "uma tabela com os processos" } as const;
+
 const VARIANTE_ROTULO: Record<Exclude<VarianteEscolha, "auto">, string> = {
   painel: "Painel com gráficos",
   detalhe: "Um slide por processo",
-  lista: "Lista de processos",
+  lista: "Tabela de processos",
 };
 
 /** Números da área como saem na apresentação (também na prévia do cartão da área, no levantamento). */
@@ -70,6 +73,7 @@ export function DueAreaCard({
   onUpload,
   onRemove,
   enviando,
+  semProcessos = null,
   children,
 }: {
   id: DueAreaId;
@@ -82,6 +86,8 @@ export function DueAreaCard({
   onUpload: (file: File) => void;
   onRemove: (doc: DueDocumentoLista) => void;
   enviando: boolean;
+  /** A área concluiu o levantamento com "Sem processos ativos" (16/11/2026). */
+  semProcessos?: AreaSemProcessos | null;
   children?: ReactNode;
 }) {
   const def = DUE_AREAS[id];
@@ -100,7 +106,7 @@ export function DueAreaCard({
     def.variantes.length === 1
       ? "Automático"
       : resumo
-        ? `Automático (${resumo.considerados > 0 && resumo.considerados <= LIMITE_DETALHE ? "um slide por processo" : "painel com gráficos"})`
+        ? `Automático (${resumo.considerados > 0 && resumo.considerados <= LIMITE_DETALHE ? POUCOS_ROTULO[def.variantePoucos] : "painel com gráficos"})`
         : "Automático";
 
   return (
@@ -118,7 +124,15 @@ export function DueAreaCard({
         />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">{def.titulo}</p>
-          {incluida ? (
+          {semProcessos && !docs.length ? (
+            // Não é pendência: a área terminou o levantamento sem processos ativos.
+            <p className="flex items-center gap-1 text-xs text-success-text">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Sem processos ativos · levantamento concluído
+              {semProcessos.em ? ` em ${semProcessos.em}` : ""}
+              {semProcessos.responsavel ? ` (${semProcessos.responsavel})` : ""}
+            </p>
+          ) : incluida ? (
             <p className="text-xs text-muted-foreground">
               {lendo
                 ? "Lendo planilhas…"
@@ -264,7 +278,7 @@ export function DueAreaCard({
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Até {LIMITE_DETALHE} processos ativos, o automático faz um slide por processo; acima disso, o painel com
+                Até {LIMITE_DETALHE} processos ativos, o automático faz {POUCOS_ROTULO[def.variantePoucos]}; acima disso, o painel com
                 gráficos.
               </p>
             </div>

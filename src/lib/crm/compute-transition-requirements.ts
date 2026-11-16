@@ -10,6 +10,7 @@ import { isValidFullNameTokens } from "@/lib/crm/full-name";
 import { userFacingFieldLabel } from "@/lib/crm/user-facing-field-label";
 import { CRM_PRACTICE_AREAS, type CrmPracticeArea } from "@/lib/crm/crm-areas";
 import { getPayloadFieldsRequiredForStage } from "@/modules/crm/domain/workflow-rules";
+import { contarDiasUteisAposAte } from "@/lib/dias-uteis";
 import type { OpportunityStage } from "@/modules/crm/domain/entities";
 
 export type PipelineCode = "vendas" | "pos_venda";
@@ -433,55 +434,12 @@ export function mergeFieldValuesFromDb(
 
 const BRAZIL_TZ = "America/Sao_Paulo";
 
-function parseYmd(s: string): { y: number; m: number; d: number } | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
-  if (!m) return null;
-  return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
-}
-
-function ymdToUtcNoon(y: number, mo: number, d: number): Date {
-  return new Date(Date.UTC(y, mo - 1, d, 12, 0, 0));
-}
-
-function addCalendarDays(y: number, mo: number, d: number, delta: number): {
-  y: number;
-  m: number;
-  d: number;
-} {
-  const x = new Date(Date.UTC(y, mo - 1, d + delta, 12, 0, 0));
-  return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate() };
-}
-
-function compareYmd(
-  a: { y: number; m: number; d: number },
-  b: { y: number; m: number; d: number },
-): number {
-  if (a.y !== b.y) return a.y - b.y;
-  if (a.m !== b.m) return a.m - b.m;
-  return a.d - b.d;
-}
-
-function isWeekdaySun0(y: number, mo: number, d: number): boolean {
-  const wd = ymdToUtcNoon(y, mo, d).getUTCDay();
-  return wd !== 0 && wd !== 6;
-}
-
-/** Dias úteis (seg–sex), do dia seguinte a `fromYmd` até `toYmd` inclusive. */
+/** Dias úteis (seg–sex, fora os feriados nacionais ANBIMA), do dia seguinte a `fromYmd` até `toYmd` inclusive. */
 export function countBusinessDaysFromTomorrowInclusive(
   fromYmd: string,
   toYmd: string,
 ): number | null {
-  const from = parseYmd(fromYmd);
-  const to = parseYmd(toYmd);
-  if (!from || !to) return null;
-  let { y, m, d } = from;
-  ({ y, m, d } = addCalendarDays(y, m, d, 1));
-  let count = 0;
-  while (compareYmd({ y, m, d }, to) <= 0) {
-    if (isWeekdaySun0(y, m, d)) count += 1;
-    ({ y, m, d } = addCalendarDays(y, m, d, 1));
-  }
-  return count;
+  return contarDiasUteisAposAte(fromYmd, toYmd);
 }
 
 function todayYmdInTimeZone(timeZone: string): string {
