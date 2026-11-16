@@ -425,6 +425,29 @@
     background: var(--neutral-500);
   }
 
+  /* Toast de notificação: barra de tempo até sumir (pausa no hover pelo animation-play-state). */
+  @keyframes crm-toast-timer {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
+  .crm-toast-timer {
+    animation-name: crm-toast-timer;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .crm-toast-timer {
+      animation: none;
+      opacity: 0;
+    }
+  }
+
   /** Kanban: chevron do bloco expansível “Levantamento DUE” (native <details>). */
   details.due-kanban-details[open] .due-kanban-chevron {
     transform: rotate(180deg);

@@ -1,5 +1,5 @@
 import { Bell } from "lucide-react";
-import { NotificationList } from "./notification-list";
+import { NotificationList, NotificationsHeaderActions } from "./notification-list";
 import { CrmPageHeader } from "@/components/crm/crm-page-header";
 import { enrichInAppNotificationsWithDueLevantamento } from "@/lib/crm/in-app-notification-enrich-due-levantamento";
 import { enrichInAppNotificationsWithLeadContextoDatas } from "@/lib/crm/in-app-notification-enrich-lead-contexto-datas";
@@ -28,12 +28,13 @@ export default async function CrmNotificationsPage() {
   const list = await enrichInAppNotificationsWithLeadContextoDatas(admin, withDue);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <CrmPageHeader
         eyebrow="Central de alertas"
         title="Notificações"
-        description="Acompanhe alertas do CRM, como pedidos de escopo por área e pendências operacionais."
+        description="Tudo que precisa de você no CRM: escopos por área, DUE, contratos e pós-venda. Configure som e notificações do sistema ao lado."
         icon={Bell}
+        actions={<NotificationsHeaderActions />}
       />
 
       <NotificationList initial={list} />

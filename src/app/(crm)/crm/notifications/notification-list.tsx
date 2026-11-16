@@ -1,277 +1,99 @@
 "use client";
 
-import Link from "next/link";
-import { AlertCircle, Check, ChevronDown, Clock } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CheckCheck, Inbox, LoaderCircle, Search, SlidersHorizontal, X } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+
+import { NotificationItemFull } from "@/components/crm/notifications/notification-item";
+import { NotificationSettingsPanel } from "@/components/crm/notifications/notification-settings";
+import { TONE_DOT_CLASS, groupVisual } from "@/components/crm/notifications/notification-visuals";
+import { useCrmNotifications } from "@/components/crm/notifications/notifications-provider";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCrmInAppNotificationsRealtime } from "@/lib/crm/use-in-app-notifications-realtime";
+import { NOTIFICATION_TAB_GROUPS, parseLeadCriadorPor, parseOriginadoPor } from "@/lib/crm/in-app-notification-meta";
 import {
-  NOTIFICATION_TAB_GROUPS,
-  formatContextoDateTimePtBr,
-  notificationTabGroupForTipo,
-  parseDueLevantamentoEnrichment,
-  parseLeadContextoDatas,
-  parseLeadCriadorPor,
-  parseOriginadoPor,
-  type NotificationTabGroupId,
-} from "@/lib/crm/in-app-notification-meta";
+  groupNotificationsByDay,
+  notificationAreaKey,
+  notificationBody,
+  notificationGroup,
+  notificationGroupLabel,
+  notificationTitle,
+  type CrmNotificationRow,
+  type NotificationGroupId,
+} from "@/lib/crm/notifications/presentation";
+import { cn } from "@/lib/utils";
 
-type Row = {
-  id: string;
-  tipo: string;
-  payload: unknown;
-  lida_em: string | null;
-  created_at: string;
-};
+const GROUP_ORDER: NotificationGroupId[] = [...NOTIFICATION_TAB_GROUPS.map((g) => g.id), "outras"];
 
-function initialsFromName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  const a = parts[0]![0] ?? "";
-  const b = parts[parts.length - 1]![0] ?? "";
-  return `${a}${b}`.toUpperCase();
+function normalize(value: string): string {
+  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
 
-function NotificationCards({
-  items,
-  markRead,
-  emptyHint,
-}: {
-  items: Row[];
-  markRead: (id: string) => void | Promise<void>;
-  emptyHint?: string;
-}) {
-  if (items.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          <p>Nenhuma notificação nesta categoria.</p>
-          {emptyHint ? <p className="mt-3 max-w-md text-xs leading-relaxed text-muted-foreground/90">{emptyHint}</p> : null}
-        </CardContent>
-      </Card>
-    );
-  }
+const subscribeNothing = () => () => {};
 
+/**
+ * Horas relativas e "Hoje/Ontem" dependem do relógio e do fuso do navegador (o servidor na
+ * Vercel roda em UTC): a lista só é montada depois da hidratação, para não divergir do HTML.
+ */
+function useHydrated(): boolean {
+  return useSyncExternalStore(subscribeNothing, () => true, () => false);
+}
+
+function ListSkeleton() {
   return (
-    <ul className="space-y-3">
-      {items.map((n) => {
-        const payload = (n.payload ?? {}) as {
-          title?: string;
-          link?: string;
-          path?: string;
-          area_key?: string;
-          preview?: string;
-          leadName?: string;
-        };
-        const originadoPor = parseOriginadoPor(n.payload);
-        const leadCriador = parseLeadCriadorPor(n.payload);
-        const face = originadoPor ?? leadCriador;
-        const title = payload.title ?? n.tipo;
-        const description =
-          typeof payload.preview === "string" && payload.preview.trim()
-            ? payload.preview
-            : typeof payload.leadName === "string" && payload.leadName.trim()
-              ? payload.leadName
-              : null;
-        // Caminho relativo primeiro: o `link` absoluto leva para a produção (como no sino).
-        const href =
-          typeof payload.path === "string" && payload.path.trim().startsWith("/")
-            ? payload.path.trim()
-            : typeof payload.link === "string" && payload.link.startsWith("http")
-              ? payload.link
-              : "/crm/leads";
-
-        const dueLevantamento = parseDueLevantamentoEnrichment(n.payload);
-        const contextoDatas = parseLeadContextoDatas(n.payload);
-
-        return (
-          <li key={n.id}>
-            <Card
-              className={`transition-colors ${n.lida_em ? "opacity-80" : "border-interactive-300 bg-interactive-50"}`}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex flex-wrap items-start gap-3">
-                  <Avatar className="size-10 shrink-0 border border-neutral-200">
-                    {face?.avatar_url ? (
-                      <AvatarImage src={face.avatar_url} alt="" />
-                    ) : null}
-                    <AvatarFallback className="text-xs">
-                      {face ? initialsFromName(face.full_name) : "—"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      {originadoPor ? (
-                        <>
-                          <span className="font-medium text-foreground/80">Originado por </span>
-                          {originadoPor.full_name}
-                        </>
-                      ) : leadCriador ? (
-                        <>
-                          <span className="font-medium text-foreground/80">Lead criado por </span>
-                          {leadCriador.full_name}
-                        </>
-                      ) : (
-                        <span>Origem: sistema / automático</span>
-                      )}
-                    </p>
-                    <CardTitle className="text-base">{title}</CardTitle>
-                    <CardDescription className="text-xs leading-relaxed sm:text-sm">
-                      <span className="font-medium text-muted-foreground/90">Alerta criado em </span>
-                      {new Date(n.created_at).toLocaleString("pt-BR")}
-                      <span className="text-muted-foreground">
-                        {payload.area_key ? ` · Área: ${payload.area_key}` : null}
-                        {n.lida_em ? (
-                          <>
-                            {" "}
-                            · Lida em {new Date(n.lida_em).toLocaleString("pt-BR")}
-                          </>
-                        ) : null}
-                      </span>
-                    </CardDescription>
-                    {contextoDatas ? (
-                      <div className="mt-2 space-y-1 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs leading-snug text-muted-foreground">
-                        <p>
-                          <span className="font-semibold text-foreground/85">Lead criado: </span>
-                          {formatContextoDateTimePtBr(contextoDatas.lead_criado_em) ?? "—"}
-                        </p>
-                        <p>
-                          <span className="font-semibold text-foreground/85">Entrega DUE: </span>
-                          {formatContextoDateTimePtBr(contextoDatas.due_entrega_em) ?? "—"}
-                        </p>
-                        <p>
-                          <span className="font-semibold text-foreground/85">Reunião: </span>
-                          {formatContextoDateTimePtBr(contextoDatas.reuniao_em) ?? "—"}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                {description ? (
-                  <p className="pt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
-                ) : null}
-                {dueLevantamento && dueLevantamento.areas.length > 0 ? (
-                  <details className="due-kanban-details mt-3 rounded-(--radius-v2-md) border border-neutral-200 bg-neutral-50 open:bg-white">
-                    <summary
-                      className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-(--radius-v2-md) px-2 py-1.5 text-xs font-semibold text-foreground outline-none transition-colors hover:bg-neutral-100 [&::-webkit-details-marker]:hidden"
-                      title="Abrir ou fechar o detalhe por área"
-                    >
-                      <span className="inline-flex min-w-0 items-center gap-1.5">
-                        <ChevronDown
-                          className="due-kanban-chevron h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200"
-                          aria-hidden
-                        />
-                        <span className="truncate">Levantamento DUE</span>
-                      </span>
-                      <span className="shrink-0 tabular-nums">
-                        {dueLevantamento.disponibilizados}/{dueLevantamento.total}
-                      </span>
-                    </summary>
-                    <ul className="space-y-1.5 border-t border-neutral-200 px-2 pb-2.5 pt-2">
-                      {dueLevantamento.areas.map((row) => (
-                        <li
-                          key={row.areaKey}
-                          className="flex items-start gap-2 text-xs font-medium leading-snug text-foreground/85"
-                        >
-                          <span className="mt-0.5 shrink-0" aria-hidden>
-                            {row.entregue ? (
-                              <Check className="h-3.5 w-3.5 text-success-text" strokeWidth={2.5} />
-                            ) : row.emAtraso ? (
-                              <AlertCircle className="h-3.5 w-3.5 text-danger-text" strokeWidth={2.5} />
-                            ) : (
-                              <Clock className="h-3.5 w-3.5 text-warning-text" strokeWidth={2.5} />
-                            )}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="font-semibold text-foreground">{row.areaKey}</span>
-                            {row.entregue ? (
-                              <span className="text-success-text">
-                                {" "}
-                                — concluída
-                                {row.semProcessosAtivos ? (
-                                  <span className="font-normal text-muted-foreground"> (sem proc. ativos)</span>
-                                ) : null}
-                              </span>
-                            ) : row.emAtraso ? (
-                              <span className="text-danger-text"> — em atraso</span>
-                            ) : (
-                              <span className="text-warning-text"> — pendente</span>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    {dueLevantamento.atrasados > 0 ? (
-                      <p className="border-t border-neutral-200 px-2 pb-2 text-xs font-bold text-danger-text">
-                        {dueLevantamento.atrasados} área(s) em atraso
-                      </p>
-                    ) : null}
-                  </details>
-                ) : null}
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-3 pt-0">
-                <Link
-                  href={href}
-                  className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
-                >
-                  Abrir oportunidade
-                </Link>
-                {!n.lida_em ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={() => void markRead(n.id)}
-                  >
-                    Marcar como lida
-                  </Button>
-                ) : null}
-              </CardContent>
-            </Card>
-          </li>
-        );
-      })}
+    <ul aria-busy className="divide-y divide-border">
+      {[0, 1, 2, 3].map((i) => (
+        <li key={i} className="flex gap-3.5 px-4 py-4 sm:px-5">
+          <span className="size-11 shrink-0 animate-pulse rounded-(--radius-v2-lg) bg-neutral-100" />
+          <span className="flex-1 space-y-2.5 pt-1">
+            <span className="block h-3 w-1/4 animate-pulse rounded bg-neutral-100" />
+            <span className="block h-3.5 w-2/3 animate-pulse rounded bg-neutral-100" />
+            <span className="block h-3 w-1/2 animate-pulse rounded bg-neutral-100" />
+          </span>
+        </li>
+      ))}
     </ul>
   );
 }
 
-function itemsForTabGroup(items: Row[], group: NotificationTabGroupId): Row[] {
-  if (group === "todas") return items;
-  return items.filter((n) => notificationTabGroupForTipo(n.tipo) === group);
+function searchableText(row: CrmNotificationRow): string {
+  const actor = parseOriginadoPor(row.payload) ?? parseLeadCriadorPor(row.payload);
+  return normalize(
+    [notificationTitle(row), notificationBody(row), notificationAreaKey(row.payload), actor?.full_name]
+      .filter(Boolean)
+      .join(" "),
+  );
 }
 
-export function NotificationList({ initial }: { initial: Row[] }) {
-  const router = useRouter();
-  const [items, setItems] = useState(initial);
-  const [activeTab, setActiveTab] = useState<NotificationTabGroupId>("todas");
-
-  const hasOutras = useMemo(
-    () => items.some((n) => notificationTabGroupForTipo(n.tipo) === "outras"),
-    [items],
+/** Botão do cabeçalho da página (o cabeçalho é server component). */
+export function NotificationsHeaderActions() {
+  const { unreadCount, markAllRead, markingAll } = useCrmNotifications();
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      size="control"
+      onClick={() => void markAllRead()}
+      disabled={unreadCount === 0 || markingAll}
+    >
+      {markingAll ? <LoaderCircle className="animate-spin" /> : <CheckCheck />}
+      Marcar todas como lidas
+    </Button>
   );
+}
 
-  const countsByGroup = useMemo(() => {
-    const map = new Map<Exclude<NotificationTabGroupId, "todas">, { total: number; unread: number }>();
-    const keys: Exclude<NotificationTabGroupId, "todas">[] = [
-      "due",
-      "propostas",
-      "indicadores",
-      "anotacoes",
-      "pos_venda",
-      "sla_etapa",
-      "outras",
-    ];
-    for (const k of keys) {
-      map.set(k, { total: 0, unread: 0 });
-    }
+export function NotificationList({ initial }: { initial: CrmNotificationRow[] }) {
+  const { items: liveItems, loaded } = useCrmNotifications();
+  const items = loaded ? liveItems : initial;
+  const [group, setGroup] = useState<NotificationGroupId | "todas">("todas");
+  const [onlyUnread, setOnlyUnread] = useState(false);
+  const [query, setQuery] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+  const [now] = useState(() => new Date());
+  const hydrated = useHydrated();
+
+  const counts = useMemo(() => {
+    const map = new Map<NotificationGroupId, { total: number; unread: number }>();
     for (const n of items) {
-      const g = notificationTabGroupForTipo(n.tipo);
+      const g = notificationGroup(n.tipo);
       const cur = map.get(g) ?? { total: 0, unread: 0 };
       cur.total += 1;
       if (!n.lida_em) cur.unread += 1;
@@ -280,103 +102,196 @@ export function NotificationList({ initial }: { initial: Row[] }) {
     return map;
   }, [items]);
 
-  const visibleTab = activeTab === "outras" && !hasOutras ? "todas" : activeTab;
-
-  const refreshList = useCallback(async () => {
-    try {
-      const res = await fetch("/api/crm/notifications", { cache: "no-store" });
-      const data = (await res.json()) as { ok?: boolean; notifications?: Row[] };
-      if (data.ok && Array.isArray(data.notifications)) setItems(data.notifications);
-    } catch {
-      /* mantém lista atual */
-    }
-  }, []);
-
-  useCrmInAppNotificationsRealtime(() => {
-    void refreshList();
-  });
-
-  async function markRead(id: string) {
-    const res = await fetch(`/api/crm/notifications/${encodeURIComponent(id)}`, { method: "PATCH" });
-    if (!res.ok) return;
-    setItems((prev) => prev.map((x) => (x.id === id ? { ...x, lida_em: new Date().toISOString() } : x)));
-    router.refresh();
-  }
-
   const totalUnread = useMemo(() => items.filter((n) => !n.lida_em).length, [items]);
+  const groupsWithItems = GROUP_ORDER.filter((g) => (counts.get(g)?.total ?? 0) > 0);
+  const activeGroup = group !== "todas" && !counts.has(group) ? "todas" : group;
 
-  const slaEmptyHint =
-    "O CRM ainda não gera alertas automáticos de SLA por etapa. Quando essa função existir, as notificações aparecerão nesta aba.";
+  const filtered = useMemo(() => {
+    const q = normalize(query.trim());
+    return items.filter((n) => {
+      if (onlyUnread && n.lida_em) return false;
+      if (activeGroup !== "todas" && notificationGroup(n.tipo) !== activeGroup) return false;
+      if (q && !searchableText(n).includes(q)) return false;
+      return true;
+    });
+  }, [items, onlyUnread, activeGroup, query]);
 
-  const outrasCount = countsByGroup.get("outras") ?? { total: 0, unread: 0 };
+  const sections = useMemo(() => groupNotificationsByDay(filtered, now), [filtered, now]);
+  const hasFilters = onlyUnread || activeGroup !== "todas" || query.trim().length > 0;
 
-  if (items.length === 0) {
+  const chip = (id: NotificationGroupId | "todas", label: string, total: number, unread: number) => {
+    const active = activeGroup === id;
+    const dot = id === "todas" ? null : TONE_DOT_CLASS[groupVisual(id).tone];
     return (
-      <Card>
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Nenhuma notificação por agora.
-        </CardContent>
-      </Card>
+      <button
+        key={id}
+        type="button"
+        aria-pressed={active}
+        onClick={() => setGroup(id)}
+        className={cn(
+          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors duration-(--motion-fast)",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+          active
+            ? "border-brand-navy bg-brand-navy text-white"
+            : "border-border bg-white text-neutral-700 hover:border-border-strong hover:bg-neutral-50",
+        )}
+      >
+        {dot ? <span aria-hidden className={cn("size-1.5 rounded-full", dot, active && "ring-2 ring-white/30")} /> : null}
+        {label}
+        <span className={cn("tabular-nums", active ? "text-white/70" : "text-muted-foreground")}>{total}</span>
+        {unread > 0 ? (
+          <span
+            className={cn(
+              "rounded-full px-1.5 text-[11px] font-bold leading-4 tabular-nums",
+              active ? "bg-white text-brand-navy" : "bg-primary text-white",
+            )}
+          >
+            {unread}
+          </span>
+        ) : null}
+      </button>
     );
-  }
+  };
 
   return (
-    <Tabs
-      value={visibleTab}
-      onValueChange={(v) => setActiveTab(v as NotificationTabGroupId)}
-      className="gap-4"
-    >
-      <div className="overflow-x-auto rounded-(--radius-v2-lg) border border-neutral-200 bg-white p-1.5">
-        <TabsList variant="line" className="h-auto min-w-max gap-0.5 bg-transparent p-0">
-          <TabsTrigger value="todas" className="shrink-0 rounded-(--radius-v2-md) px-3 py-2 text-xs sm:text-sm">
-            Todas
-            {totalUnread > 0 ? (
-              <span className="ml-1 rounded-(--radius-v2-full) bg-interactive-100 px-1.5 py-0.5 text-xs font-semibold text-interactive-700">
-                {totalUnread}
-              </span>
-            ) : null}
-          </TabsTrigger>
-          {NOTIFICATION_TAB_GROUPS.map(({ id, label }) => {
-            const c = countsByGroup.get(id) ?? { total: 0, unread: 0 };
-            return (
-              <TabsTrigger key={id} value={id} className="shrink-0 rounded-(--radius-v2-md) px-3 py-2 text-xs sm:text-sm">
-                {label}
-                <span className="ml-1 text-xs font-normal text-muted-foreground">
-                  ({c.total}
-                  {c.unread > 0 ? ` · ${c.unread} nova${c.unread > 1 ? "s" : ""}` : ""})
-                </span>
-              </TabsTrigger>
-            );
-          })}
-          {hasOutras ? (
-            <TabsTrigger value="outras" className="shrink-0 rounded-(--radius-v2-md) px-3 py-2 text-xs sm:text-sm">
-              Outras
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                ({outrasCount.total}
-                {outrasCount.unread > 0 ? ` · ${outrasCount.unread} nova${outrasCount.unread > 1 ? "s" : ""}` : ""})
-              </span>
-            </TabsTrigger>
-          ) : null}
-        </TabsList>
-      </div>
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <section aria-label="Avisos" className="min-w-0 overflow-clip rounded-(--radius-v2-xl) border border-border bg-white">
+        <div className="space-y-3 border-b border-border p-3 sm:p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-(--radius-v2-md) border border-border bg-white px-3 transition-colors focus-within:border-interactive-500 focus-within:ring-3 focus-within:ring-primary/15">
+              <Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Buscar por cliente, área ou pessoa…"
+                aria-label="Buscar notificações"
+                className="min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-text-placeholder-v2 [&::-webkit-search-cancel-button]:hidden"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  aria-label="Limpar busca"
+                  onClick={() => setQuery("")}
+                  className="inline-flex size-6 items-center justify-center rounded-(--radius-v2-sm) text-muted-foreground hover:bg-neutral-100 hover:text-foreground"
+                >
+                  <X className="size-3.5" strokeWidth={2} />
+                </button>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 gap-1 rounded-(--radius-v2-lg) bg-neutral-100 p-1">
+                {(
+                  [
+                    { value: false, label: "Todas" },
+                    { value: true, label: `Não lidas${totalUnread ? ` (${totalUnread})` : ""}` },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    aria-pressed={onlyUnread === opt.value}
+                    onClick={() => setOnlyUnread(opt.value)}
+                    className={cn(
+                      "inline-flex h-7 items-center justify-center whitespace-nowrap rounded-(--radius-v2-md) px-3 text-[13px] font-semibold transition-colors duration-(--motion-fast)",
+                      "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
+                      onlyUnread === opt.value
+                        ? "bg-white text-foreground shadow-(--shadow-v2-xs)"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <Button
+                type="button"
+                size="icon"
+                variant="secondary"
+                className="lg:hidden"
+                aria-label="Preferências de notificação"
+                aria-expanded={showSettings}
+                onClick={() => setShowSettings((v) => !v)}
+              >
+                <SlidersHorizontal />
+              </Button>
+            </div>
+          </div>
 
-      <TabsContent value="todas" className="mt-0 outline-none">
-        <NotificationCards items={items} markRead={markRead} />
-      </TabsContent>
-      {NOTIFICATION_TAB_GROUPS.map(({ id }) => (
-        <TabsContent key={id} value={id} className="mt-0 outline-none">
-          <NotificationCards
-            items={itemsForTabGroup(items, id)}
-            markRead={markRead}
-            emptyHint={id === "sla_etapa" ? slaEmptyHint : undefined}
-          />
-        </TabsContent>
-      ))}
-      {hasOutras ? (
-        <TabsContent value="outras" className="mt-0 outline-none">
-          <NotificationCards items={itemsForTabGroup(items, "outras")} markRead={markRead} />
-        </TabsContent>
-      ) : null}
-    </Tabs>
+          {groupsWithItems.length > 1 ? (
+            // Celular: uma linha com rolagem lateral; telas maiores: quebra de linha.
+            <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+              {chip("todas", "Todas", items.length, totalUnread)}
+              {groupsWithItems.map((g) =>
+                chip(g, notificationGroupLabel(g), counts.get(g)?.total ?? 0, counts.get(g)?.unread ?? 0),
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        {showSettings ? (
+          <div className="border-b border-border bg-neutral-25 p-4 lg:hidden">
+            <NotificationSettingsPanel />
+          </div>
+        ) : null}
+
+        {!hydrated ? (
+          <ListSkeleton />
+        ) : sections.length === 0 ? (
+          <div className="flex flex-col items-center px-6 py-16 text-center">
+            <span className="flex size-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-500">
+              <Inbox className="size-5" strokeWidth={2} aria-hidden />
+            </span>
+            <p className="mt-4 text-sm font-semibold text-foreground">
+              {hasFilters ? "Nenhum aviso com esses filtros" : "Nenhuma notificação por agora"}
+            </p>
+            <p className="mt-1 max-w-sm text-[13px] leading-5 text-muted-foreground">
+              {hasFilters
+                ? "Tente outra categoria ou limpe a busca."
+                : "Pedidos de escopo, pendências da DUE, contratos e pós-venda aparecem aqui assim que acontecem."}
+            </p>
+            {hasFilters ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="mt-4"
+                onClick={() => {
+                  setQuery("");
+                  setGroup("todas");
+                  setOnlyUnread(false);
+                }}
+              >
+                Limpar filtros
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          sections.map((section) => (
+            <section key={section.bucket} aria-label={section.label}>
+              <h2 className="sticky top-[60px] z-[1] flex items-center justify-between border-b border-border bg-neutral-25/95 px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground backdrop-blur-sm sm:px-5 lg:top-16">
+                {section.label}
+                <span className="tabular-nums normal-case tracking-normal">{section.items.length}</span>
+              </h2>
+              <ul className="divide-y divide-border">
+                {section.items.map((row) => (
+                  <NotificationItemFull key={row.id} row={row} now={now} />
+                ))}
+              </ul>
+            </section>
+          ))
+        )}
+      </section>
+
+      <aside className="sticky top-22 hidden rounded-(--radius-v2-xl) border border-border bg-white lg:block">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-base font-semibold text-foreground">Como você é avisado</h2>
+          <p className="mt-0.5 text-xs leading-[18px] text-muted-foreground">Som, pop-up e notificações do sistema.</p>
+        </div>
+        <div className="px-5 py-5">
+          <NotificationSettingsPanel />
+        </div>
+      </aside>
+    </div>
   );
 }

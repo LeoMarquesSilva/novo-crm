@@ -1,138 +1,217 @@
 "use client";
 
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { Bell, SquareArrowOutUpRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
+import { ArrowLeft, Bell, BellRing, CheckCheck, Maximize2, Settings2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { NotificationItemCompact } from "@/components/crm/notifications/notification-item";
+import { TOOLTIP_CHIP_CLASS } from "@/components/crm/notifications/notification-visuals";
+import { NotificationSettingsPanel } from "@/components/crm/notifications/notification-settings";
+import { useCrmNotifications } from "@/components/crm/notifications/notifications-provider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  formatContextoDateTimePtBr,
-  inAppNotificationTipoLabel,
-  parseLeadContextoDatas,
-  parseLeadCriadorPor,
-  parseOriginadoPor,
-} from "@/lib/crm/in-app-notification-meta";
-import { useCrmInAppNotificationsRealtime } from "@/lib/crm/use-in-app-notifications-realtime";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { isPushPromptSnoozed, snoozePushPrompt } from "@/lib/crm/notifications/preferences";
+import { groupNotificationsByDay } from "@/lib/crm/notifications/presentation";
 import { cn } from "@/lib/utils";
 
-type NotifRow = {
-  id: string;
-  tipo: string;
-  payload: unknown;
-  lida_em: string | null;
-  created_at: string;
-};
+const MAX_ITEMS = 30;
 
-function initialsFromName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase();
+function HeaderIconButton({
+  label,
+  onClick,
+  disabled,
+  children,
+  href,
+  onNavigate,
+}: {
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+  href?: string;
+  onNavigate?: () => void;
+}) {
+  const className = cn(
+    "inline-flex size-8 items-center justify-center rounded-(--radius-v2-md) text-muted-foreground transition-colors duration-(--motion-fast)",
+    "hover:bg-neutral-100 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+    "disabled:pointer-events-none disabled:opacity-40",
+  );
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {href ? (
+          <Link href={href} onClick={onNavigate} aria-label={label} className={className}>
+            {children}
+          </Link>
+        ) : (
+          <button type="button" aria-label={label} onClick={onClick} disabled={disabled} className={className}>
+            {children}
+          </button>
+        )}
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className={TOOLTIP_CHIP_CLASS}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
-function notificationHref(payload: unknown): string {
-  if (payload == null || typeof payload !== "object") return "/crm/leads";
-  const p = payload as Record<string, unknown>;
-  // Caminho relativo primeiro (04/11/2026): o `link` absoluto aponta para a produção e tirava do
-  // localhost/preview quem clicava no sino. O `link` fica para o e-mail e avisos antigos sem `path`.
-  if (typeof p.path === "string" && p.path.trim().startsWith("/")) return p.path.trim();
-  if (typeof p.link === "string" && p.link.startsWith("http")) return p.link;
-  return "/crm/leads";
+function PushInvite({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const { push } = useCrmNotifications();
+  const [hidden, setHidden] = useState(() => (typeof window === "undefined" ? true : isPushPromptSnoozed()));
+  if (hidden || push.state !== "default") return null;
+
+  return (
+    <div className="mx-3 mt-3 flex items-start gap-3 rounded-(--radius-v2-lg) border border-brand-navy/10 bg-brand-cream px-3 py-2.5">
+      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-navy text-brand-gold">
+        <BellRing className="size-4" strokeWidth={2} aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold leading-5 text-brand-navy">Não perca nenhum aviso</p>
+        <p className="text-xs leading-[18px] text-neutral-600">
+          Receba no computador ou celular, mesmo com o CRM em outra janela.
+        </p>
+        <div className="mt-2 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => void push.enable()}
+            disabled={push.busy}
+            className="inline-flex h-7 items-center rounded-(--radius-v2-md) bg-brand-navy px-2.5 text-xs font-semibold text-white transition-colors hover:bg-brand-navy-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60"
+          >
+            Ativar notificações
+          </button>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="inline-flex h-7 items-center rounded-(--radius-v2-md) px-2 text-xs font-semibold text-neutral-600 transition-colors hover:bg-white hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            Preferências
+          </button>
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label="Dispensar por uma semana"
+        onClick={() => {
+          snoozePushPrompt();
+          setHidden(true);
+        }}
+        className="-mr-1 -mt-0.5 inline-flex size-6 items-center justify-center rounded-(--radius-v2-sm) text-neutral-500 transition-colors hover:bg-white hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+      >
+        <X className="size-3.5" strokeWidth={2} />
+      </button>
+    </div>
+  );
 }
 
-function notificationTitle(row: NotifRow): string {
-  const p = row.payload as Record<string, unknown> | null;
-  const title = typeof p?.title === "string" ? p.title.trim() : "";
-  return title || inAppNotificationTipoLabel(row.tipo);
-}
-
-function notificationSubtitle(row: NotifRow): string | null {
-  const p = row.payload as Record<string, unknown> | null;
-  const preview = typeof p?.preview === "string" ? p.preview.trim() : "";
-  if (preview) return preview;
-  const leadName = typeof p?.leadName === "string" ? p.leadName.trim() : "";
-  if (leadName) return leadName;
-  return null;
+function EmptyState({ tab, onShowAll }: { tab: "unread" | "all"; onShowAll: () => void }) {
+  return (
+    <div className="flex flex-col items-center px-6 py-10 text-center">
+      <span className="flex size-12 items-center justify-center rounded-full bg-success-bg text-success-text ring-8 ring-success-bg/40">
+        <CheckCheck className="size-5" strokeWidth={2} aria-hidden />
+      </span>
+      <p className="mt-4 text-sm font-semibold text-foreground">
+        {tab === "unread" ? "Tudo em dia" : "Nenhuma notificação ainda"}
+      </p>
+      <p className="mt-1 max-w-[240px] text-xs leading-[18px] text-muted-foreground">
+        {tab === "unread"
+          ? "Você leu todos os avisos. Os novos aparecem aqui na hora."
+          : "Quando alguém precisar de você no CRM, o aviso chega aqui."}
+      </p>
+      {tab === "unread" ? (
+        <button
+          type="button"
+          onClick={onShowAll}
+          className="mt-3 rounded-(--radius-v2-md) px-2 py-1 text-xs font-semibold text-interactive-700 transition-colors hover:bg-interactive-50 focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          Ver avisos anteriores
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export function CrmNotificationsBell({ className }: { className?: string }) {
+  const { items, loaded, unreadCount, arrivalTick, markAllRead, markingAll } = useCrmNotifications();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<NotifRow[]>([]);
-  const [listTab, setListTab] = useState<"inbox" | "geral">("inbox");
-  const [markingAll, setMarkingAll] = useState(false);
-
-  const refreshList = useCallback(async () => {
-    try {
-      const res = await fetch("/api/crm/notifications", { cache: "no-store" });
-      const data = (await res.json()) as { ok?: boolean; notifications?: NotifRow[] };
-      if (data.ok && Array.isArray(data.notifications)) setItems(data.notifications);
-      else setItems([]);
-    } catch {
-      setItems([]);
-    }
-  }, []);
+  const [view, setView] = useState<"list" | "settings">("list");
+  const [tab, setTab] = useState<"unread" | "all">("unread");
+  const reduceMotion = useReducedMotion();
+  const bellControls = useAnimationControls();
+  const badgeControls = useAnimationControls();
+  const lastTickRef = useRef(arrivalTick);
+  // "Agora" estável enquanto o popover está aberto (horas relativas não pulam a cada render).
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
-    void refreshList();
-  }, [refreshList]);
+    if (arrivalTick === lastTickRef.current) return;
+    lastTickRef.current = arrivalTick;
+    if (reduceMotion) return;
+    void bellControls.start({
+      rotate: [0, -16, 13, -9, 6, -3, 0],
+      transition: { duration: 0.8, ease: "easeInOut" },
+    });
+    void badgeControls.start({ scale: [1, 1.35, 1], transition: { duration: 0.45, ease: "easeOut" } });
+  }, [arrivalTick, bellControls, badgeControls, reduceMotion]);
 
-  useCrmInAppNotificationsRealtime(() => {
-    void refreshList();
-  });
+  const visible = useMemo(() => {
+    const base = tab === "unread" ? items.filter((n) => !n.lida_em) : items;
+    return base.slice(0, MAX_ITEMS);
+  }, [items, tab]);
+  const sections = useMemo(() => groupNotificationsByDay(visible, now), [visible, now]);
+  const badge = unreadCount > 99 ? "99+" : String(unreadCount);
 
-  useEffect(() => {
-    if (open) void refreshList();
-  }, [open, refreshList]);
-
-  const unreadCount = useMemo(() => items.filter((n) => !n.lida_em).length, [items]);
-
-  const inboxItems = useMemo(() => items.filter((n) => !n.lida_em).slice(0, 20), [items]);
-  const geralItems = useMemo(() => [...items].slice(0, 20), [items]);
-  const visibleItems = listTab === "inbox" ? inboxItems : geralItems;
-
-  async function markOneRead(id: string) {
-    const res = await fetch(`/api/crm/notifications/${encodeURIComponent(id)}`, { method: "PATCH" });
-    if (!res.ok) return;
-    setItems((prev) => prev.map((x) => (x.id === id ? { ...x, lida_em: new Date().toISOString() } : x)));
-  }
-
-  async function markAllRead() {
-    const targets = items.filter((n) => !n.lida_em);
-    if (targets.length === 0) return;
-    setMarkingAll(true);
-    try {
-      await Promise.all(
-        targets.map((n) =>
-          fetch(`/api/crm/notifications/${encodeURIComponent(n.id)}`, { method: "PATCH" }),
-        ),
-      );
-      await refreshList();
-    } finally {
-      setMarkingAll(false);
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (next) {
+      setNow(new Date());
+      setView("list");
+      setTab(unreadCount > 0 ? "unread" : "all");
     }
   }
+
+  const close = () => setOpen(false);
+
+  // Ao trocar entre lista e preferências o botão clicado some: leva o foco para a tela nova,
+  // senão ele cai no <body> e o popover perde o foco do teclado.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const viewChangedRef = useRef(false);
+  useEffect(() => {
+    if (!viewChangedRef.current) return;
+    viewChangedRef.current = false;
+    contentRef.current?.querySelector<HTMLElement>("button, [href], input")?.focus();
+  }, [view]);
+  const switchView = (next: "list" | "settings") => {
+    viewChangedRef.current = true;
+    setView(next);
+  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Notificações"
-          aria-expanded={open}
+          aria-label={unreadCount > 0 ? `Notificações: ${unreadCount} não lidas` : "Notificações"}
           className={cn(
-            "relative inline-flex size-9 items-center justify-center rounded-(--radius-v2-md) border border-border bg-white text-muted-foreground transition-colors duration-200 hover:border-border-strong hover:bg-white hover:text-foreground focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/20",
-            unreadCount > 0 &&
-              "border-rose-200/90 shadow-[0_0_0_3px_rgba(244,63,94,0.12),0_2px_8px_rgba(225,29,72,0.08)] hover:border-rose-300/90",
+            "relative inline-flex size-9 items-center justify-center rounded-(--radius-v2-lg) border border-border bg-white text-muted-foreground transition-colors duration-(--motion-fast)",
+            "hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+            "data-[state=open]:border-interactive-300 data-[state=open]:bg-interactive-50 data-[state=open]:text-interactive-700",
+            unreadCount > 0 && "text-foreground",
             className,
           )}
         >
-          <Bell className="size-5" />
+          <motion.span animate={bellControls} style={{ originX: 0.5, originY: 0.1 }} className="inline-flex">
+            <Bell className="size-[18px]" strokeWidth={2} />
+          </motion.span>
           {unreadCount > 0 ? (
-            <span className="pointer-events-none absolute -right-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-danger-text px-1 text-xs font-bold tabular-nums text-white">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
+            <motion.span
+              animate={badgeControls}
+              aria-hidden
+              className="pointer-events-none absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-danger-text px-1 text-[11px] font-bold leading-none tabular-nums text-white ring-2 ring-white"
+            >
+              {badge}
+            </motion.span>
           ) : null}
         </button>
       </PopoverTrigger>
@@ -142,168 +221,124 @@ export function CrmNotificationsBell({ className }: { className?: string }) {
         align="end"
         sideOffset={8}
         collisionPadding={12}
-        className="w-[min(calc(100vw-1.5rem),380px)] rounded-(--radius-v2-2xl) border border-border bg-white p-0"
+        ref={contentRef}
+        className="flex max-h-[min(80dvh,640px)] w-[min(calc(100vw-1.5rem),400px)] flex-col overflow-hidden rounded-(--radius-v2-xl) bg-white p-0"
       >
-        <div className="flex items-start justify-between gap-3 rounded-t-(--radius-v2-2xl) border-b border-border bg-white px-4 pb-3 pt-3.5">
-          <h2 className="text-[15px] font-bold tracking-tight text-foreground">Notificações</h2>
-          <button
-            type="button"
-            disabled={unreadCount === 0 || markingAll}
-            onClick={() => void markAllRead()}
-            className={cn(
-              "shrink-0 rounded-(--radius-v2-sm) px-2 py-1 text-[12px] font-semibold text-muted-foreground transition-colors duration-150",
-              "hover:bg-accent hover:text-foreground hover:underline hover:underline-offset-2",
-              "focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/20",
-              "disabled:pointer-events-none disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:no-underline",
-            )}
-          >
-            Marcar todas como lidas
-          </button>
-        </div>
+        {view === "settings" ? (
+          <>
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+              <HeaderIconButton label="Voltar para os avisos" onClick={() => switchView("list")}>
+                <ArrowLeft className="size-4" strokeWidth={2} />
+              </HeaderIconButton>
+              <h2 className="text-[15px] font-bold tracking-[-0.01em] text-foreground">Preferências</h2>
+            </div>
+            <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <NotificationSettingsPanel />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 px-4 pb-2 pt-3">
+              <h2 className="text-[15px] font-bold tracking-[-0.01em] text-foreground">Notificações</h2>
+              {unreadCount > 0 ? (
+                <span className="rounded-full bg-interactive-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-interactive-700">
+                  {unreadCount} {unreadCount === 1 ? "nova" : "novas"}
+                </span>
+              ) : null}
+              <div className="ml-auto flex items-center gap-0.5">
+                <HeaderIconButton
+                  label="Marcar todas como lidas"
+                  onClick={() => void markAllRead()}
+                  disabled={unreadCount === 0 || markingAll}
+                >
+                  <CheckCheck className="size-4" strokeWidth={2} />
+                </HeaderIconButton>
+                <HeaderIconButton label="Preferências de notificação" onClick={() => switchView("settings")}>
+                  <Settings2 className="size-4" strokeWidth={2} />
+                </HeaderIconButton>
+                <HeaderIconButton label="Abrir central de notificações" href="/crm/notifications" onNavigate={close}>
+                  <Maximize2 className="size-4" strokeWidth={2} />
+                </HeaderIconButton>
+              </div>
+            </div>
 
-        <div className="flex items-center gap-0.5 border-b border-border bg-white px-2 pb-0 pt-1">
-          <button
-            type="button"
-            onClick={() => setListTab("inbox")}
-            className={cn(
-              "relative flex items-center gap-1.5 rounded-(--radius-v2-md) px-3 py-2 text-[13px] font-semibold transition-colors duration-150",
-              listTab === "inbox"
-                ? "text-foreground after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:rounded-full after:bg-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            Caixa de entrada
-            {unreadCount > 0 ? (
-              <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-bold text-white">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            onClick={() => setListTab("geral")}
-            className={cn(
-              "relative flex rounded-(--radius-v2-md) px-3 py-2 text-[13px] font-semibold transition-colors duration-150",
-              listTab === "geral"
-                ? "text-foreground after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:rounded-full after:bg-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            Geral
-          </button>
-          <Link
-            href="/crm/notifications"
-            onClick={() => setOpen(false)}
-            className="ml-auto inline-flex size-9 items-center justify-center rounded-(--radius-v2-md) text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground hover:ring-1 hover:ring-primary/15 active:scale-[0.97]"
-            aria-label="Abrir página completa de notificações"
-            title="Abrir página completa"
-          >
-            <SquareArrowOutUpRight className="size-4" strokeWidth={2.25} />
-          </Link>
-        </div>
+            <div className="px-4 pb-2.5">
+              <div role="group" aria-label="Filtro" className="grid grid-cols-2 gap-1 rounded-(--radius-v2-lg) bg-neutral-100 p-1">
+                {(
+                  [
+                    { id: "unread", label: "Não lidas", count: unreadCount },
+                    { id: "all", label: "Todas", count: null },
+                  ] as const
+                ).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    aria-pressed={tab === t.id}
+                    onClick={() => setTab(t.id)}
+                    className={cn(
+                      "inline-flex h-7 items-center justify-center gap-1.5 rounded-(--radius-v2-md) text-[13px] font-semibold transition-colors duration-(--motion-fast)",
+                      "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
+                      tab === t.id
+                        ? "bg-white text-foreground shadow-(--shadow-v2-xs)"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {t.label}
+                    {t.count ? (
+                      <span className="rounded-full bg-primary px-1.5 text-[11px] font-bold leading-4 tabular-nums text-white">
+                        {t.count > 99 ? "99+" : t.count}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        <div className="crm-scrollbar max-h-[min(52vh,380px)] overflow-y-auto overflow-x-hidden bg-white">
-          {visibleItems.length === 0 ? (
-            <p className="px-4 py-8 text-center text-[13px] text-muted-foreground">
-              {listTab === "inbox"
-                ? "Nenhuma notificação não lida."
-                : "Nenhuma notificação recente."}
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {visibleItems.map((row) => {
-                const origin = parseOriginadoPor(row.payload);
-                const criador = parseLeadCriadorPor(row.payload);
-                const face = origin ?? criador;
-                const href = notificationHref(row.payload);
-                const title = notificationTitle(row);
-                const sub = notificationSubtitle(row);
-                const contextoDatas = parseLeadContextoDatas(row.payload);
-                const when = formatDistanceToNow(new Date(row.created_at), {
-                  addSuffix: true,
-                  locale: ptBR,
-                });
-                const unread = !row.lida_em;
+            <div className="border-t border-border" />
 
-                return (
-                  <li key={row.id}>
-                    <Link
-                      href={href}
-                      onClick={() => {
-                        setOpen(false);
-                        if (unread) void markOneRead(row.id);
-                      }}
-                      className={cn(
-                        "group/item flex gap-3 rounded-(--radius-v2-lg) px-3 py-3 transition-all duration-150",
-                        "outline-none hover:bg-white hover:shadow-[0_1px_0_rgba(16,31,46,0.04),inset_3px_0_0_0_var(--primary)]",
-                        "focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-primary/20",
-                        "active:scale-[0.995]",
-                      )}
-                    >
-                      <Avatar className="size-10 shrink-0 border border-border">
-                        {face?.avatar_url ? <AvatarImage src={face.avatar_url} alt="" /> : null}
-                        <AvatarFallback className="bg-neutral-100 text-xs font-semibold text-foreground">
-                          {face ? initialsFromName(face.full_name) : "—"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-semibold leading-snug text-foreground">{title}</p>
-                        <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
-                          {when}
-                          {sub ? (
-                            <>
-                              <span aria-hidden className="text-neutral-300">
-                                {" "}
-                                ·{" "}
-                              </span>
-                              <span className="line-clamp-2">{sub}</span>
-                            </>
-                          ) : null}
-                        </p>
-                        {contextoDatas ? (
-                          <p className="mt-1 line-clamp-3 text-xs leading-snug text-muted-foreground">
-                            <span className="font-semibold text-muted-foreground">Lead: </span>
-                            {formatContextoDateTimePtBr(contextoDatas.lead_criado_em) ?? "—"}
-                            <span aria-hidden className="text-neutral-300"> · </span>
-                            <span className="font-semibold text-muted-foreground">DUE: </span>
-                            {formatContextoDateTimePtBr(contextoDatas.due_entrega_em) ?? "—"}
-                            <span aria-hidden className="text-neutral-300"> · </span>
-                            <span className="font-semibold text-muted-foreground">Reunião: </span>
-                            {formatContextoDateTimePtBr(contextoDatas.reuniao_em) ?? "—"}
-                          </p>
-                        ) : null}
-                      </div>
-                      {unread ? (
-                        <span
-                          className="mt-1.5 size-2.5 shrink-0 rounded-full bg-primary shadow-[0_0_0_2px_rgba(37,99,235,0.25)] ring-1 ring-white"
-                          aria-label="Não lida"
-                        />
-                      ) : (
-                        <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-transparent" aria-hidden />
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+            <div className="crm-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+              <PushInvite onOpenSettings={() => switchView("settings")} />
+              {!loaded ? (
+                <ul aria-busy className="space-y-px py-2">
+                  {[0, 1, 2].map((i) => (
+                    <li key={i} className="flex gap-3 px-4 py-3">
+                      <span className="size-9 shrink-0 animate-pulse rounded-(--radius-v2-lg) bg-neutral-100" />
+                      <span className="flex-1 space-y-2 pt-1">
+                        <span className="block h-3 w-3/4 animate-pulse rounded bg-neutral-100" />
+                        <span className="block h-3 w-1/2 animate-pulse rounded bg-neutral-100" />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : sections.length === 0 ? (
+                <EmptyState tab={tab} onShowAll={() => setTab("all")} />
+              ) : (
+                sections.map((section) => (
+                  <section key={section.bucket} aria-label={section.label}>
+                    <h3 className="sticky top-0 z-[1] border-b border-border/60 bg-white/95 px-4 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground backdrop-blur-sm">
+                      {section.label}
+                    </h3>
+                    <ul className="divide-y divide-border/70">
+                      {section.items.map((row) => (
+                        <NotificationItemCompact key={row.id} row={row} now={now} onNavigate={close} />
+                      ))}
+                    </ul>
+                  </section>
+                ))
+              )}
+            </div>
 
-        <div className="border-t border-border bg-white px-3 py-2.5">
-          <Link
-            href="/crm/notifications"
-            onClick={() => setOpen(false)}
-            className={cn(
-              "flex h-10 w-full items-center justify-center rounded-(--radius-v2-lg) border border-transparent text-[13px] font-semibold text-foreground",
-              "transition-colors duration-150",
-              "hover:border-border-strong hover:bg-accent hover:shadow-sm",
-              "active:scale-[0.99] active:bg-accent",
-              "focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/20",
-            )}
-          >
-            Ver todas as notificações
-          </Link>
-        </div>
+            <div className="border-t border-border p-2">
+              <Link
+                href="/crm/notifications"
+                onClick={close}
+                className="flex h-9 w-full items-center justify-center rounded-(--radius-v2-md) text-[13px] font-semibold text-interactive-700 transition-colors duration-(--motion-fast) hover:bg-interactive-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                Ver central de notificações
+              </Link>
+            </div>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );

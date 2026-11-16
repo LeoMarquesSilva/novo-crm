@@ -2,6 +2,13 @@
 
 Formato: data (ISO) | onda | resumo | validações.
 
+## 2026-11-16 — Notificações: novo sino, central, som e push
+
+- Centro único no navegador (`CrmNotificationsProvider` no AppShell): uma busca, um realtime, polling de reserva, título da aba com contador. Aviso novo: toast no canto + som (Web Audio, 4 opções, volume) com a aba visível; notificação do sistema em segundo plano; uma aba só toca.
+- Sino e `/crm/notifications` redesenhados: avisos por dia, ícone/cor por categoria, lida/não lida no hover, busca e chips por categoria na central, preferências no sino e na lateral.
+- Push: `public/sw.js`, `src/app/manifest.ts`, `crm_push_subscriptions`, gatilho pg_net → `POST /api/push/dispatch` (web-push/VAPID), `POST/DELETE /api/crm/push/subscriptions`, `POST /api/crm/push/test`. `PATCH /api/crm/notifications` (marcar todas) e `{ read: false }` no PATCH por id. Migration `20261116120000_crm_push_notifications.sql` aplicada no remoto em 16/11/2026 e segredos do push criados no Vault; variáveis do push cadastradas na Vercel (Production e Preview). Falta o deploy. Novas variáveis no `.env.example`. Dependência `web-push`. Detalhes em `system-context.md` §14.15.
+- Validações: `tsc --noEmit`, `npm run lint` (0 erros), `npm test` (1 falha intermitente em `rd-migration-form.test.tsx`, passa isolado), 26 testes novos; tela conferida no navegador com dados fictícios (desktop e celular).
+
 ## 2026-11-13 — Abertura no VIOS sem a tarefa de ciência
 
 - O pedido ao robô não leva mais a "CIÊNCIA DA ABERTURA DE PASTA": o VIOS cria essa tarefa sozinho ao abrir a pasta e recusou a segunda no teste gravando (pasta CI 61484).

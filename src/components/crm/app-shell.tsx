@@ -32,6 +32,8 @@ import {
 
 import { CrmNavigationProgress } from "@/components/crm/crm-navigation-progress";
 import { CrmNotificationsBell } from "@/components/crm/crm-notifications-bell";
+import { NotificationToaster } from "@/components/crm/notifications/notification-toaster";
+import { CrmNotificationsProvider } from "@/components/crm/notifications/notifications-provider";
 import type { CrmSessionUser } from "@/components/crm/crm-session-user";
 import { GlobalLeadSearch } from "@/components/crm/global-lead-search";
 import { SidebarAccountMenu } from "@/components/crm/sidebar-account-menu";
@@ -530,6 +532,7 @@ export function AppShell({
 
   return (
     <TooltipProvider delayDuration={220} skipDelayDuration={80}>
+      <CrmNotificationsProvider>
       <div className="relative min-h-dvh w-full max-w-full overflow-x-hidden bg-[#f8f9fb]">
         <CrmNavigationProgress />
         {/* Design System V2 (§14.3): header mobile entre 56px e 60px (py-2.5 + botão de 40px = 60px). */}
@@ -789,7 +792,9 @@ export function AppShell({
           </main>
         </div>
         <GlobalLeadSearch open={leadSearchOpen} onOpenChange={setLeadSearchOpen} />
+        <NotificationToaster />
       </div>
+      </CrmNotificationsProvider>
     </TooltipProvider>
   );
 }
