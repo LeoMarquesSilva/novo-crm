@@ -18,6 +18,7 @@ import { ClientesTab } from "./icp-clientes-tab";
 import { ComercialTab } from "./icp-comercial-tab";
 import { ICP_TABS, type IcpTabKey } from "./icp-content";
 import { monthLabel } from "./icp-format";
+import { InadimplenciaTab } from "./icp-inadimplencia-tab";
 import { MarketingTab } from "./icp-marketing-tab";
 import { ResumoTab } from "./icp-resumo-tab";
 
@@ -126,6 +127,9 @@ export function IcpDashboard({ data, error }: { data: IcpData | null; error: str
         </TabsContent>
         <TabsContent value="clientes">
           <ClientesTab data={data} />
+        </TabsContent>
+        <TabsContent value="inadimplencia">
+          <InadimplenciaTab data={data} />
         </TabsContent>
         <TabsContent value="marketing">
           <MarketingTab data={data} />

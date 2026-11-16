@@ -384,11 +384,17 @@ async function loadIcpData(): Promise<IcpData> {
           .order("id")
           .range(from, to)
     ),
-    fetchAll<{ id: string; cliente: string | null; departamento: string | null; valor_parcial_aberto: number | string | null }>(
+    fetchAll<{
+      id: string;
+      cliente: string | null;
+      departamento: string | null;
+      valor_parcial_aberto: number | string | null;
+      data_vencimento: string | null;
+    }>(
       (from, to) =>
         sioe
           .from("financeiro_parcelas_itens")
-          .select("id, cliente, departamento, valor_parcial_aberto")
+          .select("id, cliente, departamento, valor_parcial_aberto, data_vencimento")
           .eq("tipo", "RECEBER")
           .ilike("plano_contas", "HONOR%")
           .gt("valor_parcial_aberto", 0)
@@ -503,6 +509,7 @@ async function loadIcpData(): Promise<IcpData> {
         grupo: groupOf(o.cliente!),
         departamento: o.departamento,
         valor: toNumber(o.valor_parcial_aberto),
+        dueDate: o.data_vencimento,
       })),
     hours: sioeAggregates.hours,
     personnelCost: personnelRows.map((p) => ({ departamento: p.departamento, valor: toNumber(p.valor_pago_item) })),
@@ -519,7 +526,7 @@ async function loadIcpData(): Promise<IcpData> {
 }
 
 /** Resultado em cache por 6 horas; o botão "Recalcular" invalida a tag. */
-export const getIcpData = unstable_cache(loadIcpData, ["crm-icp-data-v7"], {
+export const getIcpData = unstable_cache(loadIcpData, ["crm-icp-data-v8"], {
   revalidate: 60 * 60 * 6,
   tags: [ICP_CACHE_TAG],
 });

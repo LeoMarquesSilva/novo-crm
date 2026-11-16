@@ -15,7 +15,7 @@ import {
 } from "@/components/crm/crm-surface-header";
 import { cn } from "@/lib/utils";
 import type { IcpGroupRow } from "@/modules/icp/domain/compute";
-import { SOURCE_SYSTEM, TIER_SCOPES, type Source, type SourceSystem, type TierScope } from "./icp-content";
+import { SOURCE_SYSTEM, TIER_SCOPES, overdueTone, type Source, type SourceSystem, type TierScope } from "./icp-content";
 import { employeeRangeText, groupName, pct } from "./icp-format";
 
 /** Ícone aceito pelos painéis: qualquer ícone do lucide ou o `LinkedinIcon` local. */
@@ -302,6 +302,21 @@ export function MiniBar({ value, warn }: { value: number; warn?: boolean }) {
   );
 }
 
+/** Atraso ÷ receita com barra colorida (verde, âmbar ou vermelho); a partir de 50% em vermelho. */
+export function OverdueCell({ value }: { value: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={cn("w-10 text-right tabular-nums", value >= 0.5 && "font-semibold text-danger-text")}>{pct(value)}</span>
+      <div className="h-1.5 w-12 overflow-hidden rounded-full bg-neutral-100">
+        <div
+          className={cn("h-full rounded-full", overdueTone(value))}
+          style={{ width: `${Math.min(100, Math.max(3, value * 100))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* --------------------------------------------------------------- Indicadores */
 
 /** Grupo de KPIs numa única Surface dividida em colunas (§29.2). */
@@ -430,7 +445,13 @@ export function FilterChip({
 /* ------------------------------------------------------------- Grupo cliente */
 
 /** Logo da empresa do grupo (LinkedIn ou site); sem logo, as iniciais do grupo. */
-export function CompanyLogo({ group, size = "md" }: { group: IcpGroupRow; size?: "xs" | "sm" | "md" }) {
+export function CompanyLogo({
+  group,
+  size = "md",
+}: {
+  group: Pick<IcpGroupRow, "grupo" | "profile">;
+  size?: "xs" | "sm" | "md";
+}) {
   const [failed, setFailed] = useState(false);
   const name = groupName(group.grupo);
   const box = { xs: "size-6 text-[9px]", sm: "size-7 text-[10px]", md: "size-9 text-xs" }[size];

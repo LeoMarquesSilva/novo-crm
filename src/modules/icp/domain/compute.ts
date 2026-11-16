@@ -41,6 +41,61 @@ export interface IcpOverdueRow {
   grupo: string;
   departamento: string | null;
   valor: number;
+  /** Data de vencimento (ISO). Sem ela, o valor entra no total mas fica fora do envelhecimento. */
+  dueDate?: string | null;
+}
+
+/** Há quanto tempo a parcela venceu, contado da data do cálculo. */
+export const OVERDUE_AGING = [
+  { key: "ate30", label: "Até 30 dias", maxDays: 30 },
+  { key: "31a90", label: "31 a 90 dias", maxDays: 90 },
+  { key: "91a180", label: "91 a 180 dias", maxDays: 180 },
+  { key: "181a365", label: "181 dias a 1 ano", maxDays: 365 },
+  { key: "mais365", label: "Mais de 1 ano", maxDays: null },
+] as const;
+
+export type IcpOverdueAgingKey = (typeof OVERDUE_AGING)[number]["key"];
+
+/** Valor vencido em aberto por tempo de atraso (só as faixas com valor). */
+export type IcpOverdueAging = Partial<Record<IcpOverdueAgingKey, number>>;
+
+const DAY_MS = 86_400_000;
+
+/** Dias entre o vencimento e a data de referência (datas ISO, sem fuso). */
+export function daysOverdue(dueDate: string, today: string): number {
+  return Math.round((Date.parse(`${today.slice(0, 10)}T00:00:00Z`) - Date.parse(`${dueDate.slice(0, 10)}T00:00:00Z`)) / DAY_MS);
+}
+
+export function overdueAgingOf(dueDate: string, today: string): IcpOverdueAgingKey {
+  const days = daysOverdue(dueDate, today);
+  return OVERDUE_AGING.find((a) => a.maxDays != null && days <= a.maxDays)?.key ?? "mais365";
+}
+
+/** Soma o envelhecimento de uma lista de grupos, com todas as faixas (zero quando não há). */
+export function overdueAgingTotals(list: { overdueAging: IcpOverdueAging }[]): Record<IcpOverdueAgingKey, number> {
+  const totals = Object.fromEntries(OVERDUE_AGING.map((a) => [a.key, 0])) as Record<IcpOverdueAgingKey, number>;
+  for (const g of list) {
+    for (const a of OVERDUE_AGING) totals[a.key] += g.overdueAging[a.key] ?? 0;
+  }
+  return totals;
+}
+
+/**
+ * Grupo com honorário vencido em aberto que não pagou nada em 12 meses: fica fora das
+ * faixas (que são pela receita), mas entra no total em atraso do escritório.
+ */
+export interface IcpOverdueOutsideGroup {
+  grupo: string;
+  overdue: number;
+  /** Valor em atraso por área que faturou (chaves como em byArea). */
+  overdueByArea: Record<string, number>;
+  overdueAging: IcpOverdueAging;
+  /** Vencimento da parcela em aberto mais antiga. */
+  oldestOverdue: string | null;
+  /** Pastas ativas no VIOS hoje. */
+  activeFolders: number;
+  /** Horas lançadas para o grupo em 12 meses. */
+  hours12m: number;
 }
 
 /** Horas apontadas no timesheet, já somadas por grupo e área. */
@@ -184,6 +239,10 @@ export interface IcpGroupRow {
   /** Tipo de cliente no cadastro do VIOS: só pessoa física, com empresa, ou sem cadastro. */
   clientType: "pessoa_fisica" | "pessoa_juridica" | null;
   overdue: number;
+  /** Atraso por tempo desde o vencimento. */
+  overdueAging: IcpOverdueAging;
+  /** Vencimento da parcela em aberto mais antiga; null sem atraso. */
+  oldestOverdue: string | null;
   /** Pastas ativas no VIOS hoje (processo não encerrado e com situação "Ativo"). */
   activeFolders: number;
   hours12m: number;
@@ -304,6 +363,8 @@ export interface IcpData {
     whatsappUnqualified: number;
   };
   groups: IcpGroupRow[];
+  /** Quem deve honorário vencido e não pagou nada em 12 meses (do maior atraso ao menor). */
+  overdueOutside: IcpOverdueOutsideGroup[];
 }
 
 /** Áreas de prática (os demais departamentos de receita entram como "Outros"). */
@@ -680,13 +741,25 @@ export function computeIcp(input: IcpInput): IcpData {
   const rateOf = new Map(rates.map((r) => [r.area, r.rate]));
 
   const overdueByGroup = new Map<string, Map<string, number>>();
+  const agingByGroup = new Map<string, IcpOverdueAging>();
+  const oldestByGroup = new Map<string, string>();
   for (const o of input.overdue) {
     if (!o.grupo || o.valor <= 0) continue;
     const perArea = overdueByGroup.get(o.grupo) ?? new Map<string, number>();
     const area = areaKey(o.departamento);
     perArea.set(area, (perArea.get(area) ?? 0) + o.valor);
     overdueByGroup.set(o.grupo, perArea);
+    if (!o.dueDate) continue;
+    const due = o.dueDate.slice(0, 10);
+    const aging = agingByGroup.get(o.grupo) ?? {};
+    const bucket = overdueAgingOf(due, windowEnd);
+    aging[bucket] = (aging[bucket] ?? 0) + o.valor;
+    agingByGroup.set(o.grupo, aging);
+    const oldest = oldestByGroup.get(o.grupo);
+    if (!oldest || due < oldest) oldestByGroup.set(o.grupo, due);
   }
+  const sumValues = (map: Map<string, number> | undefined) =>
+    [...(map?.values() ?? [])].reduce((acc, v) => acc + v, 0);
 
   const foldersByGroup = new Map<string, Map<string, number>>();
   for (const f of input.activeFolders ?? []) {
@@ -816,6 +889,8 @@ export function computeIcp(input: IcpInput): IcpData {
             ? "pessoa_fisica"
             : "pessoa_juridica",
         overdue: metrics.reduce((acc, m) => acc + m.overdue, 0),
+        overdueAging: agingByGroup.get(grupo) ?? {},
+        oldestOverdue: oldestByGroup.get(grupo) ?? null,
         activeFolders: metrics.reduce((acc, m) => acc + m.folders, 0),
         hours12m: metrics.reduce((acc, m) => acc + m.hours, 0),
         deliveryCost: metrics.reduce((acc, m) => acc + m.cost, 0),
@@ -823,6 +898,19 @@ export function computeIcp(input: IcpInput): IcpData {
       } satisfies IcpGroupRow;
     })
     .sort((a, b) => b.revenue12m - a.revenue12m);
+
+  const overdueOutside: IcpOverdueOutsideGroup[] = [...overdueByGroup.entries()]
+    .filter(([grupo]) => !byGroup.has(grupo))
+    .map(([grupo, perArea]) => ({
+      grupo,
+      overdue: sumValues(perArea),
+      overdueByArea: Object.fromEntries(perArea),
+      overdueAging: agingByGroup.get(grupo) ?? {},
+      oldestOverdue: oldestByGroup.get(grupo) ?? null,
+      activeFolders: sumValues(foldersByGroup.get(grupo)),
+      hours12m: sumValues(hoursByGroup.get(grupo)),
+    }))
+    .sort((a, b) => b.overdue - a.overdue);
 
   const total = groups.reduce((acc, g) => acc + g.revenue12m, 0);
   const share = (v: number, base = total) => (base > 0 ? v / base : 0);
@@ -1034,6 +1122,7 @@ export function computeIcp(input: IcpInput): IcpData {
       ).length,
     },
     groups,
+    overdueOutside,
   };
 }
 

@@ -71,8 +71,10 @@ export function icpFixtureInput(): IcpInput {
       { grupo: "Grupo Gama", tipo: "PESSOA FÍSICA", uf: "MG", cidade: "Belo Horizonte", categoria: "Cliente ativo" },
     ],
     overdue: [
-      { grupo: "Grupo Alfa", departamento: "Insolvência", valor: 7_000 },
-      { grupo: "Grupo Gama", departamento: "Trabalhista", valor: 20_000 },
+      { grupo: "Grupo Alfa", departamento: "Insolvência", valor: 7_000, dueDate: "2026-09-10" },
+      { grupo: "Grupo Gama", departamento: "Trabalhista", valor: 20_000, dueDate: "2025-06-01" },
+      // Não pagou nada em 12 meses: fica fora das faixas, mas aparece na aba Inadimplência.
+      { grupo: "Grupo Ômega", departamento: "Cível", valor: 15_000, dueDate: "2026-04-01" },
     ],
     hours: [
       { grupo: "Grupo Alfa", area: "Insolvência", horas: 400 },

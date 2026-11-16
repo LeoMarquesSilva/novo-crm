@@ -27,7 +27,7 @@ test("mostra as abas e o Resumo por padrão", () => {
   render(<IcpDashboard data={icpFixtureData()} error={null} />);
 
   const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-  for (const label of ["Resumo", "Carteira", "Clientes", "Marketing", "Pauta comercial"]) {
+  for (const label of ["Resumo", "Carteira", "Clientes", "Inadimplência", "Marketing", "Pauta comercial"]) {
     expect(tabs).toContain(label);
   }
   expect(screen.getByRole("tab", { name: "Resumo" })).toHaveAttribute("aria-selected", "true");
@@ -136,6 +136,39 @@ test("na Carteira, a tabela de faixas tem receita média por hora, a linha do es
 
   await user.click(within(ticketHeader).getByRole("button", { name: "Ticket/mês" }));
   expect(ticketHeader).toHaveAttribute("aria-sort", "descending");
+});
+
+test("a aba Inadimplência mostra o atraso por faixa, quem não pagou em 12 meses e a lista de quem deve", async () => {
+  const user = userEvent.setup();
+  render(<IcpDashboard data={icpFixtureData()} error={null} />);
+  await user.click(screen.getByRole("tab", { name: "Inadimplência" }));
+
+  // Fixture: Alfa (A) deve R$ 7 mil, Gama (C) R$ 20 mil e Ômega, sem pagamento em 12 meses, R$ 15 mil.
+  const kpis = screen.getByRole("region", { name: "Indicadores de inadimplência" });
+  expect(within(kpis).getByText("R$ 42 mil")).toBeInTheDocument();
+  expect(within(kpis).getByText("R$ 15 mil")).toBeInTheDocument();
+  const tiersPanel = screen.getByRole("heading", { name: "Atraso por faixa" }).closest("section")!;
+  expect(within(tiersPanel).getByText("Pagantes (A a E)")).toBeInTheDocument();
+  expect(within(tiersPanel).getByText("Escritório todo")).toBeInTheDocument();
+  expect(within(tiersPanel).getAllByText("Sem pagamento em 12 meses").length).toBeGreaterThan(0);
+  expect(screen.getByRole("heading", { name: "Tempo de atraso e áreas" })).toBeInTheDocument();
+
+  const list = screen.getByRole("heading", { name: "Quem deve" }).closest("section")!;
+  const table = within(list).getByRole("table");
+  const names = () =>
+    within(table)
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => within(row).getAllByRole("cell")[0].querySelector("p")?.textContent);
+  expect(names()).toEqual(["Gama", "Ômega", "Alfa"]);
+  expect(within(table).getByText("Não pagou nada em 12 meses")).toBeInTheDocument();
+
+  await user.click(within(table).getByRole("button", { name: "Grupo" }));
+  expect(names()).toEqual(["Alfa", "Gama", "Ômega"]);
+
+  // Desligar o filtro de quem não pagou tira o Ômega da lista.
+  await user.click(within(list).getByRole("button", { name: /Sem pagamento em 12 meses/ }));
+  expect(names()).toEqual(["Alfa", "Gama"]);
 });
 
 test("sem conexão com o ORQESTRAI, a aba Marketing avisa em vez de mostrar painéis vazios", async () => {

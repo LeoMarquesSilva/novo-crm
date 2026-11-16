@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   computeIcp,
+  daysOverdue,
   employeeBandOf,
+  overdueAgingOf,
+  overdueAgingTotals,
   planSummary,
   rankedGroups,
   revenuePerHour,
@@ -369,6 +372,86 @@ describe("computeIcp", () => {
     const byName = new Map(data.groups.map((g) => [g.grupo, g]));
     expect(byName.get("Grupo Spel")).toMatchObject({ employeeBand: "51a200", profile });
     expect(byName.get("Grupo Sem Página")).toMatchObject({ employeeBand: null, profile: null });
+  });
+
+  it("separa o atraso pelo tempo desde o vencimento e guarda a parcela mais antiga", () => {
+    const data = computeIcp(
+      baseInput({
+        revenue: [pay("Grupo Alfa", "Cível", 90_000)],
+        overdue: [
+          { grupo: "Grupo Alfa", departamento: "Cível", valor: 1_000, dueDate: "2026-09-21" },
+          { grupo: "Grupo Alfa", departamento: "Cível", valor: 2_000, dueDate: "2026-08-01" },
+          { grupo: "Grupo Alfa", departamento: "Trabalhista", valor: 4_000, dueDate: "2025-01-15T00:00:00" },
+          // Sem vencimento: entra no total, fora do envelhecimento.
+          { grupo: "Grupo Alfa", departamento: "Cível", valor: 500 },
+        ],
+      })
+    );
+    const alfa = data.groups.find((g) => g.grupo === "Grupo Alfa")!;
+    expect(alfa.overdue).toBe(7_500);
+    expect(alfa.overdueAging).toEqual({ ate30: 1_000, "31a90": 2_000, mais365: 4_000 });
+    expect(alfa.oldestOverdue).toBe("2025-01-15");
+    expect(data.overdueOutside).toEqual([]);
+  });
+
+  it("lista quem deve e não pagou nada em 12 meses, com pastas e horas", () => {
+    const data = computeIcp(
+      baseInput({
+        revenue: [pay("Grupo Alfa", "Cível", 90_000), pay("Grupo Antigo", "Cível", 50_000, undefined, "2024-05-10")],
+        overdue: [
+          { grupo: "Grupo Alfa", departamento: "Cível", valor: 1_000, dueDate: "2026-09-21" },
+          { grupo: "Grupo Antigo", departamento: "Cível", valor: 30_000, dueDate: "2025-03-01" },
+          { grupo: "Grupo Antigo", departamento: "Trabalhista", valor: 5_000, dueDate: "2026-05-01" },
+          { grupo: "Grupo Sumido", departamento: "Cível", valor: 8_000, dueDate: "2026-08-01" },
+        ],
+        activeFolders: [
+          { grupo: "Grupo Antigo", area: "Cível" },
+          { grupo: "Grupo Antigo", area: "Trabalhista" },
+        ],
+        hours: [{ grupo: "Grupo Antigo", area: "Cível", horas: 12 }],
+      })
+    );
+    expect(data.groups.map((g) => g.grupo)).toEqual(["Grupo Alfa"]);
+    expect(data.overdueOutside).toEqual([
+      {
+        grupo: "Grupo Antigo",
+        overdue: 35_000,
+        overdueByArea: { Cível: 30_000, Trabalhista: 5_000 },
+        overdueAging: { mais365: 30_000, "91a180": 5_000 },
+        oldestOverdue: "2025-03-01",
+        activeFolders: 2,
+        hours12m: 12,
+      },
+      {
+        grupo: "Grupo Sumido",
+        overdue: 8_000,
+        overdueByArea: { Cível: 8_000 },
+        overdueAging: { "31a90": 8_000 },
+        oldestOverdue: "2026-08-01",
+        activeFolders: 0,
+        hours12m: 0,
+      },
+    ]);
+  });
+});
+
+describe("overdueAgingOf", () => {
+  it("usa os limites de 30, 90, 180 e 365 dias", () => {
+    const today = "2026-10-01";
+    expect(daysOverdue("2026-09-01", today)).toBe(30);
+    expect(overdueAgingOf("2026-09-30", today)).toBe("ate30");
+    expect(overdueAgingOf("2026-09-01", today)).toBe("ate30");
+    expect(overdueAgingOf("2026-08-31", today)).toBe("31a90");
+    expect(overdueAgingOf("2026-07-03", today)).toBe("31a90");
+    expect(overdueAgingOf("2026-07-02", today)).toBe("91a180");
+    expect(overdueAgingOf("2025-10-01", today)).toBe("181a365");
+    expect(overdueAgingOf("2025-09-30", today)).toBe("mais365");
+  });
+
+  it("soma o envelhecimento com todas as faixas", () => {
+    expect(
+      overdueAgingTotals([{ overdueAging: { ate30: 100 } }, { overdueAging: { ate30: 50, mais365: 10 } }])
+    ).toEqual({ ate30: 150, "31a90": 0, "91a180": 0, "181a365": 0, mais365: 10 });
   });
 });
 
