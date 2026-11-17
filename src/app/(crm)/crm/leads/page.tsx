@@ -182,6 +182,17 @@ export default function LeadsPage() {
     setKanbanPrefsHydrated(true);
   }, []);
 
+  // `/crm/leads?novo=1` (atalho "Cadastrar novo lead" do Dashboard) abre o cadastro, se a pessoa pode criar lead.
+  useEffect(() => {
+    if (!canCreateLead) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("novo") !== "1") return;
+    setIsCadastroOpen(true);
+    params.delete("novo");
+    const rest = params.toString();
+    router.replace(rest ? `/crm/leads?${rest}` : "/crm/leads", { scroll: false });
+  }, [canCreateLead, router]);
+
   useEffect(() => {
     setPinnedLeadId(null);
   }, [pipelineTab]);
